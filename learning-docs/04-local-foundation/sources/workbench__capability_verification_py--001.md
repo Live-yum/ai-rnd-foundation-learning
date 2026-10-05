@@ -37,15 +37,15 @@
 - `run_steps`（L363–L455）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L367遍历`enumerate(steps)`；L379按`started + wait >= deadline`分支；L380抛异常，停止当前正常路径；L381按`wait`分支；L384按`step.body is not None`分支；L386按`step.body_encoding == "form"`分支；L390抛异常，停止当前正常路径；L397按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L455的`receipts`。
 - `run_scenarios`（L458–L499）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L469遍历`scenarios`；L471按`scenario.id not in saved`分支；L478按`not steps`分支；L486抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L499的`checks, saved`。
 - `run_browser`（L502–L609）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L504按`not selected`分支；L507按`not node`分支；L508抛异常，停止当前正常路径；L514抛异常，停止当前正常路径；L551抛异常，停止当前正常路径；L562按`prior and prior["passed"] is False`分支；L563抛异常，停止当前正常路径；L566抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L505的`[]`；L609的`value["checks"]`。
-- `require_evidence`（L612–L710）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L627按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L633抛异常，停止当前正常路径；L645按`aggregate`分支；L652抛异常，停止当前正常路径；L657按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L670抛异常，停止当前正常路径；L671按`aggregate`分支；L674按`not required or restarted != required or receipt.get("restarted") is not True`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`isinstance`、`dependency_profile.get`、`container.get`、`CheckFailure`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L710的`receipt`。
+- `require_evidence`（L612–L733）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L631按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L634抛异常，停止当前正常路径；L635按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L641抛异常，停止当前正常路径；L653按`aggregate`分支；L660抛异常，停止当前正常路径；L665按`selection["template"] == "fastapiadmin"`分支；L667遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L733的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L710。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L733。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`27798`。本段原文以LF换行结束。
+本段原始字节数：`28752`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "95d0a25055d66b585cb5942c9e59378c4a15498c5c02031855f16bb4d36de62c"} -->
+<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "22e0e3908c3e4bee3a1562de338ad00902b71b9e42660ef0248fe2ee63d930cc"} -->
 ````python
 # workbench/capability_verification.py
 """Independent HTTP checks run outside the generated application's sandbox.
@@ -663,7 +663,11 @@ def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
     from workbench.capability_dependencies import require_dependency_manifest
-    from workbench.capability_execution import VERIFIER, require_preinstalled_evidence
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        security_checks_for,
+    )
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
@@ -674,6 +678,10 @@ def require_evidence(
         receipt.get("dependency_profile"), selection["template"]
     )
     container = receipt["container_isolation"]
+    if selection["template"] == "fastapiadmin" and container.get("profile") != (
+        "native-fastapiadmin-postgresql-v1"
+    ):
+        raise CheckFailure("原生证据未绑定专用私有共享内存容器")
     if (
         not isinstance(dependency_profile, dict)
         or dependency_profile.get("profile") != selection["template"]
@@ -700,7 +708,22 @@ def require_evidence(
             )
     except ValueError:
         raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
-    require_isolation_evidence(receipt.get("execution_isolation"))
+    require_isolation_evidence(
+        receipt.get("execution_isolation"),
+        native_semaphore_storage=selection["template"] == "fastapiadmin",
+    )
+    if selection["template"] == "fastapiadmin":
+        required_security = security_checks_for(selection)
+        for field in (
+            ("security_checks", "restart_security_checks") if aggregate else ("security_checks",)
+        ):
+            security = receipt.get(field)
+            if (
+                type(security) is not dict
+                or set(security) != required_security
+                or any(value is not True for value in security.values())
+            ):
+                raise CheckFailure("原生最终证据缺少完整的初始或重启隔离反例及清理证明")
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
     actual = {c.get("id"): c.get("contract_sha256") for c in checks if c.get("phase") == "initial"}

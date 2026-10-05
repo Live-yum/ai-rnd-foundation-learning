@@ -53,6 +53,7 @@
 - [scripts/capability_guard.py](sources/scripts__capability_guard_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_native_egress.py](sources/scripts__capability_native_egress_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_native_planner_probe.py](sources/scripts__capability_native_planner_probe_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_native_shm_probe.py](sources/scripts__capability_native_shm_probe_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_security_probe.py](sources/scripts__capability_security_probe_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_acceptance.py](sources/scripts__ci_acceptance_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_capability_browser_isolation.py](sources/scripts__ci_capability_browser_isolation_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -107,6 +108,9 @@
 - [tests/test_capability_native_freeze.py](sources/tests__test_capability_native_freeze_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_planner_probe.py](sources/tests__test_capability_native_planner_probe_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_services.py](sources/tests__test_capability_native_services_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_native_shm_binding.py](sources/tests__test_capability_native_shm_binding_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_native_shm_guard.py](sources/tests__test_capability_native_shm_guard_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_native_shm_probe.py](sources/tests__test_capability_native_shm_probe_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_orchestration.py](sources/tests__test_capability_orchestration_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_policy.py](sources/tests__test_capability_policy_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_policy_review.py](sources/tests__test_capability_policy_review_py--001.md)：可重复的验收用例；1 段

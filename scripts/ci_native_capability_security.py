@@ -433,7 +433,9 @@ def certify(product=PRODUCT, directory=HOME, *, source_receipt=None):
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=selected
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
         )
         summary["proof"] = settings.redact_data(proof)
         require_native_positive(proof, plan, digest(inventory), browser_image)

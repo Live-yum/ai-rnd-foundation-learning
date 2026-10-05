@@ -234,7 +234,7 @@ def setup_certification(tmp_path, product, monkeypatch):
     )
     monkeypatch.setattr(ci, "verifier_identity", lambda: "e" * 64)
     monkeypatch.setattr(
-        ci, "security_probe_for_profile", lambda path, value: "native-security-probe"
+        ci, "security_probe_for_profile", lambda path, value, **kw: "native-security-probe"
     )
     monkeypatch.setattr(
         ci, "inspect_created_sandbox", lambda *args, **kwargs: events.append((args, kwargs))

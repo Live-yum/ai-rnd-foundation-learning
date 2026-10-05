@@ -32,6 +32,18 @@ CONTROL_SHELL_ENV = {
     "ZDOTDIR": "/nonexistent",
 }
 ISOLATION_PROFILE = "module-linux-landlock-v1"
+NATIVE_SHARED_MEMORY_EVIDENCE = {
+    "profile": "native-private-shm-v1",
+    "actual_mount_verified": True,
+    "regular_files_only": True,
+    "size_bytes": 64 * 1024 * 1024,
+    "noexec": True,
+    "nosuid": True,
+    "nodev": True,
+    "uid": 0,
+    "gid": 0,
+    "mode": 0o1777,
+}
 ISOLATION_FLAGS = (
     "no_new_privs",
     "capabilities_cleared",
@@ -49,7 +61,21 @@ ISOLATION_FLAGS = (
 )
 
 
-def require_isolation_evidence(value):
+def require_native_shared_memory_evidence(value):
+    expected = NATIVE_SHARED_MEMORY_EVIDENCE
+    if (
+        type(value) is not dict
+        or value.keys() != expected.keys()
+        or any(
+            type(value[key]) is not type(wanted) or value[key] != wanted
+            for key, wanted in expected.items()
+        )
+    ):
+        raise IsolationUnavailable("缺少原生共享内存实际挂载和普通文件范围的完整隔离回执")
+    return value
+
+
+def require_isolation_evidence(value, *, native_semaphore_storage=False):
     if (
         not isinstance(value, dict)
         or value.get("profile") != ISOLATION_PROFILE
@@ -61,6 +87,10 @@ def require_isolation_evidence(value):
         or any(value.get(flag) is not True for flag in ISOLATION_FLAGS)
     ):
         raise IsolationUnavailable("缺少准确版本、完整必需字段或当前守卫摘要的执行隔离回执")
+    if native_semaphore_storage:
+        require_native_shared_memory_evidence(value.get("native_shared_memory"))
+    elif "native_shared_memory" in value:
+        raise IsolationUnavailable("普通执行配置不能带有原生共享内存写权限回执")
     return value
 
 
@@ -91,6 +121,7 @@ class ContainerInspectionRejected(ValueError):
             "tmpfs_mounts",
             "binary_mounts",
             "resource_limits",
+            "shared_memory",
         }
     )
     _NUMBERS = frozenset(
@@ -119,6 +150,8 @@ class ContainerInspectionRejected(ValueError):
             "mount_sources_match",
             "mount_readonly_matches",
             "mount_writable_matches",
+            "shared_memory_ipc_private",
+            "shared_memory_size_match",
         }
     )
     _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
@@ -178,6 +211,17 @@ def require_container_evidence(value, sandbox_id):
         )
     ):
         raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
+    if value["profile"] == "native-fastapiadmin-postgresql-v1":
+        shared = value.get("shared_memory")
+        if (
+            type(shared) is not dict
+            or set(shared) != {"ipc_mode", "size_bytes"}
+            or type(shared.get("ipc_mode")) is not str
+            or shared["ipc_mode"] != "private"
+            or type(shared.get("size_bytes")) is not int
+            or shared["size_bytes"] != 64 * 1024 * 1024
+        ):
+            raise IsolationUnavailable("原生容器缺少私有64 MiB共享内存的独立检查回执")
     return value
 
 
@@ -191,7 +235,18 @@ def control_exec(sandbox, argv, timeout):
     )
 
 
-def product_argv(plan, argv, database):
+def product_argv(plan, argv, database, *, native_semaphore_storage=False):
+    # This keyword is supplied by the trusted container-admission path. Source
+    # plans, environment variables and a connection to 55433 cannot opt in.
+    if (
+        type(native_semaphore_storage) is not bool
+        or native_semaphore_storage
+        and (
+            getattr(plan.selection, "template", "") != "fastapiadmin"
+            or plan.selection.database != "postgresql"
+        )
+    ):
+        raise IsolationUnavailable("共享内存写权限仅用于独立核实的原生PostgreSQL执行配置")
     ports = {plan.runtime.port}
     if ports & {2280, 55432, 55433}:
         raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
@@ -247,6 +302,7 @@ def product_argv(plan, argv, database):
             GUARD,
             ",".join(str(value) for value in sorted(ports)),
             connect,
+            *(["--native-shm"] if native_semaphore_storage else []),
             "--",
             "/usr/bin/env",
             "-i",
@@ -308,7 +364,7 @@ print(json.dumps({'application_uid':os.getuid(),'no_new_privs':True,'capabilitie
 """
 
 
-def prepare_identity(sandbox, plan, timeout):
+def prepare_identity(sandbox, plan, timeout, *, native_semaphore_storage=False):
     root = control_exec(sandbox, ["/usr/bin/id", "-u"], timeout)
     output = root.result.strip() if isinstance(root.result, str) else ""
     control_uid = int(output) if re.fullmatch(r"[0-9]{1,10}", output) else None
@@ -410,8 +466,8 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("系统解释器环境无法核实") from None
     if plan.selection.database == "postgresql":
         trusted.extend(["/usr/lib/postgresql/17/bin/psql", "/usr/lib/postgresql/17/bin/postgres"])
-    guarded = product_argv(plan, [], {})
-    probe_argv = guarded[: guarded.index(GUARD) + 3] + ["--probe"]
+    guarded = product_argv(plan, [], {}, native_semaphore_storage=native_semaphore_storage)
+    probe_argv = guarded[: guarded.index(GUARD) + 3 + int(native_semaphore_storage)] + ["--probe"]
     probe_status, probe_output = run_guarded_control(sandbox, probe_argv, timeout)
     try:
         guard_receipt = json.loads(probe_output)
@@ -425,7 +481,12 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("内核缺少所需Landlock ABI6隔离，未执行生成源码")
     identity_status, identity_output = run_guarded_control(
         sandbox,
-        product_argv(plan, ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted], {}),
+        product_argv(
+            plan,
+            ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted],
+            {},
+            native_semaphore_storage=native_semaphore_storage,
+        ),
         timeout,
     )
     if identity_status != 0:
@@ -443,5 +504,6 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
             "profile": ISOLATION_PROFILE,
             "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
             **identity_check,
-        }
+        },
+        native_semaphore_storage=native_semaphore_storage,
     )

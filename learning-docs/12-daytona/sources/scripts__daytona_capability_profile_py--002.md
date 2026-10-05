@@ -15,17 +15,17 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `inspect_created_sandbox`（L728–L955）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L737按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L738抛异常，停止当前正常路径；L743按`native`分支；L748按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L749抛异常，停止当前正常路径；L754按`len(rows) != 1`分支；L755抛异常，停止当前正常路径；L760按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L955的`receipt`。
-- `up`（L958–L996）：接收`directory`。 控制顺序：L970遍历`range(90)`；L977按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L978抛异常，停止当前正常路径；L984按`ready == local.KEEP`分支；L986遍历`endpoints`；L994按`attempt < 89`分支；L996抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L999–L1012）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1004按`args.action == "prepare"`分支；L1006按`args.action == "up"`分支；L1008按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_created_sandbox`（L749–L979）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L758按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L759抛异常，停止当前正常路径；L764按`native`分支；L769按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L770抛异常，停止当前正常路径；L775按`len(rows) != 1`分支；L776抛异常，停止当前正常路径；L781按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L979的`receipt`。
+- `up`（L982–L1020）：接收`directory`。 控制顺序：L994遍历`range(90)`；L1001按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L1002抛异常，停止当前正常路径；L1008按`ready == local.KEEP`分支；L1010遍历`endpoints`；L1018按`attempt < 89`分支；L1020抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L1023–L1036）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1028按`args.action == "prepare"`分支；L1030按`args.action == "up"`分支；L1032按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L728–L1020。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L749–L1044。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12266`。本段原文以LF换行结束。
+本段原始字节数：`12405`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "e42512ea28eb052ccfeba87d7b3f3cd36310177729c7b4f380c6a57b5d26fa9c"} -->
+<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "bb2b00dbe5f1ef62439a4f1679e7a6a42502f5b0a19f79862c3984f214b2c05b"} -->
 ````python
 # scripts/daytona_capability_profile.py
 def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, selection=None):
@@ -112,6 +112,7 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
+    shared_memory = require_native_shared_memory(host) if native else None
     if require_resources:
         networks = container.get("NetworkSettings", {}).get("Networks", {})
         if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
@@ -255,6 +256,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     }
     if require_resources:
         receipt["resource_limits"] = require_execution_resources(host, native=native)
+    if native:
+        receipt["shared_memory"] = shared_memory
     return receipt
 
 

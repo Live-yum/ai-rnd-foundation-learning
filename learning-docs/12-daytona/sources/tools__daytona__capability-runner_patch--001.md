@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L44。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L46。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1829`。本段原文以LF换行结束。
+本段原始字节数：`1917`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed"} -->
 ````text
 # tools/daytona/capability-runner.patch
 --- a/apps/runner/pkg/docker/container_configs.go
@@ -34,7 +34,7 @@
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,26 @@
+@@ -234,6 +232,28 @@
  		}
  	}
  
@@ -51,6 +51,8 @@
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 +		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.IpcMode = container.IpcMode("private")
++			hostConfig.ShmSize = 67108864
 +			hostConfig.CPUQuota = 200000
 +			hostConfig.Memory = 6 * 1024 * 1024 * 1024
 +			pidLimit = 384

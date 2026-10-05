@@ -56,9 +56,9 @@
 
 **创建路径：** `tests/test_ci_native_capability_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L704。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`27002`。本段原文以LF换行结束。
+本段原始字节数：`27008`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0095c223473529017f6c37dbbd8403b21eba24ed7847317b7d3751115efa0005"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60cb1ae57dd85cc94f3d9070b3942f1272ebcd88b464e6dbb6e7cdb1eeacf442"} -->
 ````python
 # tests/test_ci_native_capability_source.py
 """CI source handoff contracts only; no live container/native acceptance claims."""
@@ -568,7 +568,7 @@ def test_contest_consumer_uses_same_ready_profile_source_without_filtering(
     monkeypatch.setattr(contest_ci, "require_native_profile", lambda *a: record)
     monkeypatch.setattr(contest_ci, "client_for", lambda *a: events.append("client") or object())
     monkeypatch.setattr(contest_ci, "close_client", lambda *a: events.append("close"))
-    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a: None)
+    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a, **kw: None)
     monkeypatch.setattr(
         "sys.argv",
         ["contest", "--product", str(state.product), "--source-receipt", str(state.receipt)],

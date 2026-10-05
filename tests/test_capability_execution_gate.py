@@ -258,12 +258,15 @@ print('real-kernel-confinement-passed')
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only native semaphore confinement")
-def test_real_native_guard_denies_spawn_process_pool_constructor(tmp_path):
+@pytest.mark.parametrize("bind,connect", [("8001", ""), ("5173,8001", "8001,55432,55433")])
+def test_real_guard_denies_spawn_pool_without_explicit_native_shm(tmp_path, bind, connect):
     """Exercise the constructor used by pinned APScheduler, not a mocked syscall.
 
     No task is submitted and no worker is intentionally started. The full guard
     runs unchanged except for its writable root pointing to this owned fixture.
-    CI requires the kernel check; unsupported developer kernels may only skip.
+    Both the ordinary profile and native-looking ports without the trusted shm
+    flag must deny construction. CI requires the kernel check; unsupported
+    developer kernels may only skip.
     """
     from workbench.capability_sandbox import startup_failure_diagnostic
 
@@ -298,7 +301,7 @@ if libc.syscall(444,0,0,1)<6:sys.exit(78)
 m=runpy.run_path({str(ROOT / "scripts/capability_guard.py")!r})
 m['main'].__globals__['WRITABLE_ROOT']={str(writable)!r}
 os.environ['TMPDIR']={str(writable)!r}
-sys.argv=['guard','5173,8001','8001,55432,55433','--',sys.executable,'-I','-S','-c',{constructor!r}]
+sys.argv=['guard',{bind!r},{connect!r},'--',sys.executable,'-I','-S','-c',{constructor!r}]
 m['main']()
 """
     process = subprocess.Popen(

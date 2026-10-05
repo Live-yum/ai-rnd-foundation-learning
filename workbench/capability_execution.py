@@ -56,6 +56,7 @@ SOURCE_FILES = (
     "workbench/capability_native_runtime.py",
     "scripts/capability_native_egress.py",
     "scripts/capability_native_planner_probe.py",
+    "scripts/capability_native_shm_probe.py",
     "scripts/ci_native_capability_security.py",
     "scripts/ci_native_capability_source.py",
     "scripts/ci_native_tools.py",
@@ -117,6 +118,16 @@ NATIVE_SECURITY_CHECKS = (
     "redis_owned_namespace_only",
     "private_redis_control_denied",
     "native_egress_denied_same_ports",
+    "native_shm_64mib_enforced",
+    "native_shm_ordinary_files_allowed",
+    "native_shm_spawn_pool_completed",
+    "native_shm_spawn_pool_cleanup",
+    "native_shm_noexec_enforced",
+    "native_shm_forbidden_objects_denied",
+    "native_shm_outside_writes_denied",
+    "native_shm_probe_cleanup",
+    "cross_container_shm_private",
+    "peer_cleanup",
 )
 
 
@@ -213,6 +224,16 @@ def require_profile_container_binding(record, container):
         raise ValueError("Inspected container does not match the admitted dependency image")
     if container.get("dependency_manifest") != bound["dependency_manifest"]:
         raise ValueError("Inspector is missing exact immutable dependency provenance")
+    if record.get("selection", {}).get("template") == "fastapiadmin":
+        shared = container.get("shared_memory")
+        if (
+            container.get("profile") != "native-fastapiadmin-postgresql-v1"
+            or type(shared) is not dict
+            or shared != {"ipc_mode": "private", "size_bytes": 67108864}
+            or type(shared["ipc_mode"]) is not str
+            or type(shared["size_bytes"]) is not int
+        ):
+            raise ValueError("Native image admission requires its exact private shared memory")
     return container
 
 

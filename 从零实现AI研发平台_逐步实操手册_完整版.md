@@ -10821,16 +10821,16 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
 
 **逐个入口与控制逻辑：**
 
-- `security_checks_for`（L123–L128）：接收`selection`。 控制顺序：L124按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L125的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L128的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L131–L136）：接收`selection`。 调用`selection.get`。 返回路径：L132的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L139–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L140的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L143–L164）：接收`record`。 控制顺序：L147按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L151抛异常，停止当前正常路径；L155按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L156抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L157的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_preinstalled_evidence`（L167–L203）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L183按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L202抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`expected.get`、`re.fullmatch`、`str`、`ValueError`。 返回路径：L203的`value`。
-- `require_profile_container_binding`（L206–L216）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L209按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L213抛异常，停止当前正常路径；L214按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L215抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`。 返回路径：L216的`container`。
-- `require_security_receipt`（L219–L262）：接收`value`、`record`、`browser_image`。 控制顺序：L237按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L256抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L262的`value`。
-- `capability_execution_prerequisites`（L265–L320）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L275按`not settings.capability_execution_enabled`分支；L276抛异常，停止当前正常路径；L280按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L284抛异常，停止当前正常路径；L288按`settings.sandbox_provider != "daytona"`分支；L289抛异常，停止当前正常路径；L300按`directory.is_relative_to(runs)`分支；L301抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L320的`directory, record`。
+- `security_checks_for`（L134–L139）：接收`selection`。 控制顺序：L135按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L136的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L139的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L142–L147）：接收`selection`。 调用`selection.get`。 返回路径：L143的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L150–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L151的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L154–L175）：接收`record`。 控制顺序：L158按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L162抛异常，停止当前正常路径；L166按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L167抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L168的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_preinstalled_evidence`（L178–L214）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L194按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L213抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`expected.get`、`re.fullmatch`、`str`、`ValueError`。 返回路径：L214的`value`。
+- `require_profile_container_binding`（L217–L237）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L220按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L224抛异常，停止当前正常路径；L225按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L226抛异常，停止当前正常路径；L227按`record.get("selection", {}).get("template") == "fastapiadmin"`分支；L229按`container.get("profile") != "native-fastapiadmin-postgresql-v1" or type(shared) is no…`分支；L236抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`、`record.get("selection", {}).get`、`record.get`、`type`。 返回路径：L237的`container`。
+- `require_security_receipt`（L240–L283）：接收`value`、`record`、`browser_image`。 控制顺序：L258按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L277抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L283的`value`。
+- `capability_execution_prerequisites`（L286–L341）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L296按`not settings.capability_execution_enabled`分支；L297抛异常，停止当前正常路径；L301按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L305抛异常，停止当前正常路径；L309按`settings.sandbox_provider != "daytona"`分支；L310抛异常，停止当前正常路径；L321按`directory.is_relative_to(runs)`分支；L322抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L341的`directory, record`。
 
-<!-- source-file: workbench/capability_execution.py sha256: bb8ca22835d5e2f454c3ca95dce819c2011b051add9e01528a94af3720406467 -->
+<!-- source-file: workbench/capability_execution.py sha256: 96e170aa06bf281a5fd46d07935f8a9b62762c8070c5abf11c9110faddefa6bc -->
 ````python
 """Fail-closed admission for reviewed custom-source execution.
 
@@ -10890,6 +10890,7 @@ SOURCE_FILES = (
     "workbench/capability_native_runtime.py",
     "scripts/capability_native_egress.py",
     "scripts/capability_native_planner_probe.py",
+    "scripts/capability_native_shm_probe.py",
     "scripts/ci_native_capability_security.py",
     "scripts/ci_native_capability_source.py",
     "scripts/ci_native_tools.py",
@@ -10951,6 +10952,16 @@ NATIVE_SECURITY_CHECKS = (
     "redis_owned_namespace_only",
     "private_redis_control_denied",
     "native_egress_denied_same_ports",
+    "native_shm_64mib_enforced",
+    "native_shm_ordinary_files_allowed",
+    "native_shm_spawn_pool_completed",
+    "native_shm_spawn_pool_cleanup",
+    "native_shm_noexec_enforced",
+    "native_shm_forbidden_objects_denied",
+    "native_shm_outside_writes_denied",
+    "native_shm_probe_cleanup",
+    "cross_container_shm_private",
+    "peer_cleanup",
 )
 
 
@@ -11047,6 +11058,16 @@ def require_profile_container_binding(record, container):
         raise ValueError("Inspected container does not match the admitted dependency image")
     if container.get("dependency_manifest") != bound["dependency_manifest"]:
         raise ValueError("Inspector is missing exact immutable dependency provenance")
+    if record.get("selection", {}).get("template") == "fastapiadmin":
+        shared = container.get("shared_memory")
+        if (
+            container.get("profile") != "native-fastapiadmin-postgresql-v1"
+            or type(shared) is not dict
+            or shared != {"ipc_mode": "private", "size_bytes": 67108864}
+            or type(shared["ipc_mode"]) is not str
+            or type(shared["size_bytes"]) is not int
+        ):
+            raise ValueError("Native image admission requires its exact private shared memory")
     return container
 
 
@@ -11166,22 +11187,23 @@ def capability_execution_prerequisites(settings, selection):
 
 **逐个入口与控制逻辑：**
 
-- `require_isolation_evidence`（L52–L64）：接收`value`。 控制顺序：L53按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L63抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L64的`value`。
-- `IsolationUnavailable`（L67–L70）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `IsolationUnavailable.__init__`（L68–L70）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ContainerInspectionRejected`（L73–L149）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ContainerInspectionRejected.__init__`（L126–L130）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ContainerInspectionRejected.diagnostic`（L132–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L138遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L139按`key not in facts`分支；L142按`key in schema._NUMBERS`分支；L144按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L135的`{}`；L149的`evidence`。
-- `require_container_evidence`（L152–L181）：接收`value`、`sandbox_id`。 控制顺序：L157按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L180抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L181的`value`。
-- `system_argv`（L184–L185）：接收`argv`。 返回路径：L185的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
-- `control_exec`（L188–L191）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L189的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
-- `product_argv`（L194–L256）：接收`plan`、`argv`、`database`。 控制顺序：L196按`ports & {2280, 55432, 55433}`分支；L197抛异常，停止当前正常路径；L199按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L200按`plan.runtime.port == 5173`分支；L201抛异常，停止当前正常路径；L220按`template in {"python-basic", "fastapiadmin"}`分支；L226按`template == "fastapiadmin"`分支。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L230的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
-- `redirected_command`（L259–L263）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L263的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L266–L274）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L267按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L270抛异常，停止当前正常路径；L272按`result.exit_code != 0`分支；L273抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L274的`result.result or ""`。
-- `run_guarded_control`（L277–L280）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L280的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L311–L447）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L332按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L333抛异常，停止当前正常路径；L359遍历`commands`；L360按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L361抛异常，停止当前正常路径；L379按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L380抛异常，停止当前正常路径；L384按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L439的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `require_native_shared_memory_evidence`（L64–L75）：接收`value`。 控制顺序：L66按`type(value) is not dict or value.keys() != expected.keys() or any( type(value[key]) i…`分支；L74抛异常，停止当前正常路径。 调用`type`、`value.keys`、`expected.keys`、`any`、`expected.items`、`IsolationUnavailable`。 返回路径：L75的`value`。
+- `require_isolation_evidence`（L78–L94）：接收`value`、`native_semaphore_storage`。 控制顺序：L79按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L89抛异常，停止当前正常路径；L90按`native_semaphore_storage`分支；L92按`"native_shared_memory" in value`分支；L93抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`、`require_native_shared_memory_evidence`。 返回路径：L94的`value`。
+- `IsolationUnavailable`（L97–L100）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `IsolationUnavailable.__init__`（L98–L100）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected`（L103–L182）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ContainerInspectionRejected.__init__`（L159–L163）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected.diagnostic`（L165–L182）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L171遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L172按`key not in facts`分支；L175按`key in schema._NUMBERS`分支；L177按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L168的`{}`；L182的`evidence`。
+- `require_container_evidence`（L185–L225）：接收`value`、`sandbox_id`。 控制顺序：L190按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L213抛异常，停止当前正常路径；L214按`value["profile"] == "native-fastapiadmin-postgresql-v1"`分支；L216按`type(shared) is not dict or set(shared) != {"ipc_mode", "size_bytes"} or type(shared.…`分支；L224抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`、`type`、`set`等。 返回路径：L225的`value`。
+- `system_argv`（L228–L229）：接收`argv`。 返回路径：L229的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L232–L235）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L233的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L238–L312）：接收`plan`、`argv`、`database`、`native_semaphore_storage`。 控制顺序：L241按`type(native_semaphore_storage) is not bool or native_semaphore_storage and ( getattr(…`分支；L249抛异常，停止当前正常路径；L251按`ports & {2280, 55432, 55433}`分支；L252抛异常，停止当前正常路径；L254按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L255按`plan.runtime.port == 5173`分支；L256抛异常，停止当前正常路径；L275按`template in {"python-basic", "fastapiadmin"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`IsolationUnavailable`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L285的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L315–L319）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L319的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L322–L330）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L323按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L326抛异常，停止当前正常路径；L328按`result.exit_code != 0`分支；L329抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L330的`result.result or ""`。
+- `run_guarded_control`（L333–L336）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L336的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L367–L509）：接收`sandbox`、`plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L388按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L389抛异常，停止当前正常路径；L415遍历`commands`；L416按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L417抛异常，停止当前正常路径；L435按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L436抛异常，停止当前正常路径；L440按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L500的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
-<!-- source-file: workbench/capability_isolation.py sha256: 58b9012cd8a08683b4bcc072c7283ced37469e7a6a8f83906818c3a8d6234c06 -->
+<!-- source-file: workbench/capability_isolation.py sha256: 03f8f3a39078031f4ea0a315619ca4621ea333ccfb4babb263bdd9d9915ce116 -->
 ````python
 """Disposable Linux identity and control-channel separation for module commands.
 
@@ -11217,6 +11239,18 @@ CONTROL_SHELL_ENV = {
     "ZDOTDIR": "/nonexistent",
 }
 ISOLATION_PROFILE = "module-linux-landlock-v1"
+NATIVE_SHARED_MEMORY_EVIDENCE = {
+    "profile": "native-private-shm-v1",
+    "actual_mount_verified": True,
+    "regular_files_only": True,
+    "size_bytes": 64 * 1024 * 1024,
+    "noexec": True,
+    "nosuid": True,
+    "nodev": True,
+    "uid": 0,
+    "gid": 0,
+    "mode": 0o1777,
+}
 ISOLATION_FLAGS = (
     "no_new_privs",
     "capabilities_cleared",
@@ -11234,7 +11268,21 @@ ISOLATION_FLAGS = (
 )
 
 
-def require_isolation_evidence(value):
+def require_native_shared_memory_evidence(value):
+    expected = NATIVE_SHARED_MEMORY_EVIDENCE
+    if (
+        type(value) is not dict
+        or value.keys() != expected.keys()
+        or any(
+            type(value[key]) is not type(wanted) or value[key] != wanted
+            for key, wanted in expected.items()
+        )
+    ):
+        raise IsolationUnavailable("缺少原生共享内存实际挂载和普通文件范围的完整隔离回执")
+    return value
+
+
+def require_isolation_evidence(value, *, native_semaphore_storage=False):
     if (
         not isinstance(value, dict)
         or value.get("profile") != ISOLATION_PROFILE
@@ -11246,6 +11294,10 @@ def require_isolation_evidence(value):
         or any(value.get(flag) is not True for flag in ISOLATION_FLAGS)
     ):
         raise IsolationUnavailable("缺少准确版本、完整必需字段或当前守卫摘要的执行隔离回执")
+    if native_semaphore_storage:
+        require_native_shared_memory_evidence(value.get("native_shared_memory"))
+    elif "native_shared_memory" in value:
+        raise IsolationUnavailable("普通执行配置不能带有原生共享内存写权限回执")
     return value
 
 
@@ -11276,6 +11328,7 @@ class ContainerInspectionRejected(ValueError):
             "tmpfs_mounts",
             "binary_mounts",
             "resource_limits",
+            "shared_memory",
         }
     )
     _NUMBERS = frozenset(
@@ -11304,6 +11357,8 @@ class ContainerInspectionRejected(ValueError):
             "mount_sources_match",
             "mount_readonly_matches",
             "mount_writable_matches",
+            "shared_memory_ipc_private",
+            "shared_memory_size_match",
         }
     )
     _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
@@ -11363,6 +11418,17 @@ def require_container_evidence(value, sandbox_id):
         )
     ):
         raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
+    if value["profile"] == "native-fastapiadmin-postgresql-v1":
+        shared = value.get("shared_memory")
+        if (
+            type(shared) is not dict
+            or set(shared) != {"ipc_mode", "size_bytes"}
+            or type(shared.get("ipc_mode")) is not str
+            or shared["ipc_mode"] != "private"
+            or type(shared.get("size_bytes")) is not int
+            or shared["size_bytes"] != 64 * 1024 * 1024
+        ):
+            raise IsolationUnavailable("原生容器缺少私有64 MiB共享内存的独立检查回执")
     return value
 
 
@@ -11376,7 +11442,18 @@ def control_exec(sandbox, argv, timeout):
     )
 
 
-def product_argv(plan, argv, database):
+def product_argv(plan, argv, database, *, native_semaphore_storage=False):
+    # This keyword is supplied by the trusted container-admission path. Source
+    # plans, environment variables and a connection to 55433 cannot opt in.
+    if (
+        type(native_semaphore_storage) is not bool
+        or native_semaphore_storage
+        and (
+            getattr(plan.selection, "template", "") != "fastapiadmin"
+            or plan.selection.database != "postgresql"
+        )
+    ):
+        raise IsolationUnavailable("共享内存写权限仅用于独立核实的原生PostgreSQL执行配置")
     ports = {plan.runtime.port}
     if ports & {2280, 55432, 55433}:
         raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
@@ -11432,6 +11509,7 @@ def product_argv(plan, argv, database):
             GUARD,
             ",".join(str(value) for value in sorted(ports)),
             connect,
+            *(["--native-shm"] if native_semaphore_storage else []),
             "--",
             "/usr/bin/env",
             "-i",
@@ -11493,7 +11571,7 @@ print(json.dumps({'application_uid':os.getuid(),'no_new_privs':True,'capabilitie
 """
 
 
-def prepare_identity(sandbox, plan, timeout):
+def prepare_identity(sandbox, plan, timeout, *, native_semaphore_storage=False):
     root = control_exec(sandbox, ["/usr/bin/id", "-u"], timeout)
     output = root.result.strip() if isinstance(root.result, str) else ""
     control_uid = int(output) if re.fullmatch(r"[0-9]{1,10}", output) else None
@@ -11595,8 +11673,8 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("系统解释器环境无法核实") from None
     if plan.selection.database == "postgresql":
         trusted.extend(["/usr/lib/postgresql/17/bin/psql", "/usr/lib/postgresql/17/bin/postgres"])
-    guarded = product_argv(plan, [], {})
-    probe_argv = guarded[: guarded.index(GUARD) + 3] + ["--probe"]
+    guarded = product_argv(plan, [], {}, native_semaphore_storage=native_semaphore_storage)
+    probe_argv = guarded[: guarded.index(GUARD) + 3 + int(native_semaphore_storage)] + ["--probe"]
     probe_status, probe_output = run_guarded_control(sandbox, probe_argv, timeout)
     try:
         guard_receipt = json.loads(probe_output)
@@ -11610,7 +11688,12 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("内核缺少所需Landlock ABI6隔离，未执行生成源码")
     identity_status, identity_output = run_guarded_control(
         sandbox,
-        product_argv(plan, ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted], {}),
+        product_argv(
+            plan,
+            ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted],
+            {},
+            native_semaphore_storage=native_semaphore_storage,
+        ),
         timeout,
     )
     if identity_status != 0:
@@ -11628,7 +11711,8 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
             "profile": ISOLATION_PROFILE,
             "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
             **identity_check,
-        }
+        },
+        native_semaphore_storage=native_semaphore_storage,
     )
 ````
 
@@ -12086,11 +12170,11 @@ def business_coverage(policy, proof):
 - `startup_failure_diagnostic.exceptions_in`（L94–L99）：接收`trace`。 调用`exception_pattern.finditer`、`item[1].endswith`。 返回路径：L95的`[ item for item in exception_pattern.finditer(trace) if item[1].endswith(("Error", "Except…`。
 - `restart_application_identity`（L164–L214）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L213按`result.exit_code != 0`分支；L214抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `verify_capabilities`（L217–L307）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L223按`plan.selection.model_dump() != selection`分支；L224抛异常，停止当前正常路径；L233按`selection["template"] == "fastapiadmin"`分支；L236按`dependency_identity(product) != profile["dependency_identity"]`分支；L237抛异常，停止当前正常路径；L273按`len(body) > 1_000_000`分支；L274抛异常，停止当前正常路径；L296抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L228的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L307的`receipt`。
-- `_verify`（L310–L814）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L346按`trusted_oracle not in (None, "contest-business-v2")`分支；L347抛异常，停止当前正常路径；L348按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L351抛异常，停止当前正常路径；L354按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L358抛异常，停止当前正常路径；L359按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L364抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L814的`receipt`。
-- `_verify.start`（L497–L592）：接收`command`、`port`、`health_path`。 控制顺序：L528按`not response.cmd_id`分支；L529抛异常，停止当前正常路径；L532按`not isinstance(preview.token, str) or not preview.token`分支；L533抛异常，停止当前正常路径；L545在`time.monotonic() < deadline`成立时循环；L549按`200 <= check.status_code < 300`分支；L582按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L589抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L550的`http, url, preview.token`。
-- `main`（L817–L860）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L819按`len(body) > 1_000_000`分支；L820抛异常，停止当前正常路径；L829按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L835抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L310–L827）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L346按`trusted_oracle not in (None, "contest-business-v2")`分支；L347抛异常，停止当前正常路径；L348按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L351抛异常，停止当前正常路径；L354按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L358抛异常，停止当前正常路径；L359按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L364抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L827的`receipt`。
+- `_verify.start`（L504–L599）：接收`command`、`port`、`health_path`。 控制顺序：L535按`not response.cmd_id`分支；L536抛异常，停止当前正常路径；L539按`not isinstance(preview.token, str) or not preview.token`分支；L540抛异常，停止当前正常路径；L552在`time.monotonic() < deadline`成立时循环；L556按`200 <= check.status_code < 300`分支；L589按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L596抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L557的`http, url, preview.token`。
+- `main`（L830–L875）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L832按`len(body) > 1_000_000`分支；L833抛异常，停止当前正常路径；L842按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L848抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: 9354ea395f3205bb1820c69845580835ecff2fc852ef86da6b823d0e0bde1956 -->
+<!-- source-file: workbench/capability_sandbox.py sha256: 3f88c5ed52f7e601b6fbfd4635574b21df0d2f771dc27a68d428ce1db59541df -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -12505,6 +12589,10 @@ def _verify(
                 control_observer(sandbox.id), sandbox.id
             )
             require_profile_container_binding(profile_record, receipt["container_isolation"])
+            if native and receipt["container_isolation"].get("profile") != (
+                "native-fastapiadmin-postgresql-v1"
+            ):
+                raise ValueError("Native execution requires its exact container profile")
         except ContainerInspectionRejected as exc:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码",
@@ -12526,7 +12614,10 @@ def _verify(
         )
         if result.exit_code != 0:
             raise CheckFailure("自定义产品源码解压失败")
-        receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        identity_options = {"native_semaphore_storage": True} if native else {}
+        receipt["execution_isolation"] = prepare_identity(
+            sandbox, plan, settings.tool_timeout, **identity_options
+        )
         receipt["preinstalled_dependencies"] = require_preinstalled_evidence(
             prepare_readonly_dependencies(
                 sandbox,
@@ -12560,7 +12651,7 @@ def _verify(
         for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             result = run_session_command(
                 sandbox.process,
@@ -12606,7 +12697,7 @@ def _verify(
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             response = sandbox.process.execute_session_command(
                 session,
@@ -12876,6 +12967,12 @@ def _verify(
     except CheckFailure as exc:
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if native:
+            from scripts.capability_native_shm_probe import native_shm_cleanup_diagnostic
+
+            cleanup_diagnostic = native_shm_cleanup_diagnostic(exc)
+            if cleanup_diagnostic:
+                receipt["native_shm_cleanup_diagnostic"] = cleanup_diagnostic
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
@@ -12946,7 +13043,9 @@ def main():
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=payload["selection"]
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
         )
@@ -13654,9 +13753,9 @@ def pg_verifier_argv(query):
 - `run_steps`（L363–L455）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L367遍历`enumerate(steps)`；L379按`started + wait >= deadline`分支；L380抛异常，停止当前正常路径；L381按`wait`分支；L384按`step.body is not None`分支；L386按`step.body_encoding == "form"`分支；L390抛异常，停止当前正常路径；L397按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L455的`receipts`。
 - `run_scenarios`（L458–L499）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L469遍历`scenarios`；L471按`scenario.id not in saved`分支；L478按`not steps`分支；L486抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L499的`checks, saved`。
 - `run_browser`（L502–L609）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L504按`not selected`分支；L507按`not node`分支；L508抛异常，停止当前正常路径；L514抛异常，停止当前正常路径；L551抛异常，停止当前正常路径；L562按`prior and prior["passed"] is False`分支；L563抛异常，停止当前正常路径；L566抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L505的`[]`；L609的`value["checks"]`。
-- `require_evidence`（L612–L710）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L627按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L633抛异常，停止当前正常路径；L645按`aggregate`分支；L652抛异常，停止当前正常路径；L657按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L670抛异常，停止当前正常路径；L671按`aggregate`分支；L674按`not required or restarted != required or receipt.get("restarted") is not True`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`isinstance`、`dependency_profile.get`、`container.get`、`CheckFailure`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L710的`receipt`。
+- `require_evidence`（L612–L733）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L631按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L634抛异常，停止当前正常路径；L635按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L641抛异常，停止当前正常路径；L653按`aggregate`分支；L660抛异常，停止当前正常路径；L665按`selection["template"] == "fastapiadmin"`分支；L667遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L733的`receipt`。
 
-<!-- source-file: workbench/capability_verification.py sha256: 95d0a25055d66b585cb5942c9e59378c4a15498c5c02031855f16bb4d36de62c -->
+<!-- source-file: workbench/capability_verification.py sha256: 22e0e3908c3e4bee3a1562de338ad00902b71b9e42660ef0248fe2ee63d930cc -->
 ````python
 """Independent HTTP checks run outside the generated application's sandbox.
 
@@ -14273,7 +14372,11 @@ def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
     from workbench.capability_dependencies import require_dependency_manifest
-    from workbench.capability_execution import VERIFIER, require_preinstalled_evidence
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        security_checks_for,
+    )
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
@@ -14284,6 +14387,10 @@ def require_evidence(
         receipt.get("dependency_profile"), selection["template"]
     )
     container = receipt["container_isolation"]
+    if selection["template"] == "fastapiadmin" and container.get("profile") != (
+        "native-fastapiadmin-postgresql-v1"
+    ):
+        raise CheckFailure("原生证据未绑定专用私有共享内存容器")
     if (
         not isinstance(dependency_profile, dict)
         or dependency_profile.get("profile") != selection["template"]
@@ -14310,7 +14417,22 @@ def require_evidence(
             )
     except ValueError:
         raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
-    require_isolation_evidence(receipt.get("execution_isolation"))
+    require_isolation_evidence(
+        receipt.get("execution_isolation"),
+        native_semaphore_storage=selection["template"] == "fastapiadmin",
+    )
+    if selection["template"] == "fastapiadmin":
+        required_security = security_checks_for(selection)
+        for field in (
+            ("security_checks", "restart_security_checks") if aggregate else ("security_checks",)
+        ):
+            security = receipt.get(field)
+            if (
+                type(security) is not dict
+                or set(security) != required_security
+                or any(value is not True for value in security.values())
+            ):
+                raise CheckFailure("原生最终证据缺少完整的初始或重启隔离反例及清理证明")
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
     actual = {c.get("id"): c.get("contract_sha256") for c in checks if c.get("phase") == "initial"}
@@ -74979,9 +75101,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 - `dependency_profile`（L12–L22）：接收`template`、`descriptors`。 调用`dict.fromkeys`、`native_descriptor_roles`。 返回路径：L14的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
 - `profile_record`（L25–L48）：接收`product`、`template`。 控制顺序：L27按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L35的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
 - `dependency_evidence`（L51–L64）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L53的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
-- `container_binding`（L67–L73）：接收`record`。 返回路径：L68的`{ "runner_image_id": record["runner"]["image_id"], "snapshot_image_id": record["snapshot"]…`。
+- `container_binding`（L67–L81）：接收`record`。 调用`record.get("selection", {}).get`、`record.get`。 返回路径：L68的`{ **( { "profile": "native-fastapiadmin-postgresql-v1", "shared_memory": {"ipc_mode": "pri…`。
 
-<!-- source-file: tests/capability_dependency_fixtures.py sha256: 59aa673e63e2a068b89f45b44c88a15ce17890497d55be75760e5d36a99c3e43 -->
+<!-- source-file: tests/capability_dependency_fixtures.py sha256: d5383db24aef905ca0e4b88c7da76b73bc27349611378612d6683e7c2c047c47 -->
 ````python
 """Synthetic provenance for contract tests only; never a live image attestation."""
 
@@ -75051,6 +75173,14 @@ def dependency_evidence(profile=None, inventory=None):
 
 def container_binding(record):
     return {
+        **(
+            {
+                "profile": "native-fastapiadmin-postgresql-v1",
+                "shared_memory": {"ipc_mode": "private", "size_bytes": 67108864},
+            }
+            if record.get("selection", {}).get("template") == "fastapiadmin"
+            else {}
+        ),
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
@@ -119629,7 +119759,7 @@ def test_pg_probe_bounds_output_and_uses_independent_readonly_identity(monkeypat
 - `test_native_oracle_runs_initial_restart_and_fresh_replay.initial`（L114–L116）：接收`*a`。 调用`events.append`、`object`。 返回路径：L116的`object(), {key: True for key in contest.SEMANTICS[:5]}`。
 - `test_business_proof_rejects_incomplete_or_self_reported_results`（L151–L174）：接收`mutation`。 控制顺序：L165按`mutation == "self-report"`分支；L167按`mutation == "missing-replay"`分支；L169按`mutation == "full-complete"`分支；L171按`mutation == "missing-cleanup"`分支。 调用`list`、`pytest.raises`、`require_business_proof`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_contest_integration.py sha256: 8006e8bbf8cbb2dd7378a814b610acb0e7c6191646da048add7afad468f54457 -->
+<!-- source-file: tests/test_capability_contest_integration.py sha256: 37c0cc08902ac4d4167381dd8e44723bb2d934f8bd6ba4080a9126a005e22924 -->
 ````python
 """Mocked lifecycle wiring only; real CI must prove application/business behavior."""
 
@@ -119680,7 +119810,7 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         ),
     )
     for name in ("inspect_stack", "require_container_evidence", "prepare_identity"):
-        monkeypatch.setattr(verifier, name, lambda *a: {})
+        monkeypatch.setattr(verifier, name, lambda *a, **kw: {})
     admitted = profile_record(template="fastapiadmin")
     monkeypatch.setattr(
         verifier, "require_container_evidence", lambda *a: container_binding(admitted)
@@ -119943,10 +120073,10 @@ def test_stale_and_extra_edits_fail_before_copy(tmp_path):
 - `test_real_child_resource_limits_do_not_change_parent_limits`（L177–L195）：接收`tmp_path`。 控制顺序：L190断言`result.returncode == 0`；L192断言`actual["RLIMIT_FSIZE"] == [32 * 1024 * 1024] * 2`；L193断言`actual["RLIMIT_NPROC"][1] <= 128`；L194断言`actual["RLIMIT_NOFILE"][1] <= 256`；L195断言`resource.getrlimit(resource.RLIMIT_NOFILE) == before`。 调用`resource.getrlimit`、`str`、`subprocess.run`、`json.loads`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_package_factory_is_recognized_without_allowing_stack_replacement`（L198–L220）：接收`tmp_path`。 控制顺序：L217断言`inspect_stack(tmp_path, plan)["launcher"] == "uvicorn"`。 调用`entry.parent.mkdir`、`entry.write_text`、`front.mkdir`、`(front / "package.json").write_text`、`(front / "Page.vue").write_text`、`SimpleNamespace`、`Selection`、`inspect_stack`、`plan.runtime.start.argv.remove`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_landlock_denies_symlink_proc_and_inherited_fd_escapes`（L224–L257）：接收`tmp_path`。 控制顺序：L252按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L254断言`process.returncode == 0`；L255断言`process.stdout.strip() == "real-kernel-confinement-passed"`；L256断言`outside.read_text() == "original"`；L257断言`(writable / "ordinary").read_text() == "allowed"`。 调用`writable.mkdir`、`outside.write_text`、`(writable / "escape").symlink_to`、`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`outside.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_native_guard_denies_spawn_process_pool_constructor`（L261–L333）：接收`tmp_path`。 源码说明：Exercise the constructor used by pinned APScheduler, not a mocked syscall. No task is submitted and no worker is intentionally started. The full guard runs unchanged except for its writable root point。 控制顺序：L322按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L324断言`process.returncode == 0`；L326断言`evidence in [ {"constructor": "denied", "errno": 1}, {"constructor": "denied", "errno…`；L331断言`diagnostic["failure_component"] == "multiprocessing-semaphore"`；L332断言`diagnostic["exception_errno"] == evidence["errno"]`；L333断言`list(writable.iterdir()) == []`。 调用`writable.mkdir`、`str`、`subprocess.Popen`、`process.communicate`、`os.killpg`、`process.wait`、`os.environ.get`、`pytest.skip`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L337–L372）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L371断言`process.returncode == 0`；L372断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_guard_denies_spawn_pool_without_explicit_native_shm`（L262–L336）：接收`tmp_path`、`bind`、`connect`。 源码说明：Exercise the constructor used by pinned APScheduler, not a mocked syscall. No task is submitted and no worker is intentionally started. The full guard runs unchanged except for its writable root point。 控制顺序：L325按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L327断言`process.returncode == 0`；L329断言`evidence in [ {"constructor": "denied", "errno": 1}, {"constructor": "denied", "errno…`；L334断言`diagnostic["failure_component"] == "multiprocessing-semaphore"`；L335断言`diagnostic["exception_errno"] == evidence["errno"]`；L336断言`list(writable.iterdir()) == []`。 调用`writable.mkdir`、`str`、`subprocess.Popen`、`process.communicate`、`os.killpg`、`process.wait`、`os.environ.get`、`pytest.skip`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L340–L375）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L372按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L374断言`process.returncode == 0`；L375断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_execution_gate.py sha256: 64ddb8340f04142265d10dee33029403335c0c85ebd1356a31d7e6d965aa93c7 -->
+<!-- source-file: tests/test_capability_execution_gate.py sha256: febc33feaecb4cdbddabc072137b661a3249810ab5895bc26da0f7c6776ae10b -->
 ````python
 """Admission contracts; fixtures here never create a live safety attestation."""
 
@@ -120208,12 +120338,15 @@ print('real-kernel-confinement-passed')
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only native semaphore confinement")
-def test_real_native_guard_denies_spawn_process_pool_constructor(tmp_path):
+@pytest.mark.parametrize("bind,connect", [("8001", ""), ("5173,8001", "8001,55432,55433")])
+def test_real_guard_denies_spawn_pool_without_explicit_native_shm(tmp_path, bind, connect):
     """Exercise the constructor used by pinned APScheduler, not a mocked syscall.
 
     No task is submitted and no worker is intentionally started. The full guard
     runs unchanged except for its writable root pointing to this owned fixture.
-    CI requires the kernel check; unsupported developer kernels may only skip.
+    Both the ordinary profile and native-looking ports without the trusted shm
+    flag must deny construction. CI requires the kernel check; unsupported
+    developer kernels may only skip.
     """
     from workbench.capability_sandbox import startup_failure_diagnostic
 
@@ -120248,7 +120381,7 @@ if libc.syscall(444,0,0,1)<6:sys.exit(78)
 m=runpy.run_path({str(ROOT / "scripts/capability_guard.py")!r})
 m['main'].__globals__['WRITABLE_ROOT']={str(writable)!r}
 os.environ['TMPDIR']={str(writable)!r}
-sys.argv=['guard','5173,8001','8001,55432,55433','--',sys.executable,'-I','-S','-c',{constructor!r}]
+sys.argv=['guard',{bind!r},{connect!r},'--',sys.executable,'-I','-S','-c',{constructor!r}]
 m['main']()
 """
     process = subprocess.Popen(
@@ -122654,6 +122787,1066 @@ def test_verifier_subprocess_auth_secret_and_resource_bounds():
     assert "enable_indexscan=off" in PG_VERIFIER_EXEC and "row_security=off" in PG_VERIFIER_EXEC
     assert "RLIMIT_FSIZE,(65536,65536)" in PG_VERIFIER_EXEC
     assert "SET ROLE" not in PG_VERIFIER_EXEC
+````
+
+### `tests/test_capability_native_shm_binding.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_execution`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_native_image_cannot_downgrade_or_drop_private_memory_binding`（L22–L28）：接收`mutation`。 控制顺序：L25断言`require_profile_container_binding(record, evidence) is evidence`。 调用`profile_record`、`container_binding`、`require_profile_container_binding`、`mutation`、`pytest.raises`、`pytest.mark.parametrize`、`value.pop`、`value.update`、`value["shared_memory"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ordinary_profile_does_not_acquire_native_shared_memory`（L31–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L34断言`"shared_memory" not in evidence`；L35断言`require_profile_container_binding(record, evidence) is evidence`。 调用`profile_record`、`container_binding`、`require_profile_container_binding`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_native_shm_binding.py sha256: dbf059de6442d9f216fc36a2919e522d9b0363e691372901232a3eb99cac5e72 -->
+````python
+"""Synthetic admission binding checks; no live shared-memory certificate."""
+
+import pytest
+from capability_dependency_fixtures import container_binding, profile_record
+
+from workbench.capability_execution import require_profile_container_binding
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: value.pop("shared_memory"),
+        lambda value: value.update(profile="module-container-unprivileged-v1"),
+        lambda value: value["shared_memory"].update(ipc_mode="host"),
+        lambda value: value["shared_memory"].update(ipc_mode="shareable"),
+        lambda value: value["shared_memory"].update(size_bytes=67108864.0),
+        lambda value: value["shared_memory"].update(size_bytes=True),
+        lambda value: value["shared_memory"].update(size_bytes=67108865),
+        lambda value: value["shared_memory"].update(extra=True),
+    ],
+)
+def test_native_image_cannot_downgrade_or_drop_private_memory_binding(mutation):
+    record = profile_record(template="fastapiadmin")
+    evidence = container_binding(record)
+    assert require_profile_container_binding(record, evidence) is evidence
+    mutation(evidence)
+    with pytest.raises(ValueError, match="private shared memory"):
+        require_profile_container_binding(record, evidence)
+
+
+def test_ordinary_profile_does_not_acquire_native_shared_memory():
+    record = profile_record()
+    evidence = container_binding(record)
+    assert "shared_memory" not in evidence
+    assert require_profile_container_binding(record, evidence) is evidence
+````
+
+### `tests/test_capability_native_shm_guard.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `owned_shm`（L15–L83）：接收`tmp_path`、`monkeypatch`。 源码说明：Substitute metadata only; this does not attest a tmpfs or private IPC.。 调用`device.mkdir`、`(device / "shm").mkdir`、`SimpleNamespace`、`monkeypatch.setattr`、`original_statvfs`。 返回路径：L83的`state`。
+- `owned_shm.opened`（L36–L40）：接收`path`、`flags`、`*args`、`**kwargs`。 控制顺序：L38按`path == "shm"`分支。 调用`original_open`、`descriptors.append`。 返回路径：L40的`descriptor`。
+- `owned_shm.entry`（L42–L55）：接收`descriptor`。 控制顺序：L44按`descriptor not in descriptors`分支。 调用`original_fstat`、`SimpleNamespace`。 返回路径：L45的`actual`；L46的`SimpleNamespace( **{ "st_dev": actual.st_dev, "st_ino": actual.st_ino, "st_mode": stat.S_I…`。
+- `owned_shm.read`（L57–L69）：接收`path`。 控制顺序：L58按`path.startswith("/proc/self/fdinfo/")`分支；L60按`path == "/proc/self/mountinfo"`分支；L62按`state.mountinfo is not None`分支。 调用`path.startswith`、`original_fstat`、`os.major`、`os.minor`、`original_read`。 返回路径：L59的`state.fdinfo`；L63的`state.mountinfo`；L65的`f"42 1 {os.major(actual.st_dev)}:{os.minor(actual.st_dev)} / /dev/shm " "rw,nosuid,nodev,n…`。
+- `assert_rejected`（L86–L92）：接收`fixture`。 控制顺序：L89遍历`fixture.descriptors`；L92断言`caught.value.errno == errno.EBADF`。 调用`pytest.raises`、`guard.open_verified_native_shm`、`fixture.original_fstat`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_metadata_fixture_matches_required_mount`（L95–L103）：接收`owned_shm`。 控制顺序：L98断言`owned_shm.original_fstat(descriptor).st_ino == (owned_shm.device / "shm").stat().st_i…`；L101断言`owned_shm.reads == 2`。 调用`guard.open_verified_native_shm`、`owned_shm.original_fstat`、`(owned_shm.device / "shm").stat`、`os.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_rejects_wrong_ownership_and_type`（L117–L119）：接收`owned_shm`、`field`、`value`。 调用`assert_rejected`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_rejects_wrong_actual_size_or_flags`（L135–L137）：接收`owned_shm`、`field`、`value`。 调用`assert_rejected`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_rejects_malformed_wrong_or_ambiguous_mount`（L160–L167）：接收`owned_shm`、`change`。 调用`(owned_shm.device / "shm").stat`、`os.major`、`os.minor`、`change`、`assert_rejected`、`pytest.mark.parametrize`、`line.replace`、`line.replace("42 1 ", "43 1 ").replace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_binds_descriptor_device_to_mountinfo`（L170–L172）：接收`owned_shm`。 调用`assert_rejected`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_requires_unique_descriptor_mount_id`（L176–L178）：接收`owned_shm`、`fdinfo`。 调用`assert_rejected`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_opens_each_component_without_following_symlinks`（L182–L191）：接收`owned_shm`、`tmp_path`、`parent`。 控制顺序：L186按`parent`分支；L191断言`list(target.iterdir()) == []`。 调用`target.mkdir`、`(path / "shm").rmdir`、`path.rmdir`、`path.symlink_to`、`assert_rejected`、`list`、`target.iterdir`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_mount_identity_must_stay_fixed_until_rule_add`（L194–L204）：接收`owned_shm`、`monkeypatch`。 调用`monkeypatch.setattr`、`assert_rejected`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shm_mount_identity_must_stay_fixed_until_rule_add.changed`（L198–L201）：接收`descriptor`。 调用`original`、`identities.append`、`len`。 返回路径：L201的`identity if len(identities) == 1 else (*identity, "changed")`。
+- `test_native_shm_rights_are_only_regular_file_operations`（L207–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L208断言`guard.NATIVE_SHM_ACCESS == sum(1 << bit for bit in (1, 5, 8, 13, 14))`；L209断言`guard.NATIVE_SHM_ACCESS & sum(1 << bit for bit in (0, 4, 6, 7, 9, 10, 11, 12)) == 0`；L210断言`guard.NATIVE_SHM_EVIDENCE == isolation.NATIVE_SHARED_MEMORY_EVIDENCE`。 调用`sum`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `plan`（L213–L217）：接收`template`、`database`。 调用`SimpleNamespace`。 返回路径：L214的`SimpleNamespace( selection=SimpleNamespace(template=template, database=database), runtime=…`。
+- `test_native_shm_flag_requires_explicit_trusted_launch_keyword`（L220–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L223断言`"55433" in ordinary[ordinary.index(isolation.GUARD) + 2]`；L224断言`"--native-shm" not in ordinary`；L225断言`native == ordinary[: ordinary.index(isolation.GUARD) + 3] + ["--native-shm"] + ordina…`。 调用`isolation.product_argv`、`plan`、`ordinary.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_native_launch_cannot_receive_shared_memory_permission`（L242–L246）：接收`template`、`database`、`enabled`。 调用`pytest.raises`、`isolation.product_argv`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shared_memory_receipt_requires_exact_typed_finite_fields`（L249–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251断言`isolation.require_native_shared_memory_evidence(value) == value`；L252遍历`value.items()`；L253遍历`[None, str(wanted), not wanted if type(wanted) is bool else True]`；L254按`type(replacement) is type(wanted) and replacement == wanted`分支。 调用`dict`、`isolation.require_native_shared_memory_evidence`、`value.items`、`str`、`type`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_guard_flag_controls_only_explicit_filesystem_extension`（L268–L303）：接收`monkeypatch`、`capsys`、`native`、`probe`。 源码说明：Launcher parser unit test; all security calls are replaced, never executed.。 控制顺序：L292断言`len(calls) == 1`；L293断言`calls[0][2]["native_semaphore_storage"] is native`；L294断言`calls[0][2]["filesystem"] is (not probe or native)`；L295断言`resources == [{"native": True}]`；L296按`probe`分支；L300断言`("native_shared_memory" in receipt) is native`；L301断言`executed == []`；L303断言`executed[0][:2] == ("/bin/true", ["/bin/true", "--native-shm"])`。 调用`monkeypatch.setattr`、`resources.append`、`executed.append`、`guard.main`、`len`、`json.loads`、`capsys.readouterr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_guard_flag_controls_only_explicit_filesystem_extension.restrict`（L272–L276）：接收`bind_ports`、`connect_ports`、`**kwargs`。 控制顺序：L274按`kwargs["native_semaphore_storage"]`分支。 调用`calls.append`、`kwargs.copy`、`dict`。 返回路径：L276的`6`。
+- `test_guard_rejects_malformed_flag_before_security_setup`（L315–L323）：接收`monkeypatch`、`command`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`guard.main`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_container_receipt`（L326–L339）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L327的`{ "profile": "native-fastapiadmin-postgresql-v1", "sandbox_id": "00000000-0000-0000-0000-0…`。
+- `test_native_container_receipt_requires_private_bounded_shared_memory`（L357–L363）：接收`shared_memory`。 控制顺序：L359断言`isolation.require_container_evidence(valid, valid["sandbox_id"]) == valid`。 调用`native_container_receipt`、`isolation.require_container_evidence`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_isolation_evidence_binds_native_extension_to_selected_launch_profile`（L366–L383）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L378断言`isolation.require_isolation_evidence(ordinary) == ordinary`；L379断言`isolation.require_isolation_evidence(native, native_semaphore_storage=True) == native`。 调用`sha`、`dict.fromkeys`、`dict`、`isolation.require_isolation_evidence`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_native_shm_guard.py sha256: f40c08f35ccd6a511729c7ac8b94d3a38a726ccbbdfca9c3a530737bed43f94e -->
+````python
+"""Owned-directory unit fixtures; real native mount acceptance is mandatory in CI."""
+
+import errno
+import os
+import stat
+from types import SimpleNamespace
+
+import pytest
+
+from scripts import capability_guard as guard
+from workbench import capability_isolation as isolation
+
+
+@pytest.fixture
+def owned_shm(tmp_path, monkeypatch):
+    """Substitute metadata only; this does not attest a tmpfs or private IPC."""
+    device = tmp_path / "dev"
+    device.mkdir()
+    (device / "shm").mkdir()
+    original_open, original_fstat = os.open, os.fstat
+    original_statvfs, original_read = os.fstatvfs, guard._read_proc
+    descriptors = []
+    state = SimpleNamespace(
+        device=device,
+        entry={},
+        filesystem={
+            "f_frsize": 4096,
+            "f_blocks": 16384,
+            "f_flag": os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV,
+        },
+        fdinfo="mnt_id:\t42\n",
+        mountinfo=None,
+        reads=0,
+    )
+
+    def opened(path, flags, *args, **kwargs):
+        descriptor = original_open(device if path == "/dev" else path, flags, *args, **kwargs)
+        if path == "shm":
+            descriptors.append(descriptor)
+        return descriptor
+
+    def entry(descriptor):
+        actual = original_fstat(descriptor)
+        if descriptor not in descriptors:
+            return actual
+        return SimpleNamespace(
+            **{
+                "st_dev": actual.st_dev,
+                "st_ino": actual.st_ino,
+                "st_mode": stat.S_IFDIR | 0o1777,
+                "st_uid": 0,
+                "st_gid": 0,
+                **state.entry,
+            }
+        )
+
+    def read(path):
+        if path.startswith("/proc/self/fdinfo/"):
+            return state.fdinfo
+        if path == "/proc/self/mountinfo":
+            state.reads += 1
+            if state.mountinfo is not None:
+                return state.mountinfo
+            actual = original_fstat(descriptors[-1])
+            return (
+                f"42 1 {os.major(actual.st_dev)}:{os.minor(actual.st_dev)} / /dev/shm "
+                "rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k\n"
+            )
+        return original_read(path)
+
+    state.original_fstat = original_fstat
+    state.descriptors = descriptors
+    monkeypatch.setattr(guard.os, "open", opened)
+    monkeypatch.setattr(guard.os, "fstat", entry)
+    monkeypatch.setattr(
+        guard.os,
+        "fstatvfs",
+        lambda fd: (
+            SimpleNamespace(**state.filesystem) if fd in descriptors else original_statvfs(fd)
+        ),
+    )
+    monkeypatch.setattr(guard, "_read_proc", read)
+    return state
+
+
+def assert_rejected(fixture):
+    with pytest.raises((RuntimeError, OSError)):
+        guard.open_verified_native_shm()
+    for descriptor in fixture.descriptors:
+        with pytest.raises(OSError) as caught:
+            fixture.original_fstat(descriptor)
+        assert caught.value.errno == errno.EBADF
+
+
+def test_owned_metadata_fixture_matches_required_mount(owned_shm):
+    descriptor = guard.open_verified_native_shm()
+    try:
+        assert (
+            owned_shm.original_fstat(descriptor).st_ino == (owned_shm.device / "shm").stat().st_ino
+        )
+        assert owned_shm.reads == 2
+    finally:
+        os.close(descriptor)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("st_uid", 1),
+        ("st_gid", 1),
+        ("st_mode", stat.S_IFDIR | 0o777),
+        ("st_mode", stat.S_IFDIR | 0o1770),
+        ("st_mode", stat.S_IFREG | 0o1777),
+        ("st_mode", stat.S_IFLNK | 0o1777),
+    ],
+)
+def test_native_shm_rejects_wrong_ownership_and_type(owned_shm, field, value):
+    owned_shm.entry[field] = value
+    assert_rejected(owned_shm)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("f_frsize", 0),
+        ("f_blocks", 0),
+        ("f_blocks", 16383),
+        ("f_blocks", 16385),
+        ("f_flag", os.ST_NOSUID | os.ST_NODEV),
+        ("f_flag", os.ST_NOEXEC | os.ST_NODEV),
+        ("f_flag", os.ST_NOEXEC | os.ST_NOSUID),
+        ("f_flag", os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV | os.ST_RDONLY),
+    ],
+)
+def test_native_shm_rejects_wrong_actual_size_or_flags(owned_shm, field, value):
+    owned_shm.filesystem[field] = value
+    assert_rejected(owned_shm)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda line: line.replace("/ /dev/shm", "/subdirectory /dev/shm"),
+        lambda line: line.replace("/dev/shm", "/other"),
+        lambda line: line.replace("tmpfs shm", "ext4 shm"),
+        lambda line: line.replace("rw,nosuid", "ro,nosuid"),
+        lambda line: line.replace("nosuid,", ""),
+        lambda line: line.replace("nodev,", ""),
+        lambda line: line.replace("noexec,", ""),
+        lambda line: line.replace(" - ", " shared:9 - "),
+        lambda line: line.replace(" - ", " master:9 - "),
+        lambda line: line.replace(" - ", " propagate_from:9 - "),
+        lambda line: line.replace("shm rw,", "shm ro,"),
+        lambda line: line + line.replace("42 1 ", "43 1 "),
+        lambda line: line + line.replace("42 1 ", "43 1 ").replace("/dev/shm", "/dev/shm/nested"),
+        lambda line: line.replace(" - ", " malformed "),
+        lambda line: "malformed\n" + line,
+    ],
+)
+def test_native_shm_rejects_malformed_wrong_or_ambiguous_mount(owned_shm, change):
+    raw_device = (owned_shm.device / "shm").stat().st_dev
+    line = (
+        f"42 1 {os.major(raw_device)}:{os.minor(raw_device)} / /dev/shm "
+        "rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k\n"
+    )
+    owned_shm.mountinfo = change(line)
+    assert_rejected(owned_shm)
+
+
+def test_native_shm_binds_descriptor_device_to_mountinfo(owned_shm):
+    owned_shm.mountinfo = "42 1 999:999 / /dev/shm rw,nosuid,nodev,noexec - tmpfs shm rw\n"
+    assert_rejected(owned_shm)
+
+
+@pytest.mark.parametrize("fdinfo", ["", "mnt_id: 0\n", "mnt_id: x\n", "mnt_id: 42\nmnt_id: 42\n"])
+def test_native_shm_requires_unique_descriptor_mount_id(owned_shm, fdinfo):
+    owned_shm.fdinfo = fdinfo
+    assert_rejected(owned_shm)
+
+
+@pytest.mark.parametrize("parent", [False, True])
+def test_native_shm_opens_each_component_without_following_symlinks(owned_shm, tmp_path, parent):
+    target = tmp_path / "outside"
+    target.mkdir()
+    path = owned_shm.device if parent else owned_shm.device / "shm"
+    if parent:
+        (path / "shm").rmdir()
+    path.rmdir()
+    path.symlink_to(target, target_is_directory=True)
+    assert_rejected(owned_shm)
+    assert list(target.iterdir()) == []
+
+
+def test_native_shm_mount_identity_must_stay_fixed_until_rule_add(owned_shm, monkeypatch):
+    original = guard._native_shm_mount_identity
+    identities = []
+
+    def changed(descriptor):
+        identity = original(descriptor)
+        identities.append(identity)
+        return identity if len(identities) == 1 else (*identity, "changed")
+
+    monkeypatch.setattr(guard, "_native_shm_mount_identity", changed)
+    assert_rejected(owned_shm)
+
+
+def test_native_shm_rights_are_only_regular_file_operations():
+    assert guard.NATIVE_SHM_ACCESS == sum(1 << bit for bit in (1, 5, 8, 13, 14))
+    assert guard.NATIVE_SHM_ACCESS & sum(1 << bit for bit in (0, 4, 6, 7, 9, 10, 11, 12)) == 0
+    assert guard.NATIVE_SHM_EVIDENCE == isolation.NATIVE_SHARED_MEMORY_EVIDENCE
+
+
+def plan(template="fastapiadmin", database="postgresql"):
+    return SimpleNamespace(
+        selection=SimpleNamespace(template=template, database=database),
+        runtime=SimpleNamespace(port=8123),
+    )
+
+
+def test_native_shm_flag_requires_explicit_trusted_launch_keyword():
+    ordinary = isolation.product_argv(plan(), ["/bin/true"], {})
+    native = isolation.product_argv(plan(), ["/bin/true"], {}, native_semaphore_storage=True)
+    assert "55433" in ordinary[ordinary.index(isolation.GUARD) + 2]
+    assert "--native-shm" not in ordinary
+    assert (
+        native
+        == ordinary[: ordinary.index(isolation.GUARD) + 3]
+        + ["--native-shm"]
+        + ordinary[ordinary.index(isolation.GUARD) + 3 :]
+    )
+
+
+@pytest.mark.parametrize(
+    "template,database,enabled",
+    [
+        ("python-basic", "sqlite", True),
+        ("python-basic", "postgresql", True),
+        ("fastapiadmin", "sqlite", True),
+        ("fastapiadmin", "postgresql", 1),
+    ],
+)
+def test_non_native_launch_cannot_receive_shared_memory_permission(template, database, enabled):
+    with pytest.raises(isolation.IsolationUnavailable):
+        isolation.product_argv(
+            plan(template, database), ["/bin/true"], {}, native_semaphore_storage=enabled
+        )
+
+
+def test_native_shared_memory_receipt_requires_exact_typed_finite_fields():
+    value = dict(isolation.NATIVE_SHARED_MEMORY_EVIDENCE)
+    assert isolation.require_native_shared_memory_evidence(value) == value
+    for key, wanted in value.items():
+        for replacement in [None, str(wanted), not wanted if type(wanted) is bool else True]:
+            if type(replacement) is type(wanted) and replacement == wanted:
+                continue
+            with pytest.raises(isolation.IsolationUnavailable):
+                isolation.require_native_shared_memory_evidence({**value, key: replacement})
+        with pytest.raises(isolation.IsolationUnavailable):
+            isolation.require_native_shared_memory_evidence(
+                {k: v for k, v in value.items() if k != key}
+            )
+    with pytest.raises(isolation.IsolationUnavailable):
+        isolation.require_native_shared_memory_evidence({**value, "source": "private-path"})
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("probe", [False, True])
+def test_guard_flag_controls_only_explicit_filesystem_extension(monkeypatch, capsys, native, probe):
+    """Launcher parser unit test; all security calls are replaced, never executed."""
+    calls = []
+
+    def restrict(bind_ports, connect_ports, **kwargs):
+        calls.append((bind_ports, connect_ports, kwargs.copy()))
+        if kwargs["native_semaphore_storage"]:
+            kwargs["evidence"]["native_shared_memory"] = dict(guard.NATIVE_SHM_EVIDENCE)
+        return 6
+
+    resources = []
+    executed = []
+    monkeypatch.setattr(guard, "restrict_tcp", restrict)
+    monkeypatch.setattr(guard, "restrict_resources", lambda **kw: resources.append(kw))
+    monkeypatch.setattr(guard, "restrict_sockets", lambda **kw: {"major": 2, "minor": 5})
+    monkeypatch.setattr(guard, "daemon_denied", lambda: None)
+    monkeypatch.setattr(guard.os, "execvpe", lambda *args: executed.append(args))
+    command = ["--probe"] if probe else ["--", "/bin/true", "--native-shm"]
+    monkeypatch.setattr(
+        guard.sys,
+        "argv",
+        ["guard.py", "8123", "55433", *(["--native-shm"] if native else []), *command],
+    )
+    guard.main()
+    assert len(calls) == 1
+    assert calls[0][2]["native_semaphore_storage"] is native
+    assert calls[0][2]["filesystem"] is (not probe or native)
+    assert resources == [{"native": True}], "Preexisting limits must remain unchanged"
+    if probe:
+        import json
+
+        receipt = json.loads(capsys.readouterr().out)
+        assert ("native_shared_memory" in receipt) is native
+        assert executed == []
+    else:
+        assert executed[0][:2] == ("/bin/true", ["/bin/true", "--native-shm"])
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["--native-shm"],
+        ["--native-shm", "--native-shm", "--probe"],
+        ["--native-shm", "--"],
+        ["--probe", "extra"],
+    ],
+)
+def test_guard_rejects_malformed_flag_before_security_setup(monkeypatch, command):
+    monkeypatch.setattr(guard.sys, "argv", ["guard.py", "8123", "55433", *command])
+    monkeypatch.setattr(
+        guard,
+        "restrict_tcp",
+        lambda *a, **k: pytest.fail("Malformed command reached security setup"),
+    )
+    with pytest.raises(RuntimeError, match="separator"):
+        guard.main()
+
+
+def native_container_receipt():
+    return {
+        "profile": "native-fastapiadmin-postgresql-v1",
+        "sandbox_id": "00000000-0000-0000-0000-000000000001",
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+        "runner_image_id": "sha256:" + "0" * 64,
+        "snapshot_image_id": "sha256:" + "1" * 64,
+        "snapshot_digest": "registry:6000/rnd-native-fastapiadmin@sha256:" + "2" * 64,
+        "shared_memory": {"ipc_mode": "private", "size_bytes": 67108864},
+    }
+
+
+@pytest.mark.parametrize(
+    "shared_memory",
+    [
+        None,
+        {},
+        {"ipc_mode": "private"},
+        {"size_bytes": 67108864},
+        {"ipc_mode": "host", "size_bytes": 67108864},
+        {"ipc_mode": "container:other", "size_bytes": 67108864},
+        {"ipc_mode": "private", "size_bytes": True},
+        {"ipc_mode": "private", "size_bytes": "67108864"},
+        {"ipc_mode": "private", "size_bytes": 67108865},
+        {"ipc_mode": "private", "size_bytes": 67108864, "extra": True},
+    ],
+)
+def test_native_container_receipt_requires_private_bounded_shared_memory(shared_memory):
+    valid = native_container_receipt()
+    assert isolation.require_container_evidence(valid, valid["sandbox_id"]) == valid
+    with pytest.raises(isolation.IsolationUnavailable):
+        isolation.require_container_evidence(
+            {**valid, "shared_memory": shared_memory}, valid["sandbox_id"]
+        )
+
+
+def test_isolation_evidence_binds_native_extension_to_selected_launch_profile():
+    from workbench.filesystem import sha
+    from workbench.settings import ROOT
+
+    ordinary = {
+        "profile": isolation.ISOLATION_PROFILE,
+        "application_uid": isolation.APP_UID,
+        "landlock_abi": 6,
+        "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
+        **dict.fromkeys(isolation.ISOLATION_FLAGS, True),
+    }
+    native = {**ordinary, "native_shared_memory": dict(isolation.NATIVE_SHARED_MEMORY_EVIDENCE)}
+    assert isolation.require_isolation_evidence(ordinary) == ordinary
+    assert isolation.require_isolation_evidence(native, native_semaphore_storage=True) == native
+    with pytest.raises(isolation.IsolationUnavailable):
+        isolation.require_isolation_evidence(ordinary, native_semaphore_storage=True)
+    with pytest.raises(isolation.IsolationUnavailable):
+        isolation.require_isolation_evidence(native)
+````
+
+### `tests/test_capability_native_shm_probe.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `plan`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`。 返回路径：L28的`SimpleNamespace(selection=Selection(template="fastapiadmin"))`。
+- `argv_passthrough`（L31–L35）：接收`plan`、`argv`、`environment`、`native_semaphore_storage`。 控制顺序：L32断言`plan.selection.template == "fastapiadmin"`；L33断言`environment == {} and native_semaphore_storage is True`；L34断言`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`。 返回路径：L35的`argv`。
+- `test_runtime_requires_exact_true_checkset_and_explicit_guard`（L38–L52）：接收`monkeypatch`。 控制顺序：L47断言`probe.verify_native_shm("owned", plan(), 900) == dict.fromkeys( probe.RUNTIME_CHECKS,…`；L50断言`len(calls) == 1 and calls[0][0] == "owned" and calls[0][2] == 45`；L51断言`calls[0][1][4] == probe.PROBE`；L52断言`len(calls[0][1][5]) == 32`。 调用`monkeypatch.setattr`、`probe.verify_native_shm`、`plan`、`dict.fromkeys`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_requires_exact_true_checkset_and_explicit_guard.guarded`（L42–L44）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`json.dumps`、`dict.fromkeys`。 返回路径：L44的`0, json.dumps(dict.fromkeys(probe.RUNTIME_CHECKS, True))`。
+- `test_runtime_rejects_incomplete_or_untrusted_receipts_without_echo`（L67–L74）：接收`monkeypatch`、`status`、`receipt`。 控制顺序：L74断言`"private" not in str(error.value)`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`、`dict.fromkeys`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_failure_diagnostics_are_finite`（L78–L86）：接收`monkeypatch`、`stage`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_parse_errors_are_suppressed`（L90–L96）：接收`monkeypatch`、`output`。 控制顺序：L95断言`error.value.__suppress_context__`；L96断言`"synthetic" not in str(error.value)`。 调用`monkeypatch.setattr`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `marker_runner`（L99–L131）：接收`monkeypatch`、`tmp_path`、`shared`、`corrupt`、`fail_cleanup`。 控制顺序：L102遍历`((FIRST, "first"), (SECOND, "second"))`。 调用`root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`。 返回路径：L131的`roots, calls`。
+- `marker_runner.guarded`（L109–L128）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L110断言`argv[4] == probe.MARKER`；L112断言`nonce == NONCE and timeout <= 15`；L114按`fail_cleanup and operation == "cleanup" and sandbox.id == FIRST`分支；L115抛异常，停止当前正常路径；L117按`corrupt and operation == "verify" and sandbox.id == FIRST`分支；L127断言`result.stderr == ""`。 调用`calls.append`、`RuntimeError`、`(root / f"rnd-shm-pair-{NONCE}-shared").write_text`、`probe.MARKER.replace`、`str`、`subprocess.run`。 返回路径：L128的`result.returncode, result.stdout`。
+- `execute_pair`（L134–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`。 返回路径：L135的`probe.verify_native_shm_isolation( SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), …`。
+- `test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files`（L140–L156）：接收`monkeypatch`、`tmp_path`。 控制顺序：L144断言`execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)`；L145断言`calls == [ (FIRST, "empty"), (SECOND, "empty"), (FIRST, "create"), (SECOND, "empty"),…`；L156断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`execute_pair`、`dict.fromkeys`、`all`、`list`、`root.iterdir`、`roots.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_shared_namespace_or_marker_tampering_fails_and_still_cleans`（L160–L167）：接收`monkeypatch`、`tmp_path`、`changes`。 控制顺序：L166断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L167断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`all`、`list`、`root.iterdir`、`roots.values`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_marker_cleanup_failure_still_attempts_second_cleanup`（L170–L177）：接收`monkeypatch`、`tmp_path`。 控制顺序：L174断言`"primary=none; cleanup=failed" in str(error.value)`；L175断言`"synthetic" not in str(error.value)`；L176断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L177断言`list(roots[SECOND].iterdir()) == []`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`str`、`list`、`roots[SECOND].iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_marker_is_not_deleted_as_probe_property`（L180–L187）：接收`monkeypatch`、`tmp_path`。 控制顺序：L186断言`original.read_text() == "preexisting"`；L187断言`(SECOND, "cleanup") not in calls`。 调用`marker_runner`、`original.write_text`、`pytest.raises`、`execute_pair`、`original.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pair_requires_distinct_known_sandboxes_before_any_command`（L191–L196）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `container_evidence`（L199–L220）：接收`identifier`。 返回路径：L200的`{ "profile": "native-fastapiadmin-postgresql-v1", "sandbox_id": identifier, "control_user"…`。
+- `lifecycle`（L223–L324）：接收`monkeypatch`、`create_error`、`delete_error`、`foreign`、`unknown`。 调用`plan().selection.model_dump`、`plan`、`SimpleNamespace`、`events.append`、`container_evidence`、`monkeypatch.setattr`。 返回路径：L322的`SimpleNamespace( execute=execute, events=events, record=record, evidence=evidence, first=f…`。
+- `lifecycle.params`（L236–L244）：接收`settings`、`name`、`template`、`selection`。 调用`events.append`、`SimpleNamespace`。 返回路径：L238的`SimpleNamespace( name=name, snapshot="owned-native", network_block_all=True, public=False,…`。
+- `lifecycle.create`（L246–L254）：接收`parameters`、`timeout`。 控制顺序：L250按`foreign`分支；L252按`create_error`分支；L253抛异常，停止当前正常路径。 调用`events.append`、`dict`、`RuntimeError`。 返回路径：L254的`peer`。
+- `lifecycle.get`（L256–L260）：接收`name`。 控制顺序：L258按`unknown`分支；L259抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。 返回路径：L260的`peer`。
+- `lifecycle.delete`（L262–L266）：接收`sandbox`、`timeout`。 控制顺序：L263断言`sandbox is peer`；L265按`delete_error`分支；L266抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `lifecycle.inspect`（L268–L272）：接收`directory`、`identifier`、`require_resources`、`selection`。 控制顺序：L269断言`directory == "owned-directory" and require_resources is True`；L270断言`selection == record["selection"]`。 调用`events.append`。 返回路径：L272的`evidence[identifier]`。
+- `lifecycle.binding`（L274–L277）：接收`current_record`、`container`。 控制顺序：L275断言`current_record is record`；L276按`container.get("snapshot_image_id") != SNAPSHOT`分支；L277抛异常，停止当前正常路径。 调用`container.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `lifecycle.prepare`（L279–L282）：接收`sandbox`、`selected_plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L280断言`sandbox is peer and native_semaphore_storage is True`。 调用`events.append`、`dict`。 返回路径：L282的`{"native_shared_memory": dict(NATIVE_SHARED_MEMORY_EVIDENCE)}`。
+- `lifecycle.pair`（L284–L287）：接收`one`、`two`、`selected_plan`、`timeout`。 控制顺序：L285断言`one is first and two is peer`。 调用`events.append`、`dict.fromkeys`。 返回路径：L287的`dict.fromkeys(probe.PAIR_CHECKS, True)`。
+- `lifecycle.docker`（L289–L306）：接收`*args`、`**kwargs`。 控制顺序：L291断言`args == ( "exec", RUNNER, "docker", "--host", "unix:///var/run/docker.sock", "contain…`；L305断言`set(kwargs) == {"timeout"} and 0 < kwargs["timeout"] <= 15`。 调用`events.append`、`set`。 返回路径：L306的`""`。
+- `lifecycle.execute`（L317–L320）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_peer`、`plan`。 返回路径：L318的`probe.verify_native_shm_peer( client, settings, "owned-directory", record, first, plan(), …`。
+- `test_peer_lifecycle_uses_same_sdk_profile_and_proves_physical_cleanup`（L327–L352）：接收`monkeypatch`。 控制顺序：L329断言`fixture.execute() == {"cross_container_shm_private": True, "peer_cleanup": True}`；L332断言`creation.os_user == "root"`；L333断言`creation.name == "rnd-source-native-shm-peer-" + NONCE`；L334断言`creation.labels["rnd-shm-probe"] == NONCE`；L335断言`[event[0] for event in events] == [ "refresh", "inspect", "params", "create", "refres…`；L349断言`[event[1:] for event in events if event[0] == "folder"] == [ ("/tmp/rnd-capability", …`。 调用`lifecycle`、`fixture.execute`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_incoming_native_binding_creates_no_peer`（L367–L372）：接收`monkeypatch`、`change`。 控制顺序：L372断言`not any(event[0] in {"create", "get", "delete", "docker"} for event in fixture.events…`。 调用`lifecycle`、`change`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`、`f.evidence[FIRST].update`、`f.record["snapshot"].update`、`setattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_peer_wrong_image_is_deleted_without_identity_preparation`（L375–L381）：接收`monkeypatch`。 控制顺序：L380断言`not any(event[0] == "prepare" for event in fixture.events)`；L381断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_create_recovers_exact_owned_name_without_recreating`（L384–L391）：接收`monkeypatch`。 控制顺序：L388断言`"synthetic" not in str(error.value)`；L389断言`[event[0] for event in fixture.events].count("create") == 1`；L390断言`("get", "rnd-source-native-shm-peer-" + NONCE) in fixture.events`；L391断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`、`[event[0] for event in fixture.events].count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_uncertain_or_foreign_ownership_never_deletes_another_container`（L395–L399）：接收`monkeypatch`、`changes`。 控制顺序：L399断言`not any(event[0] in {"delete", "docker"} for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sdk_delete_failure_prevents_any_success`（L402–L408）：接收`monkeypatch`。 控制顺序：L406断言`"synthetic" not in str(error.value)`；L407断言`error.value.__suppress_context__`；L408断言`fixture.events[-1][0] == "delete"`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dangling_physical_container_cannot_certify_cleanup`（L411–L417）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`iter`、`next`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_empty_stdout_from_failed_docker_command_is_not_cleanup`（L420–L428）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_empty_stdout_from_failed_docker_command_is_not_cleanup.failed`（L423–L424）：接收`*args`、`**kwargs`。 控制顺序：L424抛异常，停止当前正常路径。 调用`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_native_profiles_never_execute_or_create`（L431–L439）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`Selection`、`pytest.raises`、`probe.verify_native_shm`、`probe.verify_native_shm_isolation`、`probe.verify_native_shm_peer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_peer_environment_cannot_silently_skip_live_evidence`（L442–L444）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`probe.verify_native_shm_peer`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cleanup_diagnostic_keeps_only_own_validated_recovery_identifiers`（L455–L468）：接收`monkeypatch`、`changes`、`identifier`、`stage`。 控制顺序：L462断言`diagnostic == { "peer_name": "rnd-source-native-shm-peer-" + NONCE, "peer_id": identi…`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`probe.native_shm_cleanup_diagnostic`、`changes.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsafe_cleanup_diagnostics_never_serialize`（L483–L488）：接收`field`、`value`。 控制顺序：L488断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`probe.NativeShmCleanupFailure`、`probe.native_shm_cleanup_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ordinary_exception_attributes_cannot_impersonate_cleanup_diagnostic`（L491–L494）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L494断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`CheckFailure`、`probe.native_shm_cleanup_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_peer_cannot_expand_existing_native_resource_gates`（L509–L514）：接收`monkeypatch`、`key`、`value`。 控制顺序：L514断言`not any(event[0] == "create" for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_physical_cleanup_lookup_rejects_noncanonical_identifiers`（L518–L521）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe._require_peer_absent`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_native_shm_probe.py sha256: 9bfea31050698c7edc31624bab486032d5c759903614513bed36b532369dfd50 -->
+````python
+"""Probe protocol and owned peer lifecycle tests, not a live shm certificate.
+
+The marker programs use only test-owned ordinary directories here. Actual
+64MiB /dev/shm allocation and spawn workers run exclusively in native CI's
+approved disposable containers, never against a developer machine's shm root.
+"""
+
+import json
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from scripts import capability_native_shm_probe as probe
+from workbench.capability_isolation import NATIVE_SHARED_MEMORY_EVIDENCE
+from workbench.capability_verification import CheckFailure
+from workbench.catalog import Selection
+
+FIRST = "11111111-1111-1111-1111-111111111111"
+SECOND = "22222222-2222-2222-2222-222222222222"
+NONCE = "a" * 32
+RUNNER = "b" * 64
+SNAPSHOT = "sha256:" + "c" * 64
+
+
+def plan():
+    return SimpleNamespace(selection=Selection(template="fastapiadmin"))
+
+
+def argv_passthrough(plan, argv, environment, *, native_semaphore_storage=False):
+    assert plan.selection.template == "fastapiadmin"
+    assert environment == {} and native_semaphore_storage is True
+    assert argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]
+    return argv
+
+
+def test_runtime_requires_exact_true_checkset_and_explicit_guard(monkeypatch):
+    calls = []
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+
+    def guarded(sandbox, argv, timeout):
+        calls.append((sandbox, argv, timeout))
+        return 0, json.dumps(dict.fromkeys(probe.RUNTIME_CHECKS, True))
+
+    monkeypatch.setattr(probe, "run_guarded_control", guarded)
+    assert probe.verify_native_shm("owned", plan(), 900) == dict.fromkeys(
+        probe.RUNTIME_CHECKS, True
+    )
+    assert len(calls) == 1 and calls[0][0] == "owned" and calls[0][2] == 45
+    assert calls[0][1][4] == probe.PROBE
+    assert len(calls[0][1][5]) == 32
+
+
+@pytest.mark.parametrize(
+    "status,receipt",
+    [
+        (1, dict.fromkeys(probe.RUNTIME_CHECKS, True)),
+        (0, dict.fromkeys(probe.RUNTIME_CHECKS, 1)),
+        (0, dict.fromkeys(probe.RUNTIME_CHECKS[:-1], True)),
+        (0, {**dict.fromkeys(probe.RUNTIME_CHECKS, True), "private-path": "/private"}),
+        (0, []),
+        (1, {"passed": False, "stage": "synthetic-private-log"}),
+        (1, {"passed": False, "stage": []}),
+    ],
+)
+def test_runtime_rejects_incomplete_or_untrusted_receipts_without_echo(
+    monkeypatch, status, receipt
+):
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(probe, "run_guarded_control", lambda *args: (status, json.dumps(receipt)))
+    with pytest.raises(CheckFailure, match="stage=unknown") as error:
+        probe.verify_native_shm(None, plan(), 30)
+    assert "private" not in str(error.value)
+
+
+@pytest.mark.parametrize("stage", sorted(probe.FAILURE_STAGES))
+def test_runtime_failure_diagnostics_are_finite(monkeypatch, stage):
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(
+        probe,
+        "run_guarded_control",
+        lambda *args: (1, json.dumps({"passed": False, "stage": stage})),
+    )
+    with pytest.raises(CheckFailure, match=f"stage={stage}"):
+        probe.verify_native_shm(None, plan(), 30)
+
+
+@pytest.mark.parametrize("output", ["synthetic-private-log", "", '{"stage":'])
+def test_runtime_parse_errors_are_suppressed(monkeypatch, output):
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(probe, "run_guarded_control", lambda *args: (1, output))
+    with pytest.raises(CheckFailure) as error:
+        probe.verify_native_shm(None, plan(), 30)
+    assert error.value.__suppress_context__
+    assert "synthetic" not in str(error.value)
+
+
+def marker_runner(monkeypatch, tmp_path, *, shared=False, corrupt=False, fail_cleanup=False):
+    roots = {}
+    calls = []
+    for identifier, name in ((FIRST, "first"), (SECOND, "second")):
+        root = tmp_path / ("shared" if shared else name)
+        root.mkdir(exist_ok=True)
+        roots[identifier] = root
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(probe.uuid, "uuid4", lambda: SimpleNamespace(hex=NONCE))
+
+    def guarded(sandbox, argv, timeout):
+        assert argv[4] == probe.MARKER
+        operation, nonce, side = argv[5:]
+        assert nonce == NONCE and timeout <= 15
+        calls.append((sandbox.id, operation))
+        if fail_cleanup and operation == "cleanup" and sandbox.id == FIRST:
+            raise RuntimeError("synthetic-private-error")
+        root = roots[sandbox.id]
+        if corrupt and operation == "verify" and sandbox.id == FIRST:
+            (root / f"rnd-shm-pair-{NONCE}-shared").write_text("wrong")
+        source = probe.MARKER.replace("SHM='/dev/shm'", f"SHM={str(root)!r}")
+        result = subprocess.run(
+            [sys.executable, "-I", "-S", "-c", source, operation, nonce, side],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        # The helper never emits raw failure diagnostics, even on bad contents.
+        assert result.stderr == ""
+        return result.returncode, result.stdout
+
+    monkeypatch.setattr(probe, "run_guarded_control", guarded)
+    return roots, calls
+
+
+def execute_pair():
+    return probe.verify_native_shm_isolation(
+        SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), plan(), 30
+    )
+
+
+def test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files(
+    monkeypatch, tmp_path
+):
+    roots, calls = marker_runner(monkeypatch, tmp_path)
+    assert execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)
+    assert calls == [
+        (FIRST, "empty"),
+        (SECOND, "empty"),
+        (FIRST, "create"),
+        (SECOND, "empty"),
+        (SECOND, "create"),
+        (FIRST, "verify"),
+        (SECOND, "verify"),
+        (FIRST, "cleanup"),
+        (SECOND, "cleanup"),
+    ]
+    assert all(list(root.iterdir()) == [] for root in roots.values())
+
+
+@pytest.mark.parametrize("changes", [{"shared": True}, {"corrupt": True}])
+def test_shared_namespace_or_marker_tampering_fails_and_still_cleans(
+    monkeypatch, tmp_path, changes
+):
+    roots, calls = marker_runner(monkeypatch, tmp_path, **changes)
+    with pytest.raises(CheckFailure, match="隔离未确认"):
+        execute_pair()
+    assert calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]
+    assert all(list(root.iterdir()) == [] for root in roots.values())
+
+
+def test_marker_cleanup_failure_still_attempts_second_cleanup(monkeypatch, tmp_path):
+    roots, calls = marker_runner(monkeypatch, tmp_path, fail_cleanup=True)
+    with pytest.raises(CheckFailure) as error:
+        execute_pair()
+    assert "primary=none; cleanup=failed" in str(error.value)
+    assert "synthetic" not in str(error.value)
+    assert calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]
+    assert list(roots[SECOND].iterdir()) == []
+
+
+def test_existing_marker_is_not_deleted_as_probe_property(monkeypatch, tmp_path):
+    roots, calls = marker_runner(monkeypatch, tmp_path)
+    original = roots[SECOND] / f"rnd-shm-pair-{NONCE}-first"
+    original.write_text("preexisting")
+    with pytest.raises(CheckFailure, match="second-empty"):
+        execute_pair()
+    assert original.read_text() == "preexisting"
+    assert (SECOND, "cleanup") not in calls
+
+
+@pytest.mark.parametrize("identifier", [FIRST, "", None])
+def test_pair_requires_distinct_known_sandboxes_before_any_command(monkeypatch, identifier):
+    monkeypatch.setattr(probe, "run_guarded_control", lambda *a: pytest.fail("command ran"))
+    with pytest.raises(CheckFailure):
+        probe.verify_native_shm_isolation(
+            SimpleNamespace(id=FIRST), SimpleNamespace(id=identifier), plan(), 30
+        )
+
+
+def container_evidence(identifier):
+    return {
+        "profile": "native-fastapiadmin-postgresql-v1",
+        "sandbox_id": identifier,
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+        "runner_image_id": "sha256:" + RUNNER,
+        "snapshot_image_id": SNAPSHOT,
+        "snapshot_digest": "registry:6000/rnd-native-fastapiadmin@" + SNAPSHOT,
+        "shared_memory": {"ipc_mode": "private", "size_bytes": 64 * 1024 * 1024},
+        "resource_limits": {
+            "cpu_period": 100000,
+            "cpu_quota": 200000,
+            "memory": 6 * 1024**3,
+            "memory_swap": 6 * 1024**3,
+            "tmpfs_bytes": 4294967296,
+            "pids": 384,
+        },
+    }
+
+
+def lifecycle(monkeypatch, *, create_error=False, delete_error=False, foreign=False, unknown=False):
+    events = []
+    record = {"selection": plan().selection.model_dump(), "snapshot": {"snapshot": "owned-native"}}
+    settings = SimpleNamespace(sandbox_provider="daytona")
+    first = SimpleNamespace(id=FIRST, network_block_all=True, public=False)
+    first.refresh_data = lambda: events.append(("refresh", FIRST))
+    peer = SimpleNamespace(id=SECOND, network_block_all=True, public=False)
+    peer.refresh_data = lambda: events.append(("refresh", SECOND))
+    peer.fs = SimpleNamespace(create_folder=lambda *args: events.append(("folder", *args)))
+    evidence = {FIRST: container_evidence(FIRST), SECOND: container_evidence(SECOND)}
+    monkeypatch.setattr(probe.uuid, "uuid4", lambda: SimpleNamespace(hex=NONCE))
+    monkeypatch.setattr(probe, "snapshot_for", lambda *args: "owned-native")
+
+    def params(settings, name, template, selection):
+        events.append(("params", name, template, selection))
+        return SimpleNamespace(
+            name=name,
+            snapshot="owned-native",
+            network_block_all=True,
+            public=False,
+            labels={"managed-by": "rnd-toolchain", "purpose": "disposable-verification"},
+        )
+
+    def create(parameters, *, timeout):
+        events.append(("create", parameters, timeout))
+        peer.name = parameters.name
+        peer.labels = dict(parameters.labels)
+        if foreign:
+            peer.labels["rnd-shm-probe"] = "foreign"
+        if create_error:
+            raise RuntimeError("synthetic-private-create-error")
+        return peer
+
+    def get(name):
+        events.append(("get", name))
+        if unknown:
+            raise RuntimeError("synthetic-private-lookup-error")
+        return peer
+
+    def delete(sandbox, *, timeout):
+        assert sandbox is peer
+        events.append(("delete", sandbox.id, timeout))
+        if delete_error:
+            raise RuntimeError("synthetic-private-delete-error")
+
+    def inspect(directory, identifier, *, require_resources, selection):
+        assert directory == "owned-directory" and require_resources is True
+        assert selection == record["selection"]
+        events.append(("inspect", identifier))
+        return evidence[identifier]
+
+    def binding(current_record, container):
+        assert current_record is record
+        if container.get("snapshot_image_id") != SNAPSHOT:
+            raise ValueError("synthetic-image-mismatch")
+
+    def prepare(sandbox, selected_plan, timeout, *, native_semaphore_storage):
+        assert sandbox is peer and native_semaphore_storage is True
+        events.append(("prepare", sandbox.id))
+        return {"native_shared_memory": dict(NATIVE_SHARED_MEMORY_EVIDENCE)}
+
+    def pair(one, two, selected_plan, timeout):
+        assert one is first and two is peer
+        events.append(("pair", one.id, two.id))
+        return dict.fromkeys(probe.PAIR_CHECKS, True)
+
+    def docker(*args, **kwargs):
+        events.append(("docker", args, kwargs))
+        assert args == (
+            "exec",
+            RUNNER,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "container",
+            "ls",
+            "--all",
+            "--quiet",
+            "--no-trunc",
+            "--filter",
+            "name=^/" + SECOND + "$",
+        )
+        assert set(kwargs) == {"timeout"} and 0 < kwargs["timeout"] <= 15
+        return ""
+
+    monkeypatch.setattr(probe, "params_for", params)
+    monkeypatch.setattr(probe, "inspect_created_sandbox", inspect)
+    monkeypatch.setattr(probe, "require_profile_container_binding", binding)
+    monkeypatch.setattr(probe, "prepare_identity", prepare)
+    monkeypatch.setattr(probe, "verify_native_shm_isolation", pair)
+    monkeypatch.setattr(probe, "compose", lambda *args, **kwargs: RUNNER)
+    monkeypatch.setattr(probe.local, "docker", docker)
+    client = SimpleNamespace(create=create, get=get, delete=delete)
+
+    def execute():
+        return probe.verify_native_shm_peer(
+            client, settings, "owned-directory", record, first, plan(), 30
+        )
+
+    return SimpleNamespace(
+        execute=execute, events=events, record=record, evidence=evidence, first=first, peer=peer
+    )
+
+
+def test_peer_lifecycle_uses_same_sdk_profile_and_proves_physical_cleanup(monkeypatch):
+    fixture = lifecycle(monkeypatch)
+    assert fixture.execute() == {"cross_container_shm_private": True, "peer_cleanup": True}
+    events = fixture.events
+    creation = next(event[1] for event in events if event[0] == "create")
+    assert creation.os_user == "root"
+    assert creation.name == "rnd-source-native-shm-peer-" + NONCE
+    assert creation.labels["rnd-shm-probe"] == NONCE
+    assert [event[0] for event in events] == [
+        "refresh",
+        "inspect",
+        "params",
+        "create",
+        "refresh",
+        "inspect",
+        "folder",
+        "folder",
+        "prepare",
+        "pair",
+        "delete",
+        "docker",
+    ]
+    assert [event[1:] for event in events if event[0] == "folder"] == [
+        ("/tmp/rnd-capability", "711"),
+        ("/tmp/rnd-capability/product", "700"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda f: f.evidence[FIRST].update(
+            shared_memory={"ipc_mode": "host", "size_bytes": 67108864}
+        ),
+        lambda f: f.evidence[FIRST].update(resource_limits=False),
+        lambda f: f.evidence[FIRST].update(snapshot_image_id="sha256:" + "d" * 64),
+        lambda f: f.record["snapshot"].update(snapshot="other-native"),
+        lambda f: setattr(f.first, "network_block_all", False),
+    ],
+)
+def test_invalid_incoming_native_binding_creates_no_peer(monkeypatch, change):
+    fixture = lifecycle(monkeypatch)
+    change(fixture)
+    with pytest.raises(CheckFailure, match="stage=admission"):
+        fixture.execute()
+    assert not any(event[0] in {"create", "get", "delete", "docker"} for event in fixture.events)
+
+
+def test_peer_wrong_image_is_deleted_without_identity_preparation(monkeypatch):
+    fixture = lifecycle(monkeypatch)
+    fixture.evidence[SECOND]["snapshot_image_id"] = "sha256:" + "d" * 64
+    with pytest.raises(CheckFailure, match="stage=inspect"):
+        fixture.execute()
+    assert not any(event[0] == "prepare" for event in fixture.events)
+    assert [event[0] for event in fixture.events][-2:] == ["delete", "docker"]
+
+
+def test_partial_create_recovers_exact_owned_name_without_recreating(monkeypatch):
+    fixture = lifecycle(monkeypatch, create_error=True)
+    with pytest.raises(CheckFailure, match="stage=create") as error:
+        fixture.execute()
+    assert "synthetic" not in str(error.value)
+    assert [event[0] for event in fixture.events].count("create") == 1
+    assert ("get", "rnd-source-native-shm-peer-" + NONCE) in fixture.events
+    assert [event[0] for event in fixture.events][-2:] == ["delete", "docker"]
+
+
+@pytest.mark.parametrize("changes", [{"foreign": True}, {"create_error": True, "unknown": True}])
+def test_uncertain_or_foreign_ownership_never_deletes_another_container(monkeypatch, changes):
+    fixture = lifecycle(monkeypatch, **changes)
+    with pytest.raises(CheckFailure, match="cleanup=failed"):
+        fixture.execute()
+    assert not any(event[0] in {"delete", "docker"} for event in fixture.events)
+
+
+def test_sdk_delete_failure_prevents_any_success(monkeypatch):
+    fixture = lifecycle(monkeypatch, delete_error=True)
+    with pytest.raises(CheckFailure, match="primary=none; cleanup=failed") as error:
+        fixture.execute()
+    assert "synthetic" not in str(error.value)
+    assert error.value.__suppress_context__
+    assert fixture.events[-1][0] == "delete"
+
+
+def test_dangling_physical_container_cannot_certify_cleanup(monkeypatch):
+    fixture = lifecycle(monkeypatch)
+    monkeypatch.setattr(probe.local, "docker", lambda *args, **kwargs: "d" * 64)
+    clock = iter((0, 0, 31))
+    monkeypatch.setattr(probe.time, "monotonic", lambda: next(clock))
+    with pytest.raises(CheckFailure, match="cleanup=failed"):
+        fixture.execute()
+
+
+def test_empty_stdout_from_failed_docker_command_is_not_cleanup(monkeypatch):
+    fixture = lifecycle(monkeypatch)
+
+    def failed(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, "synthetic", output="")
+
+    monkeypatch.setattr(probe.local, "docker", failed)
+    with pytest.raises(CheckFailure, match="cleanup=failed"):
+        fixture.execute()
+
+
+def test_non_native_profiles_never_execute_or_create(monkeypatch):
+    monkeypatch.setattr(probe, "run_guarded_control", lambda *args: pytest.fail("command ran"))
+    ordinary = SimpleNamespace(selection=Selection())
+    with pytest.raises(CheckFailure):
+        probe.verify_native_shm(None, ordinary, 30)
+    with pytest.raises(CheckFailure):
+        probe.verify_native_shm_isolation(None, None, ordinary, 30)
+    with pytest.raises(CheckFailure):
+        probe.verify_native_shm_peer(None, None, None, None, None, ordinary, 30)
+
+
+def test_missing_peer_environment_cannot_silently_skip_live_evidence():
+    with pytest.raises(CheckFailure, match="SDK"):
+        probe.verify_native_shm_peer(None, None, None, None, None, plan(), 30)
+
+
+@pytest.mark.parametrize(
+    "changes,identifier,stage",
+    [
+        ({"delete_error": True}, SECOND, "delete"),
+        ({"foreign": True}, None, "identity"),
+        ({"create_error": True, "unknown": True}, None, "recover"),
+    ],
+)
+def test_cleanup_diagnostic_keeps_only_own_validated_recovery_identifiers(
+    monkeypatch, changes, identifier, stage
+):
+    fixture = lifecycle(monkeypatch, **changes)
+    with pytest.raises(CheckFailure) as error:
+        fixture.execute()
+    diagnostic = probe.native_shm_cleanup_diagnostic(error.value)
+    assert diagnostic == {
+        "peer_name": "rnd-source-native-shm-peer-" + NONCE,
+        "peer_id": identifier,
+        "primary_stage": "none" if changes.get("delete_error") else "create",
+        "cleanup_stage": stage,
+        "cleanup": "unconfirmed",
+    }
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("peer_name", "someone-else"),
+        ("peer_id", "unsafe\nprivate-path"),
+        ("primary_stage", "private-error"),
+        ("primary_stage", []),
+        ("cleanup_stage", "private-error"),
+        ("cleanup", True),
+        ("private-extra", "secret"),
+    ],
+)
+def test_unsafe_cleanup_diagnostics_never_serialize(field, value):
+    error = probe.NativeShmCleanupFailure(
+        "rnd-source-native-shm-peer-" + NONCE, SECOND, "none", "delete"
+    )
+    error.diagnostic[field] = value
+    assert probe.native_shm_cleanup_diagnostic(error) == {}
+
+
+def test_ordinary_exception_attributes_cannot_impersonate_cleanup_diagnostic():
+    error = CheckFailure("private-error")
+    error.diagnostic = {"peer_name": "private", "peer_id": "foreign"}
+    assert probe.native_shm_cleanup_diagnostic(error) == {}
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("cpu_period", True),
+        ("cpu_quota", 200001),
+        ("memory", 7 * 1024**3),
+        ("memory_swap", -1),
+        ("pids", 385),
+        ("tmpfs_bytes", 4294967297),
+        ("new_limit", 1),
+    ],
+)
+def test_peer_cannot_expand_existing_native_resource_gates(monkeypatch, key, value):
+    fixture = lifecycle(monkeypatch)
+    fixture.evidence[FIRST]["resource_limits"][key] = value
+    with pytest.raises(CheckFailure, match="stage=admission"):
+        fixture.execute()
+    assert not any(event[0] == "create" for event in fixture.events)
+
+
+@pytest.mark.parametrize("identifier", ["foreign", "../../outside", FIRST + "\n", None])
+def test_physical_cleanup_lookup_rejects_noncanonical_identifiers(monkeypatch, identifier):
+    monkeypatch.setattr(probe, "compose", lambda *a, **kw: pytest.fail("Docker queried"))
+    with pytest.raises(ValueError):
+        probe._require_peer_absent(None, identifier, 30)
 ````
 
 ### `tests/test_capability_orchestration.py`
@@ -125397,7 +126590,7 @@ def test_packaged_controller_imports_with_scripts_unavailable(monkeypatch):
 - `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart`（L337–L424）：接收`product`、`monkeypatch`。 控制顺序：L420断言`len(observed_forms) == 3`；L421断言`len(records) == 1 and next(iter(records.values()))["quantity"] == 7`；L422断言`{row["phase"] for row in initial} == {"initial"}`；L423断言`{row["phase"] for row in restarted} == {"restart"}`；L424断言`{row["id"] for row in restarted} == {"native_signup", "native_device_crud"}`。 调用`ci.fixed_plan`、`monkeypatch.setattr`、`httpx.Client`、`httpx.MockTransport`、`verifier.run_scenarios`、`len`、`next`、`iter`、`records.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart.transport`（L349–L410）：接收`request`。 控制顺序：L353按`request.content`分支；L354按`request.headers.get("content-type") == "application/x-www-form-urlencoded"`分支；L362按`path.endswith("/captcha/get")`分支；L364按`path.endswith("/slider/complete")`分支；L365断言`data == {"captcha_key": "captcha-key"}`；L367按`path == "/system/user/register"`分支；L370按`path == "/system/auth/login"`分支；L371断言`data["captcha_key"] == "captcha-key" and data["login_type"] == "PC端"`。后续分支沿下方源码相同行号继续阅读。 调用`request.headers.get`、`parse_qs`、`request.content.decode`、`observed_forms.append`、`form.items`、`json.loads`、`path.endswith`、`int`、`path.rsplit`等。 返回路径：L403的`httpx.Response( status, stream=httpx.ByteStream( json.dumps( {"code": 0 if status == 200 e…`。
 
-<!-- source-file: tests/test_ci_native_capability_security.py sha256: e1a8e5c8706063fd87fb53f0bac925ab1979204b56ef31ed8a37b27bc7c8408a -->
+<!-- source-file: tests/test_ci_native_capability_security.py sha256: 9ee046fa794d460cdea5b619b792616e64c3cd5920e5a9027b3cce6d4b3d05af -->
 ````python
 """Mocked certificate orchestration; never represents live native security proof."""
 
@@ -125635,7 +126828,7 @@ def setup_certification(tmp_path, product, monkeypatch):
     )
     monkeypatch.setattr(ci, "verifier_identity", lambda: "e" * 64)
     monkeypatch.setattr(
-        ci, "security_probe_for_profile", lambda path, value: "native-security-probe"
+        ci, "security_probe_for_profile", lambda path, value, **kw: "native-security-probe"
     )
     monkeypatch.setattr(
         ci, "inspect_created_sandbox", lambda *args, **kwargs: events.append((args, kwargs))
@@ -125874,7 +127067,7 @@ def test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart(produ
 - `test_parent_traversal_roots_fail_before_any_write`（L657–L669）：接收`product`、`tmp_path`。 控制顺序：L662断言`manifest(product) == inventory`；L663断言`not (product / "unused").exists()`；L664断言`not (product / "new-source").exists()`；L669断言`receipt.read_text() == "existing receipt"`。 调用`manifest`、`pytest.raises`、`handoff.copy_exact_source`、`(product / "unused").exists`、`(product / "new-source").exists`、`receipt.write_text`、`handoff.SourceHandoff`、`receipt.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_cli_rejects_overlapping_original_and_handoff_before_any_writes`（L673–L704）：接收`product`、`tmp_path`、`monkeypatch`、`relation`。 控制顺序：L702断言`manifest(product) == inventory`；L703断言`not root.exists()`；L704断言`not (product / "new-handoff").exists()`。 调用`manifest`、`monkeypatch.setattr`、`str`、`pytest.fail`、`pytest.raises`、`native_tools.main`、`root.exists`、`(product / "new-handoff").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_ci_native_capability_source.py sha256: 0095c223473529017f6c37dbbd8403b21eba24ed7847317b7d3751115efa0005 -->
+<!-- source-file: tests/test_ci_native_capability_source.py sha256: 60cb1ae57dd85cc94f3d9070b3942f1272ebcd88b464e6dbb6e7cdb1eeacf442 -->
 ````python
 """CI source handoff contracts only; no live container/native acceptance claims."""
 
@@ -126383,7 +127576,7 @@ def test_contest_consumer_uses_same_ready_profile_source_without_filtering(
     monkeypatch.setattr(contest_ci, "require_native_profile", lambda *a: record)
     monkeypatch.setattr(contest_ci, "client_for", lambda *a: events.append("client") or object())
     monkeypatch.setattr(contest_ci, "close_client", lambda *a: events.append("close"))
-    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a: None)
+    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a, **kw: None)
     monkeypatch.setattr(
         "sys.argv",
         ["contest", "--product", str(state.product), "--source-receipt", str(state.receipt)],
@@ -134325,29 +135518,36 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
 - `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L172–L182）：接收`tmp_path`、`monkeypatch`。 控制顺序：L175断言`(context / profile.SOURCE_FILE).read_text() == source.replace( profile.OLD, profile.N…`；L178断言`(context / "go.work").read_text() == workspace`；L179断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L180断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L181断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L182断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace( profile.OLD, profile.NEW ).replace`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_custom_source_patch_binds_only_its_reviewed_primary_bridge`（L185–L195）：接收`tmp_path`、`monkeypatch`。 控制顺序：L190断言`source.count(assignment) == 1`；L192断言`custom.index(assignment) < custom.index("pidLimit := int64(256)")`；L193断言`custom.index(assignment) < custom.index('"rnd-source-native-"')`；L194断言`"Privileged: false" in source`；L195断言`"NetworkMode" not in source.split("// Custom-source executions", 1)[0]`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.count`、`source.split`、`custom.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_global_flag`（L198–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L202断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in custom`；L203断言`"resourceLimitsDisabled" not in profile.LIMIT_INSERT`；L204断言`"hostConfig.CPUPeriod = 100000" in custom`；L205断言`"hostConfig.CPUQuota = 100000" in custom`；L206断言`"hostConfig.Memory = 2 * 1024 * 1024 * 1024" in custom`；L207断言`"hostConfig.CPUQuota = 200000" in native`；L208断言`"hostConfig.Memory = 6 * 1024 * 1024 * 1024" in native`；L209断言`native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")`。 调用`profile.LIMIT_INSERT.split`、`native.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_complete_source_resource_mapping_preserves_strict_bounds`（L213–L239）：接收`native`。 控制顺序：L226断言`proof["cpu_quota"] == quota`；L227断言`proof["memory"] == proof["memory_swap"] == memory`；L228遍历`( ("CpuPeriod", 0), ("CpuQuota", 0), ("CpuQuota", quota + 1), ("M…`。 调用`profile.require_execution_resources`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_drift_fails_closed_before_any_build`（L243–L253）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L245按`changed == "source"`分支；L247按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `application_inspect`（L256–L287）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L257的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
-- `inspection`（L291–L327）：接收`tmp_path`、`monkeypatch`。 调用`dependency_record`、`application_inspect`、`monkeypatch.setattr`。 返回路径：L327的`tmp_path, outer, inner, calls`。
-- `inspection.docker`（L318–L324）：接收`*args`、`**kwargs`。 控制顺序：L320按`"info" in args`分支；L322按`"network" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L321的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L323的`json.dumps(inner["bridge_inspect"])`；L324的`json.dumps([outer if args[0] == "container" else inner])`。
-- `execution_inspection`（L331–L350）：接收`inspection`。 调用`inner["HostConfig"].update`、`inner["Mounts"].append`。 返回路径：L350的`inspection`。
-- `test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy`（L353–L367）：接收`execution_inspection`。 控制顺序：L358断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 100000, "memory": 2 …`；L366断言`proof["trusted_readonly_binary_mounts"] is True`；L367断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data`（L449–L499）：接收`execution_inspection`、`settings`、`mutation`、`category`、`facts`。 控制顺序：L489断言`result["passed"] is False and result["cleanup"] == "deleted"`；L490断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L491断言`"container_isolation" not in result`；L493断言`diagnostic["container_rejection"] == category`；L494断言`diagnostic.items() >= facts.items()`；L496断言`json.loads(receipt_text) == result`；L497断言`"secret" not in receipt_text.lower()`；L498断言`"must-not-be-in-receipt" not in receipt_text`。后续分支沿下方源码相同行号继续阅读。 调用`mutation`、`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`profile.require_profile`、`profile.inspect_created_sandbox`、`diagnostic.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data.forbidden`（L461–L462）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers`（L502–L530）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L526断言`error.diagnostic() == expected`；L528断言`error.diagnostic() == expected`；L530断言`error.diagnostic() == {}`。 调用`ContainerInspectionRejected`、`error.diagnostic`、`error._facts.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L533–L566）：接收`inspection`。 控制顺序：L538断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L539断言`proof["snapshot_image_id"] == SNAPSHOT`；L540断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L563断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L566断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_created_application_rejects_real_inspect_drift`（L593–L597）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_wrong_runner_is_rejected_before_an_inner_exec`（L600–L605）：接收`inspection`。 控制顺序：L605断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L608–L635）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L610遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L625断言`text in recipe`；L626断言`"go mod edit" not in recipe and "yarn" not in recipe`；L628断言`snapshot.rstrip().endswith("USER 0:0")`；L629断言`"WORKDIR /opt/rnd/control" in snapshot`；L630断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `locked_profile`（L639–L724）：接收`tmp_path`、`monkeypatch`。 控制顺序：L642遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`records["api"].update`、`build.api_patch_identity`、`monkeypatch.setattr`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`等。 返回路径：L724的`tmp_path, record`。
-- `locked_profile.inspect_api`（L652–L669）：接收`*args`、`**kwargs`。 控制顺序：L653断言`args == ("image", "inspect", records["api"]["image_id"])`。 调用`json.dumps`、`build.api_patch_labels`。 返回路径：L656的`json.dumps( [ { "Id": records["api"]["image_id"], "Config": { "Labels": { "org.opencontain…`。
-- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L727–L738）：接收`locked_profile`。 控制顺序：L733断言`actual == record`；L738断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_edited_lock_cannot_select_general_or_unpinned_images`（L751–L757）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_required_profile_verifies_image_id_and_registry_digest`（L760–L775）：接收`locked_profile`、`monkeypatch`。 控制顺序：L770断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_never_overwrites_existing_profile_or_credentials`（L778–L782）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L788–L793）：接收`inspection`、`options`。 控制顺序：L793断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_shared_memory_patch_is_exact_and_only_changes_the_native_container_branch`（L212–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L217遍历`( 'hostConfig.IpcMode = container.IpcMode("private")', "hostConfi…`；L221断言`native.count(statement) == 1`；L222断言`statement not in custom + after_native + profile.NEW`；L223断言`"/dev/shm" not in profile.LIMIT_INSERT`；L224断言`"Binds" not in profile.LIMIT_INSERT and "Mounts" not in profile.LIMIT_INSERT`；L227断言`profile.SOURCE_BLOB == "d5a97203afa87c3fa0065702723c41645bf284b6"`；L228断言`profile.sha256(patch) == "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18…`。 调用`profile.LIMIT_INSERT.split`、`native.split`、`native.count`、`(profile.ROOT / "tools/daytona/capability-runner.patch").read_byt…`、`profile.sha256`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_source_resource_mapping_preserves_strict_bounds`（L234–L260）：接收`native`。 控制顺序：L247断言`proof["cpu_quota"] == quota`；L248断言`proof["memory"] == proof["memory_swap"] == memory`；L249遍历`( ("CpuPeriod", 0), ("CpuQuota", 0), ("CpuQuota", quota + 1), ("M…`。 调用`profile.require_execution_resources`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_drift_fails_closed_before_any_build`（L264–L274）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L266按`changed == "source"`分支；L268按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `application_inspect`（L277–L308）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L278的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
+- `inspection`（L312–L348）：接收`tmp_path`、`monkeypatch`。 调用`dependency_record`、`application_inspect`、`monkeypatch.setattr`。 返回路径：L348的`tmp_path, outer, inner, calls`。
+- `inspection.docker`（L339–L345）：接收`*args`、`**kwargs`。 控制顺序：L341按`"info" in args`分支；L343按`"network" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L342的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L344的`json.dumps(inner["bridge_inspect"])`；L345的`json.dumps([outer if args[0] == "container" else inner])`。
+- `execution_inspection`（L352–L371）：接收`inspection`。 调用`inner["HostConfig"].update`、`inner["Mounts"].append`。 返回路径：L371的`inspection`。
+- `native_inspection`（L375–L392）：接收`execution_inspection`、`monkeypatch`。 调用`copy.deepcopy`、`profile.require_profile`、`monkeypatch.setattr`、`inner["HostConfig"].update`。 返回路径：L392的`execution_inspection`。
+- `test_native_inspection_binds_private_shared_memory_without_expanding_mounts`（L395–L411）：接收`native_inspection`。 控制顺序：L400断言`proof["shared_memory"] == {"ipc_mode": "private", "size_bytes": 67108864}`；L401断言`type(proof["shared_memory"]["size_bytes"]) is int`；L402断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 200000, "memory": 6 …`；L410断言`proof["trusted_readonly_binary_mounts"] is True`；L411断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`type`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shared_memory_rejects_missing_changed_and_untyped_inspection`（L435–L456）：接收`native_inspection`、`require_resources`、`field`、`value`。 控制顺序：L439按`value is None`分支；L450断言`error.value.diagnostic() == { "container_rejection": "shared_memory", "shared_memory_…`；L455断言`"secret" not in json.dumps(error.value.diagnostic())`；L456断言`len(calls) == 3`。 调用`inner["HostConfig"].pop`、`pytest.raises`、`profile.inspect_created_sandbox`、`error.value.diagnostic`、`json.dumps`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sqlite_inspection_keeps_prior_ipc_policy_without_native_shared_memory`（L460–L468）：接收`execution_inspection`、`ipc_mode`。 控制顺序：L464按`ipc_mode is not None`分支；L467断言`"shared_memory" not in proof`；L468断言`proof["resource_limits"]["memory"] == 2 * 1024**3`。 调用`profile.inspect_created_sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_shared_memory_preserves_all_other_container_predicates`（L489–L495）：接收`native_inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row["HostConfig"].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy`（L498–L512）：接收`execution_inspection`。 控制顺序：L503断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 100000, "memory": 2 …`；L511断言`proof["trusted_readonly_binary_mounts"] is True`；L512断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data`（L594–L644）：接收`execution_inspection`、`settings`、`mutation`、`category`、`facts`。 控制顺序：L634断言`result["passed"] is False and result["cleanup"] == "deleted"`；L635断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L636断言`"container_isolation" not in result`；L638断言`diagnostic["container_rejection"] == category`；L639断言`diagnostic.items() >= facts.items()`；L641断言`json.loads(receipt_text) == result`；L642断言`"secret" not in receipt_text.lower()`；L643断言`"must-not-be-in-receipt" not in receipt_text`。后续分支沿下方源码相同行号继续阅读。 调用`mutation`、`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`profile.require_profile`、`profile.inspect_created_sandbox`、`diagnostic.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data.forbidden`（L606–L607）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers`（L647–L675）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L671断言`error.diagnostic() == expected`；L673断言`error.diagnostic() == expected`；L675断言`error.diagnostic() == {}`。 调用`ContainerInspectionRejected`、`error.diagnostic`、`error._facts.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L678–L711）：接收`inspection`。 控制顺序：L683断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L684断言`proof["snapshot_image_id"] == SNAPSHOT`；L685断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L708断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L711断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_created_application_rejects_real_inspect_drift`（L738–L742）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_runner_is_rejected_before_an_inner_exec`（L745–L750）：接收`inspection`。 控制顺序：L750断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L753–L780）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L755遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L770断言`text in recipe`；L771断言`"go mod edit" not in recipe and "yarn" not in recipe`；L773断言`snapshot.rstrip().endswith("USER 0:0")`；L774断言`"WORKDIR /opt/rnd/control" in snapshot`；L775断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `locked_profile`（L784–L869）：接收`tmp_path`、`monkeypatch`。 控制顺序：L787遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`records["api"].update`、`build.api_patch_identity`、`monkeypatch.setattr`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`等。 返回路径：L869的`tmp_path, record`。
+- `locked_profile.inspect_api`（L797–L814）：接收`*args`、`**kwargs`。 控制顺序：L798断言`args == ("image", "inspect", records["api"]["image_id"])`。 调用`json.dumps`、`build.api_patch_labels`。 返回路径：L801的`json.dumps( [ { "Id": records["api"]["image_id"], "Config": { "Labels": { "org.opencontain…`。
+- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L872–L883）：接收`locked_profile`。 控制顺序：L878断言`actual == record`；L883断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission`（L886–L900）：接收`locked_profile`。 调用`record["recipes"].update`、`profile.sha256`、`json.dumps(record["recipes"], sort_keys=True).encode`、`json.dumps`、`local.private_json`、`pytest.raises`、`profile.load_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_edited_lock_cannot_select_general_or_unpinned_images`（L913–L919）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_required_profile_verifies_image_id_and_registry_digest`（L922–L937）：接收`locked_profile`、`monkeypatch`。 控制顺序：L932断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_never_overwrites_existing_profile_or_credentials`（L940–L944）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L950–L955）：接收`inspection`、`options`。 控制顺序：L955断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_capability_profile.py sha256: dfce02ff61166cde0b0f91715f258d128675b9aeb3a700924e5747006f909384 -->
+<!-- source-file: tests/test_daytona_capability_profile.py sha256: 1f90ccd1086d6e0f339e0f045a35eca4d53cbc5ec547c942b86b3ed87efdd0f9 -->
 ````python
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
 
@@ -134560,6 +135760,27 @@ def test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_gl
     assert native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")
 
 
+def test_shared_memory_patch_is_exact_and_only_changes_the_native_container_branch():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    native, after_native = native.split("\t\t}\n", 1)
+    for statement in (
+        'hostConfig.IpcMode = container.IpcMode("private")',
+        "hostConfig.ShmSize = 67108864",
+    ):
+        assert native.count(statement) == 1
+        assert statement not in custom + after_native + profile.NEW
+    assert "/dev/shm" not in profile.LIMIT_INSERT
+    assert "Binds" not in profile.LIMIT_INSERT and "Mounts" not in profile.LIMIT_INSERT
+    patch = (profile.ROOT / "tools/daytona/capability-runner.patch").read_bytes()
+    # Regenerated from this verified upstream Git blob, not a hand-edited hunk.
+    assert profile.SOURCE_BLOB == "d5a97203afa87c3fa0065702723c41645bf284b6"
+    assert (
+        profile.sha256(patch) == "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed"
+    )
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_complete_source_resource_mapping_preserves_strict_bounds(native):
     memory = (6 if native else 2) * 1024**3
@@ -134699,6 +135920,130 @@ def execution_inspection(inspection):
     ]
     inner["Mounts"].append({"Type": "tmpfs", "Destination": "/tmp", "RW": True, "Source": ""})
     return inspection
+
+
+@pytest.fixture
+def native_inspection(execution_inspection, monkeypatch):
+    from scripts import daytona_native_capability_profile as native
+
+    directory, _, inner, _ = execution_inspection
+    record = copy.deepcopy(profile.require_profile(directory))
+    record["profile"] = native.PROFILE
+    record["snapshot"]["digest"] = "registry:6000/rnd-native-fastapiadmin@" + DIGEST
+    monkeypatch.setattr(native, "require_native_profile", lambda _: record)
+    inner["HostConfig"].update(
+        IpcMode="private",
+        ShmSize=67108864,
+        CpuQuota=200000,
+        Memory=6 * 1024**3,
+        MemorySwap=6 * 1024**3,
+        PidsLimit=384,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"},
+    )
+    return execution_inspection
+
+
+def test_native_inspection_binds_private_shared_memory_without_expanding_mounts(native_inspection):
+    directory, _, _, calls = native_inspection
+    proof = profile.inspect_created_sandbox(
+        directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+    )
+    assert proof["shared_memory"] == {"ipc_mode": "private", "size_bytes": 67108864}
+    assert type(proof["shared_memory"]["size_bytes"]) is int
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 200000,
+        "memory": 6 * 1024**3,
+        "memory_swap": 6 * 1024**3,
+        "tmpfs_bytes": 4294967296,
+        "pids": 384,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize("require_resources", [False, True])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("IpcMode", None),
+        ("IpcMode", ""),
+        ("IpcMode", "host"),
+        ("IpcMode", "shareable"),
+        ("IpcMode", "container:secret-container"),
+        ("IpcMode", True),
+        ("ShmSize", None),
+        ("ShmSize", 0),
+        ("ShmSize", -1),
+        ("ShmSize", 67108863),
+        ("ShmSize", 67108865),
+        ("ShmSize", 67108864.0),
+        ("ShmSize", "67108864"),
+        ("ShmSize", True),
+        ("ShmSize", False),
+    ],
+)
+def test_native_shared_memory_rejects_missing_changed_and_untyped_inspection(
+    native_inspection, require_resources, field, value
+):
+    directory, _, inner, calls = native_inspection
+    if value is None:
+        inner["HostConfig"].pop(field)
+    else:
+        inner["HostConfig"][field] = value
+    with pytest.raises(ContainerInspectionRejected, match="exact private IPC") as error:
+        profile.inspect_created_sandbox(
+            directory,
+            SANDBOX,
+            require_resources=require_resources,
+            selection={"template": "fastapiadmin"},
+        )
+    assert error.value.diagnostic() == {
+        "container_rejection": "shared_memory",
+        "shared_memory_ipc_private": field != "IpcMode",
+        "shared_memory_size_match": field != "ShmSize",
+    }
+    assert "secret" not in json.dumps(error.value.diagnostic())
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("ipc_mode", [None, "", "private"])
+def test_sqlite_inspection_keeps_prior_ipc_policy_without_native_shared_memory(
+    execution_inspection, ipc_mode
+):
+    directory, _, inner, _ = execution_inspection
+    if ipc_mode is not None:
+        inner["HostConfig"]["IpcMode"] = ipc_mode
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert "shared_memory" not in proof
+    assert proof["resource_limits"]["memory"] == 2 * 1024**3
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row["HostConfig"].update(Privileged=True),
+        lambda row: row["HostConfig"].update(SecurityOpt=["seccomp=unconfined"]),
+        lambda row: row["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+        lambda row: row["HostConfig"].update(PidMode="host"),
+        lambda row: row["HostConfig"].update(NetworkMode="default"),
+        lambda row: row["HostConfig"].update(MemorySwap=-1),
+        lambda row: row["HostConfig"].update(Tmpfs={"/dev/shm": "rw,size=67108864"}),
+        lambda row: row["Mounts"].append(
+            {"Type": "bind", "RW": True, "Destination": "/dev/shm", "Source": "/dev/shm"}
+        ),
+        lambda row: row["Mounts"].append(
+            {"Type": "tmpfs", "RW": True, "Destination": "/dev/shm", "Source": ""}
+        ),
+    ],
+)
+def test_native_shared_memory_preserves_all_other_container_predicates(native_inspection, mutation):
+    directory, _, inner, _ = native_inspection
+    mutation(inner)
+    with pytest.raises(ContainerInspectionRejected):
+        profile.inspect_created_sandbox(
+            directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+        )
 
 
 def test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy(
@@ -135087,6 +136432,23 @@ def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_chan
     with pytest.raises(ValueError, match="exact allowed transformation"):
         profile.load_profile(directory)
     assert (directory / "compose.lock.yaml").read_bytes() == ordinary
+
+
+def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
+    directory, record = locked_profile
+    # This internally consistent recipe predates the explicit native IPC/size binding.
+    record["recipes"].update(
+        {
+            "scripts/daytona_capability_profile.py": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
+            "tools/daytona/capability-runner.patch": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
+        }
+    )
+    record["recipe_identity"] = profile.sha256(
+        json.dumps(record["recipes"], sort_keys=True).encode()
+    )
+    local.private_json(directory / profile.LOCK, record)
+    with pytest.raises(ValueError, match="recipe or original installation changed"):
+        profile.load_profile(directory)
 
 
 @pytest.mark.parametrize(
@@ -155634,23 +156996,27 @@ def test_each_local_group_inherits_the_explicit_entity_without_fanning_out(text)
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.ci_capability_profile`、`workbench`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.ci_capability_profile`、`workbench`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `product_plan`（L23–L25）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L25的`product, fixed_application(product)`。
-- `inspected`（L28–L38）：接收`record`。 调用`container_binding`。 返回路径：L29的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
-- `test_direct_verify_rejects_before_container_creation`（L52–L84）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L57按`mutation == "missing-profile"`分支；L59按`mutation == "descriptor-drift"`分支；L61按`mutation == "extra-descriptor"`分支；L63按`mutation == "wrong-image"`分支；L65按`mutation == "prepare-hook"`分支；L67按`mutation == "alternate-launcher"`分支；L84断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload`（L90–L128）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L127断言`result["passed"] is False and result["cleanup"] == "deleted"`；L128断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload.forbidden`（L105–L106）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command`（L142–L183）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L182断言`result["passed"] is False and result["cleanup"] == "deleted"`；L183断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L151–L152）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `complete_proof`（L186–L246）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L200的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
-- `test_old_or_unbound_dependency_evidence_never_passes`（L263–L300）：接收`product_plan`、`mutation`。 控制顺序：L274断言`require_evidence(proof, **bindings) is proof`；L275按`mutation == "v3"`分支；L277按`mutation == "absent"`分支；L279按`mutation == "restart-absent"`分支；L281按`mutation == "final-absent"`分支；L283按`mutation == "source-drift"`分支；L285按`mutation == "offline-install-only"`分支；L287按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_receipt_flags_require_boolean_true`（L303–L318）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L306断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L312遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L332–L353）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L340断言`len(expected) == 25`；L342按`missing`分支；L346按`missing`分支；L350断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L353断言`len(execution.security_checks_for({"template": "fastapiadmin"})) == 30`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_plan`（L28–L30）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L30的`product, fixed_application(product)`。
+- `inspected`（L33–L43）：接收`record`。 调用`container_binding`。 返回路径：L34的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
+- `test_direct_verify_rejects_before_container_creation`（L57–L89）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L62按`mutation == "missing-profile"`分支；L64按`mutation == "descriptor-drift"`分支；L66按`mutation == "extra-descriptor"`分支；L68按`mutation == "wrong-image"`分支；L70按`mutation == "prepare-hook"`分支；L72按`mutation == "alternate-launcher"`分支；L89断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload`（L95–L133）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L132断言`result["passed"] is False and result["cleanup"] == "deleted"`；L133断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload.forbidden`（L110–L111）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command`（L147–L188）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L187断言`result["passed"] is False and result["cleanup"] == "deleted"`；L188断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L156–L157）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `complete_proof`（L191–L251）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L205的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
+- `complete_native_proof`（L254–L285）：接收`product`、`plan`。 控制顺序：L265遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L272遍历`("security_checks", "restart_security_checks")`；L284断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L285的`proof, bindings`。
+- `test_native_delivery_requires_both_complete_security_groups`（L290–L294）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L299–L305）：接收`product_plan`、`field`、`value`。 控制顺序：L301遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L308–L332）：接收`product_plan`。 控制顺序：L310遍历`("security_checks", "restart_security_checks")`；L311遍历`proof[field]`；L320遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L326遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_old_or_unbound_dependency_evidence_never_passes`（L349–L386）：接收`product_plan`、`mutation`。 控制顺序：L360断言`require_evidence(proof, **bindings) is proof`；L361按`mutation == "v3"`分支；L363按`mutation == "absent"`分支；L365按`mutation == "restart-absent"`分支；L367按`mutation == "final-absent"`分支；L369按`mutation == "source-drift"`分支；L371按`mutation == "offline-install-only"`分支；L373按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_receipt_flags_require_boolean_true`（L389–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L392断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L398遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L418–L452）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L426断言`len(expected) == 25`；L428按`missing`分支；L432按`missing`分支；L436断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L442断言`len(native) == 40`；L443断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_readonly_dependency_admission.py sha256: f270b7a3200e3d05ab6636a0d7417cc79addb32881f88f0fddaff0ecb36f0025 -->
+<!-- source-file: tests/test_readonly_dependency_admission.py sha256: bebbc2acda51440ad243adb5d22b1fe9bf106c33fc25f932a18902b93b6e917f -->
 ````python
 """Fail-closed contract tests with synthetic images, never live certification."""
 
@@ -155664,8 +157030,13 @@ from capability_dependency_fixtures import container_binding, dependency_evidenc
 from scripts.ci_capability_profile import fixed_application
 from workbench import capability_execution as execution
 from workbench import capability_sandbox as sandbox
-from workbench.capability_isolation import ISOLATION_FLAGS, ISOLATION_PROFILE
+from workbench.capability_isolation import (
+    ISOLATION_FLAGS,
+    ISOLATION_PROFILE,
+    NATIVE_SHARED_MEMORY_EVIDENCE,
+)
 from workbench.capability_verification import CheckFailure, require_evidence
+from workbench.catalog import Selection
 from workbench.domain import digest
 from workbench.filesystem import manifest, sha
 from workbench.settings import ROOT
@@ -155900,6 +157271,87 @@ def complete_proof(product, plan):
     }
 
 
+def complete_native_proof(product, plan):
+    plan.selection = Selection(template="fastapiadmin")
+    proof = complete_proof(product, plan)
+    record = profile_record(template="fastapiadmin")
+    dependency = record["snapshot"]["dependency_manifest"]
+    proof["container_isolation"] = {
+        **inspected(record),
+        **container_binding(record),
+    }
+    proof["execution_isolation"]["native_shared_memory"] = dict(NATIVE_SHARED_MEMORY_EVIDENCE)
+    proof["dependency_profile"] = dependency
+    for field in (
+        "preinstalled_dependencies",
+        "restart_preinstalled_dependencies",
+        "final_preinstalled_dependencies",
+    ):
+        proof[field] = dependency_evidence(dependency, manifest(product))
+    proof["database"]["engine"] = "postgresql"
+    for field in ("security_checks", "restart_security_checks"):
+        proof[field] = dict.fromkeys(
+            execution.security_checks_for(plan.selection.model_dump()), True
+        )
+    bindings = dict(
+        source_digest=digest(manifest(product)),
+        plan_digest=digest(plan.model_dump()),
+        scenarios=plan.scenarios,
+        selection=plan.selection.model_dump(),
+        database_tables=plan.runtime.database_tables,
+        aggregate=True,
+    )
+    assert require_evidence(proof, **bindings) is proof
+    return proof, bindings
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("replacement", [None, {}, [], True, "complete"])
+def test_native_delivery_requires_both_complete_security_groups(product_plan, field, replacement):
+    proof, bindings = complete_native_proof(*product_plan)
+    proof[field] = replacement
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("value", [False, 1, 0, None, "true", [], {}])
+def test_every_native_security_flag_rejects_false_or_truthy_coercion(product_plan, field, value):
+    proof, bindings = complete_native_proof(*product_plan)
+    for key in proof[field]:
+        changed = copy.deepcopy(proof)
+        changed[field][key] = value
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+
+
+def test_native_delivery_rejects_missing_extra_or_stripped_security_evidence(product_plan):
+    proof, bindings = complete_native_proof(*product_plan)
+    for field in ("security_checks", "restart_security_checks"):
+        for key in proof[field]:
+            changed = copy.deepcopy(proof)
+            del changed[field][key]
+            with pytest.raises(CheckFailure, match="隔离反例及清理"):
+                require_evidence(changed, **bindings)
+        changed = copy.deepcopy(proof)
+        changed[field]["extra"] = True
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    for fields in (
+        ("security_checks",),
+        ("restart_security_checks",),
+        ("security_checks", "restart_security_checks"),
+    ):
+        changed = copy.deepcopy(proof)
+        for field in fields:
+            changed.pop(field)
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    proof.update(security_checks={}, restart_security_checks={})
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -156004,7 +157456,20 @@ def test_new_dependency_probes_do_not_replace_existing_security_checks(
         assert probe.run_security_probe(
             object(), plan, 10, {"resource_limits": True}
         ) == dict.fromkeys(expected, True)
-        assert len(execution.security_checks_for({"template": "fastapiadmin"})) == 30
+        from scripts.capability_native_shm_probe import RUNTIME_CHECKS
+
+        native = execution.security_checks_for({"template": "fastapiadmin"})
+        assert len(native) == 40
+        assert native == (expected - {"all_tcp_destinations_denied"}) | {
+            "postgres_application_role_restricted",
+            "postgres_verifier_role_restricted",
+            "postgres_planner_identity_restricted",
+            "redis_owned_namespace_only",
+            "private_redis_control_denied",
+            "native_egress_denied_same_ports",
+            "cross_container_shm_private",
+            "peer_cleanup",
+        } | set(RUNTIME_CHECKS)
 ````
 
 ### `tests/test_real_model_ci.py`
@@ -169152,19 +170617,22 @@ def fixture_feature_outline(plan):
 
 **逐个入口与控制逻辑：**
 
-- `restrict_resources`（L32–L43）：接收`native`。 源码说明：Lower only this disposable child's limits; never changes host policy.。 控制顺序：L37按`native`分支；L39遍历`limits.items()`。 调用`dict`、`limits.update`、`limits.items`、`getattr`、`resource.getrlimit`、`min`、`resource.setrlimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Ruleset`（L46–L51）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Port`（L54–L55）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `PathRule`（L58–L60）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `SyscallComparison`（L63–L69）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `SeccompVersion`（L72–L73）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `restrict_sockets`（L76–L152）：接收`allow_tcp_connect`。 源码说明：libseccomp ABI2: only Unix/TCP stream sockets, no io_uring bypass. Official ABI: github.com/seccomp/libseccomp/blob/v2.5.5/include/seccomp.h.in Only this candidate process and its descendants receive 。 控制顺序：L88按`sys.platform != "linux" or platform.machine() not in architectures or ctypes.sizeof(c…`分支；L93抛异常，停止当前正常路径；L99按`api.seccomp_arch_native() != expected_arch or version.major != 2 or version.minor < 5`分支；L100抛异常，停止当前正常路径；L117按`not context`分支；L118抛异常，停止当前正常路径；L134遍历`("socket", "socketpair")`；L139遍历`(0, 3, 4, 5, 6, 7, 8, 9)`。后续分支沿下方源码相同行号继续阅读。 调用`platform.machine`、`ctypes.sizeof`、`RuntimeError`、`ctypes.CDLL`、`ctypes.POINTER`、`api.seccomp_version`、`api.seccomp_arch_native`、`api.seccomp_init`、`deny`等。 返回路径：L150的`{"major": version.major, "minor": version.minor, "micro": version.micro}`。
-- `restrict_sockets.deny`（L121–L132）：接收`name`、`*conditions`。 控制顺序：L123按`number < 0`分支；L124抛异常，停止当前正常路径；L126按`api.seccomp_rule_add_array( context, 0x00050000 \| errno.EPERM, number, len(condition…`分支；L132抛异常，停止当前正常路径。 调用`api.seccomp_syscall_resolve_name`、`name.encode`、`RuntimeError`、`SyscallComparison * len(conditions)`、`len`、`api.seccomp_rule_add_array`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `restrict_tcp`（L155–L209）：接收`bind_ports`、`connect_ports`、`filesystem`。 控制顺序：L156按`sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}`分支；L157抛异常，停止当前正常路径；L158按`any( not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports \| c…`分支；L161抛异常，停止当前正常路径；L165按`abi < 6`分支；L166抛异常，停止当前正常路径；L167按`libc.prctl(38, 1, 0, 0, 0)`分支；L168抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`platform.machine`、`RuntimeError`、`any`、`ctypes.CDLL`、`libc.syscall`、`libc.prctl`、`Ruleset`、`ctypes.byref`、`ctypes.sizeof`等。 返回路径：L209的`int(abi)`。
-- `daemon_denied`（L212–L233）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L213遍历`[ (socket.AF_INET, ("127.0.0.1", 2280)), (socket.AF_INET6, ("::1"…`；L222按`exc.errno in {errno.EACCES, errno.EPERM}`分支；L225按`family == socket.AF_INET6 and exc.errno in { errno.EAFNOSUPPORT, errno.EPROTONOSUPPOR…`分支；L230抛异常，停止当前正常路径；L233抛异常，停止当前正常路径。 调用`socket.socket`、`connection.settimeout`、`connection.connect`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L236–L264）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L237按`len(sys.argv) < 4`分支；L238抛异常，停止当前正常路径；L246按`sys.argv[3:] == ["--probe"]`分支；L262按`sys.argv[3] != "--" or len(sys.argv) < 5`分支；L263抛异常，停止当前正常路径。 调用`len`、`RuntimeError`、`int`、`sys.argv[1].split`、`sys.argv[2].split`、`restrict_tcp`、`restrict_resources`、`restrict_sockets`、`bool`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `restrict_resources`（L49–L60）：接收`native`。 源码说明：Lower only this disposable child's limits; never changes host policy.。 控制顺序：L54按`native`分支；L56遍历`limits.items()`。 调用`dict`、`limits.update`、`limits.items`、`getattr`、`resource.getrlimit`、`min`、`resource.setrlimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Ruleset`（L63–L68）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Port`（L71–L72）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `PathRule`（L75–L77）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SyscallComparison`（L80–L86）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SeccompVersion`（L89–L90）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `restrict_sockets`（L93–L169）：接收`allow_tcp_connect`。 源码说明：libseccomp ABI2: only Unix/TCP stream sockets, no io_uring bypass. Official ABI: github.com/seccomp/libseccomp/blob/v2.5.5/include/seccomp.h.in Only this candidate process and its descendants receive 。 控制顺序：L105按`sys.platform != "linux" or platform.machine() not in architectures or ctypes.sizeof(c…`分支；L110抛异常，停止当前正常路径；L116按`api.seccomp_arch_native() != expected_arch or version.major != 2 or version.minor < 5`分支；L117抛异常，停止当前正常路径；L134按`not context`分支；L135抛异常，停止当前正常路径；L151遍历`("socket", "socketpair")`；L156遍历`(0, 3, 4, 5, 6, 7, 8, 9)`。后续分支沿下方源码相同行号继续阅读。 调用`platform.machine`、`ctypes.sizeof`、`RuntimeError`、`ctypes.CDLL`、`ctypes.POINTER`、`api.seccomp_version`、`api.seccomp_arch_native`、`api.seccomp_init`、`deny`等。 返回路径：L167的`{"major": version.major, "minor": version.minor, "micro": version.micro}`。
+- `restrict_sockets.deny`（L138–L149）：接收`name`、`*conditions`。 控制顺序：L140按`number < 0`分支；L141抛异常，停止当前正常路径；L143按`api.seccomp_rule_add_array( context, 0x00050000 \| errno.EPERM, number, len(condition…`分支；L149抛异常，停止当前正常路径。 调用`api.seccomp_syscall_resolve_name`、`name.encode`、`RuntimeError`、`SyscallComparison * len(conditions)`、`len`、`api.seccomp_rule_add_array`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_read_proc`（L172–L177）：接收`path`。 控制顺序：L175按`len(value) > 1024 * 1024`分支；L176抛异常，停止当前正常路径。 调用`open`、`stream.read`、`len`、`RuntimeError`。 返回路径：L177的`value`。
+- `_native_shm_mount_identity`（L180–L217）：接收`descriptor`。 源码说明：Bind the opened directory to its own mount, never a matching path alone.。 控制顺序：L187按`len(identifiers) != 1 or not identifiers[0].isdecimal() or int(identifiers[0]) <= 0`分支；L188抛异常，停止当前正常路径；L190遍历`_read_proc("/proc/self/mountinfo").splitlines()`；L192按`len(sides) != 2`分支；L193抛异常，停止当前正常路径；L195按`len(before) < 6 or len(after) != 3`分支；L196抛异常，停止当前正常路径；L197按`before[4] == "/dev/shm" or before[0] == identifiers[0]`分支。后续分支沿下方源码相同行号继续阅读。 调用`line.split(":", 1)[1].strip`、`line.split`、`_read_proc(f"/proc/self/fdinfo/{descriptor}").splitlines`、`_read_proc`、`line.startswith`、`len`、`identifiers[0].isdecimal`、`int`、`RuntimeError`等。 返回路径：L217的`tuple(before), tuple(after), entry.st_dev, entry.st_ino`。
+- `open_verified_native_shm`（L220–L258）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Open only actual /dev/shm, with no symlink traversal or mount mutation. The trusted launcher separately binds Docker's private IPC and 64 MiB policy. Here the unprivileged guard validates the actual m。 控制顺序：L238按`not stat.S_ISDIR(entry.st_mode) or entry.st_uid != 0 or entry.st_gid != 0 or stat.S_I…`分支；L248抛异常，停止当前正常路径；L249按`identity != _native_shm_mount_identity(descriptor) or any( (before.st_dev, before.st_…`分支；L254抛异常，停止当前正常路径；L258抛异常，停止当前正常路径。 调用`os.open`、`os.close`、`tuple`、`os.stat`、`_native_shm_mount_identity`、`os.fstat`、`os.fstatvfs`、`stat.S_ISDIR`、`stat.S_IMODE`等。 返回路径：L255的`descriptor`。
+- `restrict_tcp`（L261–L329）：接收`bind_ports`、`connect_ports`、`filesystem`、`native_semaphore_storage`、`evidence`。 控制顺序：L264按`sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}`分支；L265抛异常，停止当前正常路径；L266按`any( not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports \| c…`分支；L269抛异常，停止当前正常路径；L270按`type(native_semaphore_storage) is not bool or native_semaphore_storage and not filesy…`分支；L271抛异常，停止当前正常路径；L275按`abi < 6`分支；L276抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`platform.machine`、`RuntimeError`、`any`、`type`、`ctypes.CDLL`、`libc.syscall`、`libc.prctl`、`Ruleset`、`ctypes.byref`等。 返回路径：L329的`int(abi)`。
+- `daemon_denied`（L332–L353）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L333遍历`[ (socket.AF_INET, ("127.0.0.1", 2280)), (socket.AF_INET6, ("::1"…`；L342按`exc.errno in {errno.EACCES, errno.EPERM}`分支；L345按`family == socket.AF_INET6 and exc.errno in { errno.EAFNOSUPPORT, errno.EPROTONOSUPPOR…`分支；L350抛异常，停止当前正常路径；L353抛异常，停止当前正常路径。 调用`socket.socket`、`connection.settimeout`、`connection.connect`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L356–L396）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L357按`len(sys.argv) < 4`分支；L358抛异常，停止当前正常路径；L363按`native_semaphore_storage`分支；L366按`not probe_only and (len(command) < 2 or command[0] != "--")`分支；L367抛异常，停止当前正常路径；L379按`probe_only`分支。 调用`len`、`RuntimeError`、`int`、`sys.argv[1].split`、`sys.argv[2].split`、`restrict_tcp`、`restrict_resources`、`restrict_sockets`、`bool`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/capability_guard.py sha256: b8c93bf74ff15d770d89adb173eef80a4f976ade46b4e7f139662897187e79c9 -->
+<!-- source-file: scripts/capability_guard.py sha256: 62a739ca3a504c723b1c30e0f5b3a22f8bac051f0da1f3adbe0604416f759cfb -->
 ````python
 """Trusted child-process TCP restriction, before any generated command executes.
 
@@ -169188,6 +170656,23 @@ BIND, CONNECT = 1, 2
 FORBIDDEN_PORTS = {2280}  # pinned Daytona daemon control API, not a product port
 WRITABLE_ROOT = "/tmp/rnd-capability"
 WRITE_ACCESS = sum(1 << bit for bit in (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
+# WRITE_FILE, REMOVE_FILE, MAKE_REG, REFER, TRUNCATE. In particular, this does
+# not admit MAKE_DIR/SYM/CHAR/BLOCK/FIFO/SOCK or REMOVE_DIR. POSIX SemLock needs
+# the temporary ordinary file + link/unlink sequence, not just a named prefix.
+NATIVE_SHM_ACCESS = sum(1 << bit for bit in (1, 5, 8, 13, 14))
+NATIVE_SHM_BYTES = 64 * 1024 * 1024
+NATIVE_SHM_EVIDENCE = {
+    "profile": "native-private-shm-v1",
+    "actual_mount_verified": True,
+    "regular_files_only": True,
+    "size_bytes": NATIVE_SHM_BYTES,
+    "noexec": True,
+    "nosuid": True,
+    "nodev": True,
+    "uid": 0,
+    "gid": 0,
+    "mode": 0o1777,
+}
 RESOURCE_LIMITS = {
     "RLIMIT_CPU": 300,
     "RLIMIT_FSIZE": 32 * 1024 * 1024,
@@ -169320,13 +170805,106 @@ def restrict_sockets(*, allow_tcp_connect=False):
         api.seccomp_release(context)
 
 
-def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
+def _read_proc(path):
+    with open(path, encoding="ascii") as stream:
+        value = stream.read(1024 * 1024 + 1)
+    if len(value) > 1024 * 1024:
+        raise RuntimeError("Shared memory mount evidence exceeds its bound")
+    return value
+
+
+def _native_shm_mount_identity(descriptor):
+    """Bind the opened directory to its own mount, never a matching path alone."""
+    identifiers = [
+        line.split(":", 1)[1].strip()
+        for line in _read_proc(f"/proc/self/fdinfo/{descriptor}").splitlines()
+        if line.startswith("mnt_id:")
+    ]
+    if len(identifiers) != 1 or not identifiers[0].isdecimal() or int(identifiers[0]) <= 0:
+        raise RuntimeError("Shared memory descriptor lacks a unique mount identity")
+    rows = []
+    for line in _read_proc("/proc/self/mountinfo").splitlines():
+        sides = line.split(" - ")
+        if len(sides) != 2:
+            raise RuntimeError("Malformed shared memory mount evidence")
+        before, after = sides[0].split(), sides[1].split()
+        if len(before) < 6 or len(after) != 3:
+            raise RuntimeError("Malformed shared memory mount evidence")
+        if before[4] == "/dev/shm" or before[0] == identifiers[0]:
+            rows.append((before, after))
+        if before[4].startswith("/dev/shm/"):
+            raise RuntimeError("Nested shared memory mounts are not admitted")
+    if len(rows) != 1:
+        raise RuntimeError("Shared memory mount identity is ambiguous")
+    before, after = rows[0]
+    entry = os.fstat(descriptor)
+    if (
+        before[0] != identifiers[0]
+        or before[2] != f"{os.major(entry.st_dev)}:{os.minor(entry.st_dev)}"
+        or before[3] != "/"
+        or before[4] != "/dev/shm"
+        or after[0] != "tmpfs"
+        or not {"rw", "noexec", "nosuid", "nodev"} <= set(before[5].split(","))
+        or "ro" in before[5].split(",")
+        or "rw" not in after[2].split(",")
+        or any(field.startswith(("shared:", "master:", "propagate_from:")) for field in before[6:])
+    ):
+        raise RuntimeError("Shared memory is not the required private tmpfs mount")
+    return tuple(before), tuple(after), entry.st_dev, entry.st_ino
+
+
+def open_verified_native_shm():
+    """Open only actual /dev/shm, with no symlink traversal or mount mutation.
+
+    The trusted launcher separately binds Docker's private IPC and 64 MiB
+    policy. Here the unprivileged guard validates the actual mount before any
+    additional Landlock right is granted, and uses that very descriptor.
+    """
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    device = os.open("/dev", flags)
+    try:
+        descriptor = os.open("shm", flags, dir_fd=device)
+    finally:
+        os.close(device)
+    try:
+        namespaces = tuple(os.stat(f"/proc/self/ns/{name}") for name in ("mnt", "ipc"))
+        identity = _native_shm_mount_identity(descriptor)
+        entry, filesystem = os.fstat(descriptor), os.fstatvfs(descriptor)
+        required_flags = os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV
+        if (
+            not stat.S_ISDIR(entry.st_mode)
+            or entry.st_uid != 0
+            or entry.st_gid != 0
+            or stat.S_IMODE(entry.st_mode) != 0o1777
+            or filesystem.f_frsize <= 0
+            or filesystem.f_blocks * filesystem.f_frsize != NATIVE_SHM_BYTES
+            or filesystem.f_flag & required_flags != required_flags
+            or filesystem.f_flag & os.ST_RDONLY
+        ):
+            raise RuntimeError("Shared memory mount ownership, size or flags are not admitted")
+        if identity != _native_shm_mount_identity(descriptor) or any(
+            (before.st_dev, before.st_ino)
+            != ((after := os.stat(f"/proc/self/ns/{name}")).st_dev, after.st_ino)
+            for name, before in zip(("mnt", "ipc"), namespaces, strict=True)
+        ):
+            raise RuntimeError("Shared memory mount identity changed during verification")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def restrict_tcp(
+    bind_ports, connect_ports, *, filesystem=False, native_semaphore_storage=False, evidence=None
+):
     if sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}:
         raise RuntimeError("Unsupported isolated kernel architecture")
     if any(
         not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports | connect_ports
     ):
         raise RuntimeError("Reserved or invalid isolated port")
+    if type(native_semaphore_storage) is not bool or native_semaphore_storage and not filesystem:
+        raise RuntimeError("Native shared memory requires an explicit filesystem policy")
     libc = ctypes.CDLL(None, use_errno=True)
     libc.syscall.restype = ctypes.c_long
     abi = libc.syscall(CREATE, 0, 0, 1)
@@ -169347,6 +170925,14 @@ def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
                     raise RuntimeError("Cannot restrict candidate filesystem writes")
             finally:
                 os.close(parent)
+            if native_semaphore_storage:
+                parent = open_verified_native_shm()
+                try:
+                    rule = PathRule(NATIVE_SHM_ACCESS, parent)
+                    if libc.syscall(ADD, descriptor, 1, ctypes.byref(rule), 0):
+                        raise RuntimeError("Cannot confine native semaphore files")
+                finally:
+                    os.close(parent)
         for port in sorted(bind_ports | connect_ports):
             rule = Port(
                 (BIND if port in bind_ports else 0) | (CONNECT if port in connect_ports else 0),
@@ -169374,6 +170960,8 @@ def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
             except OSError as exc:
                 if exc.errno != errno.EBADF:
                     raise
+    if native_semaphore_storage and evidence is not None:
+        evidence["native_shared_memory"] = dict(NATIVE_SHM_EVIDENCE)
     return int(abi)
 
 
@@ -169406,12 +170994,25 @@ def main():
         raise RuntimeError("Guard requires explicit port policy and command")
     bind_ports = {int(value) for value in sys.argv[1].split(",") if value}
     connect_ports = {int(value) for value in sys.argv[2].split(",") if value}
-    probe_only = sys.argv[3:] == ["--probe"]
-    abi = restrict_tcp(bind_ports, connect_ports, filesystem=not probe_only)
+    command = sys.argv[3:]
+    native_semaphore_storage = command[:1] == ["--native-shm"]
+    if native_semaphore_storage:
+        command = command[1:]
+    probe_only = command == ["--probe"]
+    if not probe_only and (len(command) < 2 or command[0] != "--"):
+        raise RuntimeError("Missing isolated command separator")
+    evidence = {}
+    abi = restrict_tcp(
+        bind_ports,
+        connect_ports,
+        filesystem=not probe_only or native_semaphore_storage,
+        native_semaphore_storage=native_semaphore_storage,
+        evidence=evidence,
+    )
     restrict_resources(native=55433 in connect_ports)
     seccomp = restrict_sockets(allow_tcp_connect=bool(connect_ports))
     daemon_denied()
-    if sys.argv[3:] == ["--probe"]:
+    if probe_only:
         print(
             json.dumps(
                 {
@@ -169423,13 +171024,12 @@ def main():
                     "socket_filter": "libseccomp-stream-only-v1",
                     "socket_filter_enforced": True,
                     "libseccomp": seccomp,
+                    **evidence,
                 }
             )
         )
         return
-    if sys.argv[3] != "--" or len(sys.argv) < 5:
-        raise RuntimeError("Missing isolated command separator")
-    os.execvpe(sys.argv[4], sys.argv[4:], os.environ)
+    os.execvpe(command[1], command[1:], os.environ)
 
 
 if __name__ == "__main__":
@@ -169801,6 +171401,607 @@ def verify_native_planner_identity(sandbox, plan, environment, timeout):
     return {CHECK: True}
 ````
 
+### `scripts/capability_native_shm_probe.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_native_shm_probe；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.daytona_capability_profile`、`workbench.capability_execution`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `_native`（L254–L256）：接收`plan`。 控制顺序：L255按`plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql"`分支；L256抛异常，停止当前正常路径。 调用`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_native_shm`（L259–L293）：接收`sandbox`、`plan`、`timeout`。 源码说明：Exercise real spawn workers, tmpfs exhaustion, and denial under the guard.。 控制顺序：L275抛异常，停止当前正常路径；L276按`status == 0 and isinstance(checks, dict) and set(checks) == set(RUNTIME_CHECKS) and a…`分支；L284按`status != 0 and isinstance(checks, dict) and set(checks) == {"passed", "stage"} and c…`分支；L293抛异常，停止当前正常路径。 调用`_native`、`run_guarded_control`、`product_argv`、`uuid.uuid4`、`min`、`json.loads`、`CheckFailure`、`isinstance`、`set`等。 返回路径：L282的`checks`。
+- `verify_native_shm_isolation`（L296–L365）：接收`first`、`second`、`plan`、`timeout`。 源码说明：Two designated disposable SDK sandboxes must not share either marker. The caller must inspect and prepare both sandboxes with the approved native profile first, and must delete both through its existi。 控制顺序：L305按`not isinstance(first_id, str) or not first_id or not isinstance(second_id, str) or no…`分支；L312抛异常，停止当前正常路径；L332遍历`((first, "first"), (second, "second"))`；L334按`not command(sandbox, side, "empty")`分支；L335抛异常，停止当前正常路径；L338按`not command(first, "first", "create")`分支；L339抛异常，停止当前正常路径；L341按`not command(second, "second", "empty")`分支。后续分支沿下方源码相同行号继续阅读。 调用`_native`、`getattr`、`isinstance`、`CheckFailure`、`uuid.uuid4`、`command`、`owned.append`、`dict.fromkeys`。 返回路径：L365的`dict.fromkeys(PAIR_CHECKS, True)`。
+- `verify_native_shm_isolation.command`（L318–L329）：接收`sandbox`、`side`、`operation`。 调用`run_guarded_control`、`product_argv`、`min`、`output.strip`。 返回路径：L329的`status == 0 and output.strip() == COMPLETE`。
+- `_peer_identity`（L368–L380）：接收`sandbox`、`name`、`nonce`、`first_id`。 源码说明：Only this request's uniquely labelled SDK object may be deleted.。 控制顺序：L371按`not isinstance(identifier, str) or not re.fullmatch(UUID_PATTERN, identifier) or iden…`分支；L379抛异常，停止当前正常路径。 调用`getattr`、`isinstance`、`re.fullmatch`、`sandbox.labels.get`、`CheckFailure`。 返回路径：L380的`identifier`。
+- `_require_peer_absent`（L383–L417）：接收`directory`、`identifier`、`timeout`。 源码说明：Read only the exact owned UUID in the existing profile's Docker daemon.。 控制顺序：L385按`not isinstance(identifier, str) or not re.fullmatch(UUID_PATTERN, identifier)`分支；L386抛异常，停止当前正常路径；L389按`not re.fullmatch(r"[a-f0-9]{64}", runner)`分支；L390抛异常，停止当前正常路径；L391在`True`成立时循环；L393按`remaining <= 0`分支；L394抛异常，停止当前正常路径；L412按`isinstance(output, str) and not output.strip()`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`re.fullmatch`、`time.monotonic`、`min`、`compose(directory, "ps", "--quiet", "runner", timeout=min(timeout…`、`compose`、`local.docker`、`output.strip`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NativeShmCleanupFailure`（L420–L431）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `NativeShmCleanupFailure.__init__`（L423–L431）：接收`name`、`identifier`、`primary`、`cleanup`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_shm_cleanup_diagnostic`（L434–L458）：接收`error`。 源码说明：Never serialize an arbitrary exception, traceback, peer object or label.。 控制顺序：L436按`type(error) is not NativeShmCleanupFailure`分支；L439按`type(value) is not dict or set(value) != {"peer_name", "peer_id", "primary_stage", "c…`分支。 调用`type`、`getattr`、`set`、`isinstance`、`re.fullmatch`、`dict`。 返回路径：L437的`{}`；L457的`{}`；L458的`dict(value)`。
+- `_require_native_resources`（L461–L481）：接收`value`。 控制顺序：L463按`type(value) is not dict or set(value) != keys or any(type(v) is not int for v in valu…`分支；L468抛异常，停止当前正常路径；L480按`checked != value`分支；L481抛异常，停止当前正常路径。 调用`type`、`set`、`any`、`value.values`、`require_execution_resources`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_native_shm_peer`（L484–L572）：接收`client`、`settings`、`directory`、`record`、`first`、`plan`、`timeout`。 源码说明：Create one owned same-profile peer; certify isolation only after deletion. Initial admission is rechecked before resource creation. A failed create is recovered by its exact random SDK name and label,。 控制顺序：L492按`client is None or settings is None or getattr(settings, "sandbox_provider", None) != …`分支；L497抛异常，停止当前正常路径；L501按`record.get("selection") != selected or snapshot_for(settings, selected["template"], s…`分支；L506抛异常，停止当前正常路径；L527按`parameters.snapshot != record["snapshot"]["snapshot"] or parameters.network_block_all…`分支；L532抛异常，停止当前正常路径；L536抛异常，停止当前正常路径；L553按`pair != dict.fromkeys(PAIR_CHECKS, True)`分支。后续分支沿下方源码相同行号继续阅读。 调用`_native`、`getattr`、`CheckFailure`、`plan.selection.model_dump`、`record.get`、`snapshot_for`、`inspect`、`uuid.uuid4`、`params_for`等。 返回路径：L572的`{"cross_container_shm_private": True, "peer_cleanup": True}`。
+- `verify_native_shm_peer.inspect`（L508–L521）：接收`sandbox`。 控制顺序：L510按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L511抛异常，停止当前正常路径；L518按`evidence.get("profile") != "native-fastapiadmin-postgresql-v1"`分支；L519抛异常，停止当前正常路径。 调用`sandbox.refresh_data`、`require_container_evidence`、`inspect_created_sandbox`、`evidence.get`、`_require_native_resources`、`require_profile_container_binding`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/capability_native_shm_probe.py sha256: 01af618d208b85ed8b4ad6d0b04979adc2b0399e975b7da7bec0704b5ad929b9 -->
+````python
+"""Bounded live evidence for the approved disposable native shared-memory root.
+
+Commands run only through the real product guard. The low-level pair probe
+receives two inspected, owned SDK sandboxes. The peer lifecycle creates and
+deletes one same-profile SDK sandbox, then confirms physical removal. Neither
+changes mounts or grants new resource limits. Only fixed booleans, finite
+failure stages and validated owned cleanup identifiers leave the probes.
+"""
+
+import json
+import re
+import time
+import uuid
+
+from scripts import daytona_local as local
+from scripts.daytona_capability_profile import (
+    compose,
+    inspect_created_sandbox,
+    require_execution_resources,
+)
+from workbench.capability_execution import require_profile_container_binding
+from workbench.capability_isolation import (
+    PRODUCT,
+    prepare_identity,
+    product_argv,
+    require_container_evidence,
+    require_native_shared_memory_evidence,
+    run_guarded_control,
+)
+from workbench.capability_verification import CheckFailure
+from workbench.sandbox import params_for, snapshot_for
+
+RUNTIME_CHECKS = (
+    "native_shm_64mib_enforced",
+    "native_shm_ordinary_files_allowed",
+    "native_shm_spawn_pool_completed",
+    "native_shm_spawn_pool_cleanup",
+    "native_shm_noexec_enforced",
+    "native_shm_forbidden_objects_denied",
+    "native_shm_outside_writes_denied",
+    "native_shm_probe_cleanup",
+)
+PAIR_CHECKS = (
+    "native_shm_cross_container_invisible",
+    "native_shm_cross_container_cleanup",
+)
+COMPLETE = "native-shm-probe-command-complete"
+UUID_PATTERN = r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}"
+PRIMARY_STAGES = frozenset({"none", "create", "inspect", "prepare", "pair"})
+CLEANUP_STAGES = frozenset({"recover", "identity", "delete", "physical-absence"})
+FAILURE_STAGES = frozenset(
+    {
+        "initial",
+        "ordinary",
+        "pool",
+        "pool-cleanup",
+        "capacity",
+        "noexec",
+        "objects",
+        "outside",
+        "cleanup",
+    }
+)
+
+PROBE = r"""
+import concurrent.futures,errno,gc,json,multiprocessing,os,re,socket,stat,subprocess,sys
+from multiprocessing import resource_tracker
+SHM='/dev/shm'
+LIMIT=64*1024*1024
+phase='initial'
+checks={}
+baseline=None
+paths=[]
+pool=None
+failed=None
+def denied(operation):
+ try:
+  value=operation()
+  if hasattr(value,'close'):value.close()
+ except OSError as exc:
+  assert exc.errno in (errno.EACCES,errno.EPERM)
+  return
+ raise AssertionError
+def create(path,data=b''):
+ fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_NOFOLLOW,0o600)
+ try:
+  if data:assert os.write(fd,data)==len(data)
+ finally:os.close(fd)
+def cleanup():
+ # Remove only the random names checked absent before this attempt.
+ for path in paths:
+  try:
+   mode=os.lstat(path).st_mode
+   if stat.S_ISDIR(mode):os.rmdir(path)
+   else:os.unlink(path)
+  except FileNotFoundError:pass
+ assert all(not os.path.lexists(path) for path in paths)
+ assert baseline is None or set(os.listdir(SHM))==baseline
+def unix_socket(path):
+ with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as stream:stream.bind(path)
+def execute_file(path):
+ child=subprocess.Popen([path],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ try:child.communicate(timeout=2)
+ finally:
+  if child.poll() is None:child.kill();child.communicate(timeout=1)
+def stop_pool():
+ global pool
+ if pool is not None:
+  # Only children of this single authored probe process are eligible.
+  for child in multiprocessing.active_children():
+   child.terminate();child.join(timeout=1)
+   if child.is_alive():child.kill();child.join(timeout=1)
+  pool.shutdown(wait=True,cancel_futures=True)
+  pool=None
+ gc.collect()
+ resource_tracker._resource_tracker._stop()
+ assert not multiprocessing.active_children()
+ assert resource_tracker._resource_tracker._pid is None
+try:
+ nonce=sys.argv[1]
+ assert re.fullmatch('[a-f0-9]{32}',nonce)
+ assert os.getuid()==20000 and os.geteuid()==20000
+ baseline=set(os.listdir(SHM))
+ names=['ordinary','linked','renamed','capacity','exec','directory','symlink','device','block','fifo','socket']
+ targets={name:SHM+'/rnd-shm-'+nonce+'-'+name for name in names}
+ assert all(not os.path.lexists(path) for path in targets.values())
+ paths=list(targets.values())
+ fs=os.statvfs(SHM)
+ assert fs.f_blocks*fs.f_frsize==LIMIT
+ assert fs.f_flag & os.ST_NOEXEC and fs.f_flag & os.ST_NOSUID and fs.f_flag & os.ST_NODEV
+ phase='ordinary'
+ create(targets['ordinary'],b'owned-shm-probe')
+ with open(targets['ordinary'],'r+b') as stream:
+  assert stream.read()==b'owned-shm-probe'
+  stream.seek(0);stream.write(b'updated');stream.truncate()
+ with open(targets['ordinary'],'rb') as stream:assert stream.read()==b'updated'
+ os.link(targets['ordinary'],targets['linked'])
+ os.rename(targets['linked'],targets['renamed'])
+ os.unlink(targets['ordinary'])
+ with open(targets['renamed'],'rb') as stream:assert stream.read()==b'updated'
+ os.unlink(targets['renamed'])
+ checks['native_shm_ordinary_files_allowed']=True
+ phase='pool'
+ before_pool=set(os.listdir(SHM))
+ pool=concurrent.futures.ProcessPoolExecutor(max_workers=1,mp_context=multiprocessing.get_context('spawn'))
+ assert pool.submit(pow,6,2).result(timeout=8)==36
+ worker=pool.submit(os.getpid).result(timeout=8)
+ assert type(worker) is int and worker>0 and worker!=os.getpid()
+ checks['native_shm_spawn_pool_completed']=True
+ phase='pool-cleanup'
+ pool.shutdown(wait=True,cancel_futures=True)
+ pool=None
+ stop_pool()
+ assert set(os.listdir(SHM))==before_pool
+ checks['native_shm_spawn_pool_cleanup']=True
+ phase='capacity'
+ before_capacity=os.statvfs(SHM)
+ available=before_capacity.f_bavail*before_capacity.f_frsize
+ assert 0<available<=LIMIT
+ fd=os.open(targets['capacity'],os.O_CREAT|os.O_EXCL|os.O_RDWR|os.O_NOFOLLOW,0o600)
+ try:
+  # Allocate real tmpfs pages, then require the next page to fail at the
+  # filesystem bound. The approved native RLIMIT_FSIZE is larger than 64MiB.
+  os.posix_fallocate(fd,0,available)
+  assert os.statvfs(SHM).f_bavail==0
+  try:os.pwrite(fd,b'x',available)
+  except OSError as exc:assert exc.errno==errno.ENOSPC
+  else:raise AssertionError
+  assert os.fstat(fd).st_size==available
+ finally:os.close(fd);os.unlink(targets['capacity'])
+ assert os.statvfs(SHM).f_bavail>=before_capacity.f_bavail
+ checks['native_shm_64mib_enforced']=True
+ phase='noexec'
+ create(targets['exec'],b'#!/bin/sh\nexit 0\n')
+ os.chmod(targets['exec'],0o700)
+ denied(lambda:execute_file(targets['exec']))
+ os.unlink(targets['exec'])
+ checks['native_shm_noexec_enforced']=True
+ phase='objects'
+ denied(lambda:os.mkdir(targets['directory'],0o700))
+ denied(lambda:os.symlink('ordinary',targets['symlink']))
+ denied(lambda:os.mknod(targets['device'],stat.S_IFCHR|0o600,os.makedev(1,3)))
+ denied(lambda:os.mknod(targets['block'],stat.S_IFBLK|0o600,os.makedev(7,0)))
+ denied(lambda:os.mkfifo(targets['fifo'],0o600))
+ denied(lambda:unix_socket(targets['socket']))
+ checks['native_shm_forbidden_objects_denied']=True
+ phase='outside'
+ outside='/home/rnd-module/rnd-shm-'+nonce+'-outside'
+ assert not os.path.lexists(outside)
+ paths.append(outside)
+ denied(lambda:open(outside,'xb'))
+ denied(lambda:open('/proc/self/root'+outside,'xb'))
+ escape='/tmp/rnd-capability/tmp/rnd-shm-'+nonce+'-escape'
+ assert not os.path.lexists(escape)
+ paths.append(escape)
+ os.symlink(outside,escape)
+ denied(lambda:open(escape,'xb'))
+ os.unlink(escape)
+ checks['native_shm_outside_writes_denied']=True
+except BaseException:
+ failed=phase
+finally:
+ try:
+  stop_pool()
+  cleanup()
+ except BaseException:failed='cleanup'
+if failed is not None:
+ print(json.dumps({'passed':False,'stage':failed},sort_keys=True))
+ raise SystemExit(1)
+checks['native_shm_probe_cleanup']=True
+print(json.dumps(checks,sort_keys=True))
+"""
+
+# This command intentionally carries no arbitrary path, content, or output.
+# Both sandboxes see the same random names but must see only their own contents.
+MARKER = r"""
+import os,re,stat,sys
+SHM='/dev/shm'
+try:
+ operation,nonce,side=sys.argv[1:]
+ assert re.fullmatch('[a-f0-9]{32}',nonce) and side in ('first','second')
+ paths={name:SHM+'/rnd-shm-pair-'+nonce+'-'+name for name in ('first','second','shared')}
+ own=paths[side]
+ other=paths['second' if side=='first' else 'first']
+ def absent(path):assert not os.path.lexists(path)
+ def read(path):
+  fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
+  try:
+   info=os.fstat(fd)
+   assert stat.S_ISREG(info.st_mode) and info.st_uid==os.getuid() and info.st_nlink==1
+   assert os.read(fd,32)==side.encode()
+  finally:os.close(fd)
+ if operation=='empty':
+  for path in paths.values():absent(path)
+ elif operation=='create':
+  absent(other)
+  for path in (own,paths['shared']):
+   fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+   try:assert os.write(fd,side.encode())==len(side)
+   finally:os.close(fd)
+ elif operation=='verify':
+  absent(other);read(own);read(paths['shared'])
+ elif operation=='cleanup':
+  for path in paths.values():
+   try:os.unlink(path)
+   except FileNotFoundError:pass
+  for path in paths.values():absent(path)
+ else:raise AssertionError
+except BaseException:raise SystemExit(1) from None
+print('native-shm-probe-command-complete')
+"""
+
+
+def _native(plan):
+    if plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql":
+        raise CheckFailure("共享内存探针只允许已批准的一次性原生profile")
+
+
+def verify_native_shm(sandbox, plan, timeout):
+    """Exercise real spawn workers, tmpfs exhaustion, and denial under the guard."""
+    _native(plan)
+    try:
+        status, output = run_guarded_control(
+            sandbox,
+            product_argv(
+                plan,
+                ["/usr/bin/python3", "-I", "-S", "-c", PROBE, uuid.uuid4().hex],
+                {},
+                native_semaphore_storage=True,
+            ),
+            min(timeout, 45),
+        )
+        checks = json.loads(output)
+    except Exception:
+        raise CheckFailure("原生共享内存安全反例未返回有效回执（stage=unknown）") from None
+    if (
+        status == 0
+        and isinstance(checks, dict)
+        and set(checks) == set(RUNTIME_CHECKS)
+        and all(value is True for value in checks.values())
+    ):
+        return checks
+    stage = "unknown"
+    if (
+        status != 0
+        and isinstance(checks, dict)
+        and set(checks) == {"passed", "stage"}
+        and checks["passed"] is False
+        and isinstance(checks["stage"], str)
+        and checks["stage"] in FAILURE_STAGES
+    ):
+        stage = checks["stage"]
+    raise CheckFailure(f"原生共享内存安全反例未全部通过（stage={stage}）")
+
+
+def verify_native_shm_isolation(first, second, plan, timeout):
+    """Two designated disposable SDK sandboxes must not share either marker.
+
+    The caller must inspect and prepare both sandboxes with the approved native
+    profile first, and must delete both through its existing mandatory lifecycle.
+    This function certifies marker cleanup; it does not certify container removal.
+    """
+    _native(plan)
+    first_id, second_id = getattr(first, "id", None), getattr(second, "id", None)
+    if (
+        not isinstance(first_id, str)
+        or not first_id
+        or not isinstance(second_id, str)
+        or not second_id
+        or first_id == second_id
+    ):
+        raise CheckFailure("共享内存隔离验证必须使用两个不同的本次独占沙箱")
+    nonce = uuid.uuid4().hex
+    owned = []
+    phase = "initial"
+    primary = "none"
+
+    def command(sandbox, side, operation):
+        status, output = run_guarded_control(
+            sandbox,
+            product_argv(
+                plan,
+                ["/usr/bin/python3", "-I", "-S", "-c", MARKER, operation, nonce, side],
+                {},
+                native_semaphore_storage=True,
+            ),
+            min(timeout, 15),
+        )
+        return status == 0 and output.strip() == COMPLETE
+
+    try:
+        for sandbox, side in ((first, "first"), (second, "second")):
+            phase = side + "-empty"
+            if not command(sandbox, side, "empty"):
+                raise ValueError
+            owned.append((sandbox, side))
+        phase = "first-create"
+        if not command(first, "first", "create"):
+            raise ValueError
+        phase = "second-empty"
+        if not command(second, "second", "empty"):
+            raise ValueError
+        phase = "second-create"
+        if not command(second, "second", "create"):
+            raise ValueError
+        for sandbox, side in owned:
+            phase = side + "-verify"
+            if not command(sandbox, side, "verify"):
+                raise ValueError
+    except Exception:
+        primary = phase
+        raise CheckFailure(f"两个原生沙箱的共享内存隔离未确认（stage={phase}）") from None
+    finally:
+        cleaned = True
+        for sandbox, side in owned:
+            try:
+                if not command(sandbox, side, "cleanup"):
+                    cleaned = False
+            except Exception:
+                cleaned = False
+        if not cleaned:
+            raise CheckFailure(
+                f"本次共享内存隔离探针清理未确认（primary={primary}; cleanup=failed）"
+            ) from None
+    return dict.fromkeys(PAIR_CHECKS, True)
+
+
+def _peer_identity(sandbox, name, nonce, first_id):
+    """Only this request's uniquely labelled SDK object may be deleted."""
+    identifier = getattr(sandbox, "id", None)
+    if (
+        not isinstance(identifier, str)
+        or not re.fullmatch(UUID_PATTERN, identifier)
+        or identifier == first_id
+        or getattr(sandbox, "name", None) != name
+        or not isinstance(getattr(sandbox, "labels", None), dict)
+        or sandbox.labels.get("rnd-shm-probe") != nonce
+    ):
+        raise CheckFailure("共享内存探针对端身份不属于本次创建，未读取或删除其他沙箱")
+    return identifier
+
+
+def _require_peer_absent(directory, identifier, timeout):
+    """Read only the exact owned UUID in the existing profile's Docker daemon."""
+    if not isinstance(identifier, str) or not re.fullmatch(UUID_PATTERN, identifier):
+        raise ValueError
+    deadline = time.monotonic() + min(timeout, 30)
+    runner = compose(directory, "ps", "--quiet", "runner", timeout=min(timeout, 10)).strip()
+    if not re.fullmatch(r"[a-f0-9]{64}", runner):
+        raise ValueError
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError
+        # Upstream names the actual Docker container sandboxDto.Id, not its
+        # friendly SDK name. An empty exact-name listing proves physical removal.
+        output = local.docker(
+            "exec",
+            runner,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "container",
+            "ls",
+            "--all",
+            "--quiet",
+            "--no-trunc",
+            "--filter",
+            "name=^/" + identifier + "$",
+            timeout=min(remaining, 15),
+        )
+        if isinstance(output, str) and not output.strip():
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError
+        time.sleep(min(0.2, remaining))
+
+
+class NativeShmCleanupFailure(CheckFailure):
+    """Keep only controller-generated recovery identifiers for the operator."""
+
+    def __init__(self, name, identifier, primary, cleanup):
+        super().__init__(f"本次共享内存对端清理未确认（primary={primary}; cleanup=failed）")
+        self.diagnostic = {
+            "peer_name": name,
+            "peer_id": identifier,
+            "primary_stage": primary,
+            "cleanup_stage": cleanup,
+            "cleanup": "unconfirmed",
+        }
+
+
+def native_shm_cleanup_diagnostic(error):
+    """Never serialize an arbitrary exception, traceback, peer object or label."""
+    if type(error) is not NativeShmCleanupFailure:
+        return {}
+    value = getattr(error, "diagnostic", None)
+    if (
+        type(value) is not dict
+        or set(value) != {"peer_name", "peer_id", "primary_stage", "cleanup_stage", "cleanup"}
+        or not isinstance(value["peer_name"], str)
+        or not re.fullmatch(r"rnd-source-native-shm-peer-[a-f0-9]{32}", value["peer_name"])
+        or (
+            value["peer_id"] is not None
+            and (
+                not isinstance(value["peer_id"], str)
+                or not re.fullmatch(UUID_PATTERN, value["peer_id"])
+            )
+        )
+        or not isinstance(value["primary_stage"], str)
+        or value["primary_stage"] not in PRIMARY_STAGES
+        or not isinstance(value["cleanup_stage"], str)
+        or value["cleanup_stage"] not in CLEANUP_STAGES
+        or value["cleanup"] != "unconfirmed"
+    ):
+        return {}
+    return dict(value)
+
+
+def _require_native_resources(value):
+    keys = {"cpu_period", "cpu_quota", "memory", "memory_swap", "tmpfs_bytes", "pids"}
+    if (
+        type(value) is not dict
+        or set(value) != keys
+        or any(type(v) is not int for v in value.values())
+    ):
+        raise ValueError
+    checked = require_execution_resources(
+        {
+            "CpuPeriod": value["cpu_period"],
+            "CpuQuota": value["cpu_quota"],
+            "Memory": value["memory"],
+            "MemorySwap": value["memory_swap"],
+            "PidsLimit": value["pids"],
+            "Tmpfs": {"/tmp": f"rw,nosuid,nodev,size={value['tmpfs_bytes']},mode=1777"},
+        },
+        native=True,
+    )
+    if checked != value:
+        raise ValueError
+
+
+def verify_native_shm_peer(client, settings, directory, record, first, plan, timeout):
+    """Create one owned same-profile peer; certify isolation only after deletion.
+
+    Initial admission is rechecked before resource creation. A failed create is
+    recovered by its exact random SDK name and label, never by a global list.
+    There is no host mount, direct Docker mutation, candidate upload, or cleanup fallback.
+    """
+    _native(plan)
+    if (
+        client is None
+        or settings is None
+        or getattr(settings, "sandbox_provider", None) != "daytona"
+    ):
+        raise CheckFailure("共享内存对端验证缺少已批准的本机SDK执行环境")
+    selected = plan.selection.model_dump()
+    phase = "admission"
+    try:
+        if (
+            record.get("selection") != selected
+            or snapshot_for(settings, selected["template"], selected)
+            != record["snapshot"]["snapshot"]
+        ):
+            raise ValueError
+
+        def inspect(sandbox):
+            sandbox.refresh_data()
+            if sandbox.network_block_all is not True or sandbox.public is not False:
+                raise ValueError
+            evidence = require_container_evidence(
+                inspect_created_sandbox(
+                    directory, sandbox.id, require_resources=True, selection=selected
+                ),
+                sandbox.id,
+            )
+            if evidence.get("profile") != "native-fastapiadmin-postgresql-v1":
+                raise ValueError
+            _require_native_resources(evidence.get("resource_limits"))
+            require_profile_container_binding(record, evidence)
+
+        inspect(first)
+        nonce = uuid.uuid4().hex
+        name = "rnd-source-native-shm-peer-" + nonce
+        parameters = params_for(settings, name, selected["template"], selected)
+        if (
+            parameters.snapshot != record["snapshot"]["snapshot"]
+            or parameters.network_block_all is not True
+            or parameters.public is not False
+        ):
+            raise ValueError
+        parameters.os_user = "root"
+        parameters.labels = {**parameters.labels, "rnd-shm-probe": nonce}
+    except Exception:
+        raise CheckFailure("共享内存对端创建前的原生隔离绑定无效（stage=admission）") from None
+
+    peer = None
+    primary = "none"
+    try:
+        phase = "create"
+        peer = client.create(parameters, timeout=timeout)
+        _peer_identity(peer, name, nonce, first.id)
+        phase = "inspect"
+        inspect(peer)
+        phase = "prepare"
+        peer.fs.create_folder("/tmp/rnd-capability", "711")
+        peer.fs.create_folder(PRODUCT, "700")
+        identity = prepare_identity(peer, plan, timeout, native_semaphore_storage=True)
+        require_native_shared_memory_evidence(identity.get("native_shared_memory"))
+        phase = "pair"
+        pair = verify_native_shm_isolation(first, peer, plan, timeout)
+        if pair != dict.fromkeys(PAIR_CHECKS, True):
+            raise ValueError
+    except Exception:
+        primary = phase
+        raise CheckFailure(f"原生共享内存对端验证未完成（stage={phase}）") from None
+    finally:
+        identifier = None
+        cleanup_stage = "recover"
+        try:
+            if peer is None:
+                peer = client.get(name)
+            cleanup_stage = "identity"
+            identifier = _peer_identity(peer, name, nonce, first.id)
+            cleanup_stage = "delete"
+            client.delete(peer, timeout=timeout)
+            cleanup_stage = "physical-absence"
+            _require_peer_absent(directory, identifier, timeout)
+        except Exception:
+            raise NativeShmCleanupFailure(name, identifier, primary, cleanup_stage) from None
+    return {"cross_container_shm_private": True, "peer_cleanup": True}
+````
+
 ### `scripts/capability_security_probe.py`
 
 **作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
@@ -169814,10 +172015,10 @@ def verify_native_planner_identity(sandbox, plan, environment, timeout):
 **逐个入口与控制逻辑：**
 
 - `run_security_probe`（L106–L136）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L107按`not container_evidence.get("resource_limits")`分支；L108抛异常，停止当前正常路径；L110遍历`(CONTROL + "/private/security-sentinel", "/tmp/rnd-postgres/secur…`；L112按`result.exit_code != 0`分支；L113抛异常，停止当前正常路径；L124抛异常，停止当前正常路径；L126按`plan.selection.template == "fastapiadmin"`分支；L128按`result != 0 or not isinstance(checks, dict) or set(checks) != expected or any(value i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`container_evidence.get`、`IsolationUnavailable`、`control_exec`、`run_guarded_control`、`product_argv`、`json.loads`、`set`、`expected.remove`、`isinstance`等。 返回路径：L136的`checks`。
-- `security_probe_for_profile`（L139–L152）：接收`directory`、`record`。 返回路径：L152的`probe`。
-- `security_probe_for_profile.probe`（L140–L150）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L142按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_egress`。 返回路径：L150的`checks`。
+- `security_probe_for_profile`（L139–L160）：接收`directory`、`record`、`client`、`settings`。 返回路径：L160的`probe`。
+- `security_probe_for_profile.probe`（L140–L158）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L142按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_shm`、`verify_native_shm_peer`、`verify_native_egress`。 返回路径：L158的`checks`。
 
-<!-- source-file: scripts/capability_security_probe.py sha256: a1007f88e14675659b909387b984090abcee7fa204eed4c15dd4bb699e9c8bf1 -->
+<!-- source-file: scripts/capability_security_probe.py sha256: d7e7a18e388018ddb7e601d809c03e9f3e4318d1015df4991ae84dae4ef22e0d -->
 ````python
 """Bounded adversarial checks in the *real* disposable product identity.
 
@@ -169957,16 +172158,24 @@ def run_security_probe(sandbox, plan, timeout, container_evidence, environment=N
     return checks
 
 
-def security_probe_for_profile(directory, record):
+def security_probe_for_profile(directory, record, *, client=None, settings=None):
     def probe(sandbox, plan, timeout, container_evidence, environment=None):
         checks = run_security_probe(sandbox, plan, timeout, container_evidence, environment)
         if plan.selection.template == "fastapiadmin":
             from scripts.capability_native_egress import verify_native_egress
             from scripts.capability_native_planner_probe import verify_native_planner_identity
+            from scripts.capability_native_shm_probe import (
+                verify_native_shm,
+                verify_native_shm_peer,
+            )
             from workbench.capability_services import verify_native_services
 
             checks.update(verify_native_services(sandbox, plan, environment, timeout))
             checks.update(verify_native_planner_identity(sandbox, plan, environment, timeout))
+            checks.update(verify_native_shm(sandbox, plan, timeout))
+            checks.update(
+                verify_native_shm_peer(client, settings, directory, record, sandbox, plan, timeout)
+            )
             checks.update(verify_native_egress(directory, record, sandbox, plan, timeout))
         return checks
 
@@ -171172,9 +173381,9 @@ if __name__ == "__main__":
 
 - `install_authored_fixture`（L38–L53）：接收`product`。 控制顺序：L41按`destination.exists() or destination.is_symlink()`分支；L42抛异常，停止当前正常路径；L45按`not marker.exists()`分支。 调用`dict`、`require_exact_source`、`manifest`、`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`等。 返回路径：L53的`expected`。
 - `require_business_proof`（L56–L69）：接收`proof`。 控制顺序：L58按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L69抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L72–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L104抛异常，停止当前正常路径；L134按`proof["source_digest"] != digest(inventory)`分支；L135抛异常，停止当前正常路径；L144按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L72–L148）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L104抛异常，停止当前正常路径；L136按`proof["source_digest"] != digest(inventory)`分支；L137抛异常，停止当前正常路径；L146按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_contest_capability.py sha256: 6ad95db456f0f62f2f505ccaac2625f4cb5d62c9329d4cf481c605ecf0791dcf -->
+<!-- source-file: scripts/ci_contest_capability.py sha256: 47494a9b10522b594c06df5a51c1c476891749f212b81d7774ebc1b71cdc3c4a -->
 ````python
 """Authored native contest slice against trusted independent business assertions.
 
@@ -171304,7 +173513,9 @@ def main():
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     directory, sandbox_id, require_resources=True, selection=selection()
                 ),
-                security_probe=security_probe_for_profile(directory, record),
+                security_probe=security_probe_for_profile(
+                    directory, record, client=client, settings=settings
+                ),
                 trusted_oracle=contest.CONTRACT_VERSION,
             )
             require_business_proof(proof)
@@ -174143,10 +176354,10 @@ if __name__ == "__main__":
 - `native_browser_steps`（L121–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L124的`[ {"action": "open", "value": "/#/login"}, {"action": "visible", "selector": ".login-page-…`。
 - `fixed_plan`（L148–L333）：接收`product`。 调用`baseline_table`、`scope_sources`、`login_steps`、`native_browser_steps`、`CapabilityPlan.model_validate`、`digest`、`selection`。 返回路径：L295的`CapabilityPlan.model_validate( { "title": "Native FastapiAdmin security positive", "summar…`。
 - `require_native_positive`（L336–L374）：接收`proof`、`plan`、`source_digest`、`browser_image`。 控制顺序：L348按`proof.get("restart_kind") != "application_process" or not isinstance(restarted_checks…`分支；L366抛异常，停止当前正常路径；L370按`any( database["after"][name] <= database["baseline"][name] for name in plan.runtime.d…`分支；L374抛异常，停止当前正常路径。 调用`require_profile_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`proof.get`、`isinstance`、`any`、`restarted_checks.values`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `certify`（L377–L478）：接收`product`、`directory`、`source_receipt`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L407按`source_receipt is not None`分支；L412按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L415抛异常，停止当前正常路径；L460按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L464抛异常，停止当前正常路径；L465按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L472的`acceptance`。
-- `main`（L481–L490）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `certify`（L377–L480）：接收`product`、`directory`、`source_receipt`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L407按`source_receipt is not None`分支；L412按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L415抛异常，停止当前正常路径；L462按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L466抛异常，停止当前正常路径；L467按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L474的`acceptance`。
+- `main`（L483–L492）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_native_capability_security.py sha256: 8b5790c0f6ffa02b4ff5dbbe3bdcfa5c9be4ce0ec37579a262c1902a0bf60988 -->
+<!-- source-file: scripts/ci_native_capability_security.py sha256: 4f96d96a6b02cb72141b70051d38130f948537990ae58b1f9487d6396c3e0734 -->
 ````python
 """Live native security certification against the registered generated CI baseline.
 
@@ -174583,7 +176794,9 @@ def certify(product=PRODUCT, directory=HOME, *, source_receipt=None):
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=selected
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
         )
         summary["proof"] = settings.redact_data(proof)
         require_native_positive(proof, plan, digest(inventory), browser_image)
@@ -179485,33 +181698,34 @@ def build_storage(directory, command, docker):
 
 **逐个入口与控制逻辑：**
 
-- `sha256`（L114–L115）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L115的`hashlib.sha256(raw).hexdigest()`。
-- `blob`（L118–L119）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L119的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
-- `recipe_identity`（L122–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L125的`identity, hashes`。
-- `profile_directory`（L128–L132）：接收`directory`。 控制顺序：L130按`directory == local.HOME.resolve()`分支；L131抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L132的`directory`。
-- `read_base`（L135–L153）：接收`directory`。 控制顺序：L140按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L146抛异常，停止当前正常路径；L147遍历`config["services"].items()`；L150按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L151抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`等。 返回路径：L153的`config`。
-- `source_context`（L156–L211）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L159按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L160抛异常，停止当前正常路径；L164按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L165抛异常，停止当前正常路径；L166按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L167抛异常，停止当前正常路径；L169按`updated.count(LIMIT_ANCHOR) != 1`分支；L170抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L207的`{ "source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated), }`。
-- `download_assets`（L214–L221）：接收`context`。 控制顺序：L216遍历`ASSETS.items()`；L219按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L220抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inspect_image`（L224–L231）：接收`reference`。 控制顺序：L226按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L227抛异常，停止当前正常路径；L229按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L230抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L231的`image`。
-- `resolve_bases`（L234–L244）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L236遍历`BASES.items()`；L241按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L242抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L244的`result`。
-- `build_image`（L247–L270）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L249遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L270的`image`。
-- `validate_image`（L273–L293）：接收`image`、`identity`、`snapshot`。 控制顺序：L276按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L281抛异常，停止当前正常路径；L282按`snapshot`分支；L283按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L289抛异常，停止当前正常路径；L292按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L293抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `render_profile`（L296–L303）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L303的`config`。
-- `write_compose`（L306–L309）：接收`path`、`config`。 控制顺序：L308按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare_dependency_context`（L312–L337）：接收`context`、`identity`。 控制顺序：L315遍历`("pyproject.toml", "uv.lock")`；L322遍历`("image", "build")`。 调用`Path`、`(ROOT / "templates/product" / name).read_bytes`、`(context / name).write_bytes`、`sha256`、`dependencies.validate_python`、`(context / "pyproject.toml").read_bytes`、`(context / "uv.lock").read_bytes`、`shutil.copyfile`、`(context / "dependency-inputs.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inspect_dependency_manifest`（L340–L392）：接收`image_id`、`profile`、`descriptors`。 控制顺序：L341按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id)`分支；L342抛异常，停止当前正常路径；L364按`not isinstance(result, dict) or set(result) != { "schema", "profile", "manifest_sha25…`分支；L391抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`local.docker`、`json.loads`、`isinstance`、`set`、`type`、`result.get`、`dependencies.native_descriptor_roles`等。 返回路径：L392的`{**result, "image_id": image_id}`。
-- `validate_dependency_binding`（L395–L424）：接收`value`、`image_id`、`profile`、`descriptors`。 控制顺序：L396按`not isinstance(value, dict) or set(value) != { "schema", "profile", "image_id", "mani…`分支；L424抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`dependencies.native_descriptor_roles`、`dependencies.native_descriptor_roles().values`、`any`、`re.fullmatch`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_dependency_manifest`（L427–L435）：接收`record`、`profile`、`descriptors`。 控制顺序：L433按`image.get("dependency_manifest") != expected`分支；L434抛异常，停止当前正常路径。 调用`validate_dependency_binding`、`image.get`、`inspect_dependency_manifest`、`ValueError`。 返回路径：L435的`expected`。
-- `prepare`（L438–L570）：接收`directory`。 控制顺序：L441遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L442按`(directory / name).exists()`分支；L443抛异常，停止当前正常路径；L447按`info.get("OSType") != "linux" or info.get("Architecture") not in { "amd64", "x86_64",…`分支；L451抛异常，停止当前正常路径；L462按`existing.strip()`分支；L463抛异常，停止当前正常路径；L471按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_profile`（L573–L635）：接收`directory`。 控制顺序：L577按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L585抛异常，停止当前正常路径；L587按`set(bases) != set(BASES)`分支；L588抛异常，停止当前正常路径；L589遍历`BASES.items()`；L592按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L597抛异常，停止当前正常路径；L600按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L635的`config, record`。
-- `compose`（L638–L648）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L640的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
-- `require_profile`（L651–L673）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L654按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L655抛异常，停止当前正常路径；L661按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L664抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`、`require_dependency_manifest`、`sha256`、`(ROOT / "templates/product" / name).read_bytes`。 返回路径：L673的`record`。
-- `require_execution_resources`（L676–L725）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L689按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L703抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L718的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
-- `inspect_created_sandbox`（L728–L955）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L737按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L738抛异常，停止当前正常路径；L743按`native`分支；L748按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L749抛异常，停止当前正常路径；L754按`len(rows) != 1`分支；L755抛异常，停止当前正常路径；L760按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L955的`receipt`。
-- `up`（L958–L996）：接收`directory`。 控制顺序：L970遍历`range(90)`；L977按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L978抛异常，停止当前正常路径；L984按`ready == local.KEEP`分支；L986遍历`endpoints`；L994按`attempt < 89`分支；L996抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L999–L1012）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1004按`args.action == "prepare"`分支；L1006按`args.action == "up"`分支；L1008按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `sha256`（L117–L118）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L118的`hashlib.sha256(raw).hexdigest()`。
+- `blob`（L121–L122）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L122的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
+- `recipe_identity`（L125–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L128的`identity, hashes`。
+- `profile_directory`（L131–L135）：接收`directory`。 控制顺序：L133按`directory == local.HOME.resolve()`分支；L134抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L135的`directory`。
+- `read_base`（L138–L156）：接收`directory`。 控制顺序：L143按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L149抛异常，停止当前正常路径；L150遍历`config["services"].items()`；L153按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L154抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`等。 返回路径：L156的`config`。
+- `source_context`（L159–L214）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L162按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L163抛异常，停止当前正常路径；L167按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L168抛异常，停止当前正常路径；L169按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L170抛异常，停止当前正常路径；L172按`updated.count(LIMIT_ANCHOR) != 1`分支；L173抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L210的`{ "source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated), }`。
+- `download_assets`（L217–L224）：接收`context`。 控制顺序：L219遍历`ASSETS.items()`；L222按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L223抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_image`（L227–L234）：接收`reference`。 控制顺序：L229按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L230抛异常，停止当前正常路径；L232按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L233抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L234的`image`。
+- `resolve_bases`（L237–L247）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L239遍历`BASES.items()`；L244按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L245抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L247的`result`。
+- `build_image`（L250–L273）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L252遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L273的`image`。
+- `validate_image`（L276–L296）：接收`image`、`identity`、`snapshot`。 控制顺序：L279按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L284抛异常，停止当前正常路径；L285按`snapshot`分支；L286按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L292抛异常，停止当前正常路径；L295按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L296抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `render_profile`（L299–L306）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L306的`config`。
+- `write_compose`（L309–L312）：接收`path`、`config`。 控制顺序：L311按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare_dependency_context`（L315–L340）：接收`context`、`identity`。 控制顺序：L318遍历`("pyproject.toml", "uv.lock")`；L325遍历`("image", "build")`。 调用`Path`、`(ROOT / "templates/product" / name).read_bytes`、`(context / name).write_bytes`、`sha256`、`dependencies.validate_python`、`(context / "pyproject.toml").read_bytes`、`(context / "uv.lock").read_bytes`、`shutil.copyfile`、`(context / "dependency-inputs.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_dependency_manifest`（L343–L395）：接收`image_id`、`profile`、`descriptors`。 控制顺序：L344按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id)`分支；L345抛异常，停止当前正常路径；L367按`not isinstance(result, dict) or set(result) != { "schema", "profile", "manifest_sha25…`分支；L394抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`local.docker`、`json.loads`、`isinstance`、`set`、`type`、`result.get`、`dependencies.native_descriptor_roles`等。 返回路径：L395的`{**result, "image_id": image_id}`。
+- `validate_dependency_binding`（L398–L427）：接收`value`、`image_id`、`profile`、`descriptors`。 控制顺序：L399按`not isinstance(value, dict) or set(value) != { "schema", "profile", "image_id", "mani…`分支；L427抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`dependencies.native_descriptor_roles`、`dependencies.native_descriptor_roles().values`、`any`、`re.fullmatch`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_dependency_manifest`（L430–L438）：接收`record`、`profile`、`descriptors`。 控制顺序：L436按`image.get("dependency_manifest") != expected`分支；L437抛异常，停止当前正常路径。 调用`validate_dependency_binding`、`image.get`、`inspect_dependency_manifest`、`ValueError`。 返回路径：L438的`expected`。
+- `prepare`（L441–L573）：接收`directory`。 控制顺序：L444遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L445按`(directory / name).exists()`分支；L446抛异常，停止当前正常路径；L450按`info.get("OSType") != "linux" or info.get("Architecture") not in { "amd64", "x86_64",…`分支；L454抛异常，停止当前正常路径；L465按`existing.strip()`分支；L466抛异常，停止当前正常路径；L474按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_profile`（L576–L638）：接收`directory`。 控制顺序：L580按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L588抛异常，停止当前正常路径；L590按`set(bases) != set(BASES)`分支；L591抛异常，停止当前正常路径；L592遍历`BASES.items()`；L595按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L600抛异常，停止当前正常路径；L603按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L638的`config, record`。
+- `compose`（L641–L651）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L643的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
+- `require_profile`（L654–L676）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L657按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L658抛异常，停止当前正常路径；L664按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L667抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`、`require_dependency_manifest`、`sha256`、`(ROOT / "templates/product" / name).read_bytes`。 返回路径：L676的`record`。
+- `require_execution_resources`（L679–L728）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L692按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L706抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L721的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
+- `require_native_shared_memory`（L731–L746）：接收`host`。 源码说明：Bind native execution to Docker's private, fixed-size default shm mount.。 控制顺序：L737按`not ipc_private or not size_matches`分支；L738抛异常，停止当前正常路径。 调用`host.get`、`type`、`ContainerInspectionRejected`。 返回路径：L746的`{"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}`。
+- `inspect_created_sandbox`（L749–L979）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L758按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L759抛异常，停止当前正常路径；L764按`native`分支；L769按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L770抛异常，停止当前正常路径；L775按`len(rows) != 1`分支；L776抛异常，停止当前正常路径；L781按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L979的`receipt`。
+- `up`（L982–L1020）：接收`directory`。 控制顺序：L994遍历`range(90)`；L1001按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L1002抛异常，停止当前正常路径；L1008按`ready == local.KEEP`分支；L1010遍历`endpoints`；L1018按`attempt < 89`分支；L1020抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L1023–L1036）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1028按`args.action == "prepare"`分支；L1030按`args.action == "up"`分支；L1032按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_capability_profile.py sha256: 97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c -->
+<!-- source-file: scripts/daytona_capability_profile.py sha256: ae21aa6727133a525cc702d86c34b75eaa836f333b8ab42198cf5e5e50ebac03 -->
 ````python
 """Build the owned, fixed-authored capability profile before starting Daytona.
 
@@ -179551,6 +181765,7 @@ PINNED_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
 COMPOSE = "compose.capability.lock.yaml"
 LOCK = "capability-profile.lock.json"
 CONTROL_WORKDIR = "/opt/rnd/control"
+NATIVE_SHARED_MEMORY_BYTES = 67108864
 SOURCE_FILE = "apps/runner/pkg/docker/container_configs.go"
 SOURCE_BLOB = "d5a97203afa87c3fa0065702723c41645bf284b6"
 WORKSPACE_BLOB = "daf66a070fb41cdf12ecbbdb7dc4a20cf4b9bba0"
@@ -179578,6 +181793,8 @@ LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on 
 \t\thostConfig.PidsLimit = &pidLimit
 \t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 \t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\thostConfig.IpcMode = container.IpcMode("private")
+\t\t\thostConfig.ShmSize = 67108864
 \t\t\thostConfig.CPUQuota = 200000
 \t\t\thostConfig.Memory = 6 * 1024 * 1024 * 1024
 \t\t\tpidLimit = 384
@@ -180240,6 +182457,24 @@ def require_execution_resources(host, *, native=False):
     }
 
 
+def require_native_shared_memory(host):
+    """Bind native execution to Docker's private, fixed-size default shm mount."""
+    ipc_private = host.get("IpcMode") == "private"
+    size_matches = (
+        type(host.get("ShmSize")) is int and host["ShmSize"] == NATIVE_SHARED_MEMORY_BYTES
+    )
+    if not ipc_private or not size_matches:
+        raise ContainerInspectionRejected(
+            "Native source requires exact private IPC and 64 MiB shared memory",
+            category="shared_memory",
+            facts={
+                "shared_memory_ipc_private": ipc_private,
+                "shared_memory_size_match": size_matches,
+            },
+        )
+    return {"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}
+
+
 def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, selection=None):
     """Inspect only the newly owned UUID inside the verified profile Runner.
 
@@ -180324,6 +182559,7 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
+    shared_memory = require_native_shared_memory(host) if native else None
     if require_resources:
         networks = container.get("NetworkSettings", {}).get("Networks", {})
         if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
@@ -180467,6 +182703,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     }
     if require_resources:
         receipt["resource_limits"] = require_execution_resources(host, native=native)
+    if native:
+        receipt["shared_memory"] = shared_memory
     return receipt
 
 
@@ -192656,7 +194894,7 @@ ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: tools/daytona/capability-runner.patch sha256: 5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c -->
+<!-- source-file: tools/daytona/capability-runner.patch sha256: 637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed -->
 ````text
 --- a/apps/runner/pkg/docker/container_configs.go
 +++ b/apps/runner/pkg/docker/container_configs.go
@@ -192675,7 +194913,7 @@ ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,26 @@
+@@ -234,6 +232,28 @@
  		}
  	}
  
@@ -192692,6 +194930,8 @@ ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 +		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.IpcMode = container.IpcMode("private")
++			hostConfig.ShmSize = 67108864
 +			hostConfig.CPUQuota = 200000
 +			hostConfig.Memory = 6 * 1024 * 1024 * 1024
 +			pidLimit = 384
@@ -199565,7 +201805,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: 31130bb60cb401a7d963c09327f88bd5b65c16f35e3a285ae6c372cd1690e1bc -->
+<!-- source-file: docs/custom-source-isolation.md sha256: 9f7461b9f9a7742abd1a1c35dfbe8073e27a385441fc285990c7ced1077d0a46 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -199725,8 +201965,29 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 内存信号量分类要求同一完整 traceback 内出现准确的进程池构造和 SemLock 帧及权限
 拒绝；后续清理异常可单独保留为终止异常。缺少匹配信息时明确记录 unknown，不泄露
 路径、异常正文或凭据。这些分类来自不可信输出，仅用于定位，不能替代真实内核证据。
-原生 CI 另在原 guard 下实际构造 spawn 进程池，验证只读范围外的信号量申请仍被拒绝；
-没有开放共享内存写入、改变调度器功能或延长应用健康期限。
+原生 CI 另在默认 guard 下实际构造 spawn 进程池，验证未明确启用原生共享内存策略时，
+只读范围外的信号量申请仍被拒绝。诊断与默认拒绝测试不改变调度器或应用健康期限。
+
+### 专用原生容器的私有共享内存
+
+只有 `rnd-source-native-*` 一次性容器显式设置 private IPC 和 64 MiB（67108864 字节）
+的 `/dev/shm`。外部准入同时检查这两个准确值，内部守卫再以 no-follow 文件描述符核对
+实际 tmpfs 挂载身份、大小、noexec/nosuid/nodev，以及 uid/gid 0:0、mode 1777；任何
+不一致均拒绝。没有宿主共享内存绑定、可共享 IPC 或持久卷；原 CPU、总内存、PID、FD
+限额和 `/tmp` noexec 不变。
+
+受信启动器只在已通过原生容器绑定后添加明确的共享内存选项。Landlock 对该根仅允许
+普通文件创建、读写、截断、链接/重命名及删除，禁止目录、符号链接、设备、FIFO 和
+套接字创建。不能按信号量文件名前缀授权，因此该范围明确包含目录内其他普通文件。
+sticky bit 继续保护不同 UID 的文件，标准根权限保留同容器 PostgreSQL 的正常行为。
+普通/SQLite profile 不获得这些权限，已有原生锁和证书须按新源码/镜像身份重新验证。
+
+原生安全门禁要求真实 spawn 进程池完成任务并回收、容量耗尽及恢复、noexec 和禁止对象/
+外路径写入反例，以及两个经独立准入的专用容器之间不可见的共享内存标记。临时同名标记
+分别核验和清理，探针只返回固定布尔项；临时 peer 必须删除并确认对应 Docker 容器不存在。
+签发与最终交付消费端都要求完整原生安全检查集合；汇总交付还必须具有重启后的同一集合。
+缺项、多项、失败或仅为 truthy 的值均拒绝，不能剥离双容器/清理证明后沿用成功回执。
+工作区单元测试不是这些真实容器检查的替代品。
 
 浏览器也执行候选 JavaScript，因此自定义源码不能走宿主浏览器。它使用单独的无网络、
 只读根、CPU/内存/PID/tmpfs 有界容器，通过有界标准流 relay 访问唯一私有预览。

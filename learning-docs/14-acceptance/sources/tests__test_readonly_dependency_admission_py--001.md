@@ -10,30 +10,34 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.ci_capability_profile`、`workbench`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.ci_capability_profile`、`workbench`、`workbench.capability_isolation`、`workbench.capability_verification`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `product_plan`（L23–L25）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L25的`product, fixed_application(product)`。
-- `inspected`（L28–L38）：接收`record`。 调用`container_binding`。 返回路径：L29的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
-- `test_direct_verify_rejects_before_container_creation`（L52–L84）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L57按`mutation == "missing-profile"`分支；L59按`mutation == "descriptor-drift"`分支；L61按`mutation == "extra-descriptor"`分支；L63按`mutation == "wrong-image"`分支；L65按`mutation == "prepare-hook"`分支；L67按`mutation == "alternate-launcher"`分支；L84断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload`（L90–L128）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L127断言`result["passed"] is False and result["cleanup"] == "deleted"`；L128断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload.forbidden`（L105–L106）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command`（L142–L183）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L182断言`result["passed"] is False and result["cleanup"] == "deleted"`；L183断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L151–L152）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `complete_proof`（L186–L246）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L200的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
-- `test_old_or_unbound_dependency_evidence_never_passes`（L263–L300）：接收`product_plan`、`mutation`。 控制顺序：L274断言`require_evidence(proof, **bindings) is proof`；L275按`mutation == "v3"`分支；L277按`mutation == "absent"`分支；L279按`mutation == "restart-absent"`分支；L281按`mutation == "final-absent"`分支；L283按`mutation == "source-drift"`分支；L285按`mutation == "offline-install-only"`分支；L287按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_receipt_flags_require_boolean_true`（L303–L318）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L306断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L312遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L332–L353）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L340断言`len(expected) == 25`；L342按`missing`分支；L346按`missing`分支；L350断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L353断言`len(execution.security_checks_for({"template": "fastapiadmin"})) == 30`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_plan`（L28–L30）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L30的`product, fixed_application(product)`。
+- `inspected`（L33–L43）：接收`record`。 调用`container_binding`。 返回路径：L34的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
+- `test_direct_verify_rejects_before_container_creation`（L57–L89）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L62按`mutation == "missing-profile"`分支；L64按`mutation == "descriptor-drift"`分支；L66按`mutation == "extra-descriptor"`分支；L68按`mutation == "wrong-image"`分支；L70按`mutation == "prepare-hook"`分支；L72按`mutation == "alternate-launcher"`分支；L89断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload`（L95–L133）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L132断言`result["passed"] is False and result["cleanup"] == "deleted"`；L133断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload.forbidden`（L110–L111）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command`（L147–L188）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L187断言`result["passed"] is False and result["cleanup"] == "deleted"`；L188断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L156–L157）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `complete_proof`（L191–L251）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L205的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
+- `complete_native_proof`（L254–L285）：接收`product`、`plan`。 控制顺序：L265遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L272遍历`("security_checks", "restart_security_checks")`；L284断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L285的`proof, bindings`。
+- `test_native_delivery_requires_both_complete_security_groups`（L290–L294）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L299–L305）：接收`product_plan`、`field`、`value`。 控制顺序：L301遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L308–L332）：接收`product_plan`。 控制顺序：L310遍历`("security_checks", "restart_security_checks")`；L311遍历`proof[field]`；L320遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L326遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_old_or_unbound_dependency_evidence_never_passes`（L349–L386）：接收`product_plan`、`mutation`。 控制顺序：L360断言`require_evidence(proof, **bindings) is proof`；L361按`mutation == "v3"`分支；L363按`mutation == "absent"`分支；L365按`mutation == "restart-absent"`分支；L367按`mutation == "final-absent"`分支；L369按`mutation == "source-drift"`分支；L371按`mutation == "offline-install-only"`分支；L373按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_receipt_flags_require_boolean_true`（L389–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L392断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L398遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L418–L452）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L426断言`len(expected) == 25`；L428按`missing`分支；L432按`missing`分支；L436断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L442断言`len(native) == 40`；L443断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L353。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L452。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12311`。本段原文以LF换行结束。
+本段原始字节数：`16500`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f270b7a3200e3d05ab6636a0d7417cc79addb32881f88f0fddaff0ecb36f0025"} -->
+<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bebbc2acda51440ad243adb5d22b1fe9bf106c33fc25f932a18902b93b6e917f"} -->
 ````python
 # tests/test_readonly_dependency_admission.py
 """Fail-closed contract tests with synthetic images, never live certification."""
@@ -48,8 +52,13 @@ from capability_dependency_fixtures import container_binding, dependency_evidenc
 from scripts.ci_capability_profile import fixed_application
 from workbench import capability_execution as execution
 from workbench import capability_sandbox as sandbox
-from workbench.capability_isolation import ISOLATION_FLAGS, ISOLATION_PROFILE
+from workbench.capability_isolation import (
+    ISOLATION_FLAGS,
+    ISOLATION_PROFILE,
+    NATIVE_SHARED_MEMORY_EVIDENCE,
+)
 from workbench.capability_verification import CheckFailure, require_evidence
+from workbench.catalog import Selection
 from workbench.domain import digest
 from workbench.filesystem import manifest, sha
 from workbench.settings import ROOT
@@ -284,6 +293,87 @@ def complete_proof(product, plan):
     }
 
 
+def complete_native_proof(product, plan):
+    plan.selection = Selection(template="fastapiadmin")
+    proof = complete_proof(product, plan)
+    record = profile_record(template="fastapiadmin")
+    dependency = record["snapshot"]["dependency_manifest"]
+    proof["container_isolation"] = {
+        **inspected(record),
+        **container_binding(record),
+    }
+    proof["execution_isolation"]["native_shared_memory"] = dict(NATIVE_SHARED_MEMORY_EVIDENCE)
+    proof["dependency_profile"] = dependency
+    for field in (
+        "preinstalled_dependencies",
+        "restart_preinstalled_dependencies",
+        "final_preinstalled_dependencies",
+    ):
+        proof[field] = dependency_evidence(dependency, manifest(product))
+    proof["database"]["engine"] = "postgresql"
+    for field in ("security_checks", "restart_security_checks"):
+        proof[field] = dict.fromkeys(
+            execution.security_checks_for(plan.selection.model_dump()), True
+        )
+    bindings = dict(
+        source_digest=digest(manifest(product)),
+        plan_digest=digest(plan.model_dump()),
+        scenarios=plan.scenarios,
+        selection=plan.selection.model_dump(),
+        database_tables=plan.runtime.database_tables,
+        aggregate=True,
+    )
+    assert require_evidence(proof, **bindings) is proof
+    return proof, bindings
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("replacement", [None, {}, [], True, "complete"])
+def test_native_delivery_requires_both_complete_security_groups(product_plan, field, replacement):
+    proof, bindings = complete_native_proof(*product_plan)
+    proof[field] = replacement
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("value", [False, 1, 0, None, "true", [], {}])
+def test_every_native_security_flag_rejects_false_or_truthy_coercion(product_plan, field, value):
+    proof, bindings = complete_native_proof(*product_plan)
+    for key in proof[field]:
+        changed = copy.deepcopy(proof)
+        changed[field][key] = value
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+
+
+def test_native_delivery_rejects_missing_extra_or_stripped_security_evidence(product_plan):
+    proof, bindings = complete_native_proof(*product_plan)
+    for field in ("security_checks", "restart_security_checks"):
+        for key in proof[field]:
+            changed = copy.deepcopy(proof)
+            del changed[field][key]
+            with pytest.raises(CheckFailure, match="隔离反例及清理"):
+                require_evidence(changed, **bindings)
+        changed = copy.deepcopy(proof)
+        changed[field]["extra"] = True
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    for fields in (
+        ("security_checks",),
+        ("restart_security_checks",),
+        ("security_checks", "restart_security_checks"),
+    ):
+        changed = copy.deepcopy(proof)
+        for field in fields:
+            changed.pop(field)
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    proof.update(security_checks={}, restart_security_checks={})
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -388,5 +478,18 @@ def test_new_dependency_probes_do_not_replace_existing_security_checks(
         assert probe.run_security_probe(
             object(), plan, 10, {"resource_limits": True}
         ) == dict.fromkeys(expected, True)
-        assert len(execution.security_checks_for({"template": "fastapiadmin"})) == 30
+        from scripts.capability_native_shm_probe import RUNTIME_CHECKS
+
+        native = execution.security_checks_for({"template": "fastapiadmin"})
+        assert len(native) == 40
+        assert native == (expected - {"all_tcp_destinations_denied"}) | {
+            "postgres_application_role_restricted",
+            "postgres_verifier_role_restricted",
+            "postgres_planner_identity_restricted",
+            "redis_owned_namespace_only",
+            "private_redis_control_denied",
+            "native_egress_denied_same_ports",
+            "cross_container_shm_private",
+            "peer_cleanup",
+        } | set(RUNTIME_CHECKS)
 ````

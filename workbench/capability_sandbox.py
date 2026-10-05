@@ -411,6 +411,10 @@ def _verify(
                 control_observer(sandbox.id), sandbox.id
             )
             require_profile_container_binding(profile_record, receipt["container_isolation"])
+            if native and receipt["container_isolation"].get("profile") != (
+                "native-fastapiadmin-postgresql-v1"
+            ):
+                raise ValueError("Native execution requires its exact container profile")
         except ContainerInspectionRejected as exc:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码",
@@ -432,7 +436,10 @@ def _verify(
         )
         if result.exit_code != 0:
             raise CheckFailure("自定义产品源码解压失败")
-        receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        identity_options = {"native_semaphore_storage": True} if native else {}
+        receipt["execution_isolation"] = prepare_identity(
+            sandbox, plan, settings.tool_timeout, **identity_options
+        )
         receipt["preinstalled_dependencies"] = require_preinstalled_evidence(
             prepare_readonly_dependencies(
                 sandbox,
@@ -466,7 +473,7 @@ def _verify(
         for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             result = run_session_command(
                 sandbox.process,
@@ -512,7 +519,7 @@ def _verify(
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             response = sandbox.process.execute_session_command(
                 session,
@@ -782,6 +789,12 @@ def _verify(
     except CheckFailure as exc:
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if native:
+            from scripts.capability_native_shm_probe import native_shm_cleanup_diagnostic
+
+            cleanup_diagnostic = native_shm_cleanup_diagnostic(exc)
+            if cleanup_diagnostic:
+                receipt["native_shm_cleanup_diagnostic"] = cleanup_diagnostic
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
@@ -852,7 +865,9 @@ def main():
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=payload["selection"]
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
         )

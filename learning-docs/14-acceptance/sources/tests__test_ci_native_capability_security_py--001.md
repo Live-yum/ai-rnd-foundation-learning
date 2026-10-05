@@ -36,9 +36,9 @@
 
 **创建路径：** `tests/test_ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L424。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17041`。本段原文以LF换行结束。
+本段原始字节数：`17047`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e1a8e5c8706063fd87fb53f0bac925ab1979204b56ef31ed8a37b27bc7c8408a"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9ee046fa794d460cdea5b619b792616e64c3cd5920e5a9027b3cce6d4b3d05af"} -->
 ````python
 # tests/test_ci_native_capability_security.py
 """Mocked certificate orchestration; never represents live native security proof."""
@@ -277,7 +277,7 @@ def setup_certification(tmp_path, product, monkeypatch):
     )
     monkeypatch.setattr(ci, "verifier_identity", lambda: "e" * 64)
     monkeypatch.setattr(
-        ci, "security_probe_for_profile", lambda path, value: "native-security-probe"
+        ci, "security_probe_for_profile", lambda path, value, **kw: "native-security-probe"
     )
     monkeypatch.setattr(
         ci, "inspect_created_sandbox", lambda *args, **kwargs: events.append((args, kwargs))

@@ -15,28 +15,29 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `require_isolation_evidence`（L52–L64）：接收`value`。 控制顺序：L53按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L63抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L64的`value`。
-- `IsolationUnavailable`（L67–L70）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `IsolationUnavailable.__init__`（L68–L70）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ContainerInspectionRejected`（L73–L149）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ContainerInspectionRejected.__init__`（L126–L130）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ContainerInspectionRejected.diagnostic`（L132–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L138遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L139按`key not in facts`分支；L142按`key in schema._NUMBERS`分支；L144按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L135的`{}`；L149的`evidence`。
-- `require_container_evidence`（L152–L181）：接收`value`、`sandbox_id`。 控制顺序：L157按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L180抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L181的`value`。
-- `system_argv`（L184–L185）：接收`argv`。 返回路径：L185的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
-- `control_exec`（L188–L191）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L189的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
-- `product_argv`（L194–L256）：接收`plan`、`argv`、`database`。 控制顺序：L196按`ports & {2280, 55432, 55433}`分支；L197抛异常，停止当前正常路径；L199按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L200按`plan.runtime.port == 5173`分支；L201抛异常，停止当前正常路径；L220按`template in {"python-basic", "fastapiadmin"}`分支；L226按`template == "fastapiadmin"`分支。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L230的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
-- `redirected_command`（L259–L263）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L263的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L266–L274）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L267按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L270抛异常，停止当前正常路径；L272按`result.exit_code != 0`分支；L273抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L274的`result.result or ""`。
-- `run_guarded_control`（L277–L280）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L280的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L311–L447）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L332按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L333抛异常，停止当前正常路径；L359遍历`commands`；L360按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L361抛异常，停止当前正常路径；L379按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L380抛异常，停止当前正常路径；L384按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L439的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `require_native_shared_memory_evidence`（L64–L75）：接收`value`。 控制顺序：L66按`type(value) is not dict or value.keys() != expected.keys() or any( type(value[key]) i…`分支；L74抛异常，停止当前正常路径。 调用`type`、`value.keys`、`expected.keys`、`any`、`expected.items`、`IsolationUnavailable`。 返回路径：L75的`value`。
+- `require_isolation_evidence`（L78–L94）：接收`value`、`native_semaphore_storage`。 控制顺序：L79按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L89抛异常，停止当前正常路径；L90按`native_semaphore_storage`分支；L92按`"native_shared_memory" in value`分支；L93抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`、`require_native_shared_memory_evidence`。 返回路径：L94的`value`。
+- `IsolationUnavailable`（L97–L100）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `IsolationUnavailable.__init__`（L98–L100）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected`（L103–L182）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ContainerInspectionRejected.__init__`（L159–L163）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected.diagnostic`（L165–L182）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L171遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L172按`key not in facts`分支；L175按`key in schema._NUMBERS`分支；L177按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L168的`{}`；L182的`evidence`。
+- `require_container_evidence`（L185–L225）：接收`value`、`sandbox_id`。 控制顺序：L190按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L213抛异常，停止当前正常路径；L214按`value["profile"] == "native-fastapiadmin-postgresql-v1"`分支；L216按`type(shared) is not dict or set(shared) != {"ipc_mode", "size_bytes"} or type(shared.…`分支；L224抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`、`type`、`set`等。 返回路径：L225的`value`。
+- `system_argv`（L228–L229）：接收`argv`。 返回路径：L229的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L232–L235）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L233的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L238–L312）：接收`plan`、`argv`、`database`、`native_semaphore_storage`。 控制顺序：L241按`type(native_semaphore_storage) is not bool or native_semaphore_storage and ( getattr(…`分支；L249抛异常，停止当前正常路径；L251按`ports & {2280, 55432, 55433}`分支；L252抛异常，停止当前正常路径；L254按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L255按`plan.runtime.port == 5173`分支；L256抛异常，停止当前正常路径；L275按`template in {"python-basic", "fastapiadmin"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`IsolationUnavailable`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L285的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L315–L319）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L319的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L322–L330）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L323按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L326抛异常，停止当前正常路径；L328按`result.exit_code != 0`分支；L329抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L330的`result.result or ""`。
+- `run_guarded_control`（L333–L336）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L336的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L367–L509）：接收`sandbox`、`plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L388按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L389抛异常，停止当前正常路径；L415遍历`commands`；L416按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L417抛异常，停止当前正常路径；L435按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L436抛异常，停止当前正常路径；L440按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L500的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
 </details>
 
-**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L447。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L509。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17466`。本段原文以LF换行结束。
+本段原始字节数：`20082`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "58b9012cd8a08683b4bcc072c7283ced37469e7a6a8f83906818c3a8d6234c06"} -->
+<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "03f8f3a39078031f4ea0a315619ca4621ea333ccfb4babb263bdd9d9915ce116"} -->
 ````python
 # workbench/capability_isolation.py
 """Disposable Linux identity and control-channel separation for module commands.
@@ -73,6 +74,18 @@ CONTROL_SHELL_ENV = {
     "ZDOTDIR": "/nonexistent",
 }
 ISOLATION_PROFILE = "module-linux-landlock-v1"
+NATIVE_SHARED_MEMORY_EVIDENCE = {
+    "profile": "native-private-shm-v1",
+    "actual_mount_verified": True,
+    "regular_files_only": True,
+    "size_bytes": 64 * 1024 * 1024,
+    "noexec": True,
+    "nosuid": True,
+    "nodev": True,
+    "uid": 0,
+    "gid": 0,
+    "mode": 0o1777,
+}
 ISOLATION_FLAGS = (
     "no_new_privs",
     "capabilities_cleared",
@@ -90,7 +103,21 @@ ISOLATION_FLAGS = (
 )
 
 
-def require_isolation_evidence(value):
+def require_native_shared_memory_evidence(value):
+    expected = NATIVE_SHARED_MEMORY_EVIDENCE
+    if (
+        type(value) is not dict
+        or value.keys() != expected.keys()
+        or any(
+            type(value[key]) is not type(wanted) or value[key] != wanted
+            for key, wanted in expected.items()
+        )
+    ):
+        raise IsolationUnavailable("缺少原生共享内存实际挂载和普通文件范围的完整隔离回执")
+    return value
+
+
+def require_isolation_evidence(value, *, native_semaphore_storage=False):
     if (
         not isinstance(value, dict)
         or value.get("profile") != ISOLATION_PROFILE
@@ -102,6 +129,10 @@ def require_isolation_evidence(value):
         or any(value.get(flag) is not True for flag in ISOLATION_FLAGS)
     ):
         raise IsolationUnavailable("缺少准确版本、完整必需字段或当前守卫摘要的执行隔离回执")
+    if native_semaphore_storage:
+        require_native_shared_memory_evidence(value.get("native_shared_memory"))
+    elif "native_shared_memory" in value:
+        raise IsolationUnavailable("普通执行配置不能带有原生共享内存写权限回执")
     return value
 
 
@@ -132,6 +163,7 @@ class ContainerInspectionRejected(ValueError):
             "tmpfs_mounts",
             "binary_mounts",
             "resource_limits",
+            "shared_memory",
         }
     )
     _NUMBERS = frozenset(
@@ -160,6 +192,8 @@ class ContainerInspectionRejected(ValueError):
             "mount_sources_match",
             "mount_readonly_matches",
             "mount_writable_matches",
+            "shared_memory_ipc_private",
+            "shared_memory_size_match",
         }
     )
     _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
@@ -219,6 +253,17 @@ def require_container_evidence(value, sandbox_id):
         )
     ):
         raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
+    if value["profile"] == "native-fastapiadmin-postgresql-v1":
+        shared = value.get("shared_memory")
+        if (
+            type(shared) is not dict
+            or set(shared) != {"ipc_mode", "size_bytes"}
+            or type(shared.get("ipc_mode")) is not str
+            or shared["ipc_mode"] != "private"
+            or type(shared.get("size_bytes")) is not int
+            or shared["size_bytes"] != 64 * 1024 * 1024
+        ):
+            raise IsolationUnavailable("原生容器缺少私有64 MiB共享内存的独立检查回执")
     return value
 
 
@@ -232,7 +277,18 @@ def control_exec(sandbox, argv, timeout):
     )
 
 
-def product_argv(plan, argv, database):
+def product_argv(plan, argv, database, *, native_semaphore_storage=False):
+    # This keyword is supplied by the trusted container-admission path. Source
+    # plans, environment variables and a connection to 55433 cannot opt in.
+    if (
+        type(native_semaphore_storage) is not bool
+        or native_semaphore_storage
+        and (
+            getattr(plan.selection, "template", "") != "fastapiadmin"
+            or plan.selection.database != "postgresql"
+        )
+    ):
+        raise IsolationUnavailable("共享内存写权限仅用于独立核实的原生PostgreSQL执行配置")
     ports = {plan.runtime.port}
     if ports & {2280, 55432, 55433}:
         raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
@@ -288,6 +344,7 @@ def product_argv(plan, argv, database):
             GUARD,
             ",".join(str(value) for value in sorted(ports)),
             connect,
+            *(["--native-shm"] if native_semaphore_storage else []),
             "--",
             "/usr/bin/env",
             "-i",
@@ -349,7 +406,7 @@ print(json.dumps({'application_uid':os.getuid(),'no_new_privs':True,'capabilitie
 """
 
 
-def prepare_identity(sandbox, plan, timeout):
+def prepare_identity(sandbox, plan, timeout, *, native_semaphore_storage=False):
     root = control_exec(sandbox, ["/usr/bin/id", "-u"], timeout)
     output = root.result.strip() if isinstance(root.result, str) else ""
     control_uid = int(output) if re.fullmatch(r"[0-9]{1,10}", output) else None
@@ -451,8 +508,8 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("系统解释器环境无法核实") from None
     if plan.selection.database == "postgresql":
         trusted.extend(["/usr/lib/postgresql/17/bin/psql", "/usr/lib/postgresql/17/bin/postgres"])
-    guarded = product_argv(plan, [], {})
-    probe_argv = guarded[: guarded.index(GUARD) + 3] + ["--probe"]
+    guarded = product_argv(plan, [], {}, native_semaphore_storage=native_semaphore_storage)
+    probe_argv = guarded[: guarded.index(GUARD) + 3 + int(native_semaphore_storage)] + ["--probe"]
     probe_status, probe_output = run_guarded_control(sandbox, probe_argv, timeout)
     try:
         guard_receipt = json.loads(probe_output)
@@ -466,7 +523,12 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
         raise IsolationUnavailable("内核缺少所需Landlock ABI6隔离，未执行生成源码")
     identity_status, identity_output = run_guarded_control(
         sandbox,
-        product_argv(plan, ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted], {}),
+        product_argv(
+            plan,
+            ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted],
+            {},
+            native_semaphore_storage=native_semaphore_storage,
+        ),
         timeout,
     )
     if identity_status != 0:
@@ -484,6 +546,7 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
             "profile": ISOLATION_PROFILE,
             "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
             **identity_check,
-        }
+        },
+        native_semaphore_storage=native_semaphore_storage,
     )
 ````

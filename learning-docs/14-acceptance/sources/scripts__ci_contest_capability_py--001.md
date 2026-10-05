@@ -17,15 +17,15 @@
 
 - `install_authored_fixture`（L38–L53）：接收`product`。 控制顺序：L41按`destination.exists() or destination.is_symlink()`分支；L42抛异常，停止当前正常路径；L45按`not marker.exists()`分支。 调用`dict`、`require_exact_source`、`manifest`、`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`等。 返回路径：L53的`expected`。
 - `require_business_proof`（L56–L69）：接收`proof`。 控制顺序：L58按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L69抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L72–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L104抛异常，停止当前正常路径；L134按`proof["source_digest"] != digest(inventory)`分支；L135抛异常，停止当前正常路径；L144按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L72–L148）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L104抛异常，停止当前正常路径；L136按`proof["source_digest"] != digest(inventory)`分支；L137抛异常，停止当前正常路径；L146按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L150。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L152。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6155`。本段原文以LF换行结束。
+本段原始字节数：`6227`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ad95db456f0f62f2f505ccaac2625f4cb5d62c9329d4cf481c605ecf0791dcf"} -->
+<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "47494a9b10522b594c06df5a51c1c476891749f212b81d7774ebc1b71cdc3c4a"} -->
 ````python
 # scripts/ci_contest_capability.py
 """Authored native contest slice against trusted independent business assertions.
@@ -156,7 +156,9 @@ def main():
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     directory, sandbox_id, require_resources=True, selection=selection()
                 ),
-                security_probe=security_probe_for_profile(directory, record),
+                security_probe=security_probe_for_profile(
+                    directory, record, client=client, settings=settings
+                ),
                 trusted_oracle=contest.CONTRACT_VERSION,
             )
             require_business_proof(proof)

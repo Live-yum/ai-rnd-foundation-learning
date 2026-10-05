@@ -505,7 +505,7 @@ def test_contest_consumer_uses_same_ready_profile_source_without_filtering(
     monkeypatch.setattr(contest_ci, "require_native_profile", lambda *a: record)
     monkeypatch.setattr(contest_ci, "client_for", lambda *a: events.append("client") or object())
     monkeypatch.setattr(contest_ci, "close_client", lambda *a: events.append("close"))
-    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a: None)
+    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a, **kw: None)
     monkeypatch.setattr(
         "sys.argv",
         ["contest", "--product", str(state.product), "--source-receipt", str(state.receipt)],

@@ -16,16 +16,16 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `run_security_probe`（L106–L136）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L107按`not container_evidence.get("resource_limits")`分支；L108抛异常，停止当前正常路径；L110遍历`(CONTROL + "/private/security-sentinel", "/tmp/rnd-postgres/secur…`；L112按`result.exit_code != 0`分支；L113抛异常，停止当前正常路径；L124抛异常，停止当前正常路径；L126按`plan.selection.template == "fastapiadmin"`分支；L128按`result != 0 or not isinstance(checks, dict) or set(checks) != expected or any(value i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`container_evidence.get`、`IsolationUnavailable`、`control_exec`、`run_guarded_control`、`product_argv`、`json.loads`、`set`、`expected.remove`、`isinstance`等。 返回路径：L136的`checks`。
-- `security_probe_for_profile`（L139–L152）：接收`directory`、`record`。 返回路径：L152的`probe`。
-- `security_probe_for_profile.probe`（L140–L150）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L142按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_egress`。 返回路径：L150的`checks`。
+- `security_probe_for_profile`（L139–L160）：接收`directory`、`record`、`client`、`settings`。 返回路径：L160的`probe`。
+- `security_probe_for_profile.probe`（L140–L158）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L142按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_shm`、`verify_native_shm_peer`、`verify_native_egress`。 返回路径：L158的`checks`。
 
 </details>
 
-**创建路径：** `scripts/capability_security_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L152。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_security_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L160。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8003`。本段原文以LF换行结束。
+本段原始字节数：`8395`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_security_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a1007f88e14675659b909387b984090abcee7fa204eed4c15dd4bb699e9c8bf1"} -->
+<!-- learning-source: {"path": "scripts/capability_security_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7e7a18e388018ddb7e601d809c03e9f3e4318d1015df4991ae84dae4ef22e0d"} -->
 ````python
 # scripts/capability_security_probe.py
 """Bounded adversarial checks in the *real* disposable product identity.
@@ -166,16 +166,24 @@ def run_security_probe(sandbox, plan, timeout, container_evidence, environment=N
     return checks
 
 
-def security_probe_for_profile(directory, record):
+def security_probe_for_profile(directory, record, *, client=None, settings=None):
     def probe(sandbox, plan, timeout, container_evidence, environment=None):
         checks = run_security_probe(sandbox, plan, timeout, container_evidence, environment)
         if plan.selection.template == "fastapiadmin":
             from scripts.capability_native_egress import verify_native_egress
             from scripts.capability_native_planner_probe import verify_native_planner_identity
+            from scripts.capability_native_shm_probe import (
+                verify_native_shm,
+                verify_native_shm_peer,
+            )
             from workbench.capability_services import verify_native_services
 
             checks.update(verify_native_services(sandbox, plan, environment, timeout))
             checks.update(verify_native_planner_identity(sandbox, plan, environment, timeout))
+            checks.update(verify_native_shm(sandbox, plan, timeout))
+            checks.update(
+                verify_native_shm_peer(client, settings, directory, record, sandbox, plan, timeout)
+            )
             checks.update(verify_native_egress(directory, record, sandbox, plan, timeout))
         return checks
 

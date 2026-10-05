@@ -15,7 +15,7 @@
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,26 @@
+@@ -234,6 +232,28 @@
  		}
  	}
  
@@ -32,6 +32,8 @@
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 +		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.IpcMode = container.IpcMode("private")
++			hostConfig.ShmSize = 67108864
 +			hostConfig.CPUQuota = 200000
 +			hostConfig.Memory = 6 * 1024 * 1024 * 1024
 +			pidLimit = 384

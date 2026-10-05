@@ -613,7 +613,11 @@ def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
     from workbench.capability_dependencies import require_dependency_manifest
-    from workbench.capability_execution import VERIFIER, require_preinstalled_evidence
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        security_checks_for,
+    )
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
@@ -624,6 +628,10 @@ def require_evidence(
         receipt.get("dependency_profile"), selection["template"]
     )
     container = receipt["container_isolation"]
+    if selection["template"] == "fastapiadmin" and container.get("profile") != (
+        "native-fastapiadmin-postgresql-v1"
+    ):
+        raise CheckFailure("原生证据未绑定专用私有共享内存容器")
     if (
         not isinstance(dependency_profile, dict)
         or dependency_profile.get("profile") != selection["template"]
@@ -650,7 +658,22 @@ def require_evidence(
             )
     except ValueError:
         raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
-    require_isolation_evidence(receipt.get("execution_isolation"))
+    require_isolation_evidence(
+        receipt.get("execution_isolation"),
+        native_semaphore_storage=selection["template"] == "fastapiadmin",
+    )
+    if selection["template"] == "fastapiadmin":
+        required_security = security_checks_for(selection)
+        for field in (
+            ("security_checks", "restart_security_checks") if aggregate else ("security_checks",)
+        ):
+            security = receipt.get(field)
+            if (
+                type(security) is not dict
+                or set(security) != required_security
+                or any(value is not True for value in security.values())
+            ):
+                raise CheckFailure("原生最终证据缺少完整的初始或重启隔离反例及清理证明")
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
     actual = {c.get("id"): c.get("contract_sha256") for c in checks if c.get("phase") == "initial"}

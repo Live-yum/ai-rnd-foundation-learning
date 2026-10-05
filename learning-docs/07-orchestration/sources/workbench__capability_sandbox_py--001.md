@@ -20,17 +20,17 @@
 - `startup_failure_diagnostic.exceptions_in`（L94–L99）：接收`trace`。 调用`exception_pattern.finditer`、`item[1].endswith`。 返回路径：L95的`[ item for item in exception_pattern.finditer(trace) if item[1].endswith(("Error", "Except…`。
 - `restart_application_identity`（L164–L214）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L213按`result.exit_code != 0`分支；L214抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `verify_capabilities`（L217–L307）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L223按`plan.selection.model_dump() != selection`分支；L224抛异常，停止当前正常路径；L233按`selection["template"] == "fastapiadmin"`分支；L236按`dependency_identity(product) != profile["dependency_identity"]`分支；L237抛异常，停止当前正常路径；L273按`len(body) > 1_000_000`分支；L274抛异常，停止当前正常路径；L296抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L228的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L307的`receipt`。
-- `_verify`（L310–L814）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L346按`trusted_oracle not in (None, "contest-business-v2")`分支；L347抛异常，停止当前正常路径；L348按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L351抛异常，停止当前正常路径；L354按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L358抛异常，停止当前正常路径；L359按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L364抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L814的`receipt`。
-- `_verify.start`（L497–L592）：接收`command`、`port`、`health_path`。 控制顺序：L528按`not response.cmd_id`分支；L529抛异常，停止当前正常路径；L532按`not isinstance(preview.token, str) or not preview.token`分支；L533抛异常，停止当前正常路径；L545在`time.monotonic() < deadline`成立时循环；L549按`200 <= check.status_code < 300`分支；L582按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L589抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L550的`http, url, preview.token`。
-- `main`（L817–L860）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L819按`len(body) > 1_000_000`分支；L820抛异常，停止当前正常路径；L829按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L835抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L310–L827）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L346按`trusted_oracle not in (None, "contest-business-v2")`分支；L347抛异常，停止当前正常路径；L348按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L351抛异常，停止当前正常路径；L354按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L358抛异常，停止当前正常路径；L359按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L364抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L827的`receipt`。
+- `_verify.start`（L504–L599）：接收`command`、`port`、`health_path`。 控制顺序：L535按`not response.cmd_id`分支；L536抛异常，停止当前正常路径；L539按`not isinstance(preview.token, str) or not preview.token`分支；L540抛异常，停止当前正常路径；L552在`time.monotonic() < deadline`成立时循环；L556按`200 <= check.status_code < 300`分支；L589按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L596抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L557的`http, url, preview.token`。
+- `main`（L830–L875）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L832按`len(body) > 1_000_000`分支；L833抛异常，停止当前正常路径；L842按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L848抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L864。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L879。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`37968`。本段原文以LF换行结束。
+本段原始字节数：`38719`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9354ea395f3205bb1820c69845580835ecff2fc852ef86da6b823d0e0bde1956"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3f88c5ed52f7e601b6fbfd4635574b21df0d2f771dc27a68d428ce1db59541df"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -446,6 +446,10 @@ def _verify(
                 control_observer(sandbox.id), sandbox.id
             )
             require_profile_container_binding(profile_record, receipt["container_isolation"])
+            if native and receipt["container_isolation"].get("profile") != (
+                "native-fastapiadmin-postgresql-v1"
+            ):
+                raise ValueError("Native execution requires its exact container profile")
         except ContainerInspectionRejected as exc:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码",
@@ -467,7 +471,10 @@ def _verify(
         )
         if result.exit_code != 0:
             raise CheckFailure("自定义产品源码解压失败")
-        receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        identity_options = {"native_semaphore_storage": True} if native else {}
+        receipt["execution_isolation"] = prepare_identity(
+            sandbox, plan, settings.tool_timeout, **identity_options
+        )
         receipt["preinstalled_dependencies"] = require_preinstalled_evidence(
             prepare_readonly_dependencies(
                 sandbox,
@@ -501,7 +508,7 @@ def _verify(
         for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             result = run_session_command(
                 sandbox.process,
@@ -547,7 +554,7 @@ def _verify(
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
             guarded_command, command_output = redirected_command(
-                product_argv(plan, command.argv, database)
+                product_argv(plan, command.argv, database, **identity_options)
             )
             response = sandbox.process.execute_session_command(
                 session,
@@ -817,6 +824,12 @@ def _verify(
     except CheckFailure as exc:
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if native:
+            from scripts.capability_native_shm_probe import native_shm_cleanup_diagnostic
+
+            cleanup_diagnostic = native_shm_cleanup_diagnostic(exc)
+            if cleanup_diagnostic:
+                receipt["native_shm_cleanup_diagnostic"] = cleanup_diagnostic
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
@@ -887,7 +900,9 @@ def main():
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=payload["selection"]
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
         )

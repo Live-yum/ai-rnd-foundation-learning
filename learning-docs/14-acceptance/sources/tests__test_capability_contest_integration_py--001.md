@@ -26,9 +26,9 @@
 
 **创建路径：** `tests/test_capability_contest_integration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L174。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7090`。本段原文以LF换行结束。
+本段原始字节数：`7096`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_contest_integration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8006e8bbf8cbb2dd7378a814b610acb0e7c6191646da048add7afad468f54457"} -->
+<!-- learning-source: {"path": "tests/test_capability_contest_integration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "37c0cc08902ac4d4167381dd8e44723bb2d934f8bd6ba4080a9126a005e22924"} -->
 ````python
 # tests/test_capability_contest_integration.py
 """Mocked lifecycle wiring only; real CI must prove application/business behavior."""
@@ -80,7 +80,7 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         ),
     )
     for name in ("inspect_stack", "require_container_evidence", "prepare_identity"):
-        monkeypatch.setattr(verifier, name, lambda *a: {})
+        monkeypatch.setattr(verifier, name, lambda *a, **kw: {})
     admitted = profile_record(template="fastapiadmin")
     monkeypatch.setattr(
         verifier, "require_container_evidence", lambda *a: container_binding(admitted)

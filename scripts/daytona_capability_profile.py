@@ -36,6 +36,7 @@ PINNED_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
 COMPOSE = "compose.capability.lock.yaml"
 LOCK = "capability-profile.lock.json"
 CONTROL_WORKDIR = "/opt/rnd/control"
+NATIVE_SHARED_MEMORY_BYTES = 67108864
 SOURCE_FILE = "apps/runner/pkg/docker/container_configs.go"
 SOURCE_BLOB = "d5a97203afa87c3fa0065702723c41645bf284b6"
 WORKSPACE_BLOB = "daf66a070fb41cdf12ecbbdb7dc4a20cf4b9bba0"
@@ -63,6 +64,8 @@ LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on 
 \t\thostConfig.PidsLimit = &pidLimit
 \t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 \t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\thostConfig.IpcMode = container.IpcMode("private")
+\t\t\thostConfig.ShmSize = 67108864
 \t\t\thostConfig.CPUQuota = 200000
 \t\t\thostConfig.Memory = 6 * 1024 * 1024 * 1024
 \t\t\tpidLimit = 384
@@ -725,6 +728,24 @@ def require_execution_resources(host, *, native=False):
     }
 
 
+def require_native_shared_memory(host):
+    """Bind native execution to Docker's private, fixed-size default shm mount."""
+    ipc_private = host.get("IpcMode") == "private"
+    size_matches = (
+        type(host.get("ShmSize")) is int and host["ShmSize"] == NATIVE_SHARED_MEMORY_BYTES
+    )
+    if not ipc_private or not size_matches:
+        raise ContainerInspectionRejected(
+            "Native source requires exact private IPC and 64 MiB shared memory",
+            category="shared_memory",
+            facts={
+                "shared_memory_ipc_private": ipc_private,
+                "shared_memory_size_match": size_matches,
+            },
+        )
+    return {"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}
+
+
 def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, selection=None):
     """Inspect only the newly owned UUID inside the verified profile Runner.
 
@@ -809,6 +830,7 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
+    shared_memory = require_native_shared_memory(host) if native else None
     if require_resources:
         networks = container.get("NetworkSettings", {}).get("Networks", {})
         if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
@@ -952,6 +974,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     }
     if require_resources:
         receipt["resource_limits"] = require_execution_resources(host, native=native)
+    if native:
+        receipt["shared_memory"] = shared_memory
     return receipt
 
 

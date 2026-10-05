@@ -27,16 +27,16 @@
 - `test_real_child_resource_limits_do_not_change_parent_limits`（L177–L195）：接收`tmp_path`。 控制顺序：L190断言`result.returncode == 0`；L192断言`actual["RLIMIT_FSIZE"] == [32 * 1024 * 1024] * 2`；L193断言`actual["RLIMIT_NPROC"][1] <= 128`；L194断言`actual["RLIMIT_NOFILE"][1] <= 256`；L195断言`resource.getrlimit(resource.RLIMIT_NOFILE) == before`。 调用`resource.getrlimit`、`str`、`subprocess.run`、`json.loads`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_package_factory_is_recognized_without_allowing_stack_replacement`（L198–L220）：接收`tmp_path`。 控制顺序：L217断言`inspect_stack(tmp_path, plan)["launcher"] == "uvicorn"`。 调用`entry.parent.mkdir`、`entry.write_text`、`front.mkdir`、`(front / "package.json").write_text`、`(front / "Page.vue").write_text`、`SimpleNamespace`、`Selection`、`inspect_stack`、`plan.runtime.start.argv.remove`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_landlock_denies_symlink_proc_and_inherited_fd_escapes`（L224–L257）：接收`tmp_path`。 控制顺序：L252按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L254断言`process.returncode == 0`；L255断言`process.stdout.strip() == "real-kernel-confinement-passed"`；L256断言`outside.read_text() == "original"`；L257断言`(writable / "ordinary").read_text() == "allowed"`。 调用`writable.mkdir`、`outside.write_text`、`(writable / "escape").symlink_to`、`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`outside.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_native_guard_denies_spawn_process_pool_constructor`（L261–L333）：接收`tmp_path`。 源码说明：Exercise the constructor used by pinned APScheduler, not a mocked syscall. No task is submitted and no worker is intentionally started. The full guard runs unchanged except for its writable root point。 控制顺序：L322按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L324断言`process.returncode == 0`；L326断言`evidence in [ {"constructor": "denied", "errno": 1}, {"constructor": "denied", "errno…`；L331断言`diagnostic["failure_component"] == "multiprocessing-semaphore"`；L332断言`diagnostic["exception_errno"] == evidence["errno"]`；L333断言`list(writable.iterdir()) == []`。 调用`writable.mkdir`、`str`、`subprocess.Popen`、`process.communicate`、`os.killpg`、`process.wait`、`os.environ.get`、`pytest.skip`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L337–L372）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L371断言`process.returncode == 0`；L372断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_guard_denies_spawn_pool_without_explicit_native_shm`（L262–L336）：接收`tmp_path`、`bind`、`connect`。 源码说明：Exercise the constructor used by pinned APScheduler, not a mocked syscall. No task is submitted and no worker is intentionally started. The full guard runs unchanged except for its writable root point。 控制顺序：L325按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L327断言`process.returncode == 0`；L329断言`evidence in [ {"constructor": "denied", "errno": 1}, {"constructor": "denied", "errno…`；L334断言`diagnostic["failure_component"] == "multiprocessing-semaphore"`；L335断言`diagnostic["exception_errno"] == evidence["errno"]`；L336断言`list(writable.iterdir()) == []`。 调用`writable.mkdir`、`str`、`subprocess.Popen`、`process.communicate`、`os.killpg`、`process.wait`、`os.environ.get`、`pytest.skip`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L340–L375）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L372按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L374断言`process.returncode == 0`；L375断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_execution_gate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L372。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_execution_gate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15288`。本段原文以LF换行结束。
+本段原始字节数：`15498`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_execution_gate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "64ddb8340f04142265d10dee33029403335c0c85ebd1356a31d7e6d965aa93c7"} -->
+<!-- learning-source: {"path": "tests/test_capability_execution_gate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "febc33feaecb4cdbddabc072137b661a3249810ab5895bc26da0f7c6776ae10b"} -->
 ````python
 # tests/test_capability_execution_gate.py
 """Admission contracts; fixtures here never create a live safety attestation."""
@@ -299,12 +299,15 @@ print('real-kernel-confinement-passed')
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only native semaphore confinement")
-def test_real_native_guard_denies_spawn_process_pool_constructor(tmp_path):
+@pytest.mark.parametrize("bind,connect", [("8001", ""), ("5173,8001", "8001,55432,55433")])
+def test_real_guard_denies_spawn_pool_without_explicit_native_shm(tmp_path, bind, connect):
     """Exercise the constructor used by pinned APScheduler, not a mocked syscall.
 
     No task is submitted and no worker is intentionally started. The full guard
     runs unchanged except for its writable root pointing to this owned fixture.
-    CI requires the kernel check; unsupported developer kernels may only skip.
+    Both the ordinary profile and native-looking ports without the trusted shm
+    flag must deny construction. CI requires the kernel check; unsupported
+    developer kernels may only skip.
     """
     from workbench.capability_sandbox import startup_failure_diagnostic
 
@@ -339,7 +342,7 @@ if libc.syscall(444,0,0,1)<6:sys.exit(78)
 m=runpy.run_path({str(ROOT / "scripts/capability_guard.py")!r})
 m['main'].__globals__['WRITABLE_ROOT']={str(writable)!r}
 os.environ['TMPDIR']={str(writable)!r}
-sys.argv=['guard','5173,8001','8001,55432,55433','--',sys.executable,'-I','-S','-c',{constructor!r}]
+sys.argv=['guard',{bind!r},{connect!r},'--',sys.executable,'-I','-S','-c',{constructor!r}]
 m['main']()
 """
     process = subprocess.Popen(

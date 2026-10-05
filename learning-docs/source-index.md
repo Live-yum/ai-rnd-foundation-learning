@@ -498,6 +498,7 @@
 - [scripts/capability_guard.py](14-acceptance/sources/scripts__capability_guard_py--001.md)（1 段）
 - [scripts/capability_native_egress.py](14-acceptance/sources/scripts__capability_native_egress_py--001.md)（1 段）
 - [scripts/capability_native_planner_probe.py](14-acceptance/sources/scripts__capability_native_planner_probe_py--001.md)（1 段）
+- [scripts/capability_native_shm_probe.py](14-acceptance/sources/scripts__capability_native_shm_probe_py--001.md)（1 段）
 - [scripts/capability_security_probe.py](14-acceptance/sources/scripts__capability_security_probe_py--001.md)（1 段）
 - [scripts/ci_acceptance.py](14-acceptance/sources/scripts__ci_acceptance_py--001.md)（1 段）
 - [scripts/ci_capability_browser_isolation.py](14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md)（1 段）
@@ -552,6 +553,9 @@
 - [tests/test_capability_native_freeze.py](14-acceptance/sources/tests__test_capability_native_freeze_py--001.md)（1 段）
 - [tests/test_capability_native_planner_probe.py](14-acceptance/sources/tests__test_capability_native_planner_probe_py--001.md)（1 段）
 - [tests/test_capability_native_services.py](14-acceptance/sources/tests__test_capability_native_services_py--001.md)（1 段）
+- [tests/test_capability_native_shm_binding.py](14-acceptance/sources/tests__test_capability_native_shm_binding_py--001.md)（1 段）
+- [tests/test_capability_native_shm_guard.py](14-acceptance/sources/tests__test_capability_native_shm_guard_py--001.md)（1 段）
+- [tests/test_capability_native_shm_probe.py](14-acceptance/sources/tests__test_capability_native_shm_probe_py--001.md)（1 段）
 - [tests/test_capability_orchestration.py](14-acceptance/sources/tests__test_capability_orchestration_py--001.md)（1 段）
 - [tests/test_capability_policy.py](14-acceptance/sources/tests__test_capability_policy_py--001.md)（1 段）
 - [tests/test_capability_policy_review.py](14-acceptance/sources/tests__test_capability_policy_review_py--001.md)（1 段）

@@ -47,7 +47,7 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         ),
     )
     for name in ("inspect_stack", "require_container_evidence", "prepare_identity"):
-        monkeypatch.setattr(verifier, name, lambda *a: {})
+        monkeypatch.setattr(verifier, name, lambda *a, **kw: {})
     admitted = profile_record(template="fastapiadmin")
     monkeypatch.setattr(
         verifier, "require_container_evidence", lambda *a: container_binding(admitted)

@@ -10,8 +10,13 @@ from capability_dependency_fixtures import container_binding, dependency_evidenc
 from scripts.ci_capability_profile import fixed_application
 from workbench import capability_execution as execution
 from workbench import capability_sandbox as sandbox
-from workbench.capability_isolation import ISOLATION_FLAGS, ISOLATION_PROFILE
+from workbench.capability_isolation import (
+    ISOLATION_FLAGS,
+    ISOLATION_PROFILE,
+    NATIVE_SHARED_MEMORY_EVIDENCE,
+)
 from workbench.capability_verification import CheckFailure, require_evidence
+from workbench.catalog import Selection
 from workbench.domain import digest
 from workbench.filesystem import manifest, sha
 from workbench.settings import ROOT
@@ -246,6 +251,87 @@ def complete_proof(product, plan):
     }
 
 
+def complete_native_proof(product, plan):
+    plan.selection = Selection(template="fastapiadmin")
+    proof = complete_proof(product, plan)
+    record = profile_record(template="fastapiadmin")
+    dependency = record["snapshot"]["dependency_manifest"]
+    proof["container_isolation"] = {
+        **inspected(record),
+        **container_binding(record),
+    }
+    proof["execution_isolation"]["native_shared_memory"] = dict(NATIVE_SHARED_MEMORY_EVIDENCE)
+    proof["dependency_profile"] = dependency
+    for field in (
+        "preinstalled_dependencies",
+        "restart_preinstalled_dependencies",
+        "final_preinstalled_dependencies",
+    ):
+        proof[field] = dependency_evidence(dependency, manifest(product))
+    proof["database"]["engine"] = "postgresql"
+    for field in ("security_checks", "restart_security_checks"):
+        proof[field] = dict.fromkeys(
+            execution.security_checks_for(plan.selection.model_dump()), True
+        )
+    bindings = dict(
+        source_digest=digest(manifest(product)),
+        plan_digest=digest(plan.model_dump()),
+        scenarios=plan.scenarios,
+        selection=plan.selection.model_dump(),
+        database_tables=plan.runtime.database_tables,
+        aggregate=True,
+    )
+    assert require_evidence(proof, **bindings) is proof
+    return proof, bindings
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("replacement", [None, {}, [], True, "complete"])
+def test_native_delivery_requires_both_complete_security_groups(product_plan, field, replacement):
+    proof, bindings = complete_native_proof(*product_plan)
+    proof[field] = replacement
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
+@pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
+@pytest.mark.parametrize("value", [False, 1, 0, None, "true", [], {}])
+def test_every_native_security_flag_rejects_false_or_truthy_coercion(product_plan, field, value):
+    proof, bindings = complete_native_proof(*product_plan)
+    for key in proof[field]:
+        changed = copy.deepcopy(proof)
+        changed[field][key] = value
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+
+
+def test_native_delivery_rejects_missing_extra_or_stripped_security_evidence(product_plan):
+    proof, bindings = complete_native_proof(*product_plan)
+    for field in ("security_checks", "restart_security_checks"):
+        for key in proof[field]:
+            changed = copy.deepcopy(proof)
+            del changed[field][key]
+            with pytest.raises(CheckFailure, match="隔离反例及清理"):
+                require_evidence(changed, **bindings)
+        changed = copy.deepcopy(proof)
+        changed[field]["extra"] = True
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    for fields in (
+        ("security_checks",),
+        ("restart_security_checks",),
+        ("security_checks", "restart_security_checks"),
+    ):
+        changed = copy.deepcopy(proof)
+        for field in fields:
+            changed.pop(field)
+        with pytest.raises(CheckFailure, match="隔离反例及清理"):
+            require_evidence(changed, **bindings)
+    proof.update(security_checks={}, restart_security_checks={})
+    with pytest.raises(CheckFailure, match="隔离反例及清理"):
+        require_evidence(proof, **bindings)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -350,4 +436,17 @@ def test_new_dependency_probes_do_not_replace_existing_security_checks(
         assert probe.run_security_probe(
             object(), plan, 10, {"resource_limits": True}
         ) == dict.fromkeys(expected, True)
-        assert len(execution.security_checks_for({"template": "fastapiadmin"})) == 30
+        from scripts.capability_native_shm_probe import RUNTIME_CHECKS
+
+        native = execution.security_checks_for({"template": "fastapiadmin"})
+        assert len(native) == 40
+        assert native == (expected - {"all_tcp_destinations_denied"}) | {
+            "postgres_application_role_restricted",
+            "postgres_verifier_role_restricted",
+            "postgres_planner_identity_restricted",
+            "redis_owned_namespace_only",
+            "private_redis_control_denied",
+            "native_egress_denied_same_ports",
+            "cross_container_shm_private",
+            "peer_cleanup",
+        } | set(RUNTIME_CHECKS)

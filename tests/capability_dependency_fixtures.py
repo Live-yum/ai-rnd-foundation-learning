@@ -66,6 +66,14 @@ def dependency_evidence(profile=None, inventory=None):
 
 def container_binding(record):
     return {
+        **(
+            {
+                "profile": "native-fastapiadmin-postgresql-v1",
+                "shared_memory": {"ipc_mode": "private", "size_bytes": 67108864},
+            }
+            if record.get("selection", {}).get("template") == "fastapiadmin"
+            else {}
+        ),
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],

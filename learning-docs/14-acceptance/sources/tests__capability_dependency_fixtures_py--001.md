@@ -18,15 +18,15 @@
 - `dependency_profile`（L12–L22）：接收`template`、`descriptors`。 调用`dict.fromkeys`、`native_descriptor_roles`。 返回路径：L14的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
 - `profile_record`（L25–L48）：接收`product`、`template`。 控制顺序：L27按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L35的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
 - `dependency_evidence`（L51–L64）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L53的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
-- `container_binding`（L67–L73）：接收`record`。 返回路径：L68的`{ "runner_image_id": record["runner"]["image_id"], "snapshot_image_id": record["snapshot"]…`。
+- `container_binding`（L67–L81）：接收`record`。 调用`record.get("selection", {}).get`、`record.get`。 返回路径：L68的`{ **( { "profile": "native-fastapiadmin-postgresql-v1", "shared_memory": {"ipc_mode": "pri…`。
 
 </details>
 
-**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L73。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L81。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2637`。本段原文以LF换行结束。
+本段原始字节数：`2931`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "59aa673e63e2a068b89f45b44c88a15ce17890497d55be75760e5d36a99c3e43"} -->
+<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d5383db24aef905ca0e4b88c7da76b73bc27349611378612d6683e7c2c047c47"} -->
 ````python
 # tests/capability_dependency_fixtures.py
 """Synthetic provenance for contract tests only; never a live image attestation."""
@@ -97,6 +97,14 @@ def dependency_evidence(profile=None, inventory=None):
 
 def container_binding(record):
     return {
+        **(
+            {
+                "profile": "native-fastapiadmin-postgresql-v1",
+                "shared_memory": {"ipc_mode": "private", "size_bytes": 67108864},
+            }
+            if record.get("selection", {}).get("template") == "fastapiadmin"
+            else {}
+        ),
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],

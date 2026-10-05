@@ -20,16 +20,16 @@
 - `native_browser_steps`（L121–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L124的`[ {"action": "open", "value": "/#/login"}, {"action": "visible", "selector": ".login-page-…`。
 - `fixed_plan`（L148–L333）：接收`product`。 调用`baseline_table`、`scope_sources`、`login_steps`、`native_browser_steps`、`CapabilityPlan.model_validate`、`digest`、`selection`。 返回路径：L295的`CapabilityPlan.model_validate( { "title": "Native FastapiAdmin security positive", "summar…`。
 - `require_native_positive`（L336–L374）：接收`proof`、`plan`、`source_digest`、`browser_image`。 控制顺序：L348按`proof.get("restart_kind") != "application_process" or not isinstance(restarted_checks…`分支；L366抛异常，停止当前正常路径；L370按`any( database["after"][name] <= database["baseline"][name] for name in plan.runtime.d…`分支；L374抛异常，停止当前正常路径。 调用`require_profile_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`proof.get`、`isinstance`、`any`、`restarted_checks.values`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `certify`（L377–L478）：接收`product`、`directory`、`source_receipt`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L407按`source_receipt is not None`分支；L412按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L415抛异常，停止当前正常路径；L460按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L464抛异常，停止当前正常路径；L465按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L472的`acceptance`。
-- `main`（L481–L490）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `certify`（L377–L480）：接收`product`、`directory`、`source_receipt`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L407按`source_receipt is not None`分支；L412按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L415抛异常，停止当前正常路径；L462按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L466抛异常，停止当前正常路径；L467按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L474的`acceptance`。
+- `main`（L483–L492）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L494。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L496。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20174`。本段原文以LF换行结束。
+本段原始字节数：`20238`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8b5790c0f6ffa02b4ff5dbbe3bdcfa5c9be4ce0ec37579a262c1902a0bf60988"} -->
+<!-- learning-source: {"path": "scripts/ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4f96d96a6b02cb72141b70051d38130f948537990ae58b1f9487d6396c3e0734"} -->
 ````python
 # scripts/ci_native_capability_security.py
 """Live native security certification against the registered generated CI baseline.
@@ -467,7 +467,9 @@ def certify(product=PRODUCT, directory=HOME, *, source_receipt=None):
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=selected
             ),
-            security_probe=security_probe_for_profile(directory, record),
+            security_probe=security_probe_for_profile(
+                directory, record, client=client, settings=settings
+            ),
         )
         summary["proof"] = settings.redact_data(proof)
         require_native_positive(proof, plan, digest(inventory), browser_image)

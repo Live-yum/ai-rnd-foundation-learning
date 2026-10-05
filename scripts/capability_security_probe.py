@@ -136,16 +136,24 @@ def run_security_probe(sandbox, plan, timeout, container_evidence, environment=N
     return checks
 
 
-def security_probe_for_profile(directory, record):
+def security_probe_for_profile(directory, record, *, client=None, settings=None):
     def probe(sandbox, plan, timeout, container_evidence, environment=None):
         checks = run_security_probe(sandbox, plan, timeout, container_evidence, environment)
         if plan.selection.template == "fastapiadmin":
             from scripts.capability_native_egress import verify_native_egress
             from scripts.capability_native_planner_probe import verify_native_planner_identity
+            from scripts.capability_native_shm_probe import (
+                verify_native_shm,
+                verify_native_shm_peer,
+            )
             from workbench.capability_services import verify_native_services
 
             checks.update(verify_native_services(sandbox, plan, environment, timeout))
             checks.update(verify_native_planner_identity(sandbox, plan, environment, timeout))
+            checks.update(verify_native_shm(sandbox, plan, timeout))
+            checks.update(
+                verify_native_shm_peer(client, settings, directory, record, sandbox, plan, timeout)
+            )
             checks.update(verify_native_egress(directory, record, sandbox, plan, timeout))
         return checks
 

@@ -209,6 +209,27 @@ def test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_gl
     assert native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")
 
 
+def test_shared_memory_patch_is_exact_and_only_changes_the_native_container_branch():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    native, after_native = native.split("\t\t}\n", 1)
+    for statement in (
+        'hostConfig.IpcMode = container.IpcMode("private")',
+        "hostConfig.ShmSize = 67108864",
+    ):
+        assert native.count(statement) == 1
+        assert statement not in custom + after_native + profile.NEW
+    assert "/dev/shm" not in profile.LIMIT_INSERT
+    assert "Binds" not in profile.LIMIT_INSERT and "Mounts" not in profile.LIMIT_INSERT
+    patch = (profile.ROOT / "tools/daytona/capability-runner.patch").read_bytes()
+    # Regenerated from this verified upstream Git blob, not a hand-edited hunk.
+    assert profile.SOURCE_BLOB == "d5a97203afa87c3fa0065702723c41645bf284b6"
+    assert (
+        profile.sha256(patch) == "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed"
+    )
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_complete_source_resource_mapping_preserves_strict_bounds(native):
     memory = (6 if native else 2) * 1024**3
@@ -348,6 +369,130 @@ def execution_inspection(inspection):
     ]
     inner["Mounts"].append({"Type": "tmpfs", "Destination": "/tmp", "RW": True, "Source": ""})
     return inspection
+
+
+@pytest.fixture
+def native_inspection(execution_inspection, monkeypatch):
+    from scripts import daytona_native_capability_profile as native
+
+    directory, _, inner, _ = execution_inspection
+    record = copy.deepcopy(profile.require_profile(directory))
+    record["profile"] = native.PROFILE
+    record["snapshot"]["digest"] = "registry:6000/rnd-native-fastapiadmin@" + DIGEST
+    monkeypatch.setattr(native, "require_native_profile", lambda _: record)
+    inner["HostConfig"].update(
+        IpcMode="private",
+        ShmSize=67108864,
+        CpuQuota=200000,
+        Memory=6 * 1024**3,
+        MemorySwap=6 * 1024**3,
+        PidsLimit=384,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"},
+    )
+    return execution_inspection
+
+
+def test_native_inspection_binds_private_shared_memory_without_expanding_mounts(native_inspection):
+    directory, _, _, calls = native_inspection
+    proof = profile.inspect_created_sandbox(
+        directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+    )
+    assert proof["shared_memory"] == {"ipc_mode": "private", "size_bytes": 67108864}
+    assert type(proof["shared_memory"]["size_bytes"]) is int
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 200000,
+        "memory": 6 * 1024**3,
+        "memory_swap": 6 * 1024**3,
+        "tmpfs_bytes": 4294967296,
+        "pids": 384,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize("require_resources", [False, True])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("IpcMode", None),
+        ("IpcMode", ""),
+        ("IpcMode", "host"),
+        ("IpcMode", "shareable"),
+        ("IpcMode", "container:secret-container"),
+        ("IpcMode", True),
+        ("ShmSize", None),
+        ("ShmSize", 0),
+        ("ShmSize", -1),
+        ("ShmSize", 67108863),
+        ("ShmSize", 67108865),
+        ("ShmSize", 67108864.0),
+        ("ShmSize", "67108864"),
+        ("ShmSize", True),
+        ("ShmSize", False),
+    ],
+)
+def test_native_shared_memory_rejects_missing_changed_and_untyped_inspection(
+    native_inspection, require_resources, field, value
+):
+    directory, _, inner, calls = native_inspection
+    if value is None:
+        inner["HostConfig"].pop(field)
+    else:
+        inner["HostConfig"][field] = value
+    with pytest.raises(ContainerInspectionRejected, match="exact private IPC") as error:
+        profile.inspect_created_sandbox(
+            directory,
+            SANDBOX,
+            require_resources=require_resources,
+            selection={"template": "fastapiadmin"},
+        )
+    assert error.value.diagnostic() == {
+        "container_rejection": "shared_memory",
+        "shared_memory_ipc_private": field != "IpcMode",
+        "shared_memory_size_match": field != "ShmSize",
+    }
+    assert "secret" not in json.dumps(error.value.diagnostic())
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("ipc_mode", [None, "", "private"])
+def test_sqlite_inspection_keeps_prior_ipc_policy_without_native_shared_memory(
+    execution_inspection, ipc_mode
+):
+    directory, _, inner, _ = execution_inspection
+    if ipc_mode is not None:
+        inner["HostConfig"]["IpcMode"] = ipc_mode
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert "shared_memory" not in proof
+    assert proof["resource_limits"]["memory"] == 2 * 1024**3
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row["HostConfig"].update(Privileged=True),
+        lambda row: row["HostConfig"].update(SecurityOpt=["seccomp=unconfined"]),
+        lambda row: row["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+        lambda row: row["HostConfig"].update(PidMode="host"),
+        lambda row: row["HostConfig"].update(NetworkMode="default"),
+        lambda row: row["HostConfig"].update(MemorySwap=-1),
+        lambda row: row["HostConfig"].update(Tmpfs={"/dev/shm": "rw,size=67108864"}),
+        lambda row: row["Mounts"].append(
+            {"Type": "bind", "RW": True, "Destination": "/dev/shm", "Source": "/dev/shm"}
+        ),
+        lambda row: row["Mounts"].append(
+            {"Type": "tmpfs", "RW": True, "Destination": "/dev/shm", "Source": ""}
+        ),
+    ],
+)
+def test_native_shared_memory_preserves_all_other_container_predicates(native_inspection, mutation):
+    directory, _, inner, _ = native_inspection
+    mutation(inner)
+    with pytest.raises(ContainerInspectionRejected):
+        profile.inspect_created_sandbox(
+            directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+        )
 
 
 def test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy(
@@ -736,6 +881,23 @@ def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_chan
     with pytest.raises(ValueError, match="exact allowed transformation"):
         profile.load_profile(directory)
     assert (directory / "compose.lock.yaml").read_bytes() == ordinary
+
+
+def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
+    directory, record = locked_profile
+    # This internally consistent recipe predates the explicit native IPC/size binding.
+    record["recipes"].update(
+        {
+            "scripts/daytona_capability_profile.py": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
+            "tools/daytona/capability-runner.patch": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
+        }
+    )
+    record["recipe_identity"] = profile.sha256(
+        json.dumps(record["recipes"], sort_keys=True).encode()
+    )
+    local.private_json(directory / profile.LOCK, record)
+    with pytest.raises(ValueError, match="recipe or original installation changed"):
+        profile.load_profile(directory)
 
 
 @pytest.mark.parametrize(

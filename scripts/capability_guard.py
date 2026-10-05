@@ -20,6 +20,23 @@ BIND, CONNECT = 1, 2
 FORBIDDEN_PORTS = {2280}  # pinned Daytona daemon control API, not a product port
 WRITABLE_ROOT = "/tmp/rnd-capability"
 WRITE_ACCESS = sum(1 << bit for bit in (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14))
+# WRITE_FILE, REMOVE_FILE, MAKE_REG, REFER, TRUNCATE. In particular, this does
+# not admit MAKE_DIR/SYM/CHAR/BLOCK/FIFO/SOCK or REMOVE_DIR. POSIX SemLock needs
+# the temporary ordinary file + link/unlink sequence, not just a named prefix.
+NATIVE_SHM_ACCESS = sum(1 << bit for bit in (1, 5, 8, 13, 14))
+NATIVE_SHM_BYTES = 64 * 1024 * 1024
+NATIVE_SHM_EVIDENCE = {
+    "profile": "native-private-shm-v1",
+    "actual_mount_verified": True,
+    "regular_files_only": True,
+    "size_bytes": NATIVE_SHM_BYTES,
+    "noexec": True,
+    "nosuid": True,
+    "nodev": True,
+    "uid": 0,
+    "gid": 0,
+    "mode": 0o1777,
+}
 RESOURCE_LIMITS = {
     "RLIMIT_CPU": 300,
     "RLIMIT_FSIZE": 32 * 1024 * 1024,
@@ -152,13 +169,106 @@ def restrict_sockets(*, allow_tcp_connect=False):
         api.seccomp_release(context)
 
 
-def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
+def _read_proc(path):
+    with open(path, encoding="ascii") as stream:
+        value = stream.read(1024 * 1024 + 1)
+    if len(value) > 1024 * 1024:
+        raise RuntimeError("Shared memory mount evidence exceeds its bound")
+    return value
+
+
+def _native_shm_mount_identity(descriptor):
+    """Bind the opened directory to its own mount, never a matching path alone."""
+    identifiers = [
+        line.split(":", 1)[1].strip()
+        for line in _read_proc(f"/proc/self/fdinfo/{descriptor}").splitlines()
+        if line.startswith("mnt_id:")
+    ]
+    if len(identifiers) != 1 or not identifiers[0].isdecimal() or int(identifiers[0]) <= 0:
+        raise RuntimeError("Shared memory descriptor lacks a unique mount identity")
+    rows = []
+    for line in _read_proc("/proc/self/mountinfo").splitlines():
+        sides = line.split(" - ")
+        if len(sides) != 2:
+            raise RuntimeError("Malformed shared memory mount evidence")
+        before, after = sides[0].split(), sides[1].split()
+        if len(before) < 6 or len(after) != 3:
+            raise RuntimeError("Malformed shared memory mount evidence")
+        if before[4] == "/dev/shm" or before[0] == identifiers[0]:
+            rows.append((before, after))
+        if before[4].startswith("/dev/shm/"):
+            raise RuntimeError("Nested shared memory mounts are not admitted")
+    if len(rows) != 1:
+        raise RuntimeError("Shared memory mount identity is ambiguous")
+    before, after = rows[0]
+    entry = os.fstat(descriptor)
+    if (
+        before[0] != identifiers[0]
+        or before[2] != f"{os.major(entry.st_dev)}:{os.minor(entry.st_dev)}"
+        or before[3] != "/"
+        or before[4] != "/dev/shm"
+        or after[0] != "tmpfs"
+        or not {"rw", "noexec", "nosuid", "nodev"} <= set(before[5].split(","))
+        or "ro" in before[5].split(",")
+        or "rw" not in after[2].split(",")
+        or any(field.startswith(("shared:", "master:", "propagate_from:")) for field in before[6:])
+    ):
+        raise RuntimeError("Shared memory is not the required private tmpfs mount")
+    return tuple(before), tuple(after), entry.st_dev, entry.st_ino
+
+
+def open_verified_native_shm():
+    """Open only actual /dev/shm, with no symlink traversal or mount mutation.
+
+    The trusted launcher separately binds Docker's private IPC and 64 MiB
+    policy. Here the unprivileged guard validates the actual mount before any
+    additional Landlock right is granted, and uses that very descriptor.
+    """
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    device = os.open("/dev", flags)
+    try:
+        descriptor = os.open("shm", flags, dir_fd=device)
+    finally:
+        os.close(device)
+    try:
+        namespaces = tuple(os.stat(f"/proc/self/ns/{name}") for name in ("mnt", "ipc"))
+        identity = _native_shm_mount_identity(descriptor)
+        entry, filesystem = os.fstat(descriptor), os.fstatvfs(descriptor)
+        required_flags = os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV
+        if (
+            not stat.S_ISDIR(entry.st_mode)
+            or entry.st_uid != 0
+            or entry.st_gid != 0
+            or stat.S_IMODE(entry.st_mode) != 0o1777
+            or filesystem.f_frsize <= 0
+            or filesystem.f_blocks * filesystem.f_frsize != NATIVE_SHM_BYTES
+            or filesystem.f_flag & required_flags != required_flags
+            or filesystem.f_flag & os.ST_RDONLY
+        ):
+            raise RuntimeError("Shared memory mount ownership, size or flags are not admitted")
+        if identity != _native_shm_mount_identity(descriptor) or any(
+            (before.st_dev, before.st_ino)
+            != ((after := os.stat(f"/proc/self/ns/{name}")).st_dev, after.st_ino)
+            for name, before in zip(("mnt", "ipc"), namespaces, strict=True)
+        ):
+            raise RuntimeError("Shared memory mount identity changed during verification")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def restrict_tcp(
+    bind_ports, connect_ports, *, filesystem=False, native_semaphore_storage=False, evidence=None
+):
     if sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}:
         raise RuntimeError("Unsupported isolated kernel architecture")
     if any(
         not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports | connect_ports
     ):
         raise RuntimeError("Reserved or invalid isolated port")
+    if type(native_semaphore_storage) is not bool or native_semaphore_storage and not filesystem:
+        raise RuntimeError("Native shared memory requires an explicit filesystem policy")
     libc = ctypes.CDLL(None, use_errno=True)
     libc.syscall.restype = ctypes.c_long
     abi = libc.syscall(CREATE, 0, 0, 1)
@@ -179,6 +289,14 @@ def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
                     raise RuntimeError("Cannot restrict candidate filesystem writes")
             finally:
                 os.close(parent)
+            if native_semaphore_storage:
+                parent = open_verified_native_shm()
+                try:
+                    rule = PathRule(NATIVE_SHM_ACCESS, parent)
+                    if libc.syscall(ADD, descriptor, 1, ctypes.byref(rule), 0):
+                        raise RuntimeError("Cannot confine native semaphore files")
+                finally:
+                    os.close(parent)
         for port in sorted(bind_ports | connect_ports):
             rule = Port(
                 (BIND if port in bind_ports else 0) | (CONNECT if port in connect_ports else 0),
@@ -206,6 +324,8 @@ def restrict_tcp(bind_ports, connect_ports, *, filesystem=False):
             except OSError as exc:
                 if exc.errno != errno.EBADF:
                     raise
+    if native_semaphore_storage and evidence is not None:
+        evidence["native_shared_memory"] = dict(NATIVE_SHM_EVIDENCE)
     return int(abi)
 
 
@@ -238,12 +358,25 @@ def main():
         raise RuntimeError("Guard requires explicit port policy and command")
     bind_ports = {int(value) for value in sys.argv[1].split(",") if value}
     connect_ports = {int(value) for value in sys.argv[2].split(",") if value}
-    probe_only = sys.argv[3:] == ["--probe"]
-    abi = restrict_tcp(bind_ports, connect_ports, filesystem=not probe_only)
+    command = sys.argv[3:]
+    native_semaphore_storage = command[:1] == ["--native-shm"]
+    if native_semaphore_storage:
+        command = command[1:]
+    probe_only = command == ["--probe"]
+    if not probe_only and (len(command) < 2 or command[0] != "--"):
+        raise RuntimeError("Missing isolated command separator")
+    evidence = {}
+    abi = restrict_tcp(
+        bind_ports,
+        connect_ports,
+        filesystem=not probe_only or native_semaphore_storage,
+        native_semaphore_storage=native_semaphore_storage,
+        evidence=evidence,
+    )
     restrict_resources(native=55433 in connect_ports)
     seccomp = restrict_sockets(allow_tcp_connect=bool(connect_ports))
     daemon_denied()
-    if sys.argv[3:] == ["--probe"]:
+    if probe_only:
         print(
             json.dumps(
                 {
@@ -255,13 +388,12 @@ def main():
                     "socket_filter": "libseccomp-stream-only-v1",
                     "socket_filter_enforced": True,
                     "libseccomp": seccomp,
+                    **evidence,
                 }
             )
         )
         return
-    if sys.argv[3] != "--" or len(sys.argv) < 5:
-        raise RuntimeError("Missing isolated command separator")
-    os.execvpe(sys.argv[4], sys.argv[4:], os.environ)
+    os.execvpe(command[1], command[1:], os.environ)
 
 
 if __name__ == "__main__":

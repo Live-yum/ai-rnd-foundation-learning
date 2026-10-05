@@ -475,8 +475,8 @@
     },
     {
       "path": "workbench/capability_execution.py",
-      "bytes": 12804,
-      "sha256": "bb8ca22835d5e2f454c3ca95dce819c2011b051add9e01528a94af3720406467",
+      "bytes": 13735,
+      "sha256": "96e170aa06bf281a5fd46d07935f8a9b62762c8070c5abf11c9110faddefa6bc",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_execution_py--001.md"
@@ -484,8 +484,8 @@
     },
     {
       "path": "workbench/capability_isolation.py",
-      "bytes": 17466,
-      "sha256": "58b9012cd8a08683b4bcc072c7283ced37469e7a6a8f83906818c3a8d6234c06",
+      "bytes": 20082,
+      "sha256": "03f8f3a39078031f4ea0a315619ca4621ea333ccfb4babb263bdd9d9915ce116",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_isolation_py--001.md"
@@ -529,8 +529,8 @@
     },
     {
       "path": "workbench/capability_verification.py",
-      "bytes": 27798,
-      "sha256": "95d0a25055d66b585cb5942c9e59378c4a15498c5c02031855f16bb4d36de62c",
+      "bytes": 28752,
+      "sha256": "22e0e3908c3e4bee3a1562de338ad00902b71b9e42660ef0248fe2ee63d930cc",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_verification_py--001.md"
@@ -944,8 +944,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 37968,
-      "sha256": "9354ea395f3205bb1820c69845580835ecff2fc852ef86da6b823d0e0bde1956",
+      "bytes": 38719,
+      "sha256": "3f88c5ed52f7e601b6fbfd4635574b21df0d2f771dc27a68d428ce1db59541df",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
@@ -3081,8 +3081,8 @@
     },
     {
       "path": "scripts/daytona_capability_profile.py",
-      "bytes": 41671,
-      "sha256": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
+      "bytes": 42678,
+      "sha256": "ae21aa6727133a525cc702d86c34b75eaa836f333b8ab42198cf5e5e50ebac03",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_capability_profile_py--001.md",
@@ -3199,8 +3199,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 29961,
-      "sha256": "dfce02ff61166cde0b0f91715f258d128675b9aeb3a700924e5747006f909384",
+      "bytes": 36459,
+      "sha256": "1f90ccd1086d6e0f339e0f045a35eca4d53cbc5ec547c942b86b3ed87efdd0f9",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md"
@@ -3325,8 +3325,8 @@
     },
     {
       "path": "tools/daytona/capability-runner.patch",
-      "bytes": 1829,
-      "sha256": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
+      "bytes": 1917,
+      "sha256": "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tools__daytona__capability-runner_patch--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 20549,
-      "sha256": "31130bb60cb401a7d963c09327f88bd5b65c16f35e3a285ae6c372cd1690e1bc",
+      "bytes": 22337,
+      "sha256": "9f7461b9f9a7742abd1a1c35dfbe8073e27a385441fc285990c7ced1077d0a46",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4180,8 +4180,8 @@
     },
     {
       "path": "scripts/capability_guard.py",
-      "bytes": 11068,
-      "sha256": "b8c93bf74ff15d770d89adb173eef80a4f976ade46b4e7f139662897187e79c9",
+      "bytes": 16788,
+      "sha256": "62a739ca3a504c723b1c30e0f5b3a22f8bac051f0da1f3adbe0604416f759cfb",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__capability_guard_py--001.md"
@@ -4206,9 +4206,18 @@
       ]
     },
     {
+      "path": "scripts/capability_native_shm_probe.py",
+      "bytes": 21303,
+      "sha256": "01af618d208b85ed8b4ad6d0b04979adc2b0399e975b7da7bec0704b5ad929b9",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__capability_native_shm_probe_py--001.md"
+      ]
+    },
+    {
       "path": "scripts/capability_security_probe.py",
-      "bytes": 8003,
-      "sha256": "a1007f88e14675659b909387b984090abcee7fa204eed4c15dd4bb699e9c8bf1",
+      "bytes": 8395,
+      "sha256": "d7e7a18e388018ddb7e601d809c03e9f3e4318d1015df4991ae84dae4ef22e0d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__capability_security_probe_py--001.md"
@@ -4261,8 +4270,8 @@
     },
     {
       "path": "scripts/ci_contest_capability.py",
-      "bytes": 6155,
-      "sha256": "6ad95db456f0f62f2f505ccaac2625f4cb5d62c9329d4cf481c605ecf0791dcf",
+      "bytes": 6227,
+      "sha256": "47494a9b10522b594c06df5a51c1c476891749f212b81d7774ebc1b71cdc3c4a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_contest_capability_py--001.md"
@@ -4315,8 +4324,8 @@
     },
     {
       "path": "scripts/ci_native_capability_security.py",
-      "bytes": 20174,
-      "sha256": "8b5790c0f6ffa02b4ff5dbbe3bdcfa5c9be4ce0ec37579a262c1902a0bf60988",
+      "bytes": 20238,
+      "sha256": "4f96d96a6b02cb72141b70051d38130f948537990ae58b1f9487d6396c3e0734",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_native_capability_security_py--001.md"
@@ -4444,8 +4453,8 @@
     },
     {
       "path": "tests/capability_dependency_fixtures.py",
-      "bytes": 2637,
-      "sha256": "59aa673e63e2a068b89f45b44c88a15ce17890497d55be75760e5d36a99c3e43",
+      "bytes": 2931,
+      "sha256": "d5383db24aef905ca0e4b88c7da76b73bc27349611378612d6683e7c2c047c47",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md"
@@ -4580,8 +4589,8 @@
     },
     {
       "path": "tests/test_capability_contest_integration.py",
-      "bytes": 7090,
-      "sha256": "8006e8bbf8cbb2dd7378a814b610acb0e7c6191646da048add7afad468f54457",
+      "bytes": 7096,
+      "sha256": "37c0cc08902ac4d4167381dd8e44723bb2d934f8bd6ba4080a9126a005e22924",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_contest_integration_py--001.md"
@@ -4598,8 +4607,8 @@
     },
     {
       "path": "tests/test_capability_execution_gate.py",
-      "bytes": 15288,
-      "sha256": "64ddb8340f04142265d10dee33029403335c0c85ebd1356a31d7e6d965aa93c7",
+      "bytes": 15498,
+      "sha256": "febc33feaecb4cdbddabc072137b661a3249810ab5895bc26da0f7c6776ae10b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_execution_gate_py--001.md"
@@ -4696,6 +4705,33 @@
       ]
     },
     {
+      "path": "tests/test_capability_native_shm_binding.py",
+      "bytes": 1524,
+      "sha256": "dbf059de6442d9f216fc36a2919e522d9b0363e691372901232a3eb99cac5e72",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_native_shm_binding_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_native_shm_guard.py",
+      "bytes": 14234,
+      "sha256": "f40c08f35ccd6a511729c7ac8b94d3a38a726ccbbdfca9c3a530737bed43f94e",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_native_shm_guard_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_native_shm_probe.py",
+      "bytes": 20333,
+      "sha256": "9bfea31050698c7edc31624bab486032d5c759903614513bed36b532369dfd50",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_native_shm_probe_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_capability_orchestration.py",
       "bytes": 6926,
       "sha256": "a6590790233a6f7cebe745720f2ca34e49a7ade43eab6b1c566f12a37812ca9b",
@@ -4778,8 +4814,8 @@
     },
     {
       "path": "tests/test_ci_native_capability_security.py",
-      "bytes": 17041,
-      "sha256": "e1a8e5c8706063fd87fb53f0bac925ab1979204b56ef31ed8a37b27bc7c8408a",
+      "bytes": 17047,
+      "sha256": "9ee046fa794d460cdea5b619b792616e64c3cd5920e5a9027b3cce6d4b3d05af",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md"
@@ -4787,8 +4823,8 @@
     },
     {
       "path": "tests/test_ci_native_capability_source.py",
-      "bytes": 27002,
-      "sha256": "0095c223473529017f6c37dbbd8403b21eba24ed7847317b7d3751115efa0005",
+      "bytes": 27008,
+      "sha256": "60cb1ae57dd85cc94f3d9070b3942f1272ebcd88b464e6dbb6e7cdb1eeacf442",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_native_capability_source_py--001.md"
@@ -5084,8 +5120,8 @@
     },
     {
       "path": "tests/test_readonly_dependency_admission.py",
-      "bytes": 12311,
-      "sha256": "f270b7a3200e3d05ab6636a0d7417cc79addb32881f88f0fddaff0ecb36f0025",
+      "bytes": 16500,
+      "sha256": "bebbc2acda51440ad243adb5d22b1fe9bf106c33fc25f932a18902b93b6e917f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_readonly_dependency_admission_py--001.md"
