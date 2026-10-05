@@ -3,7 +3,7 @@
 import json
 
 from workbench.capability_contracts import TaskCommand
-from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT
+from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT, NODE
 from workbench.capability_isolation import CONTROL, control_exec
 from workbench.capability_verification import CheckFailure
 
@@ -13,6 +13,35 @@ GENERATED_TYPES = {
     "frontend/web/src/types/components.d.ts",
     "frontend/web/.eslintrc-auto-import.json",
 }
+
+
+def native_frontend_build_command():
+    """Bound Rollup scheduling, while the unchanged guard enforces the FD limit.
+
+    The CLI has no maxParallelFileOps switch. Vite's API merges this small
+    override into the original config; retain its plugins, aliases and output.
+    Reapply after candidate options hooks and check normalized build options.
+    Keep the inline body within TaskCommand's existing 500-character argument
+    limit rather than expanding the command contract.
+    This is not a JavaScript security boundary: the OS guard remains mandatory.
+    """
+    script = (
+        "import {build} from "
+        + json.dumps(NATIVE_NODE_ROOT + "/vite/dist/node/index.js")
+        + ";\n"
+        + """
+let ok=false;
+await build({mode:'production',build:{rollupOptions:{maxParallelFileOps:32}},plugins:[{
+name:'rnd:fd32',enforce:'post',
+options:{order:'post',handler:o=>({...o,maxParallelFileOps:32})},
+buildStart(o){if(o.maxParallelFileOps!==32)throw Error('native-build-file-limit');ok=true;}
+}]});
+if(!ok)throw Error('native-build-check-missing');
+"""
+    )
+    return TaskCommand(
+        cwd="frontend/web", argv=[NODE, "--input-type=module", "--eval", script.replace("\n", "")]
+    )
 
 
 def native_start_command(plan):

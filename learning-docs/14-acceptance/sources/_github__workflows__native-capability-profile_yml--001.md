@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L205。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L211。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10893`。本段原文以LF换行结束。
+本段原始字节数：`11252`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ff08ed6d46e94639e5021d759d50038935b9e06255bc9685bf703cd2fe69ba9"} -->
+<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e514a419843dbdc9327f1e1f0cd514e93e2ad6c461667c0269e0ff7338c32c9e"} -->
 ````yaml
 # .github/workflows/native-capability-profile.yml
 name: Authored native PostgreSQL isolation profile
@@ -143,6 +143,12 @@ jobs:
         run: uv run python -m scripts.ci_native_tools fastapiadmin --capability-source .native/capability-source
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+      - name: Require bounded native Vite scheduling with original config and hooks
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+          RND_REQUIRE_NATIVE_VITE_TESTS: '1'
+          RND_NATIVE_TEST_NODE_MODULES: ${{ github.workspace }}/.native/tool-product/frontend/web/node_modules
+        run: uv run pytest -q tests/test_capability_native_build.py
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images

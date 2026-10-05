@@ -10140,15 +10140,15 @@ def coverage_errors(plan, sources):
 - `_profile`（L46–L51）：接收`plan`。 控制顺序：L49按`profile not in supported or plan.selection.database != supported[profile]`分支；L50抛异常，停止当前正常路径。 调用`CheckFailure`。 返回路径：L51的`profile`。
 - `require_dependency_manifest`（L54–L101）：接收`value`、`profile`。 控制顺序：L63按`profile == "fastapiadmin"`分支；L65按`type(value) is not dict or set(value) != fields or type(value.get("schema")) is not i…`分支；L82抛异常，停止当前正常路径；L87按`profile not in descriptors or set(value["original_descriptors"]) != descriptors[profi…`分支；L88抛异常，停止当前正常路径；L89遍历`value["original_descriptors"].items()`；L90按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L100抛异常，停止当前正常路径。 调用`fields.add`、`type`、`set`、`value.get`、`re.fullmatch`、`any`、`native_descriptor_roles`、`CheckFailure`、`native_descriptor_roles().values`等。 返回路径：L101的`value`。
 - `require_dependency_descriptors`（L104–L129）：接收`product`、`plan`、`record`。 源码说明：Local fail-closed preflight before even creating/uploading a sandbox.。 控制顺序：L110按`expected["image_id"] != record["snapshot"].get("image_id")`分支；L111抛异常，停止当前正常路径；L116遍历`roots`；L118按`raw.is_symlink()`分支；L119抛异常，停止当前正常路径；L121按`path.exists()`分支；L122抛异常，停止当前正常路径；L127按`observed != expected["original_descriptors"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`_profile`、`type`、`record.get`、`snapshot.get`、`require_dependency_manifest`、`record["snapshot"].get`、`CheckFailure`、`readonly_prepare_commands`、`readonly_start_command`等。 返回路径：L129的`expected`。
-- `readonly_prepare_commands`（L132–L170）：接收`plan`。 源码说明：Only these exact install contracts are satisfied by verified image data.。 控制顺序：L134按`_profile(plan) == "fastapiadmin"`分支；L142按`plan.runtime.prepare and plan.runtime.prepare != trusted`分支；L143抛异常，停止当前正常路径；L168按`plan.runtime.prepare != expected`分支；L169抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`native_prepare_commands`、`CheckFailure`、`TaskCommand`。 返回路径：L144的`[ TaskCommand( cwd="frontend/web", argv=[ NODE, NATIVE_NODE_ROOT + "/vite/bin/vite.js", "b…`；L170的`[]`。
-- `readonly_start_command`（L173–L201）：接收`plan`、`command`。 源码说明：Translate a validated launcher, never arbitrary command prefixes.。 控制顺序：L176按`profile == "fastapiadmin"`分支；L180按`command is not None and command == frontend_start_command()`分支；L182按`command is not None and command != native`分支；L183抛异常，停止当前正常路径；L189按`command != plan.runtime.start or command.cwd != "." or len(argv) != 8 or argv[0] not …`分支；L200抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`frontend_start_command`、`TaskCommand`、`CheckFailure`、`len`、`re.fullmatch`、`str`。 返回路径：L181的`TaskCommand(cwd="frontend/web", argv=[NODE, CONTROL + "/native-preview.mjs"])`；L184的`TaskCommand( cwd=native.cwd, argv=[NATIVE_PYTHON_ROOT + "/bin/python", *native.argv[1:]] )`；L201的`TaskCommand(cwd=".", argv=[PYTHON_ROOT + "/bin/python", *argv[1:]])`。
-- `_verify_image`（L306–L344）：接收`sandbox`、`plan`、`timeout`、`expected`。 控制顺序：L325按`type(result.exit_code) is not int or result.exit_code != 0`分支；L326抛异常，停止当前正常路径；L327按`type(result.result) is not str or len(result.result) > 4096`分支；L328抛异常，停止当前正常路径；L330按`type(value) is not dict or set(value) != {"schema", "profile", "manifest_sha256", "in…`分支；L341抛异常，停止当前正常路径；L343抛异常，停止当前正常路径。 调用`_profile`、`require_dependency_manifest`、`control_exec`、`type`、`len`、`json.loads`、`set`、`value.get`、`any`等。 返回路径：L344的`value`。
-- `_source_contract`（L433–L475）：接收`plan`、`source_inventory`。 控制顺序：L434按`type(source_inventory) is not dict or not source_inventory`分支；L435抛异常，停止当前正常路径；L436遍历`source_inventory.items()`；L437按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L447抛异常，停止当前正常路径；L448按`plan.selection.database == "sqlite"`分支；L452按`str(database) != value or database.is_absolute() or ".." in database.parts or "\\" in…`分支；L469抛异常，停止当前正常路径。 调用`type`、`CheckFailure`、`source_inventory.items`、`str`、`PurePosixPath`、`PurePosixPath(name).is_absolute`、`re.fullmatch`、`database.parent.as_posix`、`database.is_absolute`等。 返回路径：L470的`{ "profile": _profile(plan), "database": plan.selection.database, "database_path": plan.ru…`。
-- `_verify_sources`（L478–L485）：接收`sandbox`、`plan`、`timeout`、`source_inventory`、`initial`。 控制顺序：L483按`result.exit_code != 0`分支；L484抛异常，停止当前正常路径。 调用`_source_contract`、`sandbox.fs.upload_file`、`json.dumps(contract).encode`、`json.dumps`、`repr`、`control_exec`、`CheckFailure`、`digest`。 返回路径：L485的`{"source_inventory_sha256": digest(source_inventory), "source_inventory_verified": True}`。
-- `prepare_readonly_dependencies`（L488–L499）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 控制顺序：L493按`_profile(plan) == "fastapiadmin"`分支；L497按`result.exit_code != 0`分支；L498抛异常，停止当前正常路径。 调用`readonly_prepare_commands`、`readonly_start_command`、`_verify_image`、`_verify_sources`、`_profile`、`control_exec`、`CheckFailure`。 返回路径：L499的`{**receipt, **source, "product_links_verified": True}`。
-- `verify_readonly_dependencies`（L502–L505）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 调用`_verify_image`、`_verify_sources`。 返回路径：L505的`{**receipt, **source, "product_links_verified": True}`。
+- `readonly_prepare_commands`（L132–L162）：接收`plan`。 源码说明：Only these exact install contracts are satisfied by verified image data.。 控制顺序：L134按`_profile(plan) == "fastapiadmin"`分支；L143按`plan.runtime.prepare and plan.runtime.prepare != trusted`分支；L144抛异常，停止当前正常路径；L160按`plan.runtime.prepare != expected`分支；L161抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`native_prepare_commands`、`CheckFailure`、`native_frontend_build_command`、`TaskCommand`。 返回路径：L145的`[ native_frontend_build_command(), TaskCommand( cwd="frontend/web", argv=[ NODE, NATIVE_NO…`；L162的`[]`。
+- `readonly_start_command`（L165–L193）：接收`plan`、`command`。 源码说明：Translate a validated launcher, never arbitrary command prefixes.。 控制顺序：L168按`profile == "fastapiadmin"`分支；L172按`command is not None and command == frontend_start_command()`分支；L174按`command is not None and command != native`分支；L175抛异常，停止当前正常路径；L181按`command != plan.runtime.start or command.cwd != "." or len(argv) != 8 or argv[0] not …`分支；L192抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`frontend_start_command`、`TaskCommand`、`CheckFailure`、`len`、`re.fullmatch`、`str`。 返回路径：L173的`TaskCommand(cwd="frontend/web", argv=[NODE, CONTROL + "/native-preview.mjs"])`；L176的`TaskCommand( cwd=native.cwd, argv=[NATIVE_PYTHON_ROOT + "/bin/python", *native.argv[1:]] )`；L193的`TaskCommand(cwd=".", argv=[PYTHON_ROOT + "/bin/python", *argv[1:]])`。
+- `_verify_image`（L298–L336）：接收`sandbox`、`plan`、`timeout`、`expected`。 控制顺序：L317按`type(result.exit_code) is not int or result.exit_code != 0`分支；L318抛异常，停止当前正常路径；L319按`type(result.result) is not str or len(result.result) > 4096`分支；L320抛异常，停止当前正常路径；L322按`type(value) is not dict or set(value) != {"schema", "profile", "manifest_sha256", "in…`分支；L333抛异常，停止当前正常路径；L335抛异常，停止当前正常路径。 调用`_profile`、`require_dependency_manifest`、`control_exec`、`type`、`len`、`json.loads`、`set`、`value.get`、`any`等。 返回路径：L336的`value`。
+- `_source_contract`（L425–L467）：接收`plan`、`source_inventory`。 控制顺序：L426按`type(source_inventory) is not dict or not source_inventory`分支；L427抛异常，停止当前正常路径；L428遍历`source_inventory.items()`；L429按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L439抛异常，停止当前正常路径；L440按`plan.selection.database == "sqlite"`分支；L444按`str(database) != value or database.is_absolute() or ".." in database.parts or "\\" in…`分支；L461抛异常，停止当前正常路径。 调用`type`、`CheckFailure`、`source_inventory.items`、`str`、`PurePosixPath`、`PurePosixPath(name).is_absolute`、`re.fullmatch`、`database.parent.as_posix`、`database.is_absolute`等。 返回路径：L462的`{ "profile": _profile(plan), "database": plan.selection.database, "database_path": plan.ru…`。
+- `_verify_sources`（L470–L477）：接收`sandbox`、`plan`、`timeout`、`source_inventory`、`initial`。 控制顺序：L475按`result.exit_code != 0`分支；L476抛异常，停止当前正常路径。 调用`_source_contract`、`sandbox.fs.upload_file`、`json.dumps(contract).encode`、`json.dumps`、`repr`、`control_exec`、`CheckFailure`、`digest`。 返回路径：L477的`{"source_inventory_sha256": digest(source_inventory), "source_inventory_verified": True}`。
+- `prepare_readonly_dependencies`（L480–L491）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 控制顺序：L485按`_profile(plan) == "fastapiadmin"`分支；L489按`result.exit_code != 0`分支；L490抛异常，停止当前正常路径。 调用`readonly_prepare_commands`、`readonly_start_command`、`_verify_image`、`_verify_sources`、`_profile`、`control_exec`、`CheckFailure`。 返回路径：L491的`{**receipt, **source, "product_links_verified": True}`。
+- `verify_readonly_dependencies`（L494–L497）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 调用`_verify_image`、`_verify_sources`。 返回路径：L497的`{**receipt, **source, "product_links_verified": True}`。
 
-<!-- source-file: workbench/capability_dependencies.py sha256: c228851d155f9a8bba321990f934a07a1fab1845e5fc4792a8e3eb2f072bbae8 -->
+<!-- source-file: workbench/capability_dependencies.py sha256: a0eb524d2a97ffdad56e7e2ad5bf2b84545ddddad0d554d0b82777d8a5ca7047 -->
 ````python
 """Admit pinned, immutable dependencies without executing candidate install code.
 
@@ -10285,6 +10285,7 @@ def readonly_prepare_commands(plan):
     """Only these exact install contracts are satisfied by verified image data."""
     if _profile(plan) == "fastapiadmin":
         from workbench.capability_native_runtime import (
+            native_frontend_build_command,
             native_prepare_commands,
             native_start_command,
         )
@@ -10294,16 +10295,7 @@ def readonly_prepare_commands(plan):
         if plan.runtime.prepare and plan.runtime.prepare != trusted:
             raise CheckFailure("原生构建只允许登记的准确prepare契约")
         return [
-            TaskCommand(
-                cwd="frontend/web",
-                argv=[
-                    NODE,
-                    NATIVE_NODE_ROOT + "/vite/bin/vite.js",
-                    "build",
-                    "--mode",
-                    "production",
-                ],
-            ),
+            native_frontend_build_command(),
             TaskCommand(
                 cwd="frontend/web",
                 argv=[
@@ -11652,19 +11644,20 @@ for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
 
 **逐个入口与控制逻辑：**
 
-- `native_start_command`（L18–L34）：接收`plan`。 控制顺序：L30按`plan.runtime.start.cwd != "backend" or plan.runtime.start.argv != expected`分支；L31抛异常，停止当前正常路径。 调用`str`、`CheckFailure`。 返回路径：L34的`plan.runtime.start`。
-- `native_prepare_commands`（L37–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L38的`[ TaskCommand( cwd="backend", argv=["uv", "sync", "--locked", "--offline", "--python", "3.…`。
-- `frontend_start_command`（L62–L63）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L63的`TaskCommand(cwd="frontend/web", argv=["node", CONTROL + "/native-preview.mjs"])`。
-- `verify_and_freeze_native_sources`（L66–L166）：接收`sandbox`、`inventory`、`timeout`。 控制顺序：L165按`result.exit_code != 0`分支；L166抛异常，停止当前正常路径。 调用`inventory.items`、`sandbox.fs.upload_file`、`json.dumps(expected).encode`、`json.dumps`、`launcher.encode`、`control_exec`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_frontend_build_command`（L18–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Bound Rollup scheduling, while the unchanged guard enforces the FD limit. The CLI has no maxParallelFileOps switch. Vite's API merges this small override into the original config; retain its plugins, 。 调用`json.dumps`、`TaskCommand`、`script.replace`。 返回路径：L42的`TaskCommand( cwd="frontend/web", argv=[NODE, "--input-type=module", "--eval", script.repla…`。
+- `native_start_command`（L47–L63）：接收`plan`。 控制顺序：L59按`plan.runtime.start.cwd != "backend" or plan.runtime.start.argv != expected`分支；L60抛异常，停止当前正常路径。 调用`str`、`CheckFailure`。 返回路径：L63的`plan.runtime.start`。
+- `native_prepare_commands`（L66–L88）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L67的`[ TaskCommand( cwd="backend", argv=["uv", "sync", "--locked", "--offline", "--python", "3.…`。
+- `frontend_start_command`（L91–L92）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L92的`TaskCommand(cwd="frontend/web", argv=["node", CONTROL + "/native-preview.mjs"])`。
+- `verify_and_freeze_native_sources`（L95–L195）：接收`sandbox`、`inventory`、`timeout`。 控制顺序：L194按`result.exit_code != 0`分支；L195抛异常，停止当前正常路径。 调用`inventory.items`、`sandbox.fs.upload_file`、`json.dumps(expected).encode`、`json.dumps`、`launcher.encode`、`control_exec`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_native_runtime.py sha256: bdd7f1596b84b238b5ae634b267d675e7696c35e8dabd2a3920f14a3b14aef4c -->
+<!-- source-file: workbench/capability_native_runtime.py sha256: 048fd9ea2821a6047610a4029e7039b78f9e6755b975cac4750c1c859aec4ede -->
 ````python
 """Controller-owned native build/launch contract; candidate code stays sandboxed."""
 
 import json
 
 from workbench.capability_contracts import TaskCommand
-from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT
+from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT, NODE
 from workbench.capability_isolation import CONTROL, control_exec
 from workbench.capability_verification import CheckFailure
 
@@ -11674,6 +11667,35 @@ GENERATED_TYPES = {
     "frontend/web/src/types/components.d.ts",
     "frontend/web/.eslintrc-auto-import.json",
 }
+
+
+def native_frontend_build_command():
+    """Bound Rollup scheduling, while the unchanged guard enforces the FD limit.
+
+    The CLI has no maxParallelFileOps switch. Vite's API merges this small
+    override into the original config; retain its plugins, aliases and output.
+    Reapply after candidate options hooks and check normalized build options.
+    Keep the inline body within TaskCommand's existing 500-character argument
+    limit rather than expanding the command contract.
+    This is not a JavaScript security boundary: the OS guard remains mandatory.
+    """
+    script = (
+        "import {build} from "
+        + json.dumps(NATIVE_NODE_ROOT + "/vite/dist/node/index.js")
+        + ";\n"
+        + """
+let ok=false;
+await build({mode:'production',build:{rollupOptions:{maxParallelFileOps:32}},plugins:[{
+name:'rnd:fd32',enforce:'post',
+options:{order:'post',handler:o=>({...o,maxParallelFileOps:32})},
+buildStart(o){if(o.maxParallelFileOps!==32)throw Error('native-build-file-limit');ok=true;}
+}]});
+if(!ok)throw Error('native-build-check-missing');
+"""
+    )
+    return TaskCommand(
+        cwd="frontend/web", argv=[NODE, "--input-type=module", "--eval", script.replace("\n", "")]
+    )
 
 
 def native_start_command(plan):
@@ -121215,6 +121237,281 @@ def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settin
     assert result["cleanup"] == "deleted"
 ````
 
+### `tests/test_capability_native_build.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.capability_guard`、`workbench`、`workbench.capability_dependencies`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `node`（L17–L26）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L19按`not value`分支；L20按`any( os.environ.get(key) == "1" for key in ("RND_REQUIRE_NODE_TESTS", "RND_REQUIRE_NA…`分支。 调用`shutil.which`、`any`、`os.environ.get`、`pytest.fail`、`pytest.skip`。 返回路径：L26的`value`。
+- `local_command`（L29–L38）：接收`root`。 控制顺序：L32断言`command.argv[3].count(sealed) == 1`。 调用`native.native_frontend_build_command`、`json.dumps`、`command.argv[3].count`、`command.argv[3].replace`、`(root / "vite/dist/node/index.js").as_uri`。 返回路径：L38的`command`。
+- `bounded_run`（L41–L63）：接收`node`、`command`、`root`。 控制顺序：L52遍历`("SYSTEMROOT", "SystemRoot", "WINDIR", "TEMP", "TMP")`；L53按`key in os.environ`分支。 调用`os.environ.get`、`str`、`subprocess.run`。 返回路径：L55的`subprocess.run( [node, *command.argv[1:]], cwd=root, env=environment, capture_output=True,…`。
+- `bounded_run.limits`（L44–L47）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`resource.setrlimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_build_keeps_sealed_tool_mode_and_existing_resource_limit`（L66–L93）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68断言`command.cwd == "frontend/web"`；L69断言`command.argv[:3] == [NODE, "--input-type=module", "--eval"]`；L70断言`command.argv[3].startswith( "import {build} from " + json.dumps(NATIVE_NODE_ROOT + "/…`；L73断言`"mode:'production'" in command.argv[3]`；L74断言`"maxParallelFileOps:32" in command.argv[3]`；L75断言`"external:" not in command.argv[3]`；L76断言`"configFile:" not in command.argv[3]`；L77断言`"catch" not in command.argv[3]`。后续分支沿下方源码相同行号继续阅读。 调用`native.native_frontend_build_command`、`command.argv[3].startswith`、`json.dumps`、`native.native_prepare_commands`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_wrapper_hooks_and_errors_with_data_only_api_fixture`（L97–L141）：接收`node`、`tmp_path`、`case`。 控制顺序：L132按`case in {"normal", "override"}`分支；L133断言`result.returncode == 0`；L134断言`"fixture hooks passed" in result.stdout`；L136断言`result.returncode != 0`；L137断言`{ "late-override": "native-build-file-limit", "removed": "native-build-check-missing"…`。 调用`module.parent.mkdir`、`(tmp_path / "package.json").write_text`、`module.write_text`、`json.dumps`、`bounded_run`、`local_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_real_vite`（L144–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L148按`not root`分支；L149按`os.environ.get("RND_REQUIRE_NATIVE_VITE_TESTS") == "1"`分支；L153断言`(root / "vite/dist/node/index.js").is_file()`；L154断言`json.loads((root / "vite/package.json").read_text())["version"] == "7.3.3"`。 调用`os.environ.get`、`pytest.fail`、`pytest.skip`、`Path(root).resolve`、`Path`、`(root / "vite/dist/node/index.js").is_file`、`json.loads`、`(root / "vite/package.json").read_text`。 返回路径：L155的`root`。
+- `real_vite`（L159–L160）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`require_real_vite`。 返回路径：L160的`require_real_vite()`。
+- `test_required_native_vite_cannot_be_silently_skipped`（L163–L176）：接收`monkeypatch`、`tmp_path`。 调用`monkeypatch.setenv`、`monkeypatch.delenv`、`pytest.raises`、`require_real_vite`、`str`、`module.parent.mkdir`、`module.write_text`、`(tmp_path / "vite/package.json").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_vite_preserves_config_and_bounds_candidate_hooks`（L193–L233）：接收`node`、`real_vite`、`tmp_path`、`case`。 控制顺序：L220断言`(tmp_path / "vite.config.mjs").read_bytes() == original`；L221按`case in {"late-override", "removed", "error"}`分支；L222断言`result.returncode != 0`；L223断言`{ "late-override": "native-build-file-limit", "removed": "native-build-check-missing"…`；L229断言`result.returncode == 0`；L230断言`(tmp_path / "dist/index.html").is_file()`；L231断言`(tmp_path / "dist/kept/index.js").is_file()`；L232断言`"original alias retained" in (tmp_path / "dist/kept/index.js").read_text()`。后续分支沿下方源码相同行号继续阅读。 调用`(tmp_path / "package.json").write_text`、`(tmp_path / "index.html").write_text`、`(tmp_path / "main.js").write_text`、`(tmp_path / "retained.js").write_text`、`(tmp_path / "vite.config.mjs").write_text`、`(tmp_path / "vite.config.mjs").read_bytes`、`bounded_run`、`local_command`、`(tmp_path / "dist/index.html").is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_ci_requires_real_vite_after_baseline_before_source_admission`（L236–L247）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242断言`baseline < check < admission`；L244断言`"RND_REQUIRE_NATIVE_VITE_TESTS: '1'" in step`；L245断言`"RND_REQUIRE_NODE_TESTS: '1'" in step`；L246断言`"${{ github.workspace }}/.native/tool-product/frontend/web/node_modules" in step`；L247断言`"uv run pytest -q tests/test_capability_native_build.py" in step`。 调用`Path(__file__).resolve`、`Path`、`path.read_text`、`workflow.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_native_build.py sha256: a76c71848ee33a1cab82729c324061c5a63a84764ae72f9bd36ff36808181bd3 -->
+````python
+"""Bounded native Rollup scheduling; OS isolation remains the security boundary."""
+
+import json
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from scripts.capability_guard import RESOURCE_LIMITS
+from workbench import capability_native_runtime as native
+from workbench.capability_dependencies import NATIVE_NODE_ROOT, NODE
+
+
+@pytest.fixture
+def node():
+    value = shutil.which("node")
+    if not value:
+        if any(
+            os.environ.get(key) == "1"
+            for key in ("RND_REQUIRE_NODE_TESTS", "RND_REQUIRE_NATIVE_VITE_TESTS")
+        ):
+            pytest.fail("Node is required by this job")
+        pytest.skip("Node tooling unavailable")
+    return value
+
+
+def local_command(root):
+    command = native.native_frontend_build_command()
+    sealed = json.dumps(NATIVE_NODE_ROOT + "/vite/dist/node/index.js")
+    assert command.argv[3].count(sealed) == 1
+    # URI transport is portable to Windows and does not expand the production
+    # command argument bound when a pytest temporary path happens to be long.
+    command.argv[3] = command.argv[3].replace(
+        sealed, json.dumps((root / "vite/dist/node/index.js").as_uri())
+    )
+    return command
+
+
+def bounded_run(node, command, root):
+    # Consumer-local paths stand in for the immutable runtime mount in these
+    # fixtures only. Execute the exact controller-generated JavaScript body.
+    def limits():
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+
+    environment = {"PATH": os.environ.get("PATH", ""), "HOME": str(root), "CI": "true"}
+    # Windows executable/temporary-directory discovery needs these ordinary OS
+    # values; do not inherit unrelated credentials into the fixture process.
+    for key in ("SYSTEMROOT", "SystemRoot", "WINDIR", "TEMP", "TMP"):
+        if key in os.environ:
+            environment[key] = os.environ[key]
+    return subprocess.run(
+        [node, *command.argv[1:]],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        preexec_fn=limits if os.name == "posix" else None,
+    )
+
+
+def test_native_build_keeps_sealed_tool_mode_and_existing_resource_limit():
+    command = native.native_frontend_build_command()
+    assert command.cwd == "frontend/web"
+    assert command.argv[:3] == [NODE, "--input-type=module", "--eval"]
+    assert command.argv[3].startswith(
+        "import {build} from " + json.dumps(NATIVE_NODE_ROOT + "/vite/dist/node/index.js")
+    )
+    assert "mode:'production'" in command.argv[3]
+    assert "maxParallelFileOps:32" in command.argv[3]
+    assert "external:" not in command.argv[3]
+    assert "configFile:" not in command.argv[3]
+    assert "catch" not in command.argv[3]
+    assert RESOURCE_LIMITS["RLIMIT_NOFILE"] == 256
+    assert native.native_prepare_commands()[2].argv == [
+        "pnpm",
+        "exec",
+        "vite",
+        "build",
+        "--mode",
+        "production",
+    ]
+    assert native.native_prepare_commands()[3].argv == [
+        "pnpm",
+        "exec",
+        "vue-tsc",
+        "--noEmit",
+        "--skipLibCheck",
+    ]
+
+
+@pytest.mark.parametrize("case", ["normal", "override", "late-override", "removed", "error"])
+def test_exact_wrapper_hooks_and_errors_with_data_only_api_fixture(node, tmp_path, case):
+    module = tmp_path / "vite/dist/node/index.js"
+    module.parent.mkdir(parents=True)
+    (tmp_path / "package.json").write_text('{"type":"module"}')
+    module.write_text(
+        "import assert from 'node:assert/strict';\n"
+        + f"const testCase = {json.dumps(case)};\n"
+        + """
+export async function build(config) {
+  assert.deepEqual(Object.keys(config).sort(), ['build','mode','plugins']);
+  assert.equal(config.mode, 'production');
+  assert.deepEqual(config.build, {rollupOptions:{maxParallelFileOps:32}});
+  assert.equal(config.plugins.length, 1);
+  const guard = config.plugins[0];
+  assert.equal(guard.enforce, 'post');
+  assert.equal(guard.options.order, 'post');
+  if (testCase === 'error') throw new Error('original config failure');
+  if (testCase === 'removed') return;
+  const output = {manualChunks: () => 'retained'};
+  const plugins = [{name:'original'}];
+  const initialLimit = testCase === 'override' ? 4096 : 32;
+  const original = {input:'index.html',output,plugins,maxParallelFileOps:initialLimit};
+  const options = guard.options.handler(original);
+  assert.equal(options.maxParallelFileOps,32);
+  assert.equal(options.output,output);
+  assert.equal(options.plugins,plugins);
+  assert.equal(options.input,'index.html');
+  assert.equal(original.maxParallelFileOps,initialLimit);
+  if (testCase === 'late-override') options.maxParallelFileOps = 2048;
+  guard.buildStart(options);
+  console.log('fixture hooks passed');
+}
+"""
+    )
+    result = bounded_run(node, local_command(tmp_path), tmp_path)
+    if case in {"normal", "override"}:
+        assert result.returncode == 0, result.stderr
+        assert "fixture hooks passed" in result.stdout
+    else:
+        assert result.returncode != 0
+        assert {
+            "late-override": "native-build-file-limit",
+            "removed": "native-build-check-missing",
+            "error": "original config failure",
+        }[case] in result.stderr
+
+
+def require_real_vite():
+    # Actual-tool coverage is mandatory after native baseline preparation in CI.
+    # Reuse the pinned installed tree; no download/install or changed lock.
+    root = os.environ.get("RND_NATIVE_TEST_NODE_MODULES")
+    if not root:
+        if os.environ.get("RND_REQUIRE_NATIVE_VITE_TESTS") == "1":
+            pytest.fail("Native Vite tool tree is required by this job")
+        pytest.skip("Set RND_NATIVE_TEST_NODE_MODULES to an existing pinned native tool tree")
+    root = Path(root).resolve()
+    assert (root / "vite/dist/node/index.js").is_file()
+    assert json.loads((root / "vite/package.json").read_text())["version"] == "7.3.3"
+    return root
+
+
+@pytest.fixture
+def real_vite():
+    return require_real_vite()
+
+
+def test_required_native_vite_cannot_be_silently_skipped(monkeypatch, tmp_path):
+    monkeypatch.setenv("RND_REQUIRE_NATIVE_VITE_TESTS", "1")
+    monkeypatch.delenv("RND_NATIVE_TEST_NODE_MODULES", raising=False)
+    with pytest.raises(pytest.fail.Exception, match="required"):
+        require_real_vite()
+    monkeypatch.setenv("RND_NATIVE_TEST_NODE_MODULES", str(tmp_path))
+    with pytest.raises(AssertionError):
+        require_real_vite()
+    module = tmp_path / "vite/dist/node/index.js"
+    module.parent.mkdir(parents=True)
+    module.write_text("export const placeholder = true;")
+    (tmp_path / "vite/package.json").write_text('{"version":"0.0.0"}')
+    with pytest.raises(AssertionError):
+        require_real_vite()
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    "case",
+    [
+        "normal",
+        "config",
+        "resolved",
+        "options",
+        "post-options",
+        "late-override",
+        "removed",
+        "error",
+    ],
+)
+def test_real_vite_preserves_config_and_bounds_candidate_hooks(node, real_vite, tmp_path, case):
+    (tmp_path / "package.json").write_text('{"type":"module"}')
+    (tmp_path / "index.html").write_text('<script type="module" src="/main.js"></script>')
+    (tmp_path / "main.js").write_text("import {value} from '@retained'; console.log(value);")
+    (tmp_path / "retained.js").write_text("export const value = 'original alias retained';")
+    hook = {
+        "normal": "",
+        "config": "config(){return {build:{rollupOptions:{maxParallelFileOps:4096}}}},",
+        "resolved": "configResolved(c){c.build.rollupOptions.maxParallelFileOps=4096},",
+        "options": "options(o){return {...o,maxParallelFileOps:4096}},",
+        "post-options": "options:{order:'post',handler(o){return {...o,maxParallelFileOps:4096}}},",
+        "late-override": "configResolved(c){c.plugins.push({name:'late',options:{order:'post',handler(o){return {...o,maxParallelFileOps:4096}}}})},",
+        "removed": "configResolved(c){c.plugins=c.plugins.filter(p=>p.name!=='rnd:fd32')},",
+        "error": "config(){throw new Error('original config failure')},",
+    }[case]
+    (tmp_path / "vite.config.mjs").write_text(
+        "import {writeFileSync} from 'node:fs';\n"
+        "import {fileURLToPath} from 'node:url';\n"
+        "export default {\n"
+        "resolve:{alias:{'@retained':fileURLToPath(new URL('./retained.js',import.meta.url))}},\n"
+        "build:{rollupOptions:{maxParallelFileOps:1000,output:{entryFileNames:'kept/[name].js'}}},\n"
+        "plugins:[{name:'original-plugin',"
+        + hook
+        + "generateBundle(){writeFileSync('original-plugin-ran.txt','yes')}}]\n};\n"
+    )
+    original = (tmp_path / "vite.config.mjs").read_bytes()
+    result = bounded_run(node, local_command(real_vite), tmp_path)
+    assert (tmp_path / "vite.config.mjs").read_bytes() == original
+    if case in {"late-override", "removed", "error"}:
+        assert result.returncode != 0
+        assert {
+            "late-override": "native-build-file-limit",
+            "removed": "native-build-check-missing",
+            "error": "original config failure",
+        }[case] in result.stderr
+    else:
+        assert result.returncode == 0, result.stderr
+        assert (tmp_path / "dist/index.html").is_file()
+        assert (tmp_path / "dist/kept/index.js").is_file()
+        assert "original alias retained" in (tmp_path / "dist/kept/index.js").read_text()
+        assert (tmp_path / "original-plugin-ran.txt").read_text() == "yes"
+
+
+def test_native_ci_requires_real_vite_after_baseline_before_source_admission():
+    path = Path(__file__).resolve().parents[1] / ".github/workflows/native-capability-profile.yml"
+    workflow = path.read_text()
+    baseline = workflow.index("- name: Produce exact native baseline")
+    check = workflow.index("- name: Require bounded native Vite scheduling")
+    admission = workflow.index("- name: Build and register exact native offline dependency profile")
+    assert baseline < check < admission
+    step = workflow[check : workflow.index("      - name:", check + 1)]
+    assert "RND_REQUIRE_NATIVE_VITE_TESTS: '1'" in step
+    assert "RND_REQUIRE_NODE_TESTS: '1'" in step
+    assert "${{ github.workspace }}/.native/tool-product/frontend/web/node_modules" in step
+    assert "uv run pytest -q tests/test_capability_native_build.py" in step
+````
+
 ### `tests/test_capability_native_database_reset.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -122729,34 +123026,34 @@ def test_unrelated_restart_resource_cannot_borrow_written_value():
 
 - `plan`（L18–L60）：接收`profile`。 调用`SimpleNamespace`、`TaskCommand`。 返回路径：L20的`SimpleNamespace( selection=SimpleNamespace( template=profile, database="postgresql" if nat…`。
 - `expected`（L63–L81）：接收`profile`。 调用`dependencies.native_descriptor_roles().values`、`dependencies.native_descriptor_roles`、`hashlib.sha256(b"descriptor").hexdigest`、`hashlib.sha256`。 返回路径：L69的`{ "schema": 1, "profile": profile, "image_id": "sha256:" + "a" * 64, "manifest_sha256": "b…`。
-- `test_exact_installs_translate_to_immutable_tools_only`（L84–L116）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`dependencies.readonly_prepare_commands(base) == []`；L87断言`dependencies.readonly_start_command(base).argv[0] == dependencies.PYTHON_ROOT + "/bin…`；L93断言`len(commands) == 2`；L94断言`commands[0].argv == [ dependencies.NODE, dependencies.NATIVE_NODE_ROOT + "/vite/bin/v…`；L101断言`commands[1].argv == [ dependencies.NODE, dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bi…`；L107断言`dependencies.readonly_start_command(value).argv[0] == dependencies.NATIVE_PYTHON_ROOT…`；L111断言`dependencies.readonly_start_command(value, native.frontend_start_command()).argv[0] =…`；L116断言`dependencies.readonly_prepare_commands(value) == commands`。 调用`plan`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`len`、`native.frontend_start_command`、`native.native_prepare_commands`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_alternate_prepare_and_launch_contracts_fail_closed`（L123–L141）：接收`profile`、`mutation`。 控制顺序：L125按`profile == "fastapiadmin"`分支；L127按`mutation == "extra"`分支；L129按`mutation == "install-cwd"`分支；L131按`mutation == "alternate-flag"`分支；L133按`mutation == "shell"`分支；L135按`mutation == "launch-env"`分支。 调用`plan`、`native.native_prepare_commands`、`value.runtime.prepare.append`、`TaskCommand`、`value.runtime.prepare[0].argv.append`、`pytest.raises`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_manifest_requires_strict_known_profile`（L157–L176）：接收`mutation`。 控制顺序：L159按`mutation == "extra-field"`分支；L161按`mutation == "missing-descriptor"`分支；L163按`mutation == "extra-descriptor"`分支；L165按`mutation == "wrong-profile"`分支；L167按`mutation == "boolean-schema"`分支；L169按`mutation == "bad-hash"`分支；L171按`mutation == "bad-image"`分支。 调用`expected`、`value["original_descriptors"].pop`、`pytest.raises`、`dependencies.require_dependency_manifest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_descriptors_are_checked_without_importing_candidate`（L179–L190）：接收`tmp_path`。 控制顺序：L180遍历`("pyproject.toml", "uv.lock")`；L187断言`dependencies.require_dependency_descriptors(tmp_path, plan(), record) == value`。 调用`(tmp_path / name).write_text`、`(tmp_path / "sitecustomize.py").write_text`、`expected`、`dependencies.require_dependency_descriptors`、`plan`、`(tmp_path / "uv.lock").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_binding_rejects_image_drift_and_hidden_dependency_tree`（L194–L206）：接收`tmp_path`、`mutation`。 控制顺序：L195遍历`("pyproject.toml", "uv.lock")`；L199按`mutation == "image"`分支；L201按`mutation == "venv"`分支。 调用`(tmp_path / name).write_text`、`expected`、`(tmp_path / ".venv").mkdir`、`(tmp_path / "package.json").write_text`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_admission_requires_whole_trusted_verifier_receipt`（L212–L266）：接收`monkeypatch`、`mutation`。 控制顺序：L218按`mutation == "manifest"`分支；L220按`mutation == "tree"`分支；L222按`mutation == "false-flag"`分支；L224按`mutation == "extra"`分支；L226按`mutation == "schema"`分支；L240按`mutation`分支；L246断言`dependencies.prepare_readonly_dependencies( None, plan(), 10, expected=value, source_…`；L254断言`calls == [ [ "/usr/bin/python3", "-I", "-S", dependencies.IMAGE_VERIFIER, "verify-run…`。 调用`expected`、`proof.update`、`monkeypatch.setattr`、`pytest.raises`、`dependencies.prepare_readonly_dependencies`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_admission_requires_whole_trusted_verifier_receipt.execute`（L230–L232）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L232的`SimpleNamespace(exit_code=1 if mutation == "exit" else 0, result=json.dumps(proof))`。
-- `linked_graph`（L270–L321）：接收`tmp_path`、`monkeypatch`。 源码说明：Real links/inodes; model root ownership only because pytest is unprivileged.。 控制顺序：L272按`os.name != "posix"`分支。 调用`pytest.skip`、`(product / "frontend/web").mkdir`、`(image / ".pnpm/vite/node_modules/vite").mkdir`、`(image / ".pnpm/vue-tsc/node_modules/vue-tsc").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64/esbuild")…`、`(image / "vite").symlink_to`、`(image / "vue-tsc").symlink_to`、`(image / "@esbuild").mkdir`等。 返回路径：L314的`SimpleNamespace( product=product, image=image, control=control, namespace=namespace, reloc…`。
-- `linked_graph.ownership`（L291–L296）：接收`path`、`*args`、`**kwargs`。 调用`original_lstat`、`list`、`os.stat_result`。 返回路径：L296的`os.stat_result(row)`。
-- `linked_graph.relocate`（L302–L307）：接收`script`。 调用`script.replace(dependencies.PRODUCT, product.as_posix()) .replace…`、`script.replace(dependencies.PRODUCT, product.as_posix()) .replace`、`script.replace`、`product.as_posix`、`str`。 返回路径：L303的`script.replace(dependencies.PRODUCT, product.as_posix()) .replace(dependencies.NATIVE_NODE…`。
-- `test_product_dependency_root_is_real_with_exact_complete_image_graph`（L324–L337）：接收`linked_graph`。 控制顺序：L327断言`modules.is_dir() and not modules.is_symlink()`；L328断言`(modules / ".pnpm").resolve() == value.image / ".pnpm"`；L329断言`(modules / "@esbuild").is_dir() and not (modules / "@esbuild").is_symlink()`；L330断言`(modules / "@esbuild/linux-x64/esbuild").read_bytes() == b"native"`；L331断言`not (modules / ".bin").exists()`；L332断言`(modules / ".vite-temp").is_dir() and not (modules / ".vite-temp").is_symlink()`；L333断言`all(path.is_relative_to(value.product) for path in value.mutations)`。 调用`modules.is_dir`、`modules.is_symlink`、`(modules / ".pnpm").resolve`、`(modules / "@esbuild").is_dir`、`(modules / "@esbuild").is_symlink`、`(modules / "@esbuild/linux-x64/esbuild").read_bytes`、`(modules / ".bin").exists`、`(modules / ".vite-temp").is_dir`、`(modules / ".vite-temp").is_symlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_postbuild_link_map_rejects_tampering`（L357–L393）：接收`linked_graph`、`mutation`。 控制顺序：L360按`mutation == "replace"`分支；L365按`mutation == "add-link"`分支；L367按`mutation == "add-file"`分支；L369按`mutation == "add-directory"`分支；L371按`mutation == "add-bin"`分支；L373按`mutation == "cache-link"`分支；L375按`mutation == "cache-hardlink"`分支；L377按`mutation == "ancestor-link"`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.readlink`、`link.rename`、`link.symlink_to`、`(modules / "unexpected").symlink_to`、`(modules / "evil.js").write_text`、`(modules / "evil").mkdir`、`(modules / ".bin").symlink_to`、`(modules / ".vite-temp/config.mjs").symlink_to`、`os.link`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `freeze_script`（L396–L407）：接收`monkeypatch`、`inventory`。 调用`monkeypatch.setattr`、`native.verify_and_freeze_native_sources`、`SimpleNamespace`。 返回路径：L407的`scripts[0]`。
-- `freeze_script.execute`（L399–L401）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L401的`SimpleNamespace(exit_code=0)`。
-- `test_freeze_full_inventory_precedes_any_privileged_mutation`（L422–L465）：接收`linked_graph`、`monkeypatch`、`mutation`。 控制顺序：L435按`mutation == "python"`分支；L437按`mutation == "javascript"`分支；L439按`mutation == "unlisted-link"`分支；L441按`mutation == "hardlink"`分支；L443按`mutation == "cache-hardlink"`分支；L445按`mutation == "unknown-directory"`分支；L451按`mutation`分支；L454断言`value.mutations == []`。后续分支沿下方源码相同行号继续阅读。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`(value.product / "frontend/web/dist").mkdir`、`(value.product / "frontend/web/dist/index.html").write_text`、`(value.product / "frontend/web/dist/app.js").write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`source_manifest.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_source_script`（L468–L479）：接收`product`、`control`、`value`、`inventory`、`initial`、`relocate`。 调用`dependencies._source_contract`、`control.write_text`、`json.dumps`、`repr`、`relocate(script) .replace(dependencies.PRODUCT, product.as_posix(…`、`relocate(script) .replace`、`relocate`、`product.as_posix`、`control.as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_base_source_inventory_freezes_only_after_exact_preflight`（L496–L535）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L503按`mutation == "unexpected-python"`分支；L505按`mutation == "unexpected-pyc"`分支；L507按`mutation == "symlink"`分支；L509按`mutation == "hardlink"`分支；L511按`mutation == "source-change"`分支；L513按`mutation == "root-database"`分支；L515按`mutation == "database-source-overlap"`分支；L521按`mutation`分支。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`plan`、`(product / "injected.py").write_text`、`(product / "injected.pyc").write_bytes`、`(product / "data").symlink_to`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_base_final_inventory_allows_only_exact_database_files`（L541–L566）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L551按`mutation == "added-source"`分支；L553按`mutation == "data-python"`分支；L555按`mutation == "data-link"`分支；L557按`mutation == "db-hardlink"`分支；L560按`mutation == "modified-source"`分支；L562按`mutation`分支。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`monkeypatch.setattr`、`run_source_script`、`plan`、`(product / "data/app.db").write_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_final_inventory_allows_narrow_runtime_data_only`（L572–L616）：接收`linked_graph`、`mutation`。 控制顺序：L578遍历`("backend/data", "backend/logs", "backend/static/upload", "fronte…`；L580遍历`( "backend/data/jobs.sqlite", "backend/logs/server.log", "backend…`；L588按`mutation == "data-source"`分支；L590按`mutation == "log-source"`分支；L592按`mutation == "upload-source"`分支；L594按`mutation == "dist-link"`分支；L596按`mutation == "outside-module"`分支；L598按`mutation`分支。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`(value.product / directory).mkdir`、`(value.product / name).write_text`、`(value.product / "backend/data/extra.py").write_text`、`(value.product / "backend/logs/extra.log.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_broken_dependency_link_rejected_explicitly`（L619–L626）：接收`tmp_path`。 控制顺序：L620遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`(tmp_path / ".venv").symlink_to`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_initial_ownership_preflights_whole_tree_before_any_chown`（L630–L672）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L648断言`len(scripts) == 1`；L649断言`not any("/usr/bin/chown" in argv or "/usr/bin/cp" in argv for argv in calls)`；L650遍历`("product", "home", "tmp", "cache")`；L656按`mutation == "symlink"`分支；L671断言`mutations == []`；L672断言`list(outside.iterdir()) == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.prepare_identity`、`plan`、`len`、`any`、`(tmp_path / name).mkdir`、`source.write_text`、`outside.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_initial_ownership_preflights_whole_tree_before_any_chown.control`（L636–L643）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L638按`argv == ["/usr/bin/id", "-u"]`分支；L640按`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`分支。 调用`calls.append`、`SimpleNamespace`、`scripts.append`。 返回路径：L639的`SimpleNamespace(exit_code=0, result="0\n")`；L642的`SimpleNamespace(exit_code=1, result="")`；L643的`SimpleNamespace(exit_code=0, result="")`。
-- `test_database_code_or_unsafe_location_rejected_before_creation`（L695–L703）：接收`tmp_path`、`database_path`。 控制顺序：L696遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_database_only_suffixes_admitted_before_creation`（L707–L714）：接收`tmp_path`、`database_path`。 控制顺序：L708遍历`("pyproject.toml", "uv.lock")`；L714断言`dependencies.require_dependency_descriptors(tmp_path, value, record) == binding`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_profile_database_pair_must_match`（L720–L724）：接收`profile`、`database`。 调用`plan`、`pytest.raises`、`dependencies._profile`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_trusted_source_script_rejects_forged_database_contract_before_mutation`（L731–L755）：接收`tmp_path`、`monkeypatch`、`mode`、`database_path`。 控制顺序：L754断言`mutations == []`；L755断言`sorted(path.name for path in product.iterdir()) == ["app.py"]`。 调用`product.mkdir`、`(product / "app.py").write_text`、`hashlib.sha256(b"source").hexdigest`、`hashlib.sha256`、`control.write_text`、`json.dumps`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace…`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace`、`repr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_installs_translate_to_immutable_tools_only`（L84–L112）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`dependencies.readonly_prepare_commands(base) == []`；L87断言`dependencies.readonly_start_command(base).argv[0] == dependencies.PYTHON_ROOT + "/bin…`；L93断言`len(commands) == 2`；L94断言`commands[0] == native.native_frontend_build_command()`；L95断言`commands[0].argv[:3] == [dependencies.NODE, "--input-type=module", "--eval"]`；L96断言`dependencies.NATIVE_NODE_ROOT + "/vite/dist/node/index.js" in commands[0].argv[3]`；L97断言`commands[1].argv == [ dependencies.NODE, dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bi…`；L103断言`dependencies.readonly_start_command(value).argv[0] == dependencies.NATIVE_PYTHON_ROOT…`。后续分支沿下方源码相同行号继续阅读。 调用`plan`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`len`、`native.native_frontend_build_command`、`native.frontend_start_command`、`native.native_prepare_commands`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_alternate_prepare_and_launch_contracts_fail_closed`（L119–L137）：接收`profile`、`mutation`。 控制顺序：L121按`profile == "fastapiadmin"`分支；L123按`mutation == "extra"`分支；L125按`mutation == "install-cwd"`分支；L127按`mutation == "alternate-flag"`分支；L129按`mutation == "shell"`分支；L131按`mutation == "launch-env"`分支。 调用`plan`、`native.native_prepare_commands`、`value.runtime.prepare.append`、`TaskCommand`、`value.runtime.prepare[0].argv.append`、`pytest.raises`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manifest_requires_strict_known_profile`（L153–L172）：接收`mutation`。 控制顺序：L155按`mutation == "extra-field"`分支；L157按`mutation == "missing-descriptor"`分支；L159按`mutation == "extra-descriptor"`分支；L161按`mutation == "wrong-profile"`分支；L163按`mutation == "boolean-schema"`分支；L165按`mutation == "bad-hash"`分支；L167按`mutation == "bad-image"`分支。 调用`expected`、`value["original_descriptors"].pop`、`pytest.raises`、`dependencies.require_dependency_manifest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_descriptors_are_checked_without_importing_candidate`（L175–L186）：接收`tmp_path`。 控制顺序：L176遍历`("pyproject.toml", "uv.lock")`；L183断言`dependencies.require_dependency_descriptors(tmp_path, plan(), record) == value`。 调用`(tmp_path / name).write_text`、`(tmp_path / "sitecustomize.py").write_text`、`expected`、`dependencies.require_dependency_descriptors`、`plan`、`(tmp_path / "uv.lock").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_binding_rejects_image_drift_and_hidden_dependency_tree`（L190–L202）：接收`tmp_path`、`mutation`。 控制顺序：L191遍历`("pyproject.toml", "uv.lock")`；L195按`mutation == "image"`分支；L197按`mutation == "venv"`分支。 调用`(tmp_path / name).write_text`、`expected`、`(tmp_path / ".venv").mkdir`、`(tmp_path / "package.json").write_text`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_admission_requires_whole_trusted_verifier_receipt`（L208–L262）：接收`monkeypatch`、`mutation`。 控制顺序：L214按`mutation == "manifest"`分支；L216按`mutation == "tree"`分支；L218按`mutation == "false-flag"`分支；L220按`mutation == "extra"`分支；L222按`mutation == "schema"`分支；L236按`mutation`分支；L242断言`dependencies.prepare_readonly_dependencies( None, plan(), 10, expected=value, source_…`；L250断言`calls == [ [ "/usr/bin/python3", "-I", "-S", dependencies.IMAGE_VERIFIER, "verify-run…`。 调用`expected`、`proof.update`、`monkeypatch.setattr`、`pytest.raises`、`dependencies.prepare_readonly_dependencies`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_admission_requires_whole_trusted_verifier_receipt.execute`（L226–L228）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L228的`SimpleNamespace(exit_code=1 if mutation == "exit" else 0, result=json.dumps(proof))`。
+- `linked_graph`（L266–L317）：接收`tmp_path`、`monkeypatch`。 源码说明：Real links/inodes; model root ownership only because pytest is unprivileged.。 控制顺序：L268按`os.name != "posix"`分支。 调用`pytest.skip`、`(product / "frontend/web").mkdir`、`(image / ".pnpm/vite/node_modules/vite").mkdir`、`(image / ".pnpm/vue-tsc/node_modules/vue-tsc").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64/esbuild")…`、`(image / "vite").symlink_to`、`(image / "vue-tsc").symlink_to`、`(image / "@esbuild").mkdir`等。 返回路径：L310的`SimpleNamespace( product=product, image=image, control=control, namespace=namespace, reloc…`。
+- `linked_graph.ownership`（L287–L292）：接收`path`、`*args`、`**kwargs`。 调用`original_lstat`、`list`、`os.stat_result`。 返回路径：L292的`os.stat_result(row)`。
+- `linked_graph.relocate`（L298–L303）：接收`script`。 调用`script.replace(dependencies.PRODUCT, product.as_posix()) .replace…`、`script.replace(dependencies.PRODUCT, product.as_posix()) .replace`、`script.replace`、`product.as_posix`、`str`。 返回路径：L299的`script.replace(dependencies.PRODUCT, product.as_posix()) .replace(dependencies.NATIVE_NODE…`。
+- `test_product_dependency_root_is_real_with_exact_complete_image_graph`（L320–L333）：接收`linked_graph`。 控制顺序：L323断言`modules.is_dir() and not modules.is_symlink()`；L324断言`(modules / ".pnpm").resolve() == value.image / ".pnpm"`；L325断言`(modules / "@esbuild").is_dir() and not (modules / "@esbuild").is_symlink()`；L326断言`(modules / "@esbuild/linux-x64/esbuild").read_bytes() == b"native"`；L327断言`not (modules / ".bin").exists()`；L328断言`(modules / ".vite-temp").is_dir() and not (modules / ".vite-temp").is_symlink()`；L329断言`all(path.is_relative_to(value.product) for path in value.mutations)`。 调用`modules.is_dir`、`modules.is_symlink`、`(modules / ".pnpm").resolve`、`(modules / "@esbuild").is_dir`、`(modules / "@esbuild").is_symlink`、`(modules / "@esbuild/linux-x64/esbuild").read_bytes`、`(modules / ".bin").exists`、`(modules / ".vite-temp").is_dir`、`(modules / ".vite-temp").is_symlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_postbuild_link_map_rejects_tampering`（L353–L389）：接收`linked_graph`、`mutation`。 控制顺序：L356按`mutation == "replace"`分支；L361按`mutation == "add-link"`分支；L363按`mutation == "add-file"`分支；L365按`mutation == "add-directory"`分支；L367按`mutation == "add-bin"`分支；L369按`mutation == "cache-link"`分支；L371按`mutation == "cache-hardlink"`分支；L373按`mutation == "ancestor-link"`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.readlink`、`link.rename`、`link.symlink_to`、`(modules / "unexpected").symlink_to`、`(modules / "evil.js").write_text`、`(modules / "evil").mkdir`、`(modules / ".bin").symlink_to`、`(modules / ".vite-temp/config.mjs").symlink_to`、`os.link`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `freeze_script`（L392–L403）：接收`monkeypatch`、`inventory`。 调用`monkeypatch.setattr`、`native.verify_and_freeze_native_sources`、`SimpleNamespace`。 返回路径：L403的`scripts[0]`。
+- `freeze_script.execute`（L395–L397）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L397的`SimpleNamespace(exit_code=0)`。
+- `test_freeze_full_inventory_precedes_any_privileged_mutation`（L418–L461）：接收`linked_graph`、`monkeypatch`、`mutation`。 控制顺序：L431按`mutation == "python"`分支；L433按`mutation == "javascript"`分支；L435按`mutation == "unlisted-link"`分支；L437按`mutation == "hardlink"`分支；L439按`mutation == "cache-hardlink"`分支；L441按`mutation == "unknown-directory"`分支；L447按`mutation`分支；L450断言`value.mutations == []`。后续分支沿下方源码相同行号继续阅读。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`(value.product / "frontend/web/dist").mkdir`、`(value.product / "frontend/web/dist/index.html").write_text`、`(value.product / "frontend/web/dist/app.js").write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`source_manifest.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_source_script`（L464–L475）：接收`product`、`control`、`value`、`inventory`、`initial`、`relocate`。 调用`dependencies._source_contract`、`control.write_text`、`json.dumps`、`repr`、`relocate(script) .replace(dependencies.PRODUCT, product.as_posix(…`、`relocate(script) .replace`、`relocate`、`product.as_posix`、`control.as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_base_source_inventory_freezes_only_after_exact_preflight`（L492–L531）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L499按`mutation == "unexpected-python"`分支；L501按`mutation == "unexpected-pyc"`分支；L503按`mutation == "symlink"`分支；L505按`mutation == "hardlink"`分支；L507按`mutation == "source-change"`分支；L509按`mutation == "root-database"`分支；L511按`mutation == "database-source-overlap"`分支；L517按`mutation`分支。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`plan`、`(product / "injected.py").write_text`、`(product / "injected.pyc").write_bytes`、`(product / "data").symlink_to`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_base_final_inventory_allows_only_exact_database_files`（L537–L562）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L547按`mutation == "added-source"`分支；L549按`mutation == "data-python"`分支；L551按`mutation == "data-link"`分支；L553按`mutation == "db-hardlink"`分支；L556按`mutation == "modified-source"`分支；L558按`mutation`分支。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`monkeypatch.setattr`、`run_source_script`、`plan`、`(product / "data/app.db").write_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_final_inventory_allows_narrow_runtime_data_only`（L568–L612）：接收`linked_graph`、`mutation`。 控制顺序：L574遍历`("backend/data", "backend/logs", "backend/static/upload", "fronte…`；L576遍历`( "backend/data/jobs.sqlite", "backend/logs/server.log", "backend…`；L584按`mutation == "data-source"`分支；L586按`mutation == "log-source"`分支；L588按`mutation == "upload-source"`分支；L590按`mutation == "dist-link"`分支；L592按`mutation == "outside-module"`分支；L594按`mutation`分支。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`(value.product / directory).mkdir`、`(value.product / name).write_text`、`(value.product / "backend/data/extra.py").write_text`、`(value.product / "backend/logs/extra.log.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_broken_dependency_link_rejected_explicitly`（L615–L622）：接收`tmp_path`。 控制顺序：L616遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`(tmp_path / ".venv").symlink_to`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_initial_ownership_preflights_whole_tree_before_any_chown`（L626–L668）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L644断言`len(scripts) == 1`；L645断言`not any("/usr/bin/chown" in argv or "/usr/bin/cp" in argv for argv in calls)`；L646遍历`("product", "home", "tmp", "cache")`；L652按`mutation == "symlink"`分支；L667断言`mutations == []`；L668断言`list(outside.iterdir()) == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.prepare_identity`、`plan`、`len`、`any`、`(tmp_path / name).mkdir`、`source.write_text`、`outside.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_initial_ownership_preflights_whole_tree_before_any_chown.control`（L632–L639）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L634按`argv == ["/usr/bin/id", "-u"]`分支；L636按`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`分支。 调用`calls.append`、`SimpleNamespace`、`scripts.append`。 返回路径：L635的`SimpleNamespace(exit_code=0, result="0\n")`；L638的`SimpleNamespace(exit_code=1, result="")`；L639的`SimpleNamespace(exit_code=0, result="")`。
+- `test_database_code_or_unsafe_location_rejected_before_creation`（L691–L699）：接收`tmp_path`、`database_path`。 控制顺序：L692遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_only_suffixes_admitted_before_creation`（L703–L710）：接收`tmp_path`、`database_path`。 控制顺序：L704遍历`("pyproject.toml", "uv.lock")`；L710断言`dependencies.require_dependency_descriptors(tmp_path, value, record) == binding`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_profile_database_pair_must_match`（L716–L720）：接收`profile`、`database`。 调用`plan`、`pytest.raises`、`dependencies._profile`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_source_script_rejects_forged_database_contract_before_mutation`（L727–L751）：接收`tmp_path`、`monkeypatch`、`mode`、`database_path`。 控制顺序：L750断言`mutations == []`；L751断言`sorted(path.name for path in product.iterdir()) == ["app.py"]`。 调用`product.mkdir`、`(product / "app.py").write_text`、`hashlib.sha256(b"source").hexdigest`、`hashlib.sha256`、`control.write_text`、`json.dumps`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace…`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace`、`repr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_readonly_dependencies.py sha256: 0ae8488e847aea8c71780d0e67c252d1c3cacf836fbaacd52c8c51ee8eef8a86 -->
+<!-- source-file: tests/test_capability_readonly_dependencies.py sha256: 9b64d7008119bd5b1c5df1cf6370d32689419e1ffd2c9a91957678471a643557 -->
 ````python
 """Pinned commands, data-only admission, and hostile dependency-link fixtures."""
 
@@ -122851,13 +123148,9 @@ def test_exact_installs_translate_to_immutable_tools_only():
     value = plan("fastapiadmin")
     commands = dependencies.readonly_prepare_commands(value)
     assert len(commands) == 2
-    assert commands[0].argv == [
-        dependencies.NODE,
-        dependencies.NATIVE_NODE_ROOT + "/vite/bin/vite.js",
-        "build",
-        "--mode",
-        "production",
-    ]
+    assert commands[0] == native.native_frontend_build_command()
+    assert commands[0].argv[:3] == [dependencies.NODE, "--input-type=module", "--eval"]
+    assert dependencies.NATIVE_NODE_ROOT + "/vite/dist/node/index.js" in commands[0].argv[3]
     assert commands[1].argv == [
         dependencies.NODE,
         dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bin/vue-tsc.js",
@@ -188710,7 +189003,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: 6ff08ed6d46e94639e5021d759d50038935b9e06255bc9685bf703cd2fe69ba9 -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: e514a419843dbdc9327f1e1f0cd514e93e2ad6c461667c0269e0ff7338c32c9e -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -188838,6 +189131,12 @@ jobs:
         run: uv run python -m scripts.ci_native_tools fastapiadmin --capability-source .native/capability-source
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+      - name: Require bounded native Vite scheduling with original config and hooks
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+          RND_REQUIRE_NATIVE_VITE_TESTS: '1'
+          RND_NATIVE_TEST_NODE_MODULES: ${{ github.workspace }}/.native/tool-product/frontend/web/node_modules
+        run: uv run pytest -q tests/test_capability_native_build.py
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images
@@ -198961,7 +199260,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: 192671759bc30d732ed4969e51cf13a65a1612afe4fdfd0847d8600f8bdee77d -->
+<!-- source-file: docs/custom-source-isolation.md sha256: 2165a93993d8f70b1d6680079aced79c09be72a6eb0b43b6845807c4b5fb6ee3 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -199109,6 +199408,13 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 子进程；后代持有管道也不能拖长期限，最终仍由独占沙箱删除负责整个容器的清理。
 清理失败不签发证明；同时保留固定 create/count/identity 阶段分类，不输出 SQL、
 异常内容或子进程输出。设备访问、执行身份与 guard 权限不变；真实内核验收仍必须由 CI 通过。
+
+原生前端构建使用只读镜像内 Vite 的受信 API 包装，保留 production 模式、原配置、
+插件、别名与输出设置，仅将 Rollup 文件操作并发固定为 32，以适配原有 256 个文件
+描述符硬上限。后置 options 钩子和 buildStart 检查拒绝已检测的覆盖或检查缺失；
+这只是构建调度约束，不是任意候选 JavaScript 的安全边界。真实限制仍由 guard 与
+容器施加，类型检查继续执行；不提高限额、不外部化缺失模块或删除依赖。CI 复用已安装
+的固定原生工具图执行配置/插件保留及失败反例，实际应用回执仍要求完整隔离验收。
 
 浏览器也执行候选 JavaScript，因此自定义源码不能走宿主浏览器。它使用单独的无网络、
 只读根、CPU/内存/PID/tmpfs 有界容器，通过有界标准流 relay 访问唯一私有预览。

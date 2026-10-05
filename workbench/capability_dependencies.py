@@ -133,6 +133,7 @@ def readonly_prepare_commands(plan):
     """Only these exact install contracts are satisfied by verified image data."""
     if _profile(plan) == "fastapiadmin":
         from workbench.capability_native_runtime import (
+            native_frontend_build_command,
             native_prepare_commands,
             native_start_command,
         )
@@ -142,16 +143,7 @@ def readonly_prepare_commands(plan):
         if plan.runtime.prepare and plan.runtime.prepare != trusted:
             raise CheckFailure("原生构建只允许登记的准确prepare契约")
         return [
-            TaskCommand(
-                cwd="frontend/web",
-                argv=[
-                    NODE,
-                    NATIVE_NODE_ROOT + "/vite/bin/vite.js",
-                    "build",
-                    "--mode",
-                    "production",
-                ],
-            ),
+            native_frontend_build_command(),
             TaskCommand(
                 cwd="frontend/web",
                 argv=[

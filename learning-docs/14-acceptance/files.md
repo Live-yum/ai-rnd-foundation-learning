@@ -101,6 +101,7 @@
 - [tests/test_capability_guard.py](sources/tests__test_capability_guard_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_http_bounds.py](sources/tests__test_capability_http_bounds_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_isolation.py](sources/tests__test_capability_isolation_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_native_build.py](sources/tests__test_capability_native_build_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_database_reset.py](sources/tests__test_capability_native_database_reset_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_egress.py](sources/tests__test_capability_native_egress_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_freeze.py](sources/tests__test_capability_native_freeze_py--001.md)：可重复的验收用例；1 段

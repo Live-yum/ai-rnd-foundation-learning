@@ -91,13 +91,9 @@ def test_exact_installs_translate_to_immutable_tools_only():
     value = plan("fastapiadmin")
     commands = dependencies.readonly_prepare_commands(value)
     assert len(commands) == 2
-    assert commands[0].argv == [
-        dependencies.NODE,
-        dependencies.NATIVE_NODE_ROOT + "/vite/bin/vite.js",
-        "build",
-        "--mode",
-        "production",
-    ]
+    assert commands[0] == native.native_frontend_build_command()
+    assert commands[0].argv[:3] == [dependencies.NODE, "--input-type=module", "--eval"]
+    assert dependencies.NATIVE_NODE_ROOT + "/vite/dist/node/index.js" in commands[0].argv[3]
     assert commands[1].argv == [
         dependencies.NODE,
         dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bin/vue-tsc.js",

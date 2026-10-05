@@ -466,8 +466,8 @@
     },
     {
       "path": "workbench/capability_dependencies.py",
-      "bytes": 21917,
-      "sha256": "c228851d155f9a8bba321990f934a07a1fab1845e5fc4792a8e3eb2f072bbae8",
+      "bytes": 21708,
+      "sha256": "a0eb524d2a97ffdad56e7e2ad5bf2b84545ddddad0d554d0b82777d8a5ca7047",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_dependencies_py--001.md"
@@ -493,8 +493,8 @@
     },
     {
       "path": "workbench/capability_native_runtime.py",
-      "bytes": 7149,
-      "sha256": "bdd7f1596b84b238b5ae634b267d675e7696c35e8dabd2a3920f14a3b14aef4c",
+      "bytes": 8359,
+      "sha256": "048fd9ea2821a6047610a4029e7039b78f9e6755b975cac4750c1c859aec4ede",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_native_runtime_py--001.md"
@@ -3811,8 +3811,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 10893,
-      "sha256": "6ff08ed6d46e94639e5021d759d50038935b9e06255bc9685bf703cd2fe69ba9",
+      "bytes": 11252,
+      "sha256": "e514a419843dbdc9327f1e1f0cd514e93e2ad6c461667c0269e0ff7338c32c9e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 19223,
-      "sha256": "192671759bc30d732ed4969e51cf13a65a1612afe4fdfd0847d8600f8bdee77d",
+      "bytes": 19892,
+      "sha256": "2165a93993d8f70b1d6680079aced79c09be72a6eb0b43b6845807c4b5fb6ee3",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4642,6 +4642,15 @@
       ]
     },
     {
+      "path": "tests/test_capability_native_build.py",
+      "bytes": 10343,
+      "sha256": "a76c71848ee33a1cab82729c324061c5a63a84764ae72f9bd36ff36808181bd3",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_native_build_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_capability_native_database_reset.py",
       "bytes": 3547,
       "sha256": "889da4b47f3a8ffb7e8c7213d94b00475e833195bd887ce15dc9dc816c3ffde8",
@@ -4715,8 +4724,8 @@
     },
     {
       "path": "tests/test_capability_readonly_dependencies.py",
-      "bytes": 28691,
-      "sha256": "0ae8488e847aea8c71780d0e67c252d1c3cacf836fbaacd52c8c51ee8eef8a86",
+      "bytes": 28753,
+      "sha256": "9b64d7008119bd5b1c5df1cf6370d32689419e1ffd2c9a91957678471a643557",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_readonly_dependencies_py--001.md"

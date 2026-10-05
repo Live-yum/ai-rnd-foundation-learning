@@ -15,18 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `native_start_command`（L18–L34）：接收`plan`。 控制顺序：L30按`plan.runtime.start.cwd != "backend" or plan.runtime.start.argv != expected`分支；L31抛异常，停止当前正常路径。 调用`str`、`CheckFailure`。 返回路径：L34的`plan.runtime.start`。
-- `native_prepare_commands`（L37–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L38的`[ TaskCommand( cwd="backend", argv=["uv", "sync", "--locked", "--offline", "--python", "3.…`。
-- `frontend_start_command`（L62–L63）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L63的`TaskCommand(cwd="frontend/web", argv=["node", CONTROL + "/native-preview.mjs"])`。
-- `verify_and_freeze_native_sources`（L66–L166）：接收`sandbox`、`inventory`、`timeout`。 控制顺序：L165按`result.exit_code != 0`分支；L166抛异常，停止当前正常路径。 调用`inventory.items`、`sandbox.fs.upload_file`、`json.dumps(expected).encode`、`json.dumps`、`launcher.encode`、`control_exec`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_frontend_build_command`（L18–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Bound Rollup scheduling, while the unchanged guard enforces the FD limit. The CLI has no maxParallelFileOps switch. Vite's API merges this small override into the original config; retain its plugins, 。 调用`json.dumps`、`TaskCommand`、`script.replace`。 返回路径：L42的`TaskCommand( cwd="frontend/web", argv=[NODE, "--input-type=module", "--eval", script.repla…`。
+- `native_start_command`（L47–L63）：接收`plan`。 控制顺序：L59按`plan.runtime.start.cwd != "backend" or plan.runtime.start.argv != expected`分支；L60抛异常，停止当前正常路径。 调用`str`、`CheckFailure`。 返回路径：L63的`plan.runtime.start`。
+- `native_prepare_commands`（L66–L88）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L67的`[ TaskCommand( cwd="backend", argv=["uv", "sync", "--locked", "--offline", "--python", "3.…`。
+- `frontend_start_command`（L91–L92）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`TaskCommand`。 返回路径：L92的`TaskCommand(cwd="frontend/web", argv=["node", CONTROL + "/native-preview.mjs"])`。
+- `verify_and_freeze_native_sources`（L95–L195）：接收`sandbox`、`inventory`、`timeout`。 控制顺序：L194按`result.exit_code != 0`分支；L195抛异常，停止当前正常路径。 调用`inventory.items`、`sandbox.fs.upload_file`、`json.dumps(expected).encode`、`json.dumps`、`launcher.encode`、`control_exec`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_native_runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L166。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_native_runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L195。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7149`。本段原文以LF换行结束。
+本段原始字节数：`8359`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_native_runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bdd7f1596b84b238b5ae634b267d675e7696c35e8dabd2a3920f14a3b14aef4c"} -->
+<!-- learning-source: {"path": "workbench/capability_native_runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "048fd9ea2821a6047610a4029e7039b78f9e6755b975cac4750c1c859aec4ede"} -->
 ````python
 # workbench/capability_native_runtime.py
 """Controller-owned native build/launch contract; candidate code stays sandboxed."""
@@ -34,7 +35,7 @@
 import json
 
 from workbench.capability_contracts import TaskCommand
-from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT
+from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT, NODE
 from workbench.capability_isolation import CONTROL, control_exec
 from workbench.capability_verification import CheckFailure
 
@@ -44,6 +45,35 @@ GENERATED_TYPES = {
     "frontend/web/src/types/components.d.ts",
     "frontend/web/.eslintrc-auto-import.json",
 }
+
+
+def native_frontend_build_command():
+    """Bound Rollup scheduling, while the unchanged guard enforces the FD limit.
+
+    The CLI has no maxParallelFileOps switch. Vite's API merges this small
+    override into the original config; retain its plugins, aliases and output.
+    Reapply after candidate options hooks and check normalized build options.
+    Keep the inline body within TaskCommand's existing 500-character argument
+    limit rather than expanding the command contract.
+    This is not a JavaScript security boundary: the OS guard remains mandatory.
+    """
+    script = (
+        "import {build} from "
+        + json.dumps(NATIVE_NODE_ROOT + "/vite/dist/node/index.js")
+        + ";\n"
+        + """
+let ok=false;
+await build({mode:'production',build:{rollupOptions:{maxParallelFileOps:32}},plugins:[{
+name:'rnd:fd32',enforce:'post',
+options:{order:'post',handler:o=>({...o,maxParallelFileOps:32})},
+buildStart(o){if(o.maxParallelFileOps!==32)throw Error('native-build-file-limit');ok=true;}
+}]});
+if(!ok)throw Error('native-build-check-missing');
+"""
+    )
+    return TaskCommand(
+        cwd="frontend/web", argv=[NODE, "--input-type=module", "--eval", script.replace("\n", "")]
+    )
 
 
 def native_start_command(plan):
