@@ -1,11 +1,12 @@
 """Durable, authenticated UI streams. A subscriber never owns the model worker.
 
-Only a schema's explicitly user-facing root string is projected. Partial text is
-always a draft; executable/schema data is available only after strict validation.
+Only an explicitly user-facing string is projected. Partial text is limited to
+root fields; nested summaries are exposed only after full strict validation.
 """
 
 import asyncio
 import json
+import sys
 import uuid
 
 from fastapi import Depends, Header, HTTPException, Query, Request
@@ -14,29 +15,43 @@ from pydantic import SecretStr
 
 from workbench.model_diagnostics import failure_diagnostic
 
-PUBLIC_FIELDS = {
-    "Requirement": "summary",
-    "Plan": "title",
-    "Patches": "explanation",
-    "ModelReview": "summary",
+PUBLIC_PATHS = {
+    ("workbench.domain", "Requirement"): ("summary",),
+    ("workbench.domain", "Plan"): ("title",),
+    ("workbench.domain", "Patches"): ("explanation",),
+    ("workbench.domain", "ModelReview"): ("summary",),
+    ("workbench.feature_planning", "FeatureOutline"): ("summary",),
+    ("workbench.feature_planning", "FeatureDesign"): ("outline", "summary"),
+    ("workbench.orchestration", "ExtensionDesign"): ("implementation", "summary"),
+    ("workbench.capability_contracts", "CapabilityPlan"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityOutline"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityScenarioBatch"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityEdits"): ("explanation",),
 }
 MAX_PUBLIC_TEXT = 20000
 
 
-def public_field(schema):
-    # Identity, rather than an arbitrary schema with the same name, is intentional.
-    from workbench import domain
+def public_path(schema):
+    # Check the real class identity without importing optional workflow modules
+    # just to display a summary. A same-named external schema is not trusted.
+    module, name = schema.__module__, schema.__name__
+    if getattr(sys.modules.get(module), name, None) is schema:
+        return PUBLIC_PATHS.get((module, name))
+    return None
 
-    return (
-        PUBLIC_FIELDS.get(schema.__name__)
-        if getattr(domain, schema.__name__, None) is schema
-        else None
-    )
+
+def public_field(schema):
+    path = public_path(schema)
+    return path[0] if path and len(path) == 1 else None
 
 
 def public_text(value, schema):
-    field = public_field(schema)
-    return str(getattr(value, field, "")) if field else ""
+    path = public_path(schema)
+    if not path:
+        return ""
+    for field in path:
+        value = getattr(value, field, None)
+    return value if isinstance(value, str) else ""
 
 
 def string_projection(source):

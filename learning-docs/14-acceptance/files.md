@@ -42,6 +42,7 @@
 - [docs/provider-structured-outputs.md](sources/docs__provider-structured-outputs_md--001.md)：本教材正文的源文件；1 段
 - [docs/real-model-acceptance.md](sources/docs__real-model-acceptance_md--001.md)：本教材正文的源文件；1 段
 - [docs/recommendation-recovery.md](sources/docs__recommendation-recovery_md--001.md)：本教材正文的源文件；1 段
+- [docs/template-customization-roadmap.md](sources/docs__template-customization-roadmap_md--001.md)：本教材正文的源文件；1 段
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/workflow-optimization.md](sources/docs__workflow-optimization_md--001.md)：本教材正文的源文件；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
@@ -163,6 +164,8 @@
 - [tests/test_owned_lifecycle.py](sources/tests__test_owned_lifecycle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_analysis_contract.py](sources/tests__test_permission_analysis_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_contract_equivalence.py](sources/tests__test_permission_contract_equivalence_py--001.md)：可重复的验收用例；1 段
+- [tests/test_planning_model_contracts.py](sources/tests__test_planning_model_contracts_py--001.md)：可重复的验收用例；1 段
+- [tests/test_planning_transcript.py](sources/tests__test_planning_transcript_py--001.md)：可重复的验收用例；1 段
 - [tests/test_postgres.py](sources/tests__test_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_reload_readiness.py](sources/tests__test_product_reload_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_pytest_reporting.py](sources/tests__test_pytest_reporting_py--001.md)：可重复的验收用例；1 段

@@ -27,6 +27,7 @@ GUIDES = [
     "docs/acceptance-checklist.md",
     "docs/extension-acceptance-lifecycle.md",
     "docs/workflow-optimization.md",
+    "docs/template-customization-roadmap.md",
 ]
 GROUPS = [
     (

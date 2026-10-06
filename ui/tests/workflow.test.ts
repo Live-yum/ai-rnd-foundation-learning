@@ -9,15 +9,13 @@ import * as apiModule from '../src/api'
 beforeAll(() => {
   vi.stubGlobal(
     'matchMedia',
-    vi
-      .fn()
-      .mockReturnValue({
-        matches: false,
-        addListener() {},
-        removeListener() {},
-        addEventListener() {},
-        removeEventListener() {},
-      }),
+    vi.fn().mockReturnValue({
+      matches: false,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   )
   vi.stubGlobal(
     'ResizeObserver',
@@ -31,6 +29,23 @@ beforeAll(() => {
 afterEach(() => {
   lock()
   vi.restoreAllMocks()
+})
+
+it('lets users edit the authenticated contest example before creating a run', async () => {
+  const request = vi.spyOn(apiModule, 'api')
+  const wrapper = mount(HomeView, { global: { plugins: [Antd] } })
+  await wrapper
+    .findAll('.starter-card')
+    .find((button) => button.text().includes('比赛报名系统'))!
+    .trigger('click')
+  const input = wrapper.find('textarea')
+  expect((input.element as HTMLTextAreaElement).value).toContain('登录后使用的报名管理系统')
+  expect((input.element as HTMLTextAreaElement).value).toContain('查看本人报名记录')
+  expect((input.element as HTMLTextAreaElement).value).toContain('不能自行审核或提升为管理员')
+  expect(request).not.toHaveBeenCalled()
+  await input.setValue('修改后的报名需求')
+  expect((input.element as HTMLTextAreaElement).value).toBe('修改后的报名需求')
+  wrapper.unmount()
 })
 
 it('retains the requirement and return target across model setup navigation', async () => {
@@ -88,17 +103,15 @@ it('reads older project history directly and requests the next server page', asy
 it('queries extension scope and delivery states in the delivery center', async () => {
   state.authenticated = true
   apiModule.setToken('test-token')
-  const request = vi
-    .spyOn(apiModule, 'api')
-    .mockResolvedValue([
-      {
-        id: 'extension',
-        project_id: 'old',
-        status: 'WAITING_EXTENSION_DELIVERY',
-        template: 'python-basic',
-        auto_mode: false,
-      },
-    ])
+  const request = vi.spyOn(apiModule, 'api').mockResolvedValue([
+    {
+      id: 'extension',
+      project_id: 'old',
+      status: 'WAITING_EXTENSION_DELIVERY',
+      template: 'python-basic',
+      auto_mode: false,
+    },
+  ])
   const wrapper = mount(ProjectsView, { props: { view: 'delivery' }, global: { plugins: [Antd] } })
   await flushPromises()
   expect(request.mock.calls[0][0]).toContain('status=WAITING_EXTENSION_SCOPE')
