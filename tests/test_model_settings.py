@@ -466,7 +466,7 @@ def test_real_worker_only_claims_rejections_without_valid_configuration(settings
     store.claim.return_value = None
     runtime = Runtime(settings, store)
     assert runtime.tick() is False
-    store.claim.assert_called_once_with(only_rejections=True)
+    store.claim.assert_called_once_with(only_rejections=True, include_model_free=True)
     store.claim.reset_mock()
     configure(ModelSettingsRepository(settings))
     assert runtime.tick() is False

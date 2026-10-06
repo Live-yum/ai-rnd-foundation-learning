@@ -127,6 +127,7 @@ def aggregate_state(tmp_path):
     (product / "app.py").write_text("# authored source, never executed\n")
     return design, {
         "run_id": "authored",
+        "round": 1,
         "extension_product": str(product),
         "extension_completed": [{"task": t.id} for t in plan.tasks],
         "extension_policy": scope_policy(current, plan.selection.model_dump()),
@@ -135,7 +136,7 @@ def aggregate_state(tmp_path):
     }
 
 
-def test_workflow_routes_registered_oracle_and_refuses_partial_delivery(
+def test_workflow_routes_registered_oracle_and_requires_explicit_partial_scope(
     settings, store, tmp_path, monkeypatch
 ):
     design, state = aggregate_state(tmp_path)
@@ -151,8 +152,16 @@ def test_workflow_routes_registered_oracle_and_refuses_partial_delivery(
     monkeypatch.setattr("workbench.capability_sandbox.verify_capabilities", verify)
     # Routing simulation explicitly excludes the already separately tested real proof validator.
     monkeypatch.setattr("workbench.orchestration.require_evidence", lambda *a, **k: None)
-    with pytest.raises(UnsupportedScope, match="未实现"):
-        workflow.extension_aggregate(state)
+    state.update(workflow.extension_aggregate(state))
+    state["extension_scope"] = original()
+    data = workflow.extension_scope_data(state, design)
+    assert data["requires_explicit_review"] is True
+    assert data["delivery_kind"] == "partial"
+    assert data["full_request_complete"] is False
+    from workbench.store import Conflict
+
+    with pytest.raises(Conflict, match="人工审批"):
+        workflow.extension_package(state)
     assert calls[0]["trusted_oracle"] == contest.CONTRACT_VERSION
     assert calls[0]["aggregate"] is True
     report = json.loads((settings.data_dir / "runs/authored/extension-coverage.json").read_text())
@@ -178,3 +187,87 @@ def test_aggregate_failure_routes_bounded_repair_without_losing_candidate(
     state["extension_integration_attempt"] = settings.max_repair_attempts
     with pytest.raises(UnsupportedScope, match="预算"):
         workflow.extension_after_aggregate(state)
+
+
+@pytest.mark.parametrize("previously_complete", [False, True])
+def test_scope_and_zip_preserve_review_conflicts_and_invalidate_old_approval(
+    settings, store, tmp_path, monkeypatch, previously_complete
+):
+    import zipfile
+
+    from workbench.store import Approval, Conflict
+
+    design, state = aggregate_state(tmp_path)
+    project = store.create_project("review disagreement", "review-disagreement")
+    run = store.create_run(project["id"], {"requirement": "authored"}, "disagreement-run")["run_id"]
+    state.update(
+        run_id=run,
+        extension_proof={"passed": True},
+        extension_scope=scope(GOAL),
+        model_review={
+            "enabled": True,
+            "uncovered_requirements": ["第一条原文中的人数约束未验证"],
+            "observations": ["独立运行证明不能覆盖遗漏的子句"],
+        },
+    )
+    root = settings.data_dir / "runs" / run
+    root.mkdir(parents=True)
+    base = {
+        "coverage_level": "operator-reviewed-atomic-contracts",
+        "full_request_complete": previously_complete,
+        "complete_source_ids": ["source-0-0", "source-0-1"]
+        if previously_complete
+        else ["source-0-0"],
+        "obligations": [
+            {
+                "goal_id": "full-a",
+                "source_id": "source-0-0",
+                "semantic": "original.full_source",
+                "status": "verified",
+            },
+            {
+                "goal_id": "full-b",
+                "source_id": "source-0-1",
+                "semantic": "original.full_source",
+                "status": "verified" if previously_complete else "remaining",
+            },
+            {
+                "goal_id": "atom-a",
+                "source_id": "source-0-0",
+                "semantic": "authored observed value",
+                "status": "verified",
+            },
+        ],
+    }
+    workflow = Workflow(settings, store, None)
+    monkeypatch.setattr(workflow, "checked_extension", lambda _: design)
+    monkeypatch.setattr(workflow, "extension_coverage", lambda *args: deepcopy(base))
+    data = workflow.extension_scope_data(state, design)
+    assert data["model_review"] == state["model_review"]
+    assert data["review_conflicts"] == state["model_review"]["uncovered_requirements"]
+    assert data["requires_explicit_review"] is True
+    assert data["delivery_kind"] == "partial" and data["full_request_complete"] is False
+    assert data["coverage"]["complete_source_ids"] == []
+    assert data["coverage"]["pre_review_complete_source_ids"] == base["complete_source_ids"]
+    assert data["coverage"]["remaining_obligations"] == ["full-a", "full-b"]
+    assert data["coverage"]["obligations"][-1]["status"] == "verified"
+    gate = store.gate(run, "extension_scope", 1, data, ["approve"])
+    with store.tx() as session:
+        session.add(Approval(gate_id=gate["gate_id"], decision=True, actor="local-operator"))
+    monkeypatch.setattr("workbench.orchestration.require_evidence", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "workbench.capability_sandbox.verify_capabilities", lambda *a, **k: {"passed": True}
+    )
+    monkeypatch.setattr(
+        "workbench.capability_consumer.require_consumer_evidence", lambda *a, **k: None
+    )
+    packaged = workflow.extension_package(state)["delivery"]
+    assert packaged["model_review"] == state["model_review"]
+    assert packaged["review_conflicts"] == data["review_conflicts"]
+    assert packaged["full_request_complete"] is False
+    with zipfile.ZipFile(root / packaged["package"]) as archive:
+        declared = json.loads(archive.read("RND-DELIVERY.json"))
+    assert declared == data
+    state["model_review"]["uncovered_requirements"].append("后来发现的另一个遗漏")
+    with pytest.raises(Conflict, match="人工审批"):
+        workflow.extension_package(state)

@@ -131,7 +131,8 @@ def inspect_stack(product, plan):
 
 def database_environment(plan, password="", services=None):
     if plan.selection.database == "sqlite":
-        return {"DATABASE_URL": "sqlite:///" + REMOTE + "/product/" + plan.runtime.database_path}
+        url = "sqlite:///" + REMOTE + "/product/" + plan.runtime.database_path
+        return {"PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}
     if not password:
         raise CheckFailure("隔离PostgreSQL缺少专用应用身份")
     result = {

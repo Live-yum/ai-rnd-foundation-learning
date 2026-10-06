@@ -15,50 +15,55 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `custom_requested`（L17–L35）：接收`messages`。 源码说明：Only explicit human authorization selects this path, never model claims.。 控制顺序：L20遍历`messages`；L21按`re.search(r"(?:禁止\|不允许\|不要)自定义实现\|仅(?:使用\|用)模板", text)`分支；L23按`CUSTOM_CHOICE in text or re.search( r"(?:这些\|那些\|全部\|所有\|不支持的\|未支持的).{0,20}(?:自己\|自行\…`分支。 调用`re.search`。 返回路径：L35的`enabled`。
-- `scope_sources`（L38–L64）：接收`messages`。 源码说明：Keep every exact human source; source units are coverage references, not summaries.。 控制顺序：L41遍历`enumerate(messages)`；L42按`text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}`分支；L45遍历`re.finditer(r"[^。；;\n]+[。；;\n]*", text)`；L47遍历`range(0, len(value), 1000)`；L49按`not quote.strip()`分支；L62按`len(rows) > 256`分支；L63抛异常，停止当前正常路径。 调用`enumerate`、`text.strip`、`re.finditer`、`match.group`、`range`、`len`、`quote.strip`、`rows.append`、`match.start`等。 返回路径：L64的`rows`。
-- `source_path`（L67–L83）：接收`value`。 控制顺序：L69按`not value or len(value) > 300 or p.is_absolute() or any(part in {"", ".", ".."} for p…`分支；L82抛异常，停止当前正常路径。 调用`PurePosixPath`、`len`、`p.is_absolute`、`any`、`value.split`、`ord`、`set`、`secret_name`、`ValueError`。 返回路径：L83的`value`。
-- `TaskCommand`（L86–L102）：继承`Contract`。声明的数据项为`argv`、`cwd`；类型约束/数据库列参数以完整定义为准。
-- `TaskCommand.relative_directory`（L94–L95）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L95的`value if value == "." else source_path(value)`。
-- `TaskCommand.no_control_characters`（L99–L102）：接收`value`。 控制顺序：L100按`any(any(ord(c) < 32 for c in item) for item in value)`分支；L101抛异常，停止当前正常路径。 调用`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L102的`value`。
-- `RuntimeContract`（L105–L142）：继承`Contract`。声明的数据项为`prepare`、`start`、`port`、`health_path`、`startup_seconds`、`database_path`、`database_tables`；类型约束/数据库列参数以完整定义为准。
-- `RuntimeContract.product_port`（L118–L121）：接收`value`。 控制顺序：L119按`value in {2280, 55432}`分支；L120抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L121的`value`。
-- `RuntimeContract.health_is_relative`（L125–L128）：接收`value`。 控制顺序：L126按`not value.startswith("/") or value.startswith("//") or "\\" in value`分支；L127抛异常，停止当前正常路径。 调用`value.startswith`、`ValueError`、`field_validator`。 返回路径：L128的`value`。
-- `RuntimeContract.storage_is_relative`（L132–L142）：接收`value`。 控制顺序：L134按`p.is_absolute() or ".." in p.parts or "\\" in value or ":" in value or value.startswi…`分支；L141抛异常，停止当前正常路径。 调用`PurePosixPath`、`p.is_absolute`、`value.startswith`、`ValueError`、`field_validator`。 返回路径：L142的`value`。
-- `HttpStep`（L145–L218）：继承`Contract`。声明的数据项为`method`、`path`、`headers`、`body`、`body_encoding`、`wait_ms`、`status`、`equals`、`absent`、`captures`；类型约束/数据库列参数以完整定义为准。
-- `HttpStep.loopback_path`（L159–L167）：接收`value`。 控制顺序：L160按`not value.startswith("/") or value.startswith("//") or "\\" in value or any(ord(c) < …`分支；L166抛异常，停止当前正常路径。 调用`value.startswith`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L167的`value`。
-- `HttpStep.bounded_headers`（L171–L189）：接收`value`。 控制顺序：L172按`any( k.lower() in { "host", "proxy-authorization", "connection", "content-length", "c…`分支；L188抛异常，停止当前正常路径。 调用`any`、`k.lower`、`k.lower().startswith`、`re.fullmatch`、`ord`、`value.items`、`ValueError`、`field_validator`。 返回路径：L189的`value`。
-- `HttpStep.form_contract`（L192–L199）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L193按`self.body_encoding == "form"`分支；L194按`self.method not in {"POST", "PUT", "PATCH", "DELETE"} or not isinstance( self.body, d…`分支；L197抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`self.bounded_form`、`model_validator`。 返回路径：L199的`self`。
-- `HttpStep.bounded_form`（L202–L218）：接收`value`。 控制顺序：L203按`not isinstance(value, dict) or not 1 <= len(value) <= 20`分支；L204抛异常，停止当前正常路径；L206遍历`value.items()`；L207按`not isinstance(key, str) or not 1 <= len(key) <= 100 or not isinstance(item, str) or …`分支；L214抛异常，停止当前正常路径；L216按`size > 8192`分支；L217抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`value.items`、`any`、`ord`、`key.encode`、`item.encode`。 返回路径：L218的`value`。
-- `AcceptanceScenario`（L221–L236）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`steps`、`after_restart`、`browser`、`evidence`、`external_service`；类型约束/数据库列参数以完整定义为准。
-- `AcceptanceScenario.fixture_identity`（L233–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L234按`(self.evidence == "external_fixture") != (self.external_service is not None)`分支；L235抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L236的`self`。
-- `BrowserStep`（L239–L252）：继承`Contract`。声明的数据项为`action`、`selector`、`value`、`width`、`height`；类型约束/数据库列参数以完整定义为准。
-- `BrowserStep.action_contract`（L247–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L248按`self.action == "open"`分支；L250按`self.action != "viewport" and not self.selector`分支；L251抛异常，停止当前正常路径。 调用`HttpStep.loopback_path`、`ValueError`、`model_validator`。 返回路径：L252的`self`。
-- `ExternalPrerequisite`（L255–L277）：继承`Contract`。声明的数据项为`id`、`kind`、`description`、`requirements`、`configuration_names`、`provider`、`probe`；类型约束/数据库列参数以完整定义为准。
-- `ExternalPrerequisite.bounded_provider_probe`（L266–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267按`self.provider == "http_json" and ( self.probe is None or self.probe.method != "GET" o…`分支；L274抛异常，停止当前正常路径；L275按`self.provider != "http_json" and self.probe is not None`分支；L276抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L277的`self`。
-- `CapabilityTask`（L280–L296）：继承`Contract`。声明的数据项为`id`、`title`、`depends_on`、`requirements`、`files`、`contract`、`scenarios`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityTask.exact_files`（L291–L296）：接收`values`。 控制顺序：L292遍历`values`；L294按`len({v.casefold() for v in values}) != len(values)`分支；L295抛异常，停止当前正常路径。 调用`source_path`、`len`、`v.casefold`、`ValueError`、`field_validator`。 返回路径：L296的`values`。
-- `CapabilityPlan`（L299–L346）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`scenarios`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityPlan.dependency_contract`（L310–L346）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L313按`len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios)`分支；L314抛异常，停止当前正常路径；L315按`len({p.id for p in self.prerequisites}) != len(self.prerequisites)`分支；L316抛异常，停止当前正常路径；L330遍历`self.tasks`；L332按`len(set(task.depends_on)) != len(task.depends_on) or not set(task.scenarios) <= scena…`分支；L336抛异常，停止当前正常路径；L337遍历`enumerate(self.tasks)`。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`visit`、`set`、`scenarios.keys`、`enumerate`、`p.casefold`、`model_validator`。 返回路径：L346的`self`。
-- `CapabilityPlan.dependency_contract.visit`（L319–L328）：接收`identifier`、`stack`。 控制顺序：L320按`identifier in stack`分支；L321抛异常，停止当前正常路径；L322按`identifier not in tasks`分支；L323抛异常，停止当前正常路径；L324按`identifier not in ancestors`分支；L326遍历`tasks[identifier].depends_on`。 调用`ValueError`、`set`、`visit`。 返回路径：L328的`ancestors[identifier]`。
-- `CapabilityOutline`（L349–L358）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityScenarioBatch`（L361–L363）：继承`Contract`。声明的数据项为`summary`、`scenarios`；类型约束/数据库列参数以完整定义为准。
-- `SourceEdit`（L366–L374）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
-- `SourceEdit.path_contract`（L373–L374）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L374的`source_path(value)`。
-- `CapabilityEdits`（L377–L379）：继承`Contract`。声明的数据项为`explanation`、`files`；类型约束/数据库列参数以完整定义为准。
-- `coverage_errors`（L382–L408）：接收`plan`、`sources`。 控制顺序：L386遍历`plan.tasks`；L394按`not set(task.requirements) <= checked`分支；L401按`expected - covered`分支；L403按`all_refs - expected`分支；L406按`any(s.external_service and s.external_service not in services for s in plan.scenarios…`分支。 调用`set`、`covered.update`、`errors.append`、`", ".join`、`sorted`、`any`。 返回路径：L408的`errors`。
+- `custom_requested`（L18–L36）：接收`messages`。 源码说明：Only explicit human authorization selects this path, never model claims.。 控制顺序：L21遍历`messages`；L22按`re.search(r"(?:禁止\|不允许\|不要)自定义实现\|仅(?:使用\|用)模板", text)`分支；L24按`CUSTOM_CHOICE in text or re.search( r"(?:这些\|那些\|全部\|所有\|不支持的\|未支持的).{0,20}(?:自己\|自行\…`分支。 调用`re.search`。 返回路径：L36的`enabled`。
+- `scope_sources`（L39–L65）：接收`messages`。 源码说明：Keep every exact human source; source units are coverage references, not summaries.。 控制顺序：L42遍历`enumerate(messages)`；L43按`text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}`分支；L46遍历`re.finditer(r"[^。；;\n]+[。；;\n]*", text)`；L48遍历`range(0, len(value), 1000)`；L50按`not quote.strip()`分支；L63按`len(rows) > 256`分支；L64抛异常，停止当前正常路径。 调用`enumerate`、`text.strip`、`re.finditer`、`match.group`、`range`、`len`、`quote.strip`、`rows.append`、`match.start`等。 返回路径：L65的`rows`。
+- `source_path`（L68–L84）：接收`value`。 控制顺序：L70按`not value or len(value) > 300 or p.is_absolute() or any(part in {"", ".", ".."} for p…`分支；L83抛异常，停止当前正常路径。 调用`PurePosixPath`、`len`、`p.is_absolute`、`any`、`value.split`、`ord`、`set`、`secret_name`、`ValueError`。 返回路径：L84的`value`。
+- `TaskCommand`（L87–L103）：继承`Contract`。声明的数据项为`argv`、`cwd`；类型约束/数据库列参数以完整定义为准。
+- `TaskCommand.relative_directory`（L95–L96）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L96的`value if value == "." else source_path(value)`。
+- `TaskCommand.no_control_characters`（L100–L103）：接收`value`。 控制顺序：L101按`any(any(ord(c) < 32 for c in item) for item in value)`分支；L102抛异常，停止当前正常路径。 调用`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L103的`value`。
+- `RuntimeContract`（L106–L143）：继承`Contract`。声明的数据项为`prepare`、`start`、`port`、`health_path`、`startup_seconds`、`database_path`、`database_tables`；类型约束/数据库列参数以完整定义为准。
+- `RuntimeContract.product_port`（L119–L122）：接收`value`。 控制顺序：L120按`value in {2280, 55432}`分支；L121抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L122的`value`。
+- `RuntimeContract.health_is_relative`（L126–L129）：接收`value`。 控制顺序：L127按`not value.startswith("/") or value.startswith("//") or "\\" in value`分支；L128抛异常，停止当前正常路径。 调用`value.startswith`、`ValueError`、`field_validator`。 返回路径：L129的`value`。
+- `RuntimeContract.storage_is_relative`（L133–L143）：接收`value`。 控制顺序：L135按`p.is_absolute() or ".." in p.parts or "\\" in value or ":" in value or value.startswi…`分支；L142抛异常，停止当前正常路径。 调用`PurePosixPath`、`p.is_absolute`、`value.startswith`、`ValueError`、`field_validator`。 返回路径：L143的`value`。
+- `HttpStep`（L146–L226）：继承`Contract`。声明的数据项为`method`、`path`、`headers`、`body`、`body_encoding`、`wait_ms`、`status`、`equals`、`absent`、`captures`；类型约束/数据库列参数以完整定义为准。
+- `HttpStep.controller_challenge_is_immutable`（L160–L163）：接收`value`。 控制顺序：L161按`"nonce" in value`分支；L162抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L163的`value`。
+- `HttpStep.loopback_path`（L167–L175）：接收`value`。 控制顺序：L168按`not value.startswith("/") or value.startswith("//") or "\\" in value or any(ord(c) < …`分支；L174抛异常，停止当前正常路径。 调用`value.startswith`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L175的`value`。
+- `HttpStep.bounded_headers`（L179–L197）：接收`value`。 控制顺序：L180按`any( k.lower() in { "host", "proxy-authorization", "connection", "content-length", "c…`分支；L196抛异常，停止当前正常路径。 调用`any`、`k.lower`、`k.lower().startswith`、`re.fullmatch`、`ord`、`value.items`、`ValueError`、`field_validator`。 返回路径：L197的`value`。
+- `HttpStep.form_contract`（L200–L207）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201按`self.body_encoding == "form"`分支；L202按`self.method not in {"POST", "PUT", "PATCH", "DELETE"} or not isinstance( self.body, d…`分支；L205抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`self.bounded_form`、`model_validator`。 返回路径：L207的`self`。
+- `HttpStep.bounded_form`（L210–L226）：接收`value`。 控制顺序：L211按`not isinstance(value, dict) or not 1 <= len(value) <= 20`分支；L212抛异常，停止当前正常路径；L214遍历`value.items()`；L215按`not isinstance(key, str) or not 1 <= len(key) <= 100 or not isinstance(item, str) or …`分支；L222抛异常，停止当前正常路径；L224按`size > 8192`分支；L225抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`value.items`、`any`、`ord`、`key.encode`、`item.encode`。 返回路径：L226的`value`。
+- `AcceptanceScenario`（L229–L244）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`steps`、`after_restart`、`browser`、`evidence`、`external_service`；类型约束/数据库列参数以完整定义为准。
+- `AcceptanceScenario.fixture_identity`（L241–L244）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242按`(self.evidence == "external_fixture") != (self.external_service is not None)`分支；L243抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L244的`self`。
+- `BrowserStep`（L247–L260）：继承`Contract`。声明的数据项为`action`、`selector`、`value`、`width`、`height`；类型约束/数据库列参数以完整定义为准。
+- `BrowserStep.action_contract`（L255–L260）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L256按`self.action == "open"`分支；L258按`self.action != "viewport" and not self.selector`分支；L259抛异常，停止当前正常路径。 调用`HttpStep.loopback_path`、`ValueError`、`model_validator`。 返回路径：L260的`self`。
+- `ExternalPrerequisite`（L263–L285）：继承`Contract`。声明的数据项为`id`、`kind`、`description`、`requirements`、`configuration_names`、`provider`、`probe`；类型约束/数据库列参数以完整定义为准。
+- `ExternalPrerequisite.bounded_provider_probe`（L274–L285）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L275按`self.provider == "http_json" and ( self.probe is None or self.probe.method != "GET" o…`分支；L282抛异常，停止当前正常路径；L283按`self.provider != "http_json" and self.probe is not None`分支；L284抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L285的`self`。
+- `CapabilityTask`（L288–L304）：继承`Contract`。声明的数据项为`id`、`title`、`depends_on`、`requirements`、`files`、`contract`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityTask.exact_files`（L299–L304）：接收`values`。 控制顺序：L300遍历`values`；L302按`len({v.casefold() for v in values}) != len(values)`分支；L303抛异常，停止当前正常路径。 调用`source_path`、`len`、`v.casefold`、`ValueError`、`field_validator`。 返回路径：L304的`values`。
+- `PhysicalAssertion`（L307–L328）：继承`Contract`。声明的数据项为`table`、`key`、`values`；类型约束/数据库列参数以完整定义为准。
+- `PhysicalAssertion.scalar_columns`（L316–L328）：接收`values`。 控制顺序：L317遍历`values.items()`；L318按`not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or type(value) not in { str, int, floa…`分支；L323抛异常，停止当前正常路径；L324按`isinstance(value, str) and len(value) > 4096`分支；L325抛异常，停止当前正常路径；L326按`type(value) is float and not math.isfinite(value)`分支；L327抛异常，停止当前正常路径。 调用`values.items`、`re.fullmatch`、`type`、`ValueError`、`isinstance`、`len`、`math.isfinite`、`field_validator`。 返回路径：L328的`values`。
+- `BusinessObligation`（L331–L339）：继承`Contract`。声明的数据项为`id`、`source_id`、`source_sha256`、`assertion`、`scenario_id`、`physical`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityPlan`（L342–L447）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`scenarios`、`prerequisites`、`obligations`、`complete_source_ids`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityPlan.dependency_contract`（L357–L447）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L360按`len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios)`分支；L361抛异常，停止当前正常路径；L362按`len({p.id for p in self.prerequisites}) != len(self.prerequisites)`分支；L363抛异常，停止当前正常路径；L364按`len({o.id for o in self.obligations}) != len(self.obligations) or len( set(self.compl…`分支；L367抛异常，停止当前正常路径；L368按`self.obligations and self.selection.database != "sqlite"`分支；L369抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`set`、`scenarios.get`、`obligation.physical.key.values`、`obligation.physical.values.values`、`isinstance`、`re.findall`、`any`等。 返回路径：L447的`self`。
+- `CapabilityPlan.dependency_contract.visit`（L420–L429）：接收`identifier`、`stack`。 控制顺序：L421按`identifier in stack`分支；L422抛异常，停止当前正常路径；L423按`identifier not in tasks`分支；L424抛异常，停止当前正常路径；L425按`identifier not in ancestors`分支；L427遍历`tasks[identifier].depends_on`。 调用`ValueError`、`set`、`visit`。 返回路径：L429的`ancestors[identifier]`。
+- `CapabilityOutline`（L450–L459）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityScenarioBatch`（L462–L464）：继承`Contract`。声明的数据项为`summary`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit`（L467–L475）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit.path_contract`（L474–L475）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L475的`source_path(value)`。
+- `CapabilityEdits`（L478–L480）：继承`Contract`。声明的数据项为`explanation`、`files`；类型约束/数据库列参数以完整定义为准。
+- `coverage_errors`（L483–L517）：接收`plan`、`sources`。 控制顺序：L487遍历`plan.tasks`；L495按`not set(task.requirements) <= checked`分支；L502按`expected - covered`分支；L504按`all_refs - expected`分支；L507遍历`plan.obligations`；L508按`obligation.source_id not in originals or ( obligation.source_sha256 != originals[obli…`分支；L512按`set(plan.complete_source_ids) - expected`分支；L515按`any(s.external_service and s.external_service not in services for s in plan.scenarios…`分支。 调用`set`、`covered.update`、`errors.append`、`", ".join`、`sorted`、`any`。 返回路径：L517的`errors`。
 
 </details>
 
-**创建路径：** `workbench/capability_contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L408。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L517。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16066`。本段原文以LF换行结束。
+本段原始字节数：`21466`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "934d22c8a161ca3dea53956a104445913bf4110c8bcc6271d417a050ac1b0a49"} -->
+<!-- learning-source: {"path": "workbench/capability_contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "691f8ee8d657983200b4b9ba99096860a65edf74ed9f1ca6577780a48ec89537"} -->
 ````python
 # workbench/capability_contracts.py
 """Reviewed source tasks and executable checks, separate from template CRUD schemas."""
 
+import math
 import re
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
@@ -136,7 +141,7 @@ def source_path(value):
         or set(p.parts) & EXCLUDED_DIRS
         or secret_name(value)
         or p.parts[0] in {".github", ".agents", ".codex"}
-        or p.name in {"RND-CANDIDATE.json", "RND-DELIVERY.json"}
+        or p.name in {"RND-CANDIDATE.json", "RND-DELIVERY.json", "RND-CONSUMER.json"}
     ):
         raise ValueError("只允许产品内的普通源码路径；不允许秘密、环境、工具或平台控制目录")
     return value
@@ -212,6 +217,13 @@ class HttpStep(Contract):
     equals: dict[str, JsonValue] = Field(default_factory=dict, max_length=40)
     absent: list[str] = Field(default_factory=list, max_length=40)
     captures: dict[Identifier, str] = Field(default_factory=dict, max_length=12)
+
+    @field_validator("captures")
+    @classmethod
+    def controller_challenge_is_immutable(cls, value):
+        if "nonce" in value:
+            raise ValueError("nonce由控制器生成，应用响应不能替换独立随机挑战")
+        return value
 
     @field_validator("path")
     @classmethod
@@ -355,6 +367,41 @@ class CapabilityTask(Contract):
         return values
 
 
+class PhysicalAssertion(Contract):
+    """Reviewed data-only query; never candidate SQL or an application snapshot."""
+
+    table: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
+    key: dict[str, JsonValue] = Field(min_length=1, max_length=12)
+    values: dict[str, JsonValue] = Field(min_length=1, max_length=12)
+
+    @field_validator("key", "values")
+    @classmethod
+    def scalar_columns(cls, values):
+        for key, value in values.items():
+            if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or type(value) not in {
+                str,
+                int,
+                float,
+            }:
+                raise ValueError("物理断言只允许明确列名与SQLite存储标量；布尔值须用0/1")
+            if isinstance(value, str) and len(value) > 4096:
+                raise ValueError("物理断言值超过预算")
+            if type(value) is float and not math.isfinite(value):
+                raise ValueError("物理断言只允许有限数值")
+        return values
+
+
+class BusinessObligation(Contract):
+    """A proposed atomic assertion needs explicit source/decomposition review."""
+
+    id: Identifier
+    source_id: Identifier
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    assertion: str = Field(min_length=1, max_length=2000)
+    scenario_id: Identifier
+    physical: PhysicalAssertion
+
+
 class CapabilityPlan(Contract):
     title: str = Field(min_length=1, max_length=200)
     summary: str = Field(min_length=1, max_length=4000)
@@ -364,6 +411,10 @@ class CapabilityPlan(Contract):
     runtime: RuntimeContract
     scenarios: list[AcceptanceScenario] = Field(min_length=1, max_length=128)
     prerequisites: list[ExternalPrerequisite] = Field(default_factory=list, max_length=32)
+    obligations: list[BusinessObligation] = Field(default_factory=list, max_length=128)
+    # A proposal, never a model verdict. The operator must explicitly review
+    # whether these atomic checks exhaust each exact original source unit.
+    complete_source_ids: list[Identifier] = Field(default_factory=list, max_length=256)
 
     @model_validator(mode="after")
     def dependency_contract(self):
@@ -373,6 +424,60 @@ class CapabilityPlan(Contract):
             raise ValueError("节点和验收场景ID必须唯一")
         if len({p.id for p in self.prerequisites}) != len(self.prerequisites):
             raise ValueError("外部前提ID必须唯一")
+        if len({o.id for o in self.obligations}) != len(self.obligations) or len(
+            set(self.complete_source_ids)
+        ) != len(self.complete_source_ids):
+            raise ValueError("业务义务及完整来源声明不能重复")
+        if self.obligations and self.selection.database != "sqlite":
+            raise ValueError("声明式物理义务目前仅支持SQLite；原生PostgreSQL须使用登记的独立oracle")
+        for obligation in self.obligations:
+            scenario = scenarios.get(obligation.scenario_id)
+            if scenario is None or obligation.source_id not in scenario.requirements:
+                raise ValueError("业务义务必须绑定同一来源的明确场景")
+            if obligation.physical.table not in self.runtime.database_tables:
+                raise ValueError("业务义务物理表必须属于已批准数据库清单")
+            if scenario.evidence != "runtime" or not scenario.after_restart:
+                raise ValueError("业务义务需要真实初始和重启场景，替身不能关闭义务")
+            bound_variables = {"nonce"} | {
+                name
+                for value in [
+                    *obligation.physical.key.values(),
+                    *obligation.physical.values.values(),
+                ]
+                if isinstance(value, str)
+                for name in re.findall(r"\$\{([a-z][a-z0-9_-]*)\}", value)
+            }
+            if any(bound_variables & step.captures.keys() for step in scenario.after_restart):
+                raise ValueError("重启场景不能重绑物理义务的记录键或期望值变量")
+            nonces = {
+                value
+                for value in obligation.physical.values.values()
+                if isinstance(value, str) and "${nonce}" in value
+            }
+            if not nonces or not all(
+                any(
+                    step.method != "GET"
+                    and 200 <= step.status < 300
+                    and isinstance(step.body, dict)
+                    and value in step.body.values()
+                    and value in step.equals.values()
+                    for step in scenario.steps
+                )
+                and any(
+                    step.method == "GET"
+                    and 200 <= step.status < 300
+                    and value in step.equals.values()
+                    for step in scenario.steps
+                )
+                and any(
+                    step.method == "GET" and value in step.equals.values()
+                    for step in scenario.after_restart
+                )
+                for value in nonces
+            ):
+                raise ValueError("业务义务必须独立读回同次随机业务值，不能用固定响应或无关写入")
+        if not set(self.complete_source_ids) <= {o.source_id for o in self.obligations}:
+            raise ValueError("完整来源声明必须有明确原子业务义务")
         ancestors = {}
 
         def visit(identifier, stack):
@@ -461,6 +566,14 @@ def coverage_errors(plan, sources):
         errors.append("未覆盖原始来源：" + ", ".join(sorted(expected - covered)))
     if all_refs - expected:
         errors.append("引用不存在的来源：" + ", ".join(sorted(all_refs - expected)))
+    originals = {source["id"]: source for source in sources}
+    for obligation in plan.obligations:
+        if obligation.source_id not in originals or (
+            obligation.source_sha256 != originals[obligation.source_id]["sha256"]
+        ):
+            errors.append("原子业务义务没有绑定准确原始来源：" + obligation.id)
+    if set(plan.complete_source_ids) - expected:
+        errors.append("完整来源声明引用了不存在的原文")
     services = {p.id for p in plan.prerequisites}
     if any(s.external_service and s.external_service not in services for s in plan.scenarios):
         errors.append("外部替身引用未声明服务")

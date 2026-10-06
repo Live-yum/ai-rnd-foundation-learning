@@ -247,6 +247,8 @@ class CaptureBudget:
         self.used += cost
 
     def store(self, variables, name, value):
+        if name == "nonce":
+            raise CheckFailure("应用响应不能替换控制器的独立随机挑战")
         cost = self.entry_size(name, value)
         old = self.entry_size(name, variables[name]) if name in variables else 0
         if self.used + cost - old > MAX_CAPTURE_STATE_BYTES:

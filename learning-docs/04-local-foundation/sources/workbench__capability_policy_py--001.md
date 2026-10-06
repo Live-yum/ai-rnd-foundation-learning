@@ -16,18 +16,18 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `canonical`（L29–L32）：接收`value`。 调用`"".join`、`unicodedata.normalize("NFKC", value).casefold`、`unicodedata.normalize`、`char.isalnum`。 返回路径：L30的`"".join( char for char in unicodedata.normalize("NFKC", value).casefold() if char.isalnum(…`。
-- `scope_policy`（L35–L78）：接收`scope`、`selection`。 控制顺序：L54按`registered or ambiguous`分支；L55遍历`scope["sources"]`；L58遍历`CONTEST_BINDINGS.items()`；L59按`canonical(quote) in normalized`分支；L61遍历`semantics`。 调用`canonical`、`"".join`、`sum`、`any`、`CONTEST_BINDINGS.items`、`semantics.extend`、`goals.append`、`digest`。 返回路径：L65的`{ "version": 2, "source_digest": scope["source_digest"], "source_units_digest": digest(sco…`。
-- `contract_errors`（L81–L164）：接收`plan`。 源码说明：A source reference/health endpoint alone is never business acceptance. This structural minimum cannot prove arbitrary natural-language semantics; the frozen design review remains responsible for the c。 控制顺序：L107遍历`plan.tasks`；L109遍历`task.requirements`；L124遍历`writes`；L125遍历`reads`；L126按`owners[id(write)][0] == owners[id(read)][0] and owners[id(write)][1] < owners[id(read…`分支；L138按`not linked`分支；L144按`not any( step.status in {401, 403} and step.path.split("?", 1)[0] in paths for step i…`分支；L148按`not any( step.status in {400, 409, 422} and step.path.split("?", 1)[0] in paths for s…`分支。后续分支沿下方源码相同行号继续阅读。 调用`set`、`id`、`enumerate`、`step.path.split`、`positive`、`any`、`linked.extend`、`digest`、`read.equals.items`等。 返回路径：L164的`list(dict.fromkeys(errors))`。
-- `contract_errors.positive`（L91–L99）：接收`step`。 调用`step.path.split`、`any`、`key.rsplit`、`step.equals.items`。 返回路径：L92的`200 <= step.status < 300 and step.path.split("?", 1)[0] not in ignored and any( key.rsplit…`。
-- `business_coverage`（L167–L198）：接收`policy`、`proof`。 控制顺序：L168按`policy["requires_explicit_review"]`分支；L169抛异常，停止当前正常路径；L170按`policy["trusted_oracle"] is None`分支；L177按`not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict)`分支；L178抛异常，停止当前正常路径；L179按`business.get("protocol") != policy["trusted_oracle"] or set(business.get("witnesses",…`分支；L190抛异常，停止当前正常路径。 调用`CheckFailure`、`proof.get`、`isinstance`、`business.get`、`set`、`any`、`business.get("witnesses", {}).values`、`list`、`contest.coverage`等。 返回路径：L171的`{ "coverage_level": policy["coverage_level"], "full_request_complete": None, "source_units…`；L194的`{ **result, "coverage_level": policy["coverage_level"], "source_units_digest": policy["sou…`。
+- `scope_policy`（L35–L75）：接收`scope`、`selection`。 控制顺序：L54遍历`scope["sources"]`；L57遍历`CONTEST_BINDINGS.items()`；L58按`canonical(quote) in normalized`分支；L60遍历`semantics`。 调用`canonical`、`"".join`、`sum`、`any`、`CONTEST_BINDINGS.items`、`semantics.extend`、`goals.append`、`digest`。 返回路径：L62的`{ "version": 3, "source_digest": scope["source_digest"], "source_units_digest": digest(sco…`。
+- `contract_errors`（L78–L161）：接收`plan`。 源码说明：A source reference/health endpoint alone is never business acceptance. This structural minimum cannot prove arbitrary natural-language semantics; the frozen design review remains responsible for the c。 控制顺序：L104遍历`plan.tasks`；L106遍历`task.requirements`；L121遍历`writes`；L122遍历`reads`；L123按`owners[id(write)][0] == owners[id(read)][0] and owners[id(write)][1] < owners[id(read…`分支；L135按`not linked`分支；L141按`not any( step.status in {401, 403} and step.path.split("?", 1)[0] in paths for step i…`分支；L145按`not any( step.status in {400, 409, 422} and step.path.split("?", 1)[0] in paths for s…`分支。后续分支沿下方源码相同行号继续阅读。 调用`set`、`id`、`enumerate`、`step.path.split`、`positive`、`any`、`linked.extend`、`digest`、`read.equals.items`等。 返回路径：L161的`list(dict.fromkeys(errors))`。
+- `contract_errors.positive`（L88–L96）：接收`step`。 调用`step.path.split`、`any`、`key.rsplit`、`step.equals.items`。 返回路径：L89的`200 <= step.status < 300 and step.path.split("?", 1)[0] not in ignored and any( key.rsplit…`。
+- `business_coverage`（L164–L210）：接收`policy`、`proof`。 控制顺序：L165按`policy["requires_explicit_review"]`分支；L166抛异常，停止当前正常路径；L167按`policy["trusted_oracle"] is None`分支；L189按`not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict)`分支；L190抛异常，停止当前正常路径；L191按`business.get("protocol") != policy["trusted_oracle"] or set(business.get("witnesses",…`分支；L202抛异常，停止当前正常路径。 调用`CheckFailure`、`digest`、`sorted`、`proof.get`、`isinstance`、`business.get`、`set`、`any`、`business.get("witnesses", {}).values`等。 返回路径：L178的`{ "obligations": rows, "complete_source_ids": [], "remaining_source_ids": sorted({row["sou…`；L206的`{ **result, "coverage_level": policy["coverage_level"], "source_units_digest": policy["sou…`。
 
 </details>
 
-**创建路径：** `workbench/capability_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L198。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L210。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8252`。本段原文以LF换行结束。
+本段原始字节数：`8814`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4bf25848ba62cd5b6635015685cfe5e022dc7166f7806b568500e8d1b64b0d14"} -->
+<!-- learning-source: {"path": "workbench/capability_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ee6cebefe894e9982f613f91062d654b042d3b63d535bcbeed5b22288e7f5d24"} -->
 ````python
 # workbench/capability_policy.py
 """Controller-owned scope policy, never supplied by a candidate or model plan.
@@ -83,19 +83,16 @@ def scope_policy(scope, selection):
     registered = authored >= 2 or sum(concepts) >= 2
     ambiguous = not registered and any(concepts)
     goals = []
-    if registered or ambiguous:
-        for row in scope["sources"]:
-            semantics = ["original.full_source"]
-            normalized = canonical(row["text"])
-            for quote, predicates in CONTEST_BINDINGS.items():
-                if canonical(quote) in normalized:
-                    semantics.extend(predicates)
-            for semantic in semantics:
-                goals.append(
-                    {"source_id": row["id"], "source_text": row["text"], "semantic": semantic}
-                )
+    for row in scope["sources"]:
+        semantics = ["original.full_source"]
+        normalized = canonical(row["text"])
+        for quote, predicates in CONTEST_BINDINGS.items():
+            if canonical(quote) in normalized:
+                semantics.extend(predicates)
+        for semantic in semantics:
+            goals.append({"source_id": row["id"], "source_text": row["text"], "semantic": semantic})
     return {
-        "version": 2,
+        "version": 3,
         "source_digest": scope["source_digest"],
         "source_units_digest": digest(scope["sources"]),
         "selection": selection,
@@ -200,10 +197,25 @@ def business_coverage(policy, proof):
     if policy["requires_explicit_review"]:
         raise CheckFailure("原始业务范围匹配不明确，需要独立验收策略审阅，不能降级通用验收")
     if policy["trusted_oracle"] is None:
+        rows = [
+            {
+                "goal_id": "goal-" + digest({"protocol": "original-source-v1", **goal})[:24],
+                "source_id": goal["source_id"],
+                "source_sha256": digest(goal["source_text"]),
+                "semantic": goal["semantic"],
+                "status": "remaining",
+            }
+            for goal in policy["goals"]
+        ]
         return {
+            "obligations": rows,
+            "complete_source_ids": [],
+            "remaining_source_ids": sorted({row["source_id"] for row in rows}),
+            "remaining_obligations": [row["goal_id"] for row in rows],
             "coverage_level": policy["coverage_level"],
-            "full_request_complete": None,
+            "full_request_complete": False,
             "source_units_digest": policy["source_units_digest"],
+            "natural_language_semantics_proven": False,
         }
     business = proof.get("business_oracle", {})
     if not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict):

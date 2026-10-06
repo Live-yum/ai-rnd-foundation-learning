@@ -15,8 +15,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     create_engine,
     event,
+    or_,
     select,
     text,
     update,
@@ -26,6 +28,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from workbench.domain import ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.settings import ROOT, Settings
+
+MODEL_FREE_APPROVAL_STAGES = frozenset({"extension_scope", "extension_delivery"})
 
 
 def now():
@@ -306,7 +310,54 @@ class Store:
 
         return self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)
 
-    def retry(self, run_id, key):
+    def _model_free_retry(self, session, run):
+        if not run or run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
+            return None
+        stage = session.scalar(
+            select(Event)
+            .where(Event.run_id == run.id, Event.kind == "stage")
+            .order_by(Event.id.desc())
+            .limit(1)
+        )
+        if (
+            not stage
+            or stage.data.get("name") != "extension_package"
+            or stage.data.get("phase") != "failed"
+        ):
+            return None
+        previous = session.scalar(
+            select(Job).where(Job.run_id == run.id).order_by(Job.created_at.desc()).limit(1)
+        )
+        if (
+            not previous
+            or previous.status != "FAILED"
+            or previous.payload.get("approved") is not True
+        ):
+            return None
+        gate_id = previous.payload.get("gate_id", "")
+        revision, approval = session.get(Revision, gate_id), session.get(Approval, gate_id)
+        if not (
+            revision
+            and revision.run_id == run.id
+            and revision.stage == "extension_scope"
+            and approval
+            and approval.decision is True
+        ):
+            return None
+        return {
+            "gate_id": gate_id,
+            "approved": True,
+            "resume_from_job_id": previous.payload.get("resume_from_job_id", previous.id),
+        }
+
+    def is_model_free_retry(self, run_id, key=None):
+        with self.tx() as session:
+            old = session.get(Request, key) if key else None
+            if old and old.fingerprint == digest({"operation": "retry", "run_id": run_id}):
+                return True  # Exact replay returns its recorded response; it enqueues no work.
+            return self._model_free_retry(session, session.get(Run, run_id)) is not None
+
+    def retry(self, run_id, key, *, require_model_free=False):
         def operation(session):
             run = session.get(Run, run_id)
             if not run:
@@ -315,7 +366,10 @@ class Store:
                 raise Conflict("只有 FAILED、BLOCKED 或 PAUSED_LIMIT 状态可以重试")
             if run.pending and run.pending.get("data", {}).get("capability_conflicts"):
                 raise Conflict("模板能力尚未改变，重复重试不会解决；请先答复当前范围选择")
-            session.add(Job(run_id=run_id, payload={"action": "retry"}))
+            bound_retry = self._model_free_retry(session, run)
+            if require_model_free and not bound_retry:
+                raise Conflict("无模型重试仅支持准确范围审批后的已保存打包阶段")
+            session.add(Job(run_id=run_id, payload={"action": "retry", **(bound_retry or {})}))
             # The graph owns the saved interrupt. Hide the stale Store copy
             # while queued so a second request cannot consume it concurrently.
             run.pending = None
@@ -329,7 +383,10 @@ class Store:
             run = session.get(Run, run_id)
             if not run:
                 raise Missing("运行不存在")
-            return {c.name: getattr(run, c.name) for c in Run.__table__.columns}
+            return {
+                **{c.name: getattr(run, c.name) for c in Run.__table__.columns},
+                "model_free_retry": self._model_free_retry(session, run) is not None,
+            }
 
     def messages(self, run_id):
         with self.tx() as session:
@@ -722,11 +779,67 @@ class Store:
                 if approval.decision is not (value["action"] == "approve"):
                     raise Conflict("审批决定不一致")
 
-    def claim(self, *, only_rejections=False):
+    def explicit_approval(self, run_id, stage, data, *, version):
+        """Read the durable operator decision, never a model/candidate receipt."""
+        content_digest = digest(data)
+        gate_id = digest([run_id, stage, version, content_digest])
+        with self.tx() as session:
+            rows = session.execute(
+                select(Revision, Approval)
+                .join(Approval, Approval.gate_id == Revision.gate_id)
+                .where(
+                    Revision.run_id == run_id,
+                    Revision.stage == stage,
+                    Revision.digest == content_digest,
+                    Revision.gate_id == gate_id,
+                )
+                .order_by(Revision.created_at.desc())
+            )
+            for revision, approval in rows:
+                if approval.decision is True and approval.actor == "local-operator":
+                    return {
+                        "gate_id": revision.gate_id,
+                        "data_digest": content_digest,
+                        "actor": approval.actor,
+                    }
+        raise Conflict("当前准确来源、合同和证据缺少明确人工审批；自动或模型回执不能替代")
+
+    def is_model_free_approval(self, run_id, data):
+        """Use the controller's immutable gate, never a client-supplied stage.
+
+        submit still validates the current pending gate, approval and idempotency.
+        Reading the revision also permits an exact idempotent replay after submit
+        has cleared Run.pending; it does not itself enqueue or approve anything.
+        """
+        if data.get("action") != "approve" or data.get("approved") is not True:
+            return False
+        with self.tx() as session:
+            revision = session.get(Revision, data.get("gate_id", ""))
+            return bool(
+                revision
+                and revision.run_id == run_id
+                and revision.stage in MODEL_FREE_APPROVAL_STAGES
+            )
+
+    def claim(self, *, only_rejections=False, include_model_free=False):
         with self.tx() as session:
             statement = select(Job).where(Job.status == "QUEUED")
             if only_rejections:
-                statement = statement.where(Job.payload["action"].as_string() == "reject")
+                eligible = Job.payload["action"].as_string() == "reject"
+                if include_model_free:
+                    approved_gate = select(Revision.gate_id).where(
+                        Revision.run_id == Job.run_id,
+                        Revision.stage.in_(MODEL_FREE_APPROVAL_STAGES),
+                    )
+                    eligible = or_(
+                        eligible,
+                        and_(
+                            Job.payload["action"].as_string().in_({"approve", "retry"}),
+                            Job.payload["approved"].as_boolean().is_(True),
+                            Job.payload["gate_id"].as_string().in_(approved_gate),
+                        ),
+                    )
+                statement = statement.where(eligible)
             job = session.scalar(statement.order_by(Job.created_at).limit(1))
             if job is None:
                 return None

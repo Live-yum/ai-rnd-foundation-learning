@@ -11,7 +11,7 @@ from pathlib import Path
 
 from scripts.capability_fixture import APP, GOAL, SHARED_ROUTES, make_plan
 from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
-from workbench.capability_contracts import scope_sources
+from workbench.capability_contracts import CapabilityPlan, scope_sources
 from workbench.capability_sandbox import _verify
 from workbench.capability_verification import (
     BROWSER_ERROR_CODES,
@@ -26,7 +26,7 @@ from workbench.sandbox import client_for, close_client, validate_configuration
 from workbench.settings import ROOT, Settings
 
 
-def fixed_application(product):
+def fixed_application(product, *, atomic_consumer=False):
     product.mkdir(parents=True)
     for name in ("pyproject.toml", "uv.lock"):
         shutil.copyfile(ROOT / "templates/product" / name, product / name)
@@ -41,13 +41,52 @@ def fixed_application(product):
         "def readable(owner, actor, member):\n    return owner == actor or member\n",
         encoding="utf-8",
     )
-    return make_plan(
+    sources = scope_sources([GOAL])
+    plan = make_plan(
         {
-            "source_units": scope_sources([GOAL]),
+            "source_units": sources,
             "source_digest": digest([GOAL]),
             "selection": {"template": "python-basic"},
         }
     )
+    if atomic_consumer:
+        from workbench.capability_consumer import prepare_consumer
+
+        plan = CapabilityPlan.model_validate(
+            {
+                **plan.model_dump(),
+                "obligations": [
+                    {
+                        "id": "authored-retained-profile",
+                        "source_id": sources[0]["id"],
+                        "source_sha256": sources[0]["sha256"],
+                        "assertion": "Authored fixture profile title is physically retained before restart replay",
+                        "scenario_id": "private_records",
+                        "physical": {
+                            "table": "entries",
+                            "key": {"id": "${entry}"},
+                            "values": {"title": "持久化资料-${nonce}"},
+                        },
+                    }
+                ],
+            }
+        )
+        # This is an authored verifier fixture, never a model-produced product
+        # or a declaration that all clauses of GOAL have been completed.
+        shutil.copyfile(ROOT / "templates/product/start.py", product / "start.py")
+        write_json(product / "selection.json", plan.selection.model_dump())
+        prepare_consumer(product, plan)
+    return plan
+
+
+def require_atomic_consumer_evidence(product, plan, proof):
+    from workbench.capability_consumer import require_consumer_evidence
+    from workbench.capability_obligations import require_obligation_evidence
+
+    if not plan.obligations:
+        raise CheckFailure("Live authored acceptance must exercise pre-replay physical retention")
+    require_obligation_evidence(plan, proof, aggregate=True)
+    require_consumer_evidence(product, plan, proof)
 
 
 def require_profile_evidence(proof, **bindings):
@@ -87,7 +126,7 @@ def main():
     record = require_profile(HOME, settings.daytona_snapshot)
     with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
         product = Path(directory) / "product"
-        plan = fixed_application(product)
+        plan = fixed_application(product, atomic_consumer=True)
         selected = plan.selection.model_dump()
         validate_configuration(settings, selected["template"], selected)
         client = client_for(settings)
@@ -114,6 +153,7 @@ def main():
                 database_tables=plan.runtime.database_tables,
                 aggregate=True,
             )
+            require_atomic_consumer_evidence(product, plan, proof)
             summary["passed"] = True
         finally:
             try:

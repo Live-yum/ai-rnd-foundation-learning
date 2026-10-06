@@ -94,6 +94,51 @@ def test_permission_changes_cannot_be_auto_approved_or_recommended(settings, sto
         )
 
 
+def test_model_atomic_completeness_proposal_always_stops_for_exact_human_review(settings, store):
+    from workbench.capability_contracts import CapabilityPlan
+    from workbench.store import Conflict
+
+    class AtomicGateway(Gateway):
+        def complete(self, run_id, key, instruction, payload, schema):
+            result = super().complete(run_id, key, instruction, payload, schema)
+            if schema is ExtensionDesign:
+                source = payload["source_units"][0]
+                raw = result.implementation.model_dump()
+                raw["obligations"] = [
+                    {
+                        "id": "private-record",
+                        "source_id": source["id"],
+                        "source_sha256": source["sha256"],
+                        "assertion": "标题持久化",
+                        "scenario_id": "private_records",
+                        "physical": {
+                            "table": "entries",
+                            "key": {"id": "${entry}"},
+                            "values": {"title": "持久化资料-${nonce}"},
+                        },
+                    }
+                ]
+                raw["complete_source_ids"] = [source["id"]]
+                result.implementation = CapabilityPlan.model_validate(raw)
+            return result
+
+    run = create(store)
+    gateway = AtomicGateway()
+    with Runtime(settings, store, gateway) as runtime:
+        runtime.tick()
+    saved = store.get_run(run)
+    assert saved["status"] == "WAITING_EXTENSION_DESIGN"
+    assert len(gateway.calls) == 1, "No coding or paid regeneration before semantic review"
+    gate = saved["pending"]
+    assert gate["data"]["atomic_review"]["complete_source_ids"]
+    with pytest.raises(Conflict, match="人工审阅"):
+        store.submit(
+            run,
+            {"gate_id": gate["gate_id"], "action": "recommend", "approved": True},
+            "atomic-no-model-self-approval",
+        )
+
+
 def test_source_coverage_cannot_discard_contest_requirements(settings, store):
     request = "竞赛报名；队伍人数限制和邀请；跨校报名；随机分配评委；加权评分和盲审；教师确认；并发唯一编号；邮件SMS和云文件。全部自己实现"
 

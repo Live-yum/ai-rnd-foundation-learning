@@ -53,9 +53,9 @@
 
 **创建路径：** `tests/test_model_settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L545。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20178`。本段原文以LF换行结束。
+本段原始字节数：`20203`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_model_settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ce92c44f603c57c257b9cfa1bbdf463e768dbf8e7555d2394201c4e0bc3184ec"} -->
+<!-- learning-source: {"path": "tests/test_model_settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0e113414e84798958a0638c6d6336ebc7d7f53ba9e84d3f5dd60a55015a36e5f"} -->
 ````python
 # tests/test_model_settings.py
 """Offline security and lifecycle coverage for writable model configuration."""
@@ -526,7 +526,7 @@ def test_real_worker_only_claims_rejections_without_valid_configuration(settings
     store.claim.return_value = None
     runtime = Runtime(settings, store)
     assert runtime.tick() is False
-    store.claim.assert_called_once_with(only_rejections=True)
+    store.claim.assert_called_once_with(only_rejections=True, include_model_free=True)
     store.claim.reset_mock()
     configure(ModelSettingsRepository(settings))
     assert runtime.tick() is False

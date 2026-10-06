@@ -14,4 +14,4 @@
 - [tests/test_contracts.py](sources/tests__test_contracts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_store.py](sources/tests__test_store_py--001.md)：可重复的验收用例；1 段
 - [workbench/clarification.py](sources/workbench__clarification_py--001.md)：把当前澄清关卡的选择可靠还原为用户回答；1 段
-- [workbench/store.py](sources/workbench__store_py--001.md)：持久化项目、会话、任务、版本、审批和证据；1 段
+- [workbench/store.py](sources/workbench__store_py--001.md)：持久化项目、会话、任务、版本、审批和证据；2 段

@@ -3,6 +3,8 @@
 后端、前端和数据库选择记录在 `selection.json`；字段、搜索、筛选及验收范围在 `approved-spec.json`。
 源码不需要研发平台在线，不需要模型 API Key。
 
+若包内包含 `RND-CONSUMER.json`，这是自定义 Python 模块产品，适用下面的“自定义模块启动契约”；不要对它运行基础模板的 `manage.py init` 或 `verify.py`。
+
 ## 一条启动命令
 
 安装 Python 3.14 与 uv，解压后在本目录执行：
@@ -43,3 +45,19 @@ PostgreSQL 独立验证需要设置 VERIFY_DATABASE_URL 指向一个临时空测
 
 只监听本机。公开部署前另行配置HTTPS、注册管控、限流、权限审计和备份。
 备份SQLite先停止服务；PostgreSQL备份需独立保管凭据和数据。不要删除 `.data` 来处理升级问题。
+
+## 自定义模块启动契约
+
+包含 `RND-CONSUMER.json` 的 Python/SQLite 产品同样运行 `uv run --no-project --python 3.14 python start.py`。
+启动器安装原锁定依赖，使用契约中的 ASGI 入口和端口；默认只监听 `127.0.0.1`，健康检查及页面以该产品的验收合同为准。
+`--no-install` 仅用于已具备相同锁定依赖的解释器，不证明首次联网安装成功。
+
+数据库默认保存到契约中的产品相对路径，通常为 `data/application.db`。可用 `PRODUCT_DATABASE_URL` 显式指定本机 SQLite 文件。
+启动器将 `PRODUCT_DATABASE_URL` 和兼容别名 `DATABASE_URL` 设置为同一绝对文件地址；不会采用终端里可能属于其他项目的 `DATABASE_URL`。
+隔离验收使用相同启动器、入口、环境变量约定与数据库相对路径；为隔离代理显式监听 `0.0.0.0`，解压后的默认地址仍限本机。
+
+自定义应用在自身启动时初始化数据库，不执行基础模板的 Alembic 建表，避免把两种业务结构写入同一数据库。
+冷启动和保留记录的重复启动只证明当前结构的初始化与重启，不证明旧版本结构升级。
+当前契约明确标记 `existing_schema_migration: unverified`，因此不支持 `--init-only`，也不能用于宣称已有旧结构数据库可安全升级。
+升级既有数据需要另外提供并验证版本化迁移；不要删除数据库或绕过错误继续运行。
+此契约仅适用 Python/SQLite，不能作为 FastapiAdmin 或其他原生产品的独立启动、升级证据。

@@ -10,7 +10,11 @@ import tempfile
 from pathlib import Path
 
 from scripts.capability_security_probe import run_security_probe
-from scripts.ci_capability_profile import fixed_application, require_profile_evidence
+from scripts.ci_capability_profile import (
+    fixed_application,
+    require_atomic_consumer_evidence,
+    require_profile_evidence,
+)
 from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
 from workbench.capability_execution import (
     PROTOCOL,
@@ -52,7 +56,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="rnd-security-positive-") as directory:
             product = Path(directory) / "product"
-            plan = fixed_application(product)
+            plan = fixed_application(product, atomic_consumer=True)
             selected = plan.selection.model_dump()
             validate_configuration(settings, selected["template"], selected)
             proof = _verify(
@@ -79,6 +83,7 @@ def main():
                 selection=selected,
                 database_tables=plan.runtime.database_tables,
             )
+            require_atomic_consumer_evidence(product, plan, proof)
             if proof.get("restart_security_checks") != proof.get("security_checks"):
                 raise ValueError("Restart did not preserve the complete security boundary")
             acceptance = {

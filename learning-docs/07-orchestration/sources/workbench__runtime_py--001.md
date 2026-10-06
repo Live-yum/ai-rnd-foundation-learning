@@ -18,21 +18,21 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `pending_interrupt`（L30–L34）：接收`snapshot`。 控制顺序：L31遍历`snapshot.tasks`；L32按`task.interrupts`分支。 返回路径：L33的`task.interrupts[0].value`；L34的`None`。
-- `Runtime`（L37–L250）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Runtime`（L37–L274）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Runtime.__init__`（L38–L43）：接收`settings`、`store`、`gateway`。 调用`ModelGateway`、`threading.Event`、`ExitStack`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Runtime.__enter__`（L45–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L50按`self.store.engine.dialect.name == "postgresql"`分支；L54按`not connection.scalar(text("SELECT pg_try_advisory_lock(728194602)"))`分支；L55抛异常，停止当前正常路径；L78抛异常，停止当前正常路径。 调用`self.stack.enter_context`、`FileLock`、`str`、`self.store.engine.connect().execution_options`、`self.store.engine.connect`、`connection.scalar`、`text`、`PrerequisiteError`、`self.stack.callback`等。 返回路径：L75的`self`。
 - `Runtime.__exit__`（L80–L81）：接收`*args`。 调用`self.stack.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Runtime.pause_recommendation`（L83–L107）：接收`run_id`、`pending`、`attempts`。 控制顺序：L91按`report.get("capability_conflicts")`分支；L98抛异常，停止当前正常路径。 调用`blocked_report`、`json.loads`、`self.settings.redact`、`json.dumps`、`write_json`、`logger.warning`、`report.get`、`UnsupportedScope`、`"；".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Runtime.tick`（L109–L245）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L112按`self.requires_model_configuration and not self.settings.models_ready()`分支；L116按`job is None`分支；L124按`snapshot.values and snapshot.next and not waiting`分支；L131按`recovery`分支；L134按`not snapshot.values`分支；L146按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L151按`snapshot.next and not waiting`分支；L153按`waiting`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.settings.models_ready`、`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`Workflow(self.settings, self.store, self.gateway).capability_reco…`、`Workflow`、`self.graph.update_state`、`self.store.get_run`、`self.graph.invoke`等。 返回路径：L117的`False`；L245的`True`。
-- `Runtime.loop`（L247–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L248在`not self.stop.is_set()`成立时循环；L249按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime.tick`（L109–L269）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L113按`models_missing`分支；L117按`job is None`分支；L125按`models_missing and payload["action"] != "reject"`分支；L146按`not (model_free_wait or model_free_resume or completed_replay)`分支；L147抛异常，停止当前正常路径；L148按`snapshot.values and snapshot.next and not waiting`分支；L155按`recovery`分支；L158按`not snapshot.values`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.settings.models_ready`、`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`waiting.get`、`payload.get`、`set`、`snapshot.values.get`、`Conflict`等。 返回路径：L118的`False`；L269的`True`。
+- `Runtime.loop`（L271–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L272在`not self.stop.is_set()`成立时循环；L273按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L250。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L274。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11672`。本段原文以LF换行结束。
+本段原始字节数：`12991`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "16c31c07202383660af1435a7cc74e99fd67a99fea4ea3158f6de1eef71eda4e"} -->
+<!-- learning-source: {"path": "workbench/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9ea66bbf9c29ec9833e7057ad8bf4f329bcf462e4045ea5ddbb26e5dcdd79825"} -->
 ````python
 # workbench/runtime.py
 """Single durable worker. A recovered job never consumes a later approval gate."""
@@ -58,7 +58,7 @@ from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.local_only import local_database_url
 from workbench.recommendation import blocked_report
-from workbench.store import Conflict
+from workbench.store import MODEL_FREE_APPROVAL_STAGES, Conflict
 from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
@@ -146,8 +146,9 @@ class Runtime:
     def tick(self):
         # First-run settings must not execute model work. Existing gate rejection
         # remains available even after credentials are removed or become invalid.
-        if self.requires_model_configuration and not self.settings.models_ready():
-            job = self.store.claim(only_rejections=True)
+        models_missing = self.requires_model_configuration and not self.settings.models_ready()
+        if models_missing:
+            job = self.store.claim(only_rejections=True, include_model_free=True)
         else:
             job = self.store.claim()
         if job is None:
@@ -158,6 +159,29 @@ class Runtime:
         try:
             snapshot = self.graph.get_state(config)
             waiting = pending_interrupt(snapshot)
+            if models_missing and payload["action"] != "reject":
+                model_free_wait = (
+                    payload["action"] == "approve"
+                    and waiting
+                    and waiting.get("stage") in MODEL_FREE_APPROVAL_STAGES
+                    and waiting.get("gate_id") == payload.get("gate_id")
+                )
+                model_free_resume = (
+                    snapshot.values
+                    and snapshot.next
+                    and not waiting
+                    and set(snapshot.next) <= {"extension_package", "extension_delivery"}
+                    and snapshot.values.get("last_job_id")
+                    in {job["id"], payload.get("resume_from_job_id")}
+                    and snapshot.values.get("last_job_id") is not None
+                )
+                completed_replay = (
+                    snapshot.values
+                    and not snapshot.next
+                    and snapshot.values.get("last_job_id") == job["id"]
+                )
+                if not (model_free_wait or model_free_resume or completed_replay):
+                    raise Conflict("无模型恢复仅支持已保存的准确交付范围或交付审批，不执行规划编码")
             if snapshot.values and snapshot.next and not waiting:
                 # An older worker may already have auto-approved a narrowed
                 # interpretation before failing downstream. Recover the original

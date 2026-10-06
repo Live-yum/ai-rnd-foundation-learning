@@ -7,13 +7,16 @@
 - [scripts/extension_oracles/contest.py](sources/scripts__extension_oracles__contest_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [workbench/capability_browser_isolation.py](sources/workbench__capability_browser_isolation_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_browser_policy.py](sources/workbench__capability_browser_policy_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_consumer.py](sources/workbench__capability_consumer_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_contest_oracle.py](sources/workbench__capability_contest_oracle_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_contracts.py](sources/workbench__capability_contracts_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_dependencies.py](sources/workbench__capability_dependencies_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_execution.py](sources/workbench__capability_execution_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_isolation.py](sources/workbench__capability_isolation_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_native_runtime.py](sources/workbench__capability_native_runtime_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_obligations.py](sources/workbench__capability_obligations_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_policy.py](sources/workbench__capability_policy_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_readiness.py](sources/workbench__capability_readiness_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_services.py](sources/workbench__capability_services_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_stack.py](sources/workbench__capability_stack_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_verification.py](sources/workbench__capability_verification_py--001.md)：项目根配置或说明；1 段

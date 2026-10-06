@@ -15,17 +15,18 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `fixed_application`（L29–L50）：接收`product`。 控制顺序：L31遍历`("pyproject.toml", "uv.lock")`。 调用`product.mkdir`、`shutil.copyfile`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`、`make_plan`、`scope_sources`、`digest`。 返回路径：L44的`make_plan( { "source_units": scope_sources([GOAL]), "source_digest": digest([GOAL]), "sele…`。
-- `require_profile_evidence`（L53–L71）：接收`proof`、`**bindings`。 源码说明：Keep strict validation; explain only an allowlisted browser failure.。 控制顺序：L60按`proof.get("passed") is False and isinstance(phase, str) and phase in BROWSER_PHASES a…`分支；L67抛异常，停止当前正常路径；L71抛异常，停止当前正常路径。 调用`require_evidence`、`proof.get`、`diagnostic.get`、`isinstance`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L74–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`settings.sandbox_provider != "daytona"`分支；L86抛异常，停止当前正常路径；L123抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixed_application`（L29–L79）：接收`product`、`atomic_consumer`。 控制顺序：L31遍历`("pyproject.toml", "uv.lock")`；L52按`atomic_consumer`分支。 调用`product.mkdir`、`shutil.copyfile`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`、`scope_sources`、`make_plan`、`digest`等。 返回路径：L79的`plan`。
+- `require_atomic_consumer_evidence`（L82–L89）：接收`product`、`plan`、`proof`。 控制顺序：L86按`not plan.obligations`分支；L87抛异常，停止当前正常路径。 调用`CheckFailure`、`require_obligation_evidence`、`require_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_profile_evidence`（L92–L110）：接收`proof`、`**bindings`。 源码说明：Keep strict validation; explain only an allowlisted browser failure.。 控制顺序：L99按`proof.get("passed") is False and isinstance(phase, str) and phase in BROWSER_PHASES a…`分支；L106抛异常，停止当前正常路径；L110抛异常，停止当前正常路径。 调用`require_evidence`、`proof.get`、`diagnostic.get`、`isinstance`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L113–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124按`settings.sandbox_provider != "daytona"`分支；L125抛异常，停止当前正常路径；L163抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L129。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L169。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4740`。本段原文以LF换行结束。
+本段原始字节数：`6618`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "11f382945d3604dc1c3ea3a64b32721804f4d163a9c227e4ede38f07eac53332"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "da4256749d396004ad8db659cde89ae70b2d7463410217557e88bb0c9ebce850"} -->
 ````python
 # scripts/ci_capability_profile.py
 """Positive isolation acceptance with only the repository's fixed authored app.
@@ -41,7 +42,7 @@ from pathlib import Path
 
 from scripts.capability_fixture import APP, GOAL, SHARED_ROUTES, make_plan
 from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
-from workbench.capability_contracts import scope_sources
+from workbench.capability_contracts import CapabilityPlan, scope_sources
 from workbench.capability_sandbox import _verify
 from workbench.capability_verification import (
     BROWSER_ERROR_CODES,
@@ -56,7 +57,7 @@ from workbench.sandbox import client_for, close_client, validate_configuration
 from workbench.settings import ROOT, Settings
 
 
-def fixed_application(product):
+def fixed_application(product, *, atomic_consumer=False):
     product.mkdir(parents=True)
     for name in ("pyproject.toml", "uv.lock"):
         shutil.copyfile(ROOT / "templates/product" / name, product / name)
@@ -71,13 +72,52 @@ def fixed_application(product):
         "def readable(owner, actor, member):\n    return owner == actor or member\n",
         encoding="utf-8",
     )
-    return make_plan(
+    sources = scope_sources([GOAL])
+    plan = make_plan(
         {
-            "source_units": scope_sources([GOAL]),
+            "source_units": sources,
             "source_digest": digest([GOAL]),
             "selection": {"template": "python-basic"},
         }
     )
+    if atomic_consumer:
+        from workbench.capability_consumer import prepare_consumer
+
+        plan = CapabilityPlan.model_validate(
+            {
+                **plan.model_dump(),
+                "obligations": [
+                    {
+                        "id": "authored-retained-profile",
+                        "source_id": sources[0]["id"],
+                        "source_sha256": sources[0]["sha256"],
+                        "assertion": "Authored fixture profile title is physically retained before restart replay",
+                        "scenario_id": "private_records",
+                        "physical": {
+                            "table": "entries",
+                            "key": {"id": "${entry}"},
+                            "values": {"title": "持久化资料-${nonce}"},
+                        },
+                    }
+                ],
+            }
+        )
+        # This is an authored verifier fixture, never a model-produced product
+        # or a declaration that all clauses of GOAL have been completed.
+        shutil.copyfile(ROOT / "templates/product/start.py", product / "start.py")
+        write_json(product / "selection.json", plan.selection.model_dump())
+        prepare_consumer(product, plan)
+    return plan
+
+
+def require_atomic_consumer_evidence(product, plan, proof):
+    from workbench.capability_consumer import require_consumer_evidence
+    from workbench.capability_obligations import require_obligation_evidence
+
+    if not plan.obligations:
+        raise CheckFailure("Live authored acceptance must exercise pre-replay physical retention")
+    require_obligation_evidence(plan, proof, aggregate=True)
+    require_consumer_evidence(product, plan, proof)
 
 
 def require_profile_evidence(proof, **bindings):
@@ -117,7 +157,7 @@ def main():
     record = require_profile(HOME, settings.daytona_snapshot)
     with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
         product = Path(directory) / "product"
-        plan = fixed_application(product)
+        plan = fixed_application(product, atomic_consumer=True)
         selected = plan.selection.model_dump()
         validate_configuration(settings, selected["template"], selected)
         client = client_for(settings)
@@ -144,6 +184,7 @@ def main():
                 database_tables=plan.runtime.database_tables,
                 aggregate=True,
             )
+            require_atomic_consumer_evidence(product, plan, proof)
             summary["passed"] = True
         finally:
             try:

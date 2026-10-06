@@ -15,17 +15,17 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_verify`（L397–L973）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L433按`trusted_oracle not in (None, "contest-business-v2")`分支；L434抛异常，停止当前正常路径；L435按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L438抛异常，停止当前正常路径；L441按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L445抛异常，停止当前正常路径；L446按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L451抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L973的`receipt`。
-- `_verify.start`（L591–L742）：接收`command`、`port`、`health_path`。 控制顺序：L595按`target["role"] == "backend"`分支；L626按`not response.cmd_id`分支；L627抛异常，停止当前正常路径；L630按`not isinstance(preview.token, str) or not preview.token`分支；L631抛异常，停止当前正常路径；L643在`time.monotonic() < deadline`成立时循环；L647按`200 <= check.status_code < 300`分支；L648按`target["role"] == "backend"`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L650的`http, url, preview.token`。
-- `main`（L976–L1021）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L978按`len(body) > 1_000_000`分支；L979抛异常，停止当前正常路径；L988按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L994抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L397–L1012）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L433按`trusted_oracle not in (None, "contest-business-v2")`分支；L434抛异常，停止当前正常路径；L435按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L438抛异常，停止当前正常路径；L441按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L445抛异常，停止当前正常路径；L446按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L451抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1012的`receipt`。
+- `_verify.start`（L604–L759）：接收`command`、`port`、`health_path`。 控制顺序：L608按`consumer and target["role"] == "backend"`分支；L612按`target["role"] == "backend"`分支；L643按`not response.cmd_id`分支；L644抛异常，停止当前正常路径；L647按`not isinstance(preview.token, str) or not preview.token`分支；L648抛异常，停止当前正常路径；L660在`time.monotonic() < deadline`成立时循环；L664按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L667的`http, url, preview.token`。
+- `main`（L1015–L1060）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1017按`len(body) > 1_000_000`分支；L1018抛异常，停止当前正常路径；L1027按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1033抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L397–L1025。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L397–L1064。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28913`。本段原文以LF换行结束。
+本段原始字节数：`30680`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "aa123a2e3967006ef2ce8a079a5bf4dc3b054f66f9f4c2b970a698dd47920b97"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "902a3ded6a9133a2a50898d5669b298815b83835ac1ac568c0f99d87b6135a54"} -->
 ````python
 # workbench/capability_sandbox.py
 def _verify(
@@ -84,6 +84,10 @@ def _verify(
     ):
         raise CheckFailure("只读依赖镜像profile没有绑定当前技术栈")
     require_dependency_descriptors(product, plan, profile_record)
+    from workbench.capability_consumer import inspect_consumer
+    from workbench.capability_obligations import run_obligation_checks
+
+    consumer = inspect_consumer(product, plan)
     commands = readonly_prepare_commands(plan)
     readonly_start_command(plan)
     dependency_profile = profile_record["snapshot"]["dependency_manifest"]
@@ -101,10 +105,19 @@ def _verify(
         "credentials_uploaded": False,
         "scope": "aggregate" if aggregate else "node",
         "checks": [],
+        "obligation_checks": [],
         "sandbox_name": name,
         "cleanup": "not-created",
         "restarted": False,
         "stack": inspect_stack(product, plan),
+        "consumer": {
+            "contract": consumer,
+            "contract_sha256": digest(consumer) if consumer else None,
+            "entrypoint": "start.py" if consumer else None,
+            "cold_start": False,
+            "restart": False,
+            "existing_schema_migration": "unverified",
+        },
     }
     write_json(receipt_path, receipt)
     sandbox = None
@@ -226,6 +239,10 @@ def _verify(
             from workbench.capability_startup_paths import startup_target
 
             command, target = startup_target(plan, command, port, health_path)
+            if consumer and target["role"] == "backend":
+                from workbench.capability_consumer import consumer_start_command
+
+                command = consumer_start_command(plan)
             if target["role"] == "backend":
                 receipt["backend_health_observed"] = False
             require_preinstalled_evidence(
@@ -429,6 +446,11 @@ def _verify(
             receipt["browser_image"] = settings.capability_browser_image
         else:
             receipt["browser"] = run_browser(url, token, scenarios, saved, settings.tool_timeout)
+        receipt["obligation_checks"].extend(
+            run_obligation_checks(
+                sandbox, plan, scenarios, saved, settings.tool_timeout, phase="initial"
+            )
+        )
         counts = database_counts(sandbox, plan, settings.tool_timeout)
         if not any(counts[name] > baseline_counts[name] for name in counts):
             raise CheckFailure(
@@ -440,6 +462,8 @@ def _verify(
             "after": counts,
             "observed_writes": True,
         }
+        if consumer:
+            receipt["consumer"]["cold_start"] = True
         if aggregate:
             if security_probe is not None:
                 restart_application_identity(
@@ -489,6 +513,15 @@ def _verify(
                 )
             http, _, _ = start()
             with closing(http):
+                if plan.obligations:
+                    # Observe retained rows in the same restarted application
+                    # generation before any request can reconstruct them. The
+                    # trusted probe quiesces and resumes writers itself.
+                    receipt["obligation_checks"].extend(
+                        run_obligation_checks(
+                            sandbox, plan, scenarios, saved, settings.tool_timeout, phase="restart"
+                        )
+                    )
                 if native:
                     frontend_http, _, _ = start(frontend_start_command(), FRONTEND_PORT, "/")
                     frontend_http.close()
@@ -509,6 +542,8 @@ def _verify(
             if any(restarted[name] < counts[name] for name in counts):
                 raise CheckFailure("独立数据库重启后丢失已写入的记录")
             receipt["database"]["after_restart"] = restarted
+            if consumer:
+                receipt["consumer"]["restart"] = True
             if trusted_oracle:
                 from workbench.capability_stack import recreate_owned_native_database
 
@@ -562,6 +597,10 @@ def _verify(
         )
         if manifest(product) != before:
             raise CheckFailure("隔离验收期间宿主源码发生变化")
+        if aggregate:
+            from workbench.capability_obligations import require_obligation_evidence
+
+            require_obligation_evidence(plan, receipt, aggregate=True)
         receipt["passed"] = True
     except IsolationUnavailable as exc:
         receipt.update(kind="isolation_environment", error=str(exc))
