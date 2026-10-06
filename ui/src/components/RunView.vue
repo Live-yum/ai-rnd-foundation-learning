@@ -90,6 +90,11 @@ const canSubmit = computed(
   () => state.online && state.authenticated && !submitting.value && !state.stale,
 )
 const modelReady = computed(() => !!state.settings?.ready)
+const modelFreeApproval = computed(() =>
+  ['extension_scope', 'extension_delivery'].includes(gate.value?.stage || ''),
+)
+const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
+const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
 const isQuestions = computed(() => gate.value?.actions.includes('answer'))
 const stepEvents = computed(() =>
   state.events.filter((e) => e.kind === 'stage' || e.kind === 'step'),
@@ -107,13 +112,18 @@ const gateTitle = computed(() =>
     ? '先对齐需求，再往前走'
     : ['design', 'extension_design'].includes(gate.value?.stage || '')
       ? '把方案摊开，一起检查'
-      : ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
-        ? '先看验证证据，再确认交付'
-        : '一起把需求说清楚',
+      : gate.value?.stage === 'extension_scope'
+        ? partialScope.value
+          ? '明确部分成果和仍未完成的范围'
+          : '核对验收范围再准备交付'
+        : ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
+          ? '先看验证证据，再确认交付'
+          : '一起把需求说清楚',
 )
 function designData(key: string) {
   const d = gate.value?.data || {}
   const plan = d.extension?.baseline || d.plan || {}
+  if (key === 'atomic') return { source_units: d.source_units, atomic_review: d.atomic_review }
   if (key === 'data') return plan.entities || plan
   if (key === 'tasks') return d.extension?.implementation?.tasks || d.tasks || {}
   if (key === 'interfaces')
@@ -141,17 +151,21 @@ const evidence = computed(
   () => state.report['verification.json'] || state.report['daytona-verification.json'],
 )
 const delivery = computed(() =>
-  ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
+  ['delivery', 'extension_scope', 'extension_delivery'].includes(gate.value?.stage || '')
     ? gate.value?.data
     : state.report['delivery.json'] || run.value?.result || {},
 )
 const extensionCoverageNotice = computed(() => {
+  if (delivery.value?.delivery_kind === 'partial')
+    return '本次仅交付明确批准的部分成果。完整原始需求、外部服务和未验证迁移仍保留，下载不代表这些义务已完成。'
   const level =
     delivery.value?.coverage_level || state.report['extension-coverage.json']?.coverage_level
   if (level === 'reviewed-executable-contract')
     return '仅证明已审阅可执行合同通过运行验收，不代表全部原始需求的语义均已证明。请对照原始来源与验收合同查看覆盖范围。'
   if (level === 'bounded-business-slice')
-    return '仅完成独立业务切片验收；完整原始需求与外部服务义务仍有未完成项，不能交付。'
+    return '仅完成独立业务切片验收；完整原始需求与外部服务义务仍有未完成项，未经明确部分范围批准不能交付。'
+  if (level === 'operator-reviewed-atomic-contracts')
+    return '通过的是人工明确审阅的原子业务合同及独立物理读回，不保证任意自然语言需求的语义完整性。'
   return ''
 })
 const eventsReversed = computed(() =>
@@ -209,7 +223,12 @@ function eventSummary(event: any) {
 }
 async function decide(action: string, text = '', answers?: any[]) {
   if (!gate.value || !canSubmit.value || !canAct(run.value, action)) return
-  if (!modelReady.value && action !== 'reject') return
+  if (
+    !modelReady.value &&
+    action !== 'reject' &&
+    !(action === 'approve' && modelFreeApproval.value)
+  )
+    return
   if (action === 'approve' && !reviewed.value) return
   const current = structuredClone(JSON.parse(JSON.stringify(gate.value))),
     body = gatePayload(current, action, text, answers),
@@ -261,7 +280,13 @@ function reject() {
   })
 }
 async function retry() {
-  if (submitting.value || !state.online || !modelReady.value || gate.value) return
+  if (
+    submitting.value ||
+    !state.online ||
+    (!modelReady.value && !run.value?.model_free_retry) ||
+    gate.value
+  )
+    return
   submitting.value = true
   const targetId = props.runId,
     targetHash = location.hash,
@@ -398,7 +423,7 @@ function reread() {
         ><template #action><a-button @click="reread">查看最新版本</a-button></template></a-alert
       >
     </div>
-    <div v-if="!modelReady" class="run-notice">
+    <div v-if="!modelReady && !modelFreeApproval && !run.model_free_retry" class="run-notice">
       <a-alert
         type="warning"
         show-icon
@@ -434,7 +459,7 @@ function reread() {
             v-if="!gate"
             type="primary"
             :loading="submitting"
-            :disabled="!state.online || !modelReady"
+            :disabled="!state.online || (!modelReady && !run.model_free_retry)"
             @click="retry"
             ><ReloadOutlined aria-hidden="true" />重试当前运行</a-button
           ><a-button v-else @click="route('conversation')">处理当前关卡</a-button
@@ -560,7 +585,11 @@ function reread() {
             <a-button
               type="primary"
               size="large"
-              @click="route(gate.stage === 'delivery' ? 'delivery' : 'review')"
+              @click="
+                route(
+                  ['delivery', 'extension_delivery'].includes(gate.stage) ? 'delivery' : 'review',
+                )
+              "
               ><ArrowRightOutlined aria-hidden="true" />查看并审核当前版本</a-button
             >
           </section>
@@ -737,6 +766,42 @@ function reread() {
             show-icon
             message="本次批准绑定原始来源和独立验收合同。请审阅业务正例、负例、权限及重启读回；源码节点不能更改已批准的验收标准。来源ID覆盖不等于业务完成。"
           />
+          <section
+            v-if="
+              gate.stage === 'extension_design' && gate.data?.atomic_review?.obligations?.length
+            "
+            class="atomic-source-review"
+          >
+            <a-alert
+              type="warning"
+              show-icon
+              message="请逐条核对原文、原子断言和完整来源声明。批准表示你已确认这些断言与对应原文相关，且被声明完整的来源已穷尽分解；模型和自动模式不能替你确认。"
+            />
+            <DataDocument :data="designData('atomic')" />
+          </section>
+          <a-alert
+            v-if="gate.stage === 'extension_scope'"
+            type="warning"
+            show-icon
+            :message="
+              partialScope
+                ? '此批准仅允许交付当前明确范围的部分成果，不关闭未完成来源、外部服务或迁移义务。'
+                : '此批准绑定已审阅的原子合同与当前独立验收证据，不扩大为任意自然语言语义保证。'
+            "
+          />
+          <section
+            v-if="gate.stage === 'extension_scope' && gate.data?.review_conflicts?.length"
+            class="scope-review-conflicts"
+          >
+            <a-alert
+              type="warning"
+              show-icon
+              message="复核提出的遗漏仍需核实，原文完整性声明已重新打开；批准只接受部分成果。"
+            />
+            <ul>
+              <li v-for="(item, index) in gate.data.review_conflicts" :key="index">{{ item }}</li>
+            </ul>
+          </section>
           <a-tabs
             v-if="['design', 'extension_design'].includes(gate.stage)"
             v-model:active-key="tab"
@@ -766,12 +831,20 @@ function reread() {
           <div class="panel approval-panel">
             <a-tag color="gold"
               >等待{{
-                ['design', 'extension_design'].includes(gate.stage) ? '设计' : '需求'
+                gate.stage === 'extension_scope'
+                  ? scopeLabel
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '设计'
+                    : '需求'
               }}确认</a-tag
             >
             <h2>
               这份{{
-                ['design', 'extension_design'].includes(gate.stage) ? '方案' : '需求'
+                gate.stage === 'extension_scope'
+                  ? scopeLabel
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '方案'
+                    : '需求'
               }}符合预期吗？
             </h2>
             <p>确认后继续串行流程。需要修改时，将带着意见返回需求分析。</p>
@@ -788,7 +861,16 @@ function reread() {
               v-if="canAct(run, 'approve')"
               v-model:checked="reviewed"
               :disabled="!canSubmit"
-              >我已阅读并核对当前版本</a-checkbox
+              >{{
+                gate.stage === 'extension_scope'
+                  ? partialScope
+                    ? '我接受当前部分成果，保留全部未完成义务'
+                    : '我已核对当前已审阅合同及交付证据'
+                  : gate.stage === 'extension_design' &&
+                      gate.data?.atomic_review?.obligations?.length
+                    ? '我已核对原文相关性和完整来源的穷尽分解'
+                    : '我已阅读并核对当前版本'
+              }}</a-checkbox
             ><a-textarea
               v-if="canAct(run, 'revise')"
               v-model:value="answer"
@@ -803,12 +885,21 @@ function reread() {
               size="large"
               block
               :loading="submitting"
-              :disabled="!canSubmit || !modelReady || !canAct(run, 'approve') || !reviewed"
+              :disabled="
+                !canSubmit ||
+                (!modelReady && !modelFreeApproval) ||
+                !canAct(run, 'approve') ||
+                !reviewed
+              "
               @click="decide('approve')"
               >{{
-                ['design', 'extension_design'].includes(gate.stage)
-                  ? '确认设计，开始生成'
-                  : '确认需求，生成计划'
+                gate.stage === 'extension_scope'
+                  ? partialScope
+                    ? '确认部分范围，准备交付包'
+                    : '确认范围，准备交付包'
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '确认设计，开始生成'
+                    : '确认需求，生成计划'
               }}</a-button
             >
             <div class="approval-secondary">
@@ -957,7 +1048,9 @@ function reread() {
           run.status === 'READY'
             ? '运行级验收与交付确认已完成'
             : run.status === 'SOURCE_READY'
-              ? '源码级交付已确认，运行验收尚未证明'
+              ? delivery?.delivery_kind === 'partial'
+                ? '部分成果交付已确认，完整需求仍未完成'
+                : '源码级交付已确认，运行验收尚未证明'
               : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
                 ? '验证结果已保存，等待你的交付确认'
                 : '本轮尚未进入交付确认'
@@ -992,7 +1085,9 @@ function reread() {
               :loading="submitting"
               :disabled="!downloadable || !state.online"
               @click="download"
-              ><DownloadOutlined aria-hidden="true" />下载完整交付包</a-button
+              ><DownloadOutlined aria-hidden="true" />{{
+                delivery?.delivery_kind === 'partial' ? '下载部分成果包' : '下载完整交付包'
+              }}</a-button
             >
           </div>
         </section>
@@ -1024,11 +1119,14 @@ function reread() {
           </div>
           <div class="definition">
             <h3>SOURCE_READY · 源码级交付</h3>
-            <p>只证明源码包已交付，不代表已经可运行</p>
+            <p>源码级或明确批准的部分成果；查看覆盖报告，不代表完整需求完成或任意环境可运行</p>
           </div>
         </div>
       </section>
-      <section v-if="gate?.stage === 'delivery'" class="info-callout delivery-approval">
+      <section
+        v-if="['delivery', 'extension_delivery'].includes(gate?.stage || '')"
+        class="info-callout delivery-approval"
+      >
         <div>
           <h2>你确认这份交付结果吗？</h2>
           <p>批准时校对版本与交付内容摘要；内容变化会要求重新审核。</p>
@@ -1042,7 +1140,12 @@ function reread() {
             type="primary"
             size="large"
             :loading="submitting"
-            :disabled="!canSubmit || !modelReady || !reviewed || !canAct(run, 'approve')"
+            :disabled="
+              !canSubmit ||
+              (!modelReady && !modelFreeApproval) ||
+              !reviewed ||
+              !canAct(run, 'approve')
+            "
             @click="decide('approve')"
             >确认交付并开放下载</a-button
           >

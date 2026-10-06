@@ -21,7 +21,7 @@ from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.local_only import local_database_url
 from workbench.recommendation import blocked_report
-from workbench.store import Conflict
+from workbench.store import MODEL_FREE_APPROVAL_STAGES, Conflict
 from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
@@ -109,8 +109,9 @@ class Runtime:
     def tick(self):
         # First-run settings must not execute model work. Existing gate rejection
         # remains available even after credentials are removed or become invalid.
-        if self.requires_model_configuration and not self.settings.models_ready():
-            job = self.store.claim(only_rejections=True)
+        models_missing = self.requires_model_configuration and not self.settings.models_ready()
+        if models_missing:
+            job = self.store.claim(only_rejections=True, include_model_free=True)
         else:
             job = self.store.claim()
         if job is None:
@@ -121,6 +122,29 @@ class Runtime:
         try:
             snapshot = self.graph.get_state(config)
             waiting = pending_interrupt(snapshot)
+            if models_missing and payload["action"] != "reject":
+                model_free_wait = (
+                    payload["action"] == "approve"
+                    and waiting
+                    and waiting.get("stage") in MODEL_FREE_APPROVAL_STAGES
+                    and waiting.get("gate_id") == payload.get("gate_id")
+                )
+                model_free_resume = (
+                    snapshot.values
+                    and snapshot.next
+                    and not waiting
+                    and set(snapshot.next) <= {"extension_package", "extension_delivery"}
+                    and snapshot.values.get("last_job_id")
+                    in {job["id"], payload.get("resume_from_job_id")}
+                    and snapshot.values.get("last_job_id") is not None
+                )
+                completed_replay = (
+                    snapshot.values
+                    and not snapshot.next
+                    and snapshot.values.get("last_job_id") == job["id"]
+                )
+                if not (model_free_wait or model_free_resume or completed_replay):
+                    raise Conflict("无模型恢复仅支持已保存的准确交付范围或交付审批，不执行规划编码")
             if snapshot.values and snapshot.next and not waiting:
                 # An older worker may already have auto-approved a narrowed
                 # interpretation before failing downstream. Recover the original

@@ -1,5 +1,6 @@
 """Reviewed source tasks and executable checks, separate from template CRUD schemas."""
 
+import math
 import re
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
@@ -77,7 +78,7 @@ def source_path(value):
         or set(p.parts) & EXCLUDED_DIRS
         or secret_name(value)
         or p.parts[0] in {".github", ".agents", ".codex"}
-        or p.name in {"RND-CANDIDATE.json", "RND-DELIVERY.json"}
+        or p.name in {"RND-CANDIDATE.json", "RND-DELIVERY.json", "RND-CONSUMER.json"}
     ):
         raise ValueError("只允许产品内的普通源码路径；不允许秘密、环境、工具或平台控制目录")
     return value
@@ -153,6 +154,13 @@ class HttpStep(Contract):
     equals: dict[str, JsonValue] = Field(default_factory=dict, max_length=40)
     absent: list[str] = Field(default_factory=list, max_length=40)
     captures: dict[Identifier, str] = Field(default_factory=dict, max_length=12)
+
+    @field_validator("captures")
+    @classmethod
+    def controller_challenge_is_immutable(cls, value):
+        if "nonce" in value:
+            raise ValueError("nonce由控制器生成，应用响应不能替换独立随机挑战")
+        return value
 
     @field_validator("path")
     @classmethod
@@ -296,6 +304,41 @@ class CapabilityTask(Contract):
         return values
 
 
+class PhysicalAssertion(Contract):
+    """Reviewed data-only query; never candidate SQL or an application snapshot."""
+
+    table: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
+    key: dict[str, JsonValue] = Field(min_length=1, max_length=12)
+    values: dict[str, JsonValue] = Field(min_length=1, max_length=12)
+
+    @field_validator("key", "values")
+    @classmethod
+    def scalar_columns(cls, values):
+        for key, value in values.items():
+            if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", key) or type(value) not in {
+                str,
+                int,
+                float,
+            }:
+                raise ValueError("物理断言只允许明确列名与SQLite存储标量；布尔值须用0/1")
+            if isinstance(value, str) and len(value) > 4096:
+                raise ValueError("物理断言值超过预算")
+            if type(value) is float and not math.isfinite(value):
+                raise ValueError("物理断言只允许有限数值")
+        return values
+
+
+class BusinessObligation(Contract):
+    """A proposed atomic assertion needs explicit source/decomposition review."""
+
+    id: Identifier
+    source_id: Identifier
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    assertion: str = Field(min_length=1, max_length=2000)
+    scenario_id: Identifier
+    physical: PhysicalAssertion
+
+
 class CapabilityPlan(Contract):
     title: str = Field(min_length=1, max_length=200)
     summary: str = Field(min_length=1, max_length=4000)
@@ -305,6 +348,10 @@ class CapabilityPlan(Contract):
     runtime: RuntimeContract
     scenarios: list[AcceptanceScenario] = Field(min_length=1, max_length=128)
     prerequisites: list[ExternalPrerequisite] = Field(default_factory=list, max_length=32)
+    obligations: list[BusinessObligation] = Field(default_factory=list, max_length=128)
+    # A proposal, never a model verdict. The operator must explicitly review
+    # whether these atomic checks exhaust each exact original source unit.
+    complete_source_ids: list[Identifier] = Field(default_factory=list, max_length=256)
 
     @model_validator(mode="after")
     def dependency_contract(self):
@@ -314,6 +361,60 @@ class CapabilityPlan(Contract):
             raise ValueError("节点和验收场景ID必须唯一")
         if len({p.id for p in self.prerequisites}) != len(self.prerequisites):
             raise ValueError("外部前提ID必须唯一")
+        if len({o.id for o in self.obligations}) != len(self.obligations) or len(
+            set(self.complete_source_ids)
+        ) != len(self.complete_source_ids):
+            raise ValueError("业务义务及完整来源声明不能重复")
+        if self.obligations and self.selection.database != "sqlite":
+            raise ValueError("声明式物理义务目前仅支持SQLite；原生PostgreSQL须使用登记的独立oracle")
+        for obligation in self.obligations:
+            scenario = scenarios.get(obligation.scenario_id)
+            if scenario is None or obligation.source_id not in scenario.requirements:
+                raise ValueError("业务义务必须绑定同一来源的明确场景")
+            if obligation.physical.table not in self.runtime.database_tables:
+                raise ValueError("业务义务物理表必须属于已批准数据库清单")
+            if scenario.evidence != "runtime" or not scenario.after_restart:
+                raise ValueError("业务义务需要真实初始和重启场景，替身不能关闭义务")
+            bound_variables = {"nonce"} | {
+                name
+                for value in [
+                    *obligation.physical.key.values(),
+                    *obligation.physical.values.values(),
+                ]
+                if isinstance(value, str)
+                for name in re.findall(r"\$\{([a-z][a-z0-9_-]*)\}", value)
+            }
+            if any(bound_variables & step.captures.keys() for step in scenario.after_restart):
+                raise ValueError("重启场景不能重绑物理义务的记录键或期望值变量")
+            nonces = {
+                value
+                for value in obligation.physical.values.values()
+                if isinstance(value, str) and "${nonce}" in value
+            }
+            if not nonces or not all(
+                any(
+                    step.method != "GET"
+                    and 200 <= step.status < 300
+                    and isinstance(step.body, dict)
+                    and value in step.body.values()
+                    and value in step.equals.values()
+                    for step in scenario.steps
+                )
+                and any(
+                    step.method == "GET"
+                    and 200 <= step.status < 300
+                    and value in step.equals.values()
+                    for step in scenario.steps
+                )
+                and any(
+                    step.method == "GET" and value in step.equals.values()
+                    for step in scenario.after_restart
+                )
+                for value in nonces
+            ):
+                raise ValueError("业务义务必须独立读回同次随机业务值，不能用固定响应或无关写入")
+        if not set(self.complete_source_ids) <= {o.source_id for o in self.obligations}:
+            raise ValueError("完整来源声明必须有明确原子业务义务")
         ancestors = {}
 
         def visit(identifier, stack):
@@ -402,6 +503,14 @@ def coverage_errors(plan, sources):
         errors.append("未覆盖原始来源：" + ", ".join(sorted(expected - covered)))
     if all_refs - expected:
         errors.append("引用不存在的来源：" + ", ".join(sorted(all_refs - expected)))
+    originals = {source["id"]: source for source in sources}
+    for obligation in plan.obligations:
+        if obligation.source_id not in originals or (
+            obligation.source_sha256 != originals[obligation.source_id]["sha256"]
+        ):
+            errors.append("原子业务义务没有绑定准确原始来源：" + obligation.id)
+    if set(plan.complete_source_ids) - expected:
+        errors.append("完整来源声明引用了不存在的原文")
     services = {p.id for p in plan.prerequisites}
     if any(s.external_service and s.external_service not in services for s in plan.scenarios):
         errors.append("外部替身引用未声明服务")

@@ -207,12 +207,14 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def resume(
         run_id: str, body: ResumeInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
-        if body.action != "reject":
+        if body.action != "reject" and not store.is_model_free_approval(run_id, body.model_dump()):
             require_models()
         return store.submit(run_id, body.model_dump(), idempotency_key)
 
     @app.post("/runs/{run_id}/retry", status_code=202)
     def retry(run_id: str, idempotency_key: str = Header(), store=Depends(auth)):
+        if store.is_model_free_retry(run_id, idempotency_key):
+            return store.retry(run_id, idempotency_key, require_model_free=True)
         require_models()
         return store.retry(run_id, idempotency_key)
 
@@ -239,6 +241,7 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "extension-scope.json",
             "extension-acceptance.json",
             "extension-review.json",
+            "extension-readiness.json",
         ):
             path = inside(directory, name)
             if path.is_file():

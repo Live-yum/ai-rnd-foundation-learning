@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L281。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L466。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10248`。本段原文以LF换行结束。
+本段原始字节数：`17247`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b8210241a8e93c2382fe6474d90abeea889b572480e55b1da510fefc9366761"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ff31d57cd902af8b60d26d14ff08e76585e426ba6034615a925797dd456fce27"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -23,6 +23,7 @@ import Antd from 'ant-design-vue'
 import { state } from '../src/state'
 import { api } from '../src/api'
 import RunView from '../src/components/RunView.vue'
+import { activeStage, statusLabel } from '../src/presentation'
 
 vi.mock('../src/api', async (original) => ({
   ...(await original<any>()),
@@ -296,6 +297,190 @@ it('keeps bounded contest evidence explicitly incomplete and download locked', (
     .findAll('button')
     .find((button) => button.text().includes('下载完整交付包'))
   expect(download?.attributes('disabled')).toBeDefined()
+  wrapper.unmount()
+})
+
+it('shows exact source and atomic completeness meaning before design approval', () => {
+  state.run!.status = 'WAITING_EXTENSION_DESIGN'
+  state.run!.pending = {
+    ...state.run!.pending!,
+    stage: 'extension_design',
+    can_approve: true,
+    actions: ['approve', 'reject'],
+    data: {
+      extension: { baseline: { title: '原子合同' }, implementation: {} },
+      source_units: [{ id: 'source-0-0', text: '库存不得超卖，过期订单必须释放占用。' }],
+      atomic_review: {
+        obligations: [{ assertion: '并发占用不得大于真实库存', source_id: 'source-0-0' }],
+        complete_source_ids: ['source-0-0'],
+      },
+      requires_explicit_review: true,
+    },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'review' },
+    global: { plugins: [Antd] },
+  })
+  const visible = wrapper.find('.atomic-source-review').text()
+  expect(visible).toContain('库存不得超卖，过期订单必须释放占用。')
+  expect(visible).toContain('并发占用不得大于真实库存')
+  expect(visible).toContain('穷尽分解')
+  expect(wrapper.text()).toContain('我已核对原文相关性和完整来源的穷尽分解')
+  wrapper.unmount()
+})
+
+it('names partial scope approval correctly and keeps remaining obligations visible', () => {
+  state.run!.status = 'WAITING_EXTENSION_SCOPE'
+  state.run!.pending = {
+    ...state.run!.pending!,
+    stage: 'extension_scope',
+    can_approve: true,
+    actions: ['approve', 'reject'],
+    data: {
+      delivery_kind: 'partial',
+      full_request_complete: false,
+      unverified_prerequisites: [{ description: '真实邮件服务仍未验证' }],
+      review_conflicts: ['原先声明完成的容量规则仍有未验证子句'],
+      requires_explicit_review: true,
+    },
+  }
+  expect(statusLabel(state.run!.status)).toBe('等待交付范围确认')
+  expect(activeStage(state.run, [])).toBe(5)
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'review' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.text()).toContain('真实邮件服务仍未验证')
+  expect(wrapper.find('.scope-review-conflicts').text()).toContain(
+    '原先声明完成的容量规则仍有未验证子句',
+  )
+  expect(wrapper.text()).toContain('原文完整性声明已重新打开')
+  expect(wrapper.text()).toContain('确认部分范围，准备交付包')
+  expect(wrapper.text()).toContain('我接受当前部分成果，保留全部未完成义务')
+  expect(wrapper.text()).not.toContain('确认需求，生成计划')
+  wrapper.unmount()
+})
+
+it('labels an approved partial package without claiming complete delivery', () => {
+  state.run!.status = 'SOURCE_READY'
+  state.run!.pending = null
+  state.run!.result = {
+    delivery_kind: 'partial',
+    coverage_level: 'bounded-business-slice',
+    full_request_complete: false,
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'delivery' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.find('.coverage-notice').text()).toContain('仅交付明确批准的部分成果')
+  expect(wrapper.find('.coverage-notice').text()).not.toContain('不能交付')
+  expect(wrapper.text()).toContain('下载部分成果包')
+  wrapper.unmount()
+})
+
+it('keeps full reviewed-contract scope distinct from partial delivery', () => {
+  state.run!.status = 'WAITING_EXTENSION_SCOPE'
+  state.run!.pending = {
+    ...state.run!.pending!,
+    stage: 'extension_scope',
+    can_approve: true,
+    actions: ['approve', 'reject'],
+    data: { delivery_kind: 'reviewed-contract', full_request_complete: true },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'review' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.text()).toContain('确认范围，准备交付包')
+  expect(wrapper.text()).toContain('我已核对当前已审阅合同及交付证据')
+  expect(wrapper.text()).not.toContain('我接受当前部分成果')
+  wrapper.unmount()
+})
+
+it.each(['extension_scope', 'extension_delivery'])(
+  'permits exact %s approval after model configuration is removed',
+  async (stage) => {
+    state.settings = { ready: false } as any
+    state.run!.status = 'WAITING_' + stage.toUpperCase()
+    state.run!.pending = {
+      ...state.run!.pending!,
+      stage,
+      can_approve: true,
+      actions: ['approve', 'reject'],
+      data: { delivery_kind: 'partial', full_request_complete: false },
+    }
+    const wrapper = mount(RunView, {
+      props: { runId: 'saved-run', view: stage === 'extension_scope' ? 'review' : 'delivery' },
+      global: { plugins: [Antd] },
+    })
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    const approve = wrapper
+      .findAll('button')
+      .find((button) =>
+        stage === 'extension_scope'
+          ? button.text().includes('确认部分范围')
+          : button.text().includes('确认交付'),
+      )!
+    expect(approve).toBeDefined()
+    expect(approve.attributes('disabled')).toBeUndefined()
+    await approve.trigger('click')
+    expect(api).toHaveBeenCalledWith(
+      '/runs/saved-run/resume',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          action: 'approve',
+          approved: true,
+          gate_id: 'a'.repeat(64),
+        }),
+      }),
+    )
+    wrapper.unmount()
+  },
+)
+
+it('routes normal extension-delivery navigation to the final approval screen', async () => {
+  state.run!.status = 'WAITING_EXTENSION_DELIVERY'
+  state.run!.pending = {
+    ...state.run!.pending!,
+    stage: 'extension_delivery',
+    can_approve: true,
+    actions: ['approve', 'reject'],
+    data: { delivery_kind: 'partial' },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'conversation' },
+    global: { plugins: [Antd] },
+  })
+  const open = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('查看并审核当前版本'))!
+  await open.trigger('click')
+  expect(wrapper.emitted('navigate')).toContainEqual(['run/saved-run/delivery'])
+  wrapper.unmount()
+})
+
+it('allows only server-marked retained packaging retries without model settings', async () => {
+  state.settings = { ready: false } as any
+  state.run!.status = 'FAILED'
+  state.run!.pending = null
+  state.run!.model_free_retry = true
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'conversation' },
+    global: { plugins: [Antd] },
+  })
+  const retry = wrapper.findAll('button').find((button) => button.text().includes('重试当前运行'))!
+  expect(retry.attributes('disabled')).toBeUndefined()
+  state.run!.model_free_retry = false
+  await wrapper.vm.$nextTick()
+  expect(retry.attributes('disabled')).toBeDefined()
+  state.run!.model_free_retry = true
+  await wrapper.vm.$nextTick()
+  await retry.trigger('click')
+  expect(api).toHaveBeenCalledWith(
+    '/runs/saved-run/retry',
+    expect.objectContaining({ method: 'POST' }),
+  )
   wrapper.unmount()
 })
 ````

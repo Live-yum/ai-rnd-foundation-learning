@@ -405,6 +405,7 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     )
     events = []
     plan = complete_native_plan()
+    plan.obligations = []  # Authored native diagnostic fixture, not atomic SQLite acceptance.
     clock = iter((0, plan.runtime.startup_seconds + 1))
     client = SimpleNamespace(close=lambda: events.append("closed"))
 
@@ -440,6 +441,7 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     )
     scope = {
         "readonly_start_command": readonly_start_command,
+        "consumer": None,  # Native/legacy diagnostic fixture has no consumer launcher contract.
         "require_preinstalled_evidence": lambda *a, **k: None,
         "verify_readonly_dependencies": lambda *a, **k: {},
         "dependency_profile": {},
@@ -499,6 +501,7 @@ def test_startup_target_binds_registered_original_command(role):
     from workbench.capability_native_runtime import frontend_start_command
 
     plan = complete_native_plan()
+    plan.obligations = []  # Authored native diagnostic fixture, not atomic SQLite acceptance.
     original = frontend_start_command() if role == "frontend" else plan.runtime.start
     command, target = diagnostic.startup_target(plan, original)
     assert target == {
@@ -726,6 +729,7 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         body = [outer.body[first], *parent.body[begin : finish + 1]]
     tested = ast.Try(body=body, handlers=[], orelse=[], finalbody=outer.finalbody)
     plan = complete_native_plan()
+    plan.obligations = []  # Authored native diagnostic fixture, not atomic SQLite acceptance.
     plan.runtime.health_path = "/private-health-sentinel"
     events, sessions, outputs = [], {}, {}
     moments = iter(
@@ -830,6 +834,7 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "startup_failure_diagnostic": startup_failure_diagnostic,
         "startup_command_exit_facts": startup_command_exit_facts,
         "native": True,
+        "consumer": None,  # This authored native diagnostic fixture retains its native launcher.
         "FRONTEND_PORT": FRONTEND_PORT,
         "frontend_start_command": frontend_start_command,
         "CheckFailure": CheckFailure,

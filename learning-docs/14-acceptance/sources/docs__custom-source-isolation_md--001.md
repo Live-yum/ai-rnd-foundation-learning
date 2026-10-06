@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L333。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L338。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`27044`。本段原文以LF换行结束。
+本段原始字节数：`27485`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8aa6e336846eb50b9bc2136988bf9e1542a87d5e8ca1f2c919d01748a760ec7"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "33d95b84a984df3808be1f14ba9f4530f5eae621318de73f0e0df3ca51d98933"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -324,10 +324,13 @@ source editing cannot alter either. Generic contracts must have linked successfu
 business writes/reads, concrete non-envelope values, denied permission operations,
 invalid/conflicting business input and successful same-resource/value reads after
 restart. These structural checks reject health-only acceptance but cannot establish
-all meanings of arbitrary natural language. Generic delivery therefore reports
-`coverage_level=reviewed-executable-contract`, `full_request_complete=null` and the
-original source units plus approved acceptance digest. The UI explicitly explains
-that boundary instead of claiming complete semantic coverage.
+all meanings of arbitrary natural language. Generic contracts therefore retain
+every exact source as open and report `full_request_complete=false`. A separately
+reviewed atomic contract may close precisely reviewed source units only after its
+independent physical assertions and restart evidence pass. Otherwise a separate,
+explicit scope approval can authorize an honestly labeled partial package. The
+original sources, uncompleted obligations and approved acceptance digest remain
+visible in the UI and ZIP. See [the acceptance lifecycle](extension-acceptance-lifecycle.md).
 
 The known competition request has an additional controller registry. Matching
 canonicalizes formatting without changing retained source bytes; distinctive
@@ -340,7 +343,9 @@ restart persistence and fresh-database replay. Every original source remains an
 open full-source obligation, including the 35-unit original request. A successful
 bounded slice never completes cross-school registration, weighted scoring,
 reviewer allocation, teacher approval, exports, real email/SMS or cloud storage.
-Those unresolved obligations block delivery, not just add a warning.
+Those unresolved obligations block complete-request delivery. They cannot be
+removed by a model review or an automatic approval. An explicitly approved partial
+package preserves the incomplete verdict and lists them in `RND-DELIVERY.json`.
 
 Reports `extension-scope.json`, `extension-acceptance.json` and
 `extension-coverage.json` make that distinction inspectable. They live in the

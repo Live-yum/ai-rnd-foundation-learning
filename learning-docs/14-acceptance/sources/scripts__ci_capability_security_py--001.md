@@ -15,15 +15,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `main`（L30–L115）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44按`settings.sandbox_provider != "daytona"`分支；L45抛异常，停止当前正常路径；L82按`proof.get("restart_security_checks") != proof.get("security_checks")`分支；L83抛异常，停止当前正常路径；L105按`require_profile(HOME, record["snapshot"]["snapshot"]) != record`分支；L106抛异常，停止当前正常路径；L107按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L108抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`require_browser_acceptance`、`verifier_identity`、`client_for`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L34–L120）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L48按`settings.sandbox_provider != "daytona"`分支；L49抛异常，停止当前正常路径；L87按`proof.get("restart_security_checks") != proof.get("security_checks")`分支；L88抛异常，停止当前正常路径；L110按`require_profile(HOME, record["snapshot"]["snapshot"]) != record`分支；L111抛异常，停止当前正常路径；L112按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L113抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`require_browser_acceptance`、`verifier_identity`、`client_for`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L119。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L124。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5242`。本段原文以LF换行结束。
+本段原始字节数：`5382`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3cd9fc3932968f0f361f7c4498bd10139d69bac2400b3bbaed0119a7f548b767"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c36b973f5832da2ff0e042c88c00134cf3436a7d35eba7ec6bcfaead4544e7e5"} -->
 ````python
 # scripts/ci_capability_security.py
 """Real local-service safety acceptance; never accepts candidate/source inputs.
@@ -38,7 +38,11 @@ import tempfile
 from pathlib import Path
 
 from scripts.capability_security_probe import run_security_probe
-from scripts.ci_capability_profile import fixed_application, require_profile_evidence
+from scripts.ci_capability_profile import (
+    fixed_application,
+    require_atomic_consumer_evidence,
+    require_profile_evidence,
+)
 from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
 from workbench.capability_execution import (
     PROTOCOL,
@@ -80,7 +84,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="rnd-security-positive-") as directory:
             product = Path(directory) / "product"
-            plan = fixed_application(product)
+            plan = fixed_application(product, atomic_consumer=True)
             selected = plan.selection.model_dump()
             validate_configuration(settings, selected["template"], selected)
             proof = _verify(
@@ -107,6 +111,7 @@ def main():
                 selection=selected,
                 database_tables=plan.runtime.database_tables,
             )
+            require_atomic_consumer_evidence(product, plan, proof)
             if proof.get("restart_security_checks") != proof.get("security_checks"):
                 raise ValueError("Restart did not preserve the complete security boundary")
             acceptance = {

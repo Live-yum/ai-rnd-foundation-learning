@@ -305,10 +305,13 @@ source editing cannot alter either. Generic contracts must have linked successfu
 business writes/reads, concrete non-envelope values, denied permission operations,
 invalid/conflicting business input and successful same-resource/value reads after
 restart. These structural checks reject health-only acceptance but cannot establish
-all meanings of arbitrary natural language. Generic delivery therefore reports
-`coverage_level=reviewed-executable-contract`, `full_request_complete=null` and the
-original source units plus approved acceptance digest. The UI explicitly explains
-that boundary instead of claiming complete semantic coverage.
+all meanings of arbitrary natural language. Generic contracts therefore retain
+every exact source as open and report `full_request_complete=false`. A separately
+reviewed atomic contract may close precisely reviewed source units only after its
+independent physical assertions and restart evidence pass. Otherwise a separate,
+explicit scope approval can authorize an honestly labeled partial package. The
+original sources, uncompleted obligations and approved acceptance digest remain
+visible in the UI and ZIP. See [the acceptance lifecycle](extension-acceptance-lifecycle.md).
 
 The known competition request has an additional controller registry. Matching
 canonicalizes formatting without changing retained source bytes; distinctive
@@ -321,7 +324,9 @@ restart persistence and fresh-database replay. Every original source remains an
 open full-source obligation, including the 35-unit original request. A successful
 bounded slice never completes cross-school registration, weighted scoring,
 reviewer allocation, teacher approval, exports, real email/SMS or cloud storage.
-Those unresolved obligations block delivery, not just add a warning.
+Those unresolved obligations block complete-request delivery. They cannot be
+removed by a model review or an automatic approval. An explicitly approved partial
+package preserves the incomplete verdict and lists them in `RND-DELIVERY.json`.
 
 Reports `extension-scope.json`, `extension-acceptance.json` and
 `extension-coverage.json` make that distinction inspectable. They live in the

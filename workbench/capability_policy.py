@@ -51,19 +51,16 @@ def scope_policy(scope, selection):
     registered = authored >= 2 or sum(concepts) >= 2
     ambiguous = not registered and any(concepts)
     goals = []
-    if registered or ambiguous:
-        for row in scope["sources"]:
-            semantics = ["original.full_source"]
-            normalized = canonical(row["text"])
-            for quote, predicates in CONTEST_BINDINGS.items():
-                if canonical(quote) in normalized:
-                    semantics.extend(predicates)
-            for semantic in semantics:
-                goals.append(
-                    {"source_id": row["id"], "source_text": row["text"], "semantic": semantic}
-                )
+    for row in scope["sources"]:
+        semantics = ["original.full_source"]
+        normalized = canonical(row["text"])
+        for quote, predicates in CONTEST_BINDINGS.items():
+            if canonical(quote) in normalized:
+                semantics.extend(predicates)
+        for semantic in semantics:
+            goals.append({"source_id": row["id"], "source_text": row["text"], "semantic": semantic})
     return {
-        "version": 2,
+        "version": 3,
         "source_digest": scope["source_digest"],
         "source_units_digest": digest(scope["sources"]),
         "selection": selection,
@@ -168,10 +165,25 @@ def business_coverage(policy, proof):
     if policy["requires_explicit_review"]:
         raise CheckFailure("原始业务范围匹配不明确，需要独立验收策略审阅，不能降级通用验收")
     if policy["trusted_oracle"] is None:
+        rows = [
+            {
+                "goal_id": "goal-" + digest({"protocol": "original-source-v1", **goal})[:24],
+                "source_id": goal["source_id"],
+                "source_sha256": digest(goal["source_text"]),
+                "semantic": goal["semantic"],
+                "status": "remaining",
+            }
+            for goal in policy["goals"]
+        ]
         return {
+            "obligations": rows,
+            "complete_source_ids": [],
+            "remaining_source_ids": sorted({row["source_id"] for row in rows}),
+            "remaining_obligations": [row["goal_id"] for row in rows],
             "coverage_level": policy["coverage_level"],
-            "full_request_complete": None,
+            "full_request_complete": False,
             "source_units_digest": policy["source_units_digest"],
+            "natural_language_semantics_proven": False,
         }
     business = proof.get("business_oracle", {})
     if not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict):

@@ -22,19 +22,22 @@
 - `test_explicit_extension_reaches_code_and_preserves_candidate_on_missing_sandbox`（L49–L77）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L66断言`first["status"] == "BLOCKED"`；L67断言`first["pending"] is None`；L68断言`[schema for _, schema in gateway.calls] == ["ExtensionDesign", "CapabilityEdits"]`；L70断言`(candidate / "app.py").read_text() == APP`；L74断言`len(gateway.calls) == 2`；L75断言`calls == [str(candidate), str(candidate)]`；L76断言`manifest(candidate) == before`；L77断言`not list((settings.data_dir / "runs" / run).glob("*delivery.zip"))`。 调用`monkeypatch.setattr`、`create`、`Gateway`、`Runtime`、`runtime.tick`、`store.get_run`、`Path`、`(candidate / "app.py").read_text`、`manifest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_explicit_extension_reaches_code_and_preserves_candidate_on_missing_sandbox.unavailable`（L56–L58）：接收`product`、`*args`、`**kwargs`。 控制顺序：L58抛异常，停止当前正常路径。 调用`calls.append`、`str`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_permission_changes_cannot_be_auto_approved_or_recommended`（L80–L94）：接收`settings`、`store`。 控制顺序：L88断言`saved["status"] == "WAITING_EXTENSION_DESIGN"`；L89断言`len(gateway.calls) == 1`。 调用`create`、`Gateway`、`Runtime`、`runtime.tick`、`store.get_run`、`len`、`pytest.raises`、`store.submit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_coverage_cannot_discard_contest_requirements`（L97–L115）：接收`settings`、`store`。 控制顺序：L111断言`saved["status"] == "BLOCKED"`；L112断言`not any(schema == "CapabilityEdits" for _, schema in gateway.calls)`；L114断言`"加权评分和盲审" in "".join(row["text"] for row in data["source_units"])`；L115断言`any("来源" in error for error in data["blocked"])`。 调用`create`、`DropsSource`、`Runtime`、`runtime.tick`、`store.get_run`、`any`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_coverage_cannot_discard_contest_requirements.DropsSource`（L100–L104）：继承`Gateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_coverage_cannot_discard_contest_requirements.DropsSource.complete`（L101–L104）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`super().complete`、`super`。 返回路径：L104的`result`。
-- `test_custom_route_requires_human_intent_and_honors_later_cancellation`（L118–L121）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L119断言`custom_requested(["模板不支持跨记录规则", "全部自己实现"])`；L120断言`not custom_requested(["全部自己实现", "不要自定义实现，仅使用模板"])`；L121断言`not custom_requested(["竞赛报名网站"])`。 调用`custom_requested`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_automation_endpoint_cannot_consume_explicit_extension_gate`（L124–L170）：接收`settings`、`store`。 控制顺序：L145断言`response.status_code == 202`；L146断言`store.get_run(run)["pending"] == gate`；L147遍历`({"version": gate["version"] + 1}, {"digest": "0" * 64})`；L153断言`response.status_code == 409`；L164断言`first.status_code == 202`；L168断言`replay.json() == first.json()`。 调用`SecretStr`、`create`、`Runtime`、`Gateway`、`runtime.tick`、`store.get_run`、`TestClient`、`create_app`、`client.post`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review`（L97–L139）：接收`settings`、`store`。 控制顺序：L130断言`saved["status"] == "WAITING_EXTENSION_DESIGN"`；L131断言`len(gateway.calls) == 1`；L133断言`gate["data"]["atomic_review"]["complete_source_ids"]`。 调用`create`、`AtomicGateway`、`Runtime`、`runtime.tick`、`store.get_run`、`len`、`pytest.raises`、`store.submit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review.AtomicGateway`（L101–L123）：继承`Gateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review.AtomicGateway.complete`（L102–L123）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L104按`schema is ExtensionDesign`分支。 调用`super().complete`、`super`、`result.implementation.model_dump`、`CapabilityPlan.model_validate`。 返回路径：L123的`result`。
+- `test_source_coverage_cannot_discard_contest_requirements`（L142–L160）：接收`settings`、`store`。 控制顺序：L156断言`saved["status"] == "BLOCKED"`；L157断言`not any(schema == "CapabilityEdits" for _, schema in gateway.calls)`；L159断言`"加权评分和盲审" in "".join(row["text"] for row in data["source_units"])`；L160断言`any("来源" in error for error in data["blocked"])`。 调用`create`、`DropsSource`、`Runtime`、`runtime.tick`、`store.get_run`、`any`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_coverage_cannot_discard_contest_requirements.DropsSource`（L145–L149）：继承`Gateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_coverage_cannot_discard_contest_requirements.DropsSource.complete`（L146–L149）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`super().complete`、`super`。 返回路径：L149的`result`。
+- `test_custom_route_requires_human_intent_and_honors_later_cancellation`（L163–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164断言`custom_requested(["模板不支持跨记录规则", "全部自己实现"])`；L165断言`not custom_requested(["全部自己实现", "不要自定义实现，仅使用模板"])`；L166断言`not custom_requested(["竞赛报名网站"])`。 调用`custom_requested`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_automation_endpoint_cannot_consume_explicit_extension_gate`（L169–L215）：接收`settings`、`store`。 控制顺序：L190断言`response.status_code == 202`；L191断言`store.get_run(run)["pending"] == gate`；L192遍历`({"version": gate["version"] + 1}, {"digest": "0" * 64})`；L198断言`response.status_code == 409`；L209断言`first.status_code == 202`；L213断言`replay.json() == first.json()`。 调用`SecretStr`、`create`、`Runtime`、`Gateway`、`runtime.tick`、`store.get_run`、`TestClient`、`create_app`、`client.post`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_orchestration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L170。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_orchestration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L215。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6926`。本段原文以LF换行结束。
+本段原始字节数：`8884`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_orchestration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a6590790233a6f7cebe745720f2ca34e49a7ade43eab6b1c566f12a37812ca9b"} -->
+<!-- learning-source: {"path": "tests/test_capability_orchestration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b4df35585231b6c57738755c2c140649930b4676d7b49978bbafeb909549da9"} -->
 ````python
 # tests/test_capability_orchestration.py
 """Authored routing fixtures, never evidence of real model/sandbox acceptance."""
@@ -130,6 +133,51 @@ def test_permission_changes_cannot_be_auto_approved_or_recommended(settings, sto
     with pytest.raises(Conflict, match="人工审阅"):
         store.submit(
             run, {"gate_id": gate["gate_id"], "action": "recommend", "approved": True}, "no-bypass"
+        )
+
+
+def test_model_atomic_completeness_proposal_always_stops_for_exact_human_review(settings, store):
+    from workbench.capability_contracts import CapabilityPlan
+    from workbench.store import Conflict
+
+    class AtomicGateway(Gateway):
+        def complete(self, run_id, key, instruction, payload, schema):
+            result = super().complete(run_id, key, instruction, payload, schema)
+            if schema is ExtensionDesign:
+                source = payload["source_units"][0]
+                raw = result.implementation.model_dump()
+                raw["obligations"] = [
+                    {
+                        "id": "private-record",
+                        "source_id": source["id"],
+                        "source_sha256": source["sha256"],
+                        "assertion": "标题持久化",
+                        "scenario_id": "private_records",
+                        "physical": {
+                            "table": "entries",
+                            "key": {"id": "${entry}"},
+                            "values": {"title": "持久化资料-${nonce}"},
+                        },
+                    }
+                ]
+                raw["complete_source_ids"] = [source["id"]]
+                result.implementation = CapabilityPlan.model_validate(raw)
+            return result
+
+    run = create(store)
+    gateway = AtomicGateway()
+    with Runtime(settings, store, gateway) as runtime:
+        runtime.tick()
+    saved = store.get_run(run)
+    assert saved["status"] == "WAITING_EXTENSION_DESIGN"
+    assert len(gateway.calls) == 1, "No coding or paid regeneration before semantic review"
+    gate = saved["pending"]
+    assert gate["data"]["atomic_review"]["complete_source_ids"]
+    with pytest.raises(Conflict, match="人工审阅"):
+        store.submit(
+            run,
+            {"gate_id": gate["gate_id"], "action": "recommend", "approved": True},
+            "atomic-no-model-self-approval",
         )
 
 

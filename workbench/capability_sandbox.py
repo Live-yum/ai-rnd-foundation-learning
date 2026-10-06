@@ -450,6 +450,10 @@ def _verify(
     ):
         raise CheckFailure("只读依赖镜像profile没有绑定当前技术栈")
     require_dependency_descriptors(product, plan, profile_record)
+    from workbench.capability_consumer import inspect_consumer
+    from workbench.capability_obligations import run_obligation_checks
+
+    consumer = inspect_consumer(product, plan)
     commands = readonly_prepare_commands(plan)
     readonly_start_command(plan)
     dependency_profile = profile_record["snapshot"]["dependency_manifest"]
@@ -467,10 +471,19 @@ def _verify(
         "credentials_uploaded": False,
         "scope": "aggregate" if aggregate else "node",
         "checks": [],
+        "obligation_checks": [],
         "sandbox_name": name,
         "cleanup": "not-created",
         "restarted": False,
         "stack": inspect_stack(product, plan),
+        "consumer": {
+            "contract": consumer,
+            "contract_sha256": digest(consumer) if consumer else None,
+            "entrypoint": "start.py" if consumer else None,
+            "cold_start": False,
+            "restart": False,
+            "existing_schema_migration": "unverified",
+        },
     }
     write_json(receipt_path, receipt)
     sandbox = None
@@ -592,6 +605,10 @@ def _verify(
             from workbench.capability_startup_paths import startup_target
 
             command, target = startup_target(plan, command, port, health_path)
+            if consumer and target["role"] == "backend":
+                from workbench.capability_consumer import consumer_start_command
+
+                command = consumer_start_command(plan)
             if target["role"] == "backend":
                 receipt["backend_health_observed"] = False
             require_preinstalled_evidence(
@@ -795,6 +812,11 @@ def _verify(
             receipt["browser_image"] = settings.capability_browser_image
         else:
             receipt["browser"] = run_browser(url, token, scenarios, saved, settings.tool_timeout)
+        receipt["obligation_checks"].extend(
+            run_obligation_checks(
+                sandbox, plan, scenarios, saved, settings.tool_timeout, phase="initial"
+            )
+        )
         counts = database_counts(sandbox, plan, settings.tool_timeout)
         if not any(counts[name] > baseline_counts[name] for name in counts):
             raise CheckFailure(
@@ -806,6 +828,8 @@ def _verify(
             "after": counts,
             "observed_writes": True,
         }
+        if consumer:
+            receipt["consumer"]["cold_start"] = True
         if aggregate:
             if security_probe is not None:
                 restart_application_identity(
@@ -855,6 +879,15 @@ def _verify(
                 )
             http, _, _ = start()
             with closing(http):
+                if plan.obligations:
+                    # Observe retained rows in the same restarted application
+                    # generation before any request can reconstruct them. The
+                    # trusted probe quiesces and resumes writers itself.
+                    receipt["obligation_checks"].extend(
+                        run_obligation_checks(
+                            sandbox, plan, scenarios, saved, settings.tool_timeout, phase="restart"
+                        )
+                    )
                 if native:
                     frontend_http, _, _ = start(frontend_start_command(), FRONTEND_PORT, "/")
                     frontend_http.close()
@@ -875,6 +908,8 @@ def _verify(
             if any(restarted[name] < counts[name] for name in counts):
                 raise CheckFailure("独立数据库重启后丢失已写入的记录")
             receipt["database"]["after_restart"] = restarted
+            if consumer:
+                receipt["consumer"]["restart"] = True
             if trusted_oracle:
                 from workbench.capability_stack import recreate_owned_native_database
 
@@ -928,6 +963,10 @@ def _verify(
         )
         if manifest(product) != before:
             raise CheckFailure("隔离验收期间宿主源码发生变化")
+        if aggregate:
+            from workbench.capability_obligations import require_obligation_evidence
+
+            require_obligation_evidence(plan, receipt, aggregate=True)
         receipt["passed"] = True
     except IsolationUnavailable as exc:
         receipt.update(kind="isolation_environment", error=str(exc))

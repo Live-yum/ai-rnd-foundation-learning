@@ -33,7 +33,7 @@
 - [tests/test_contracts.py](02-storage/sources/tests__test_contracts_py--001.md)（1 段）
 - [tests/test_store.py](02-storage/sources/tests__test_store_py--001.md)（1 段）
 - [workbench/clarification.py](02-storage/sources/workbench__clarification_py--001.md)（1 段）
-- [workbench/store.py](02-storage/sources/workbench__store_py--001.md)（1 段）
+- [workbench/store.py](02-storage/sources/workbench__store_py--001.md)（2 段）
 ## [03-requirements · 需求保真与模型协议](03-requirements/README.md)
 
 - [examples/plans/customer-service.json](03-requirements/sources/examples__plans__customer-service_json--001.md)（1 段）
@@ -61,13 +61,16 @@
 - [scripts/extension_oracles/contest.py](04-local-foundation/sources/scripts__extension_oracles__contest_py--001.md)（1 段）
 - [workbench/capability_browser_isolation.py](04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md)（1 段）
 - [workbench/capability_browser_policy.py](04-local-foundation/sources/workbench__capability_browser_policy_py--001.md)（1 段）
+- [workbench/capability_consumer.py](04-local-foundation/sources/workbench__capability_consumer_py--001.md)（1 段）
 - [workbench/capability_contest_oracle.py](04-local-foundation/sources/workbench__capability_contest_oracle_py--001.md)（1 段）
 - [workbench/capability_contracts.py](04-local-foundation/sources/workbench__capability_contracts_py--001.md)（1 段）
 - [workbench/capability_dependencies.py](04-local-foundation/sources/workbench__capability_dependencies_py--001.md)（1 段）
 - [workbench/capability_execution.py](04-local-foundation/sources/workbench__capability_execution_py--001.md)（1 段）
 - [workbench/capability_isolation.py](04-local-foundation/sources/workbench__capability_isolation_py--001.md)（1 段）
 - [workbench/capability_native_runtime.py](04-local-foundation/sources/workbench__capability_native_runtime_py--001.md)（1 段）
+- [workbench/capability_obligations.py](04-local-foundation/sources/workbench__capability_obligations_py--001.md)（1 段）
 - [workbench/capability_policy.py](04-local-foundation/sources/workbench__capability_policy_py--001.md)（1 段）
+- [workbench/capability_readiness.py](04-local-foundation/sources/workbench__capability_readiness_py--001.md)（1 段）
 - [workbench/capability_services.py](04-local-foundation/sources/workbench__capability_services_py--001.md)（1 段）
 - [workbench/capability_stack.py](04-local-foundation/sources/workbench__capability_stack_py--001.md)（1 段）
 - [workbench/capability_verification.py](04-local-foundation/sources/workbench__capability_verification_py--001.md)（1 段）
@@ -155,7 +158,7 @@
 - [ui/src/components/HomeView.vue](08-control-plane/sources/ui__src__components__HomeView_vue--001.md)（1 段）
 - [ui/src/components/ProjectsView.vue](08-control-plane/sources/ui__src__components__ProjectsView_vue--001.md)（1 段）
 - [ui/src/components/Questionnaire.vue](08-control-plane/sources/ui__src__components__Questionnaire_vue--001.md)（1 段）
-- [ui/src/components/RunView.vue](08-control-plane/sources/ui__src__components__RunView_vue--001.md)（1 段）
+- [ui/src/components/RunView.vue](08-control-plane/sources/ui__src__components__RunView_vue--001.md)（2 段）
 - [ui/src/components/SettingsView.vue](08-control-plane/sources/ui__src__components__SettingsView_vue--001.md)（1 段）
 - [ui/src/main.ts](08-control-plane/sources/ui__src__main_ts--001.md)（1 段）
 - [ui/src/presentation.ts](08-control-plane/sources/ui__src__presentation_ts--001.md)（1 段）
@@ -469,6 +472,7 @@
 - [docs/candidate-browser-isolation.md](14-acceptance/sources/docs__candidate-browser-isolation_md--001.md)（1 段）
 - [docs/contest-extension-oracle.md](14-acceptance/sources/docs__contest-extension-oracle_md--001.md)（1 段）
 - [docs/custom-source-isolation.md](14-acceptance/sources/docs__custom-source-isolation_md--001.md)（1 段）
+- [docs/extension-acceptance-lifecycle.md](14-acceptance/sources/docs__extension-acceptance-lifecycle_md--001.md)（1 段）
 - [docs/from-zero-checkpoints.md](14-acceptance/sources/docs__from-zero-checkpoints_md--001.md)（1 段）
 - [docs/guide.md](14-acceptance/sources/docs__guide_md--001.md)（1 段）
 - [docs/images/customer-service/employee-native-list.png](14-acceptance/sources/assets/docs__images__customer-service__employee-native-list_png--001.md)（1 段）
@@ -501,6 +505,7 @@
 - [scripts/capability_native_planner_probe.py](14-acceptance/sources/scripts__capability_native_planner_probe_py--001.md)（1 段）
 - [scripts/capability_native_shm_probe.py](14-acceptance/sources/scripts__capability_native_shm_probe_py--001.md)（1 段）
 - [scripts/capability_security_probe.py](14-acceptance/sources/scripts__capability_security_probe_py--001.md)（1 段）
+- [scripts/capability_sqlite_quiescence.py](14-acceptance/sources/scripts__capability_sqlite_quiescence_py--001.md)（1 段）
 - [scripts/ci_acceptance.py](14-acceptance/sources/scripts__ci_acceptance_py--001.md)（1 段）
 - [scripts/ci_capability_browser_isolation.py](14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md)（1 段）
 - [scripts/ci_capability_browser_preflight.py](14-acceptance/sources/scripts__ci_capability_browser_preflight_py--001.md)（1 段）
@@ -540,6 +545,7 @@
 - [tests/test_capability_browser_seccomp_v2.py](14-acceptance/sources/tests__test_capability_browser_seccomp_v2_py--001.md)（1 段）
 - [tests/test_capability_browser_transport_probe.py](14-acceptance/sources/tests__test_capability_browser_transport_probe_py--001.md)（1 段）
 - [tests/test_capability_capture_bounds.py](14-acceptance/sources/tests__test_capability_capture_bounds_py--001.md)（1 段）
+- [tests/test_capability_consumer.py](14-acceptance/sources/tests__test_capability_consumer_py--001.md)（1 段）
 - [tests/test_capability_contest_adapter.py](14-acceptance/sources/tests__test_capability_contest_adapter_py--001.md)（1 段）
 - [tests/test_capability_contest_integration.py](14-acceptance/sources/tests__test_capability_contest_integration_py--001.md)（1 段）
 - [tests/test_capability_editing.py](14-acceptance/sources/tests__test_capability_editing_py--001.md)（1 段）
@@ -548,6 +554,7 @@
 - [tests/test_capability_guard.py](14-acceptance/sources/tests__test_capability_guard_py--001.md)（1 段）
 - [tests/test_capability_http_bounds.py](14-acceptance/sources/tests__test_capability_http_bounds_py--001.md)（1 段）
 - [tests/test_capability_isolation.py](14-acceptance/sources/tests__test_capability_isolation_py--001.md)（1 段）
+- [tests/test_capability_model_free_delivery.py](14-acceptance/sources/tests__test_capability_model_free_delivery_py--001.md)（1 段）
 - [tests/test_capability_native_build.py](14-acceptance/sources/tests__test_capability_native_build_py--001.md)（1 段）
 - [tests/test_capability_native_database_reset.py](14-acceptance/sources/tests__test_capability_native_database_reset_py--001.md)（1 段）
 - [tests/test_capability_native_egress.py](14-acceptance/sources/tests__test_capability_native_egress_py--001.md)（1 段）
@@ -558,12 +565,15 @@
 - [tests/test_capability_native_shm_binding.py](14-acceptance/sources/tests__test_capability_native_shm_binding_py--001.md)（1 段）
 - [tests/test_capability_native_shm_guard.py](14-acceptance/sources/tests__test_capability_native_shm_guard_py--001.md)（1 段）
 - [tests/test_capability_native_shm_probe.py](14-acceptance/sources/tests__test_capability_native_shm_probe_py--001.md)（1 段）
+- [tests/test_capability_obligations.py](14-acceptance/sources/tests__test_capability_obligations_py--001.md)（1 段）
 - [tests/test_capability_orchestration.py](14-acceptance/sources/tests__test_capability_orchestration_py--001.md)（1 段）
 - [tests/test_capability_policy.py](14-acceptance/sources/tests__test_capability_policy_py--001.md)（1 段）
 - [tests/test_capability_policy_review.py](14-acceptance/sources/tests__test_capability_policy_review_py--001.md)（1 段）
+- [tests/test_capability_readiness.py](14-acceptance/sources/tests__test_capability_readiness_py--001.md)（1 段）
 - [tests/test_capability_readonly_dependencies.py](14-acceptance/sources/tests__test_capability_readonly_dependencies_py--001.md)（1 段）
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
+- [tests/test_capability_sqlite_quiescence.py](14-acceptance/sources/tests__test_capability_sqlite_quiescence_py--001.md)（1 段）
 - [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（2 段）
 - [tests/test_capability_startup_paths.py](14-acceptance/sources/tests__test_capability_startup_paths_py--001.md)（1 段）
 - [tests/test_capability_startup_session.py](14-acceptance/sources/tests__test_capability_startup_session_py--001.md)（1 段）

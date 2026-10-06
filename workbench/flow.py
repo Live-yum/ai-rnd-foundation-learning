@@ -129,6 +129,7 @@ class State(TypedDict, total=False):
     extension_integration_attempt: int
     extension_policy: dict
     extension_aggregate_passed: bool
+    extension_coverage: dict
 
 
 class Workflow(ExtensionWorkflow):
@@ -847,6 +848,7 @@ class Workflow(ExtensionWorkflow):
             "extension_aggregate",
             "extension_integration_repair",
             "extension_review",
+            "extension_scope",
             "extension_package",
             "extension_delivery",
         ):
@@ -911,7 +913,11 @@ class Workflow(ExtensionWorkflow):
         graph.add_edge("extension_repair", "extension_code")
         graph.add_conditional_edges("extension_aggregate", self.extension_after_aggregate)
         graph.add_edge("extension_integration_repair", "extension_code")
-        graph.add_edge("extension_review", "extension_package")
+        graph.add_edge("extension_review", "extension_scope")
+        graph.add_conditional_edges(
+            "extension_scope",
+            lambda state: END if state["decision"] == "reject" else "extension_package",
+        )
         graph.add_edge("extension_package", "extension_delivery")
         graph.add_edge("extension_delivery", END)
         return graph.compile(checkpointer=checkpointer)
