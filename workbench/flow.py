@@ -130,6 +130,8 @@ class State(TypedDict, total=False):
     extension_policy: dict
     extension_aggregate_passed: bool
     extension_coverage: dict
+    feature_requested_mode: bool
+    feature_design: dict
 
 
 class Workflow(ExtensionWorkflow):
@@ -168,7 +170,7 @@ class Workflow(ExtensionWorkflow):
         round/gate; prior approvals do not authorize the corrected requirement.
         Interrupted legacy gates are replayed unchanged before analysis resumes.
         """
-        if self.extension_requested(state):
+        if self.feature_requested(state) or self.extension_requested(state):
             return None
         run = self.store.get_run(state["run_id"])
         capabilities = options_for_run(run).capabilities()
@@ -235,8 +237,13 @@ class Workflow(ExtensionWorkflow):
         }
 
     def analyse(self, state):
+        if self.feature_requested(state):
+            return {"feature_requested_mode": True, "extension_requested_mode": False}
         if self.extension_requested(state):
-            return {"extension_requested_mode": True}
+            return {"extension_requested_mode": True, "feature_requested_mode": False}
+        return self.analyse_requirement(state)
+
+    def analyse_requirement(self, state):
         recovery = self.capability_recovery(state)
         if recovery:
             return {**recovery, "extension_requested_mode": False}
@@ -472,6 +479,9 @@ class Workflow(ExtensionWorkflow):
         source_view = source_plan(plan, state.get("native_normalization", {}))
         reasons = list(plan.unsupported)
         reason_sources = ["planner_unsupported"] * len(reasons)
+        if state.get("feature_design"):
+            reasons.extend(state.get("extension_errors", []))
+            reason_sources.extend(["feature_routing"] * len(state.get("extension_errors", [])))
         coverage_diagnostics = []
         business_diagnostics = []
         selection = options_for_run(self.store.get_run(state["run_id"]))
@@ -564,6 +574,11 @@ class Workflow(ExtensionWorkflow):
                 "coverage_diagnostics": coverage_diagnostics,
                 "business_diagnostics": business_diagnostics,
                 "native_normalization": state.get("native_normalization", {}),
+                **(
+                    {"feature_outline": state["feature_design"]["outline"]}
+                    if state.get("feature_design")
+                    else {}
+                ),
             },
             ["approve", "revise", "reject"],
             not reasons,
@@ -584,6 +599,8 @@ class Workflow(ExtensionWorkflow):
         return outcome
 
     def generate(self, state):
+        if state.get("feature_design"):
+            self.checked_feature(state)
         plan = Plan.model_validate(state["plan"])
         if state["template"] == "python-basic":
 
@@ -707,7 +724,12 @@ class Workflow(ExtensionWorkflow):
             f"review:{digest(state['plan'])[:12]}:{state['attempt']}",
             REVIEW,
             {
-                "requirement": state["requirement"],
+                "requirement": state.get("requirement", {}),
+                **(
+                    {"feature_design": state["feature_design"]}
+                    if state.get("feature_design")
+                    else {}
+                ),
                 "plan": state["plan"],
                 "independent_evidence": state["verification"],
                 "previous_review": previous,
@@ -750,6 +772,8 @@ class Workflow(ExtensionWorkflow):
         return {"attempt": state["attempt"] + 1}
 
     def package(self, state):
+        if state.get("feature_design"):
+            self.checked_feature(state)
         # Also protects a checkpoint created before the review gate was enforced.
         self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state.get("requirement"):
@@ -840,6 +864,8 @@ class Workflow(ExtensionWorkflow):
             "package",
             "delivery",
             "extension_plan",
+            "feature_plan",
+            "feature_design",
             "extension_design",
             "extension_generate",
             "extension_code",
@@ -857,7 +883,11 @@ class Workflow(ExtensionWorkflow):
         graph.add_conditional_edges(
             "analyse",
             lambda state: (
-                "extension_plan" if state.get("extension_requested_mode") else "requirements"
+                "feature_plan"
+                if state.get("feature_requested_mode")
+                else "extension_plan"
+                if state.get("extension_requested_mode")
+                else "requirements"
             ),
         )
         graph.add_conditional_edges(
@@ -869,6 +899,21 @@ class Workflow(ExtensionWorkflow):
             ),
         )
         graph.add_edge("source_context", "plan")
+        graph.add_edge("feature_plan", "feature_design")
+        graph.add_conditional_edges(
+            "feature_design",
+            lambda s: (
+                END
+                if s["decision"] == "reject"
+                else (
+                    "extension_generate"
+                    if s["feature_design"].get("implementation")
+                    else "generate"
+                )
+                if s["decision"] == "approve"
+                else "feature_plan"
+            ),
+        )
         graph.add_edge("plan", "design")
         graph.add_conditional_edges(
             "design",

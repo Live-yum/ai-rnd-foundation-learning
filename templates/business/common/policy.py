@@ -2,6 +2,28 @@
 
 from collections import Counter
 from datetime import date, datetime, timezone
+from typing import Annotated
+
+from pydantic import Field, TypeAdapter, ValidationError
+
+
+def validate_scalar_constraints(kind, field, value):
+    if kind == "integer":
+        if not -(2**31) <= value < 2**31:
+            raise PolicyError("Integer outside supported range")
+        for attribute, invalid in (
+            ("minimum", lambda limit: value < limit),
+            ("maximum", lambda limit: value > limit),
+            ("exclusive_minimum", lambda limit: value <= limit),
+            ("exclusive_maximum", lambda limit: value >= limit),
+        ):
+            if field.get(attribute) is not None and invalid(field[attribute]):
+                raise PolicyError("Integer violates approved constraint")
+    if kind == "text" and field.get("pattern") is not None:
+        try:
+            TypeAdapter(Annotated[str, Field(pattern=field["pattern"])]).validate_python(value)
+        except ValidationError as error:
+            raise PolicyError("Text violates approved pattern") from error
 
 
 class PolicyError(ValueError):
@@ -112,8 +134,7 @@ class Policy:
                 raise PolicyError("Invalid field length: " + name)
             if kind == "enum" and value not in field["choices"]:
                 raise PolicyError("Invalid enum value: " + name)
-            if kind == "integer" and not -(2**63) <= value < 2**63:
-                raise PolicyError("Integer outside supported range")
+            validate_scalar_constraints(kind, field, value)
             if kind == "date":
                 if date.fromisoformat(value).isoformat() != value:
                     raise PolicyError("Date must use YYYY-MM-DD")

@@ -12,6 +12,7 @@ export interface Gate {
   data: RecordData
   actions: string[]
   can_approve: boolean
+  needs_model?: Record<string, boolean>
 }
 export interface Run {
   id: string

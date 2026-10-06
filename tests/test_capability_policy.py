@@ -25,7 +25,9 @@ def scope(text):
 
 def original():
     data = json.loads(
-        (Path(__file__).parent / "fixtures/contest_oracle/original_requirement.json").read_text()
+        (Path(__file__).parent / "fixtures/contest_oracle/original_requirement.json").read_text(
+            encoding="utf-8"
+        )
     )
     return scope(data["requirement_text"])
 

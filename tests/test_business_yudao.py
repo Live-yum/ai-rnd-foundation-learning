@@ -141,7 +141,7 @@ def test_vben_form_field_type_covers_the_exact_emitted_metadata():
 
     source = (TEMPLATES / "business-form.ts").read_text(encoding="utf-8")
     declaration = re.search(r"interface Field \{([^}]+)\}", source).group(1)
-    fields = set(re.findall(r"(\w+)\s*:", declaration))
+    fields = set(re.findall(r"(\w+)\??\s*:", declaration))
     assert fields == set(FieldSpec.model_fields)
     assert "businessPayload<T extends object>" in source
     assert "Reflect.deleteProperty(result, name)" in source

@@ -26,6 +26,7 @@ GUIDES = [
     "docs/from-zero-checkpoints.md",
     "docs/acceptance-checklist.md",
     "docs/extension-acceptance-lifecycle.md",
+    "docs/workflow-optimization.md",
 ]
 GROUPS = [
     (

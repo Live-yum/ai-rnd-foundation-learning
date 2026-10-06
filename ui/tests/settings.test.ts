@@ -218,3 +218,17 @@ describe('model settings save baseline', () => {
     wrapper.unmount()
   })
 })
+
+it('initializes settings arriving after the view mounts and preserves unsaved edits', async () => {
+  state.settings = null
+  const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+  connectionSettings()
+  await flushPromises()
+  expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('saved-model')
+  expect((wrapper.vm as any).dirty).toBe(false)
+  await wrapper.find('#model-name').setValue('unsaved-model')
+  state.settings = { ...state.settings!, revision: 'newer-revision' }
+  await flushPromises()
+  expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('unsaved-model')
+  wrapper.unmount()
+})

@@ -12,9 +12,9 @@
 
 **创建路径：** `templates/product/verify-browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L394。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23806`。本段原文以LF换行结束。
+本段原始字节数：`24399`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/verify-browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4fb8c8bbbe7d8b1617787b57552eb9fd2e512b164763453c555e95c0c1a409d3"} -->
+<!-- learning-source: {"path": "templates/product/verify-browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a72a04f812ff1c28d7b33e1fc132924fd8e70e5c8b57693486bcbe7f88fc5c28"} -->
 ````javascript
 // templates/product/verify-browser.cjs
 /* Spec-driven real Chromium acceptance. No network mocks or injected login tokens. */
@@ -225,17 +225,17 @@ async function main() {
       const rules = (cfg.spec.custom_rules || []).filter(rule => rule.entity === entity.name);
       const samples = rules.length ? rules[0].accept_examples.slice(0, 3) : [0, 1, 2].map(i =>
         Object.fromEntries(fields.map((field, n) => [field.name,
-          field.kind === 'text' ? String.fromCharCode(0x4e00+n*3+i).repeat(Math.max(1, Math.min(field.max_length, Math.max(field.min_length || 0, 8+n)))) :
-          field.kind === 'integer' ? i+1 : field.kind === 'boolean' ? i%2 === 0 :
-          field.kind === 'date' ? `2026-03-${String(8+i).padStart(2,'0')}` : field.choices[i%field.choices.length]
+          field.kind === 'text' ? (field.example ?? String.fromCharCode(0x4e00+n*3+i).repeat(Math.max(1, Math.min(field.max_length, Math.max(field.min_length || 0, 8+n))))) :
+          field.kind === 'integer' ? Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649)+1, Math.min(i+1, field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648)-1)) : field.kind === 'boolean' ? i%2 === 0 :
+          field.kind === 'date' ? `2026-03-${String(8+i).padStart(2,'0')}` : field.kind === 'datetime' ? `2026-03-${String(8+i).padStart(2,'0')}T12:34:00.000Z` : field.choices[i%field.choices.length]
         ])));
       assert(samples.length > 0, 'Need approved browser samples');
       if (!rules.length && fields.some(f=>f.kind==='text')) {
         const boundary = {...samples[0]};
-        fields.forEach((field,n)=> { if (field.kind==='text') boundary[field.name] = String.fromCharCode(0x4e00+n*3).repeat(field.max_length); });
+        fields.forEach((field,n)=> { if (field.kind==='text' && !field.pattern) boundary[field.name] = String.fromCharCode(0x4e00+n*3).repeat(field.max_length); });
         samples.push(boundary);
       }
-      const display = values => values.map(s => fields.map(f => s[f.name] == null ? '' : (f.choice_labels?.[String(s[f.name])] || String(s[f.name]))));
+      const display = values => values.map(s => fields.map(f => s[f.name] == null ? '' : f.kind === 'datetime' ? new Date(s[f.name]).toLocaleString('zh-CN',{hour12:false,timeZone:'UTC'})+' UTC' : (f.choice_labels?.[String(s[f.name])] || String(s[f.name]))));
       const records = [];
       for (const sample of samples) {
         await page.locator('#create').click();
@@ -247,7 +247,7 @@ async function main() {
           }
           const value = sample[field.name] == null ? '' : String(sample[field.name]);
           if (['enum','boolean'].includes(field.kind)) await control.selectOption(value);
-          else await control.fill(value);
+          else await control.fill(field.kind === 'datetime' ? value.replace(/Z$/, '').slice(0,16) : value);
         }
         const created = page.waitForResponse(r => r.url().endsWith('/api/'+entity.name) && r.request().method() === 'POST');
         await page.locator('#record button[type=submit]').click();
@@ -336,7 +336,7 @@ async function main() {
         const control = page.locator(`#record [name="${field.name}"]`);
         const value = replacement[field.name] == null ? '' : String(replacement[field.name]);
         if (['enum','boolean'].includes(field.kind)) await control.selectOption(value);
-        else await control.fill(value);
+        else await control.fill(field.kind === 'datetime' ? value.replace(/Z$/, '').slice(0,16) : value);
       }
       const updated = page.waitForResponse(r => r.url().includes('/api/'+entity.name+'/') && r.request().method()==='PUT');
       await page.locator('#record button[type=submit]').click();
@@ -357,7 +357,7 @@ async function main() {
         const control = page.locator(`#record [name="${field.name}"]`);
         const value = samples[0][field.name] == null ? '' : String(samples[0][field.name]);
         if (['enum','boolean'].includes(field.kind)) await control.selectOption(value);
-        else await control.fill(value);
+        else await control.fill(field.kind === 'datetime' ? value.replace(/Z$/, '').slice(0,16) : value);
       }
       const extraCreated = page.waitForResponse(r=>r.url().endsWith('/api/'+entity.name) && r.request().method()==='POST');
       await page.locator('#record button[type=submit]').click();

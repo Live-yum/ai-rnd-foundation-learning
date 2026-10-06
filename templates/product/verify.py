@@ -16,8 +16,11 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 import httpx
+from fields import integer_bounds
+from pydantic import Field, TypeAdapter, ValidationError
 
 
 class CheckFailed(RuntimeError):
@@ -182,10 +185,13 @@ def verify(product, python=sys.executable, business_screenshots=None):
                 path = "/api/" + name
                 sample = {
                     f["name"]: {
-                        "text": "x" * max(1, f.get("min_length", 0)),
-                        "integer": 1,
+                        "text": f.get("example")
+                        if f.get("example") is not None
+                        else "x" * max(1, f.get("min_length", 0)),
+                        "integer": max(integer_bounds(f)[0], min(1, integer_bounds(f)[1])),
                         "boolean": True,
                         "date": "2026-01-15",
+                        "datetime": "2026-01-15T00:00:34.123456Z",
                         "enum": (f.get("choices") or ["sample"])[0],
                     }[f["kind"]]
                     for f in entity["fields"]
@@ -227,6 +233,7 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             "integer": True,
                             "boolean": "yes",
                             "date": "2026/01/15",
+                            "datetime": "2026-01-15T00:00:00",
                             "enum": "__invalid_choice__",
                         }[f["kind"]],
                     }
@@ -240,6 +247,21 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             client.post(path, headers=auth_a, json=missing).status_code == 422,
                             "missing field accepted",
                         )
+                    if f["kind"] == "integer":
+                        low, high = integer_bounds(f)
+                        for invalid in (low - 1, high + 1):
+                            for target, method in ((path, "POST"), (detail, "PUT")):
+                                need(
+                                    client.request(
+                                        method,
+                                        target,
+                                        headers=auth_a,
+                                        json={**sample, f["name"]: invalid},
+                                    ).status_code
+                                    == 422,
+                                    "approved integer boundary accepted invalid input",
+                                )
+                        checks.append(f"integer-boundaries:{name}.{f['name']}")
                     if f["kind"] == "text":
                         need(
                             client.post(
@@ -250,6 +272,25 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             == 422,
                             "overlong field accepted",
                         )
+                        if f.get("pattern") is not None:
+                            validator = TypeAdapter(Annotated[str, Field(pattern=f["pattern"])])
+                            for invalid in (
+                                "__invalid_pattern__",
+                                "!",
+                                str(sample[f["name"]])[::-1],
+                            ):
+                                try:
+                                    validator.validate_python(invalid)
+                                except ValidationError:
+                                    need(
+                                        client.post(
+                                            path,
+                                            headers=auth_a,
+                                            json={**sample, f["name"]: invalid},
+                                        ).status_code
+                                        == 422,
+                                        "text violates approved pattern but was accepted",
+                                    )
                 need(
                     client.put(detail, headers=auth_a, json=sample).status_code == 200,
                     "update failed",

@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete, or_, select
 
 from .model import CONFIG, BusinessEvent
-from .policy import Policy, PolicyError
+from .policy import Policy, PolicyError, validate_scalar_constraints
 
 PLAN = CONFIG["plan"]
 SPEC = PLAN["business"]
@@ -221,8 +221,12 @@ async def validate(db, who, entity, data, creation=False):
             if spec["kind"] == "enum" and value not in spec["choices"]:
                 fail(422, "Invalid enum: " + name)
         elif spec["kind"] == "integer":
-            if type(value) is not int or not -(2**63) <= value < 2**63:
+            if type(value) is not int or not -(2**31) <= value < 2**31:
                 fail(422, "Expected integer: " + name)
+            try:
+                validate_scalar_constraints("integer", spec, value)
+            except PolicyError as error:
+                fail(422, str(error))
         elif spec["kind"] == "boolean":
             if type(value) is not bool:
                 fail(422, "Expected boolean: " + name)

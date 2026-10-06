@@ -25,21 +25,21 @@
 - `grant`（L161–L165）：接收`who`、`entity`、`action`。 调用`POLICY.grant`、`fail`。 返回路径：L163的`POLICY.grant(who["role"], entity, action)`。
 - `scope`（L168–L175）：接收`who`、`entity`、`action`。 控制顺序：L171按`permission["scope"] == "all"`分支；L173按`permission["scope"] == "own"`分支。 调用`grant`、`identifier`、`getattr`、`POLICY.resource`。 返回路径：L172的`model.id > 0`；L174的`model.created_id == identifier(who["id"])`；L175的`getattr(model, POLICY.resource(entity)["assignee_field"]) == identifier(who["id"])`。
 - `record`（L178–L190）：接收`db`、`who`、`entity`、`row_id`、`action`、`lock`。 控制顺序：L179按`entity not in MODELS`分支；L183按`lock`分支；L186按`row is None`分支；L188按`lock and row.is_deleted`分支。 调用`fail`、`select(model).where`、`select`、`identifier`、`scope`、`query.with_for_update`、`db.scalar`。 返回路径：L190的`row`。
-- `validate`（L193–L257）：接收`db`、`who`、`entity`、`data`、`creation`。 控制顺序：L194按`not isinstance(data, dict)`分支；L198按`set(data) - set(fields) or set(data) & protected`分支；L201遍历`fields.items()`；L202按`name in protected`分支；L204按`name not in data`分支；L205按`creation and spec["required"]`分支；L209按`value is None`分支；L210按`spec["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`fail`、`POLICY.protected`、`set`、`fields.items`、`value.strip`、`len`、`max`、`type`等。 返回路径：L257的`result`。
-- `event`（L260–L295）：接收`db`、`who`、`entity`、`row`、`name`、`data`。 控制顺序：L273遍历`SPEC["notifications"]`；L274按`rule["entity"] != entity or rule["event"] != notification_name`分支；L276按`notification_name == "transitioned" and rule["transition"] != data.get("transition")`分支；L283按`recipient and identifier(recipient) not in recipients`分支。 调用`BusinessEvent`、`identifier`、`db.add`、`db.flush`、`set`、`data.get`、`getattr`、`POLICY.resource`、`recipients.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `create`（L298–L318）：接收`db`、`who`、`entity`、`data`。 控制顺序：L302按`workflow`分支；L305按`resource.get("assignee_field")`分支；L307按`hasattr(MODELS[entity], "status")`分支。 调用`grant`、`validate`、`POLICY.workflow`、`POLICY.resource`、`resource.get`、`hasattr`、`MODELS[entity]`、`identifier`、`db.add`等。 返回路径：L318的`result`。
-- `mutate`（L321–L413）：接收`db`、`who`、`entity`、`row_id`、`action`、`data`。 控制顺序：L326按`action == "update"`分支；L327遍历`(await validate(db, who, entity, data)).items()`；L329按`action == "assign"`分支；L330按`set(data) != {"assignee"}`分支；L354按`target is None or len(memberships) != 1`分支；L365按`not eligible or eligible["scope"] not in {"all", "assigned"} or "read" not in eligibl…`分支；L373按`action == "transition"`分支；L374按`set(data) != {"transition"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`record`、`serialize`、`(await validate(db, who, entity, data)).items`、`validate`、`setattr`、`set`、`fail`、`identifier`、`db.scalar`等。 返回路径：L413的`after`。
-- `rows`（L416–L461）：接收`db`、`who`、`entity`、`action`、`query`、`filters`、`archived`。 控制顺序：L417按`entity not in MODELS`分支；L422按`query`分支；L428按`not searched`分支；L431遍历`(filters or {}).items()`；L432按`name.endswith(("_from", "_to"))`分支；L434按`field not in fields or not fields[field]["date_range"]`分支；L440按`name not in fields or not fields[name]["filterable"]`分支；L445按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`fail`、`select(model).where`、`select`、`scope`、`model.is_deleted.is_`、`getattr(model, name).icontains`、`getattr`、`fields.items`、`statement.where`等。 返回路径：L461的`list((await db.scalars(statement.order_by(model.id.desc()))).all())`。
-- `readable_entities`（L464–L469）：接收`role`。 返回路径：L465的`{ permission["entity"] for permission in SPEC["permissions"] if permission["role"] == role…`。
-- `set_role`（L472–L519）：接收`db`、`user_id`、`role`。 控制顺序：L473按`role not in {r["name"] for r in SPEC["roles"]}`分支；L481按`target is None`分支；L484按`native_role is None`分支；L505遍历`list(chosen)`；L507在`parent in by_id and parent not in chosen`成立时循环；L510遍历`chosen`。 调用`fail`、`identifier`、`db.scalar`、`select(UserModel) .where(UserModel.id == user_id, UserModel.is_de…`、`select(UserModel) .where`、`select`、`UserModel.is_deleted.is_`、`select(RoleModel).where`、`RoleModel`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate`（L193–L261）：接收`db`、`who`、`entity`、`data`、`creation`。 控制顺序：L194按`not isinstance(data, dict)`分支；L198按`set(data) - set(fields) or set(data) & protected`分支；L201遍历`fields.items()`；L202按`name in protected`分支；L204按`name not in data`分支；L205按`creation and spec["required"]`分支；L209按`value is None`分支；L210按`spec["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`fail`、`POLICY.protected`、`set`、`fields.items`、`value.strip`、`len`、`max`、`type`等。 返回路径：L261的`result`。
+- `event`（L264–L299）：接收`db`、`who`、`entity`、`row`、`name`、`data`。 控制顺序：L277遍历`SPEC["notifications"]`；L278按`rule["entity"] != entity or rule["event"] != notification_name`分支；L280按`notification_name == "transitioned" and rule["transition"] != data.get("transition")`分支；L287按`recipient and identifier(recipient) not in recipients`分支。 调用`BusinessEvent`、`identifier`、`db.add`、`db.flush`、`set`、`data.get`、`getattr`、`POLICY.resource`、`recipients.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `create`（L302–L322）：接收`db`、`who`、`entity`、`data`。 控制顺序：L306按`workflow`分支；L309按`resource.get("assignee_field")`分支；L311按`hasattr(MODELS[entity], "status")`分支。 调用`grant`、`validate`、`POLICY.workflow`、`POLICY.resource`、`resource.get`、`hasattr`、`MODELS[entity]`、`identifier`、`db.add`等。 返回路径：L322的`result`。
+- `mutate`（L325–L417）：接收`db`、`who`、`entity`、`row_id`、`action`、`data`。 控制顺序：L330按`action == "update"`分支；L331遍历`(await validate(db, who, entity, data)).items()`；L333按`action == "assign"`分支；L334按`set(data) != {"assignee"}`分支；L358按`target is None or len(memberships) != 1`分支；L369按`not eligible or eligible["scope"] not in {"all", "assigned"} or "read" not in eligibl…`分支；L377按`action == "transition"`分支；L378按`set(data) != {"transition"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`record`、`serialize`、`(await validate(db, who, entity, data)).items`、`validate`、`setattr`、`set`、`fail`、`identifier`、`db.scalar`等。 返回路径：L417的`after`。
+- `rows`（L420–L465）：接收`db`、`who`、`entity`、`action`、`query`、`filters`、`archived`。 控制顺序：L421按`entity not in MODELS`分支；L426按`query`分支；L432按`not searched`分支；L435遍历`(filters or {}).items()`；L436按`name.endswith(("_from", "_to"))`分支；L438按`field not in fields or not fields[field]["date_range"]`分支；L444按`name not in fields or not fields[name]["filterable"]`分支；L449按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`fail`、`select(model).where`、`select`、`scope`、`model.is_deleted.is_`、`getattr(model, name).icontains`、`getattr`、`fields.items`、`statement.where`等。 返回路径：L465的`list((await db.scalars(statement.order_by(model.id.desc()))).all())`。
+- `readable_entities`（L468–L473）：接收`role`。 返回路径：L469的`{ permission["entity"] for permission in SPEC["permissions"] if permission["role"] == role…`。
+- `set_role`（L476–L523）：接收`db`、`user_id`、`role`。 控制顺序：L477按`role not in {r["name"] for r in SPEC["roles"]}`分支；L485按`target is None`分支；L488按`native_role is None`分支；L509遍历`list(chosen)`；L511在`parent in by_id and parent not in chosen`成立时循环；L514遍历`chosen`。 调用`fail`、`identifier`、`db.scalar`、`select(UserModel) .where(UserModel.id == user_id, UserModel.is_de…`、`select(UserModel) .where`、`select`、`UserModel.is_deleted.is_`、`select(RoleModel).where`、`RoleModel`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `templates/business/fastapiadmin/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L519。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/business/fastapiadmin/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L523。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19455`。本段原文以LF换行结束。
+本段原始字节数：`19648`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/business/fastapiadmin/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b771a134a26e4bf4aba9f8b954d84faff1c9b5b475376d44607429948c9adfe7"} -->
+<!-- learning-source: {"path": "templates/business/fastapiadmin/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f4bc4cbb4ceeb90a2d0c75615bf157c660618b2a7ecdadb371db5ebbab49f9e"} -->
 ````python
 # templates/business/fastapiadmin/runtime.py
 """Transactional native ORM business services; all authorization is server-side."""
@@ -54,7 +54,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete, or_, select
 
 from .model import CONFIG, BusinessEvent
-from .policy import Policy, PolicyError
+from .policy import Policy, PolicyError, validate_scalar_constraints
 
 PLAN = CONFIG["plan"]
 SPEC = PLAN["business"]
@@ -265,8 +265,12 @@ async def validate(db, who, entity, data, creation=False):
             if spec["kind"] == "enum" and value not in spec["choices"]:
                 fail(422, "Invalid enum: " + name)
         elif spec["kind"] == "integer":
-            if type(value) is not int or not -(2**63) <= value < 2**63:
+            if type(value) is not int or not -(2**31) <= value < 2**31:
                 fail(422, "Expected integer: " + name)
+            try:
+                validate_scalar_constraints("integer", spec, value)
+            except PolicyError as error:
+                fail(422, str(error))
         elif spec["kind"] == "boolean":
             if type(value) is not bool:
                 fail(422, "Expected boolean: " + name)

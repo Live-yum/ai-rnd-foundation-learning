@@ -13,10 +13,13 @@ from pydantic import (
     Field,
     JsonValue,
     StrictBool,
+    StrictInt,
     StringConstraints,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
+from pydantic_core import SchemaError
 
 from workbench.business_contracts import BusinessSpec
 
@@ -43,6 +46,7 @@ class RunInput(Contract):
     template: Literal["python-basic", "fastapiadmin", "yudao-vben"] = "python-basic"
     selection: dict | None = None
     intelligent: StrictBool = False
+    allow_custom_extensions: StrictBool = False
 
     @model_validator(mode="after")
     def validate_selection(self):
@@ -156,6 +160,21 @@ class FieldRequirement(Contract):
         description="Only kind=date supports this; datetime must use false. Do not invent date ranges when none were requested.",
     )
     choices: list[str] | None = None
+    minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    pattern: str | None = Field(
+        default=None, min_length=1, max_length=500, exclude_if=lambda value: value is None
+    )
 
 
 class EntityRequirement(Contract):
@@ -297,6 +316,27 @@ class FieldSpec(Contract):
     required: bool = True
     max_length: int = Field(default=200, ge=1, le=20000)
     min_length: int = Field(default=0, ge=0, le=20000)
+    minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    pattern: str | None = Field(
+        default=None, min_length=1, max_length=500, exclude_if=lambda value: value is None
+    )
+    example: str | None = Field(
+        default=None,
+        max_length=20000,
+        exclude_if=lambda value: value is None,
+        description="A valid text example is required for pattern constraints; independent API/browser checks use it.",
+    )
     choices: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=50
     )
@@ -325,6 +365,56 @@ class FieldSpec(Contract):
             raise ValueError("关键词搜索只能使用文本/枚举字段")
         if self.date_range and self.kind != "date":
             raise ValueError("日期范围只支持 date 类型")
+        return self
+
+    @model_validator(mode="after")
+    def enum_domain(self):
+        if self.kind == "enum" and any(
+            not max(1 if self.required else 0, self.min_length) <= len(value) <= self.max_length
+            or value != value.strip()
+            for value in self.choices
+        ):
+            raise ValueError("全部枚举选项必须满足长度约束且不能含首尾空白")
+        return self
+
+    @model_validator(mode="after")
+    def scalar_constraints(self):
+        bounds = (self.minimum, self.maximum, self.exclusive_minimum, self.exclusive_maximum)
+        if any(value is not None for value in bounds):
+            if self.kind != "integer":
+                raise ValueError("数值边界仅适用于 integer 字段")
+            low = max(
+                -(2**31),
+                self.minimum if self.minimum is not None else -(2**31),
+                self.exclusive_minimum + 1 if self.exclusive_minimum is not None else -(2**31),
+            )
+            high = min(
+                2**31 - 1,
+                self.maximum if self.maximum is not None else 2**31 - 1,
+                self.exclusive_maximum - 1 if self.exclusive_maximum is not None else 2**31 - 1,
+            )
+            if low > high:
+                raise ValueError("整数约束没有可接受的值")
+        if self.pattern is not None:
+            if self.kind != "text":
+                raise ValueError("pattern 仅适用于 text 字段")
+            if self.searchable or self.filterable:
+                raise ValueError("pattern 与查询组合尚缺可隔离的独立正例，当前不能同时声明")
+            try:
+                validator = TypeAdapter(Annotated[str, Field(pattern=self.pattern)])
+            except SchemaError as exc:
+                raise ValueError("pattern 正则表达式无效") from exc
+            if self.example is None:
+                raise ValueError("pattern 必须提供符合格式的 example，供独立验收使用")
+            validator.validate_python(self.example)
+        if self.example is not None and (
+            self.kind != "text"
+            or self.example != self.example.strip()
+            or not max(1 if self.required else 0, self.min_length)
+            <= len(self.example)
+            <= self.max_length
+        ):
+            raise ValueError("example 必须满足文本字段完整约束")
         return self
 
     @field_validator("name")

@@ -40,6 +40,63 @@ def test_formatting_cannot_downgrade_registered_business_oracle(style):
     assert policy_for("\n".join(lines))["trusted_oracle"] == contest.CONTRACT_VERSION
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "用户通过邀请码加入普通团队。",
+        "论文系统提供匿名评审与邀请码。",
+        "不需要竞赛、邀请码和盲审，只做客户管理。",
+        "竞赛不做邀请码和盲审。",
+    ],
+)
+def test_unrelated_or_negated_keywords_do_not_bind_contest(text):
+    assert policy_for(text)["trusted_oracle"] is None
+
+
+@pytest.mark.parametrize(
+    "messages,registered",
+    [
+        (["创建竞赛网站。", "另一个客服系统使用邀请码。", "论文库支持盲审。"], False),
+        (["竞赛网站支持邀请码和盲审。", "取消竞赛，改成客户管理。"], False),
+        (["竞赛网站支持邀请码和盲审。", "取消盲审。"], False),
+        (["竞赛网站支持邀请码和盲审。", "竞赛取消了，只做客服。"], False),
+        (["竞赛网站支持邀请码和盲审。", "盲审功能取消。"], False),
+        (["竞赛网站支持邀请码和盲审。", "继续"], True),
+    ],
+)
+def test_binding_tracks_coherent_active_human_sources(messages, registered):
+    current = {
+        "messages": messages,
+        "source_digest": digest(messages),
+        "sources": scope_sources(messages),
+    }
+    selected = scope_policy(current, Selection().model_dump())
+    assert bool(selected["trusted_oracle"]) is registered
+    assert bool(selected["oracle_source_ids"]) is registered
+    assert selected["source_units_digest"] == digest(current["sources"])
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "取消竞赛报名截止时间限制。",
+        "不要在竞赛页面显示学生姓名。",
+    ],
+)
+def test_local_contest_changes_cannot_cancel_business_oracle(change):
+    messages = ["竞赛网站支持邀请码和盲审。", change]
+    current = {
+        "messages": messages,
+        "source_digest": digest(messages),
+        "sources": scope_sources(messages),
+    }
+    selected = scope_policy(current, Selection().model_dump())
+    assert selected["trusted_oracle"] == contest.CONTRACT_VERSION
+    assert selected["oracle_source_ids"] == [current["sources"][0]["id"]]
+    assert len(selected["goals"]) == 2
+    assert selected["source_units_digest"] == digest(current["sources"])
+
+
 def make_contract():
     return make_plan(
         {

@@ -43,6 +43,7 @@
 - [docs/real-model-acceptance.md](sources/docs__real-model-acceptance_md--001.md)：本教材正文的源文件；1 段
 - [docs/recommendation-recovery.md](sources/docs__recommendation-recovery_md--001.md)：本教材正文的源文件；1 段
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
+- [docs/workflow-optimization.md](sources/docs__workflow-optimization_md--001.md)：本教材正文的源文件；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
 - [scripts/build_learning_docs.py](sources/scripts__build_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser.cjs](sources/scripts__capability_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
@@ -136,9 +137,11 @@
 - [tests/test_ci_restored_acceptance.py](sources/tests__test_ci_restored_acceptance_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_source_artifact.py](sources/tests__test_ci_source_artifact_py--001.md)：可重复的验收用例；1 段
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
+- [tests/test_declarative_fields.py](sources/tests__test_declarative_fields_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段
+- [tests/test_feature_workflow.py](sources/tests__test_feature_workflow_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_completion.py](sources/tests__test_guided_completion_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_delivery_rereview.py](sources/tests__test_guided_delivery_rereview_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_postgres.py](sources/tests__test_guided_postgres_py--001.md)：可重复的验收用例；1 段

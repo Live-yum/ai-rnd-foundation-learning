@@ -13,6 +13,20 @@ def date_string(value):
     return value
 
 
+def integer_bounds(field):
+    """Ordinary integers use the same exact int32 domain in JSON, Java and SQL."""
+    low, high = -(2**31), 2**31 - 1
+    if field.get("minimum") is not None:
+        low = max(low, field["minimum"])
+    if field.get("maximum") is not None:
+        high = min(high, field["maximum"])
+    if field.get("exclusive_minimum") is not None:
+        low = max(low, field["exclusive_minimum"] + 1)
+    if field.get("exclusive_maximum") is not None:
+        high = min(high, field["exclusive_maximum"] - 1)
+    return low, high
+
+
 def input_model(entity):
     fields = {}
     for field in entity["fields"]:
@@ -36,7 +50,10 @@ def input_model(entity):
                 else field["max_length"],
             }
         elif kind == "integer":
-            constraints = {"ge": -9223372036854775808, "le": 9223372036854775807}
+            low, high = integer_bounds(field)
+            constraints = {"ge": low, "le": high}
+        if kind == "text" and field.get("pattern") is not None:
+            constraints["pattern"] = field["pattern"]
         fields[field["name"]] = (
             annotation if field["required"] else annotation | None,
             Field(default=... if field["required"] else None, **constraints),
@@ -70,7 +87,7 @@ def filter_value(field, value):
             if not re.fullmatch(r"-?[0-9]+", value):
                 raise ValueError("整数筛选值无效")
             number = int(value)
-            if not -9223372036854775808 <= number <= 9223372036854775807:
+            if not -(2**31) <= number < 2**31:
                 raise ValueError("整数超出范围")
             return number
         case "boolean":

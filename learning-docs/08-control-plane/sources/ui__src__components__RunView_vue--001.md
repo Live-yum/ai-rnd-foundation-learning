@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L363。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L361。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13413`。本段原文以LF换行结束。
+本段原始字节数：`13376`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "62cb3565ea533b0ef5e3e59678fde2d157e0554d474b75a722315c236c08bc9e"} -->
+<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "b42250d9c768ec0fc76813465b171530a97b8fa455e66483c9ec1d1686f29ee0"} -->
 ````vue
 <!-- ui/src/components/RunView.vue -->
 <script setup lang="ts">
@@ -109,9 +109,7 @@ const canSubmit = computed(
   () => state.online && state.authenticated && !submitting.value && !state.stale,
 )
 const modelReady = computed(() => !!state.settings?.ready)
-const modelFreeApproval = computed(() =>
-  ['extension_scope', 'extension_delivery'].includes(gate.value?.stage || ''),
-)
+const modelFreeApproval = computed(() => gate.value?.needs_model?.approve === false)
 const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
 const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
 const isQuestions = computed(() => gate.value?.actions.includes('answer'))

@@ -19,14 +19,15 @@
 - `test_auth_and_host`（L19–L23）：接收`client`。 控制顺序：L20断言`client.get("/health").json() == {"status": "ok"}`；L21断言`client.get("/ready").status_code == 200`；L22断言`client.get("/projects", headers={"Authorization": "Bearer wrong"}).status_code == 401`；L23断言`client.get("/health", headers={"Host": "attacker.example"}).status_code == 400`。 调用`client.get("/health").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_project_run_idempotency_roles`（L26–L49）：接收`client`。 控制顺序：L29断言`project.status_code == 201`；L30断言`client.post("/projects", json={"title": "test"}, headers=headers).json() == project.j…`；L33断言`client.post("/projects", json={"title": "changed"}, headers=headers).status_code == 4…`；L34断言`client.post("/projects", json={"title": "x"}).status_code == 422`；L38断言`run.status_code == 202`；L39断言`client.post( url, json={**payload, "role": "system"}, headers={"Idempotency-Key": "ba…`；L46断言`client.get("/runs/" + run_id + "/messages").json()[0]["role"] == "user"`；L47断言`client.get("/runs/" + run_id + "/download").status_code == 409`。后续分支沿下方源码相同行号继续阅读。 调用`client.post`、`client.post("/projects", json={"title": "test"}, headers=headers)…`、`project.json`、`run.json`、`client.get("/runs/" + run_id + "/messages").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files`（L52–L74）：接收`client`、`settings`。 控制顺序：L64遍历`evidence.items()`；L68断言`response.status_code == 200`；L69断言`response.json() == evidence`；L70断言`"must-not-be-exposed" not in response.text`；L71断言`client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).statu…`。 调用`new_run`、`evidence.items`、`write_json`、`client.get`、`response.json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_run_list_pagination_parameters_and_status_filter`（L77–L107）：接收`client`。 控制顺序：L99断言`len(client.get("/runs?limit=1").json()) == 1`；L100断言`len(client.get("/runs?limit=1&offset=1").json()) == 1`；L101断言`client.get("/runs?limit=101").status_code == 422`；L102断言`client.get("/runs?offset=-1").status_code == 422`；L103断言`client.get(f"/projects/{project['id']}/runs?status=WAITING_EXTENSION_SCOPE").json()[0…`；L107断言`client.get("/projects/missing/runs").status_code == 404`。 调用`store.create_project`、`store.tx`、`session.add_all`、`Run`、`len`、`client.get("/runs?limit=1").json`、`client.get`、`client.get("/runs?limit=1&offset=1").json`、`client.get(f"/projects/{project['id']}/runs?status=WAITING_EXTENS…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L74。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L107。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3025`。本段原文以LF换行结束。
+本段原始字节数：`4201`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7db5b3629a9abbef4cd1fd6a2370456f99f6330cf26c6b66e927f66762987339"} -->
+<!-- learning-source: {"path": "tests/test_api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c2b282c518647119eeee77b90a9c7d2020aba1ac7de90213cdb3cac544d6d507"} -->
 ````python
 # tests/test_api.py
 import pytest
@@ -103,4 +104,37 @@ def test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files(clien
         client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).status_code
         == 401
     )
+
+
+def test_run_list_pagination_parameters_and_status_filter(client):
+    from workbench.store import Run
+
+    store = client.app.state.store
+    project = store.create_project("history", "history-project")
+    with store.tx() as session:
+        session.add_all(
+            [
+                Run(
+                    id="scope-run",
+                    project_id=project["id"],
+                    template="python-basic",
+                    status="WAITING_EXTENSION_SCOPE",
+                ),
+                Run(
+                    id="ready-run",
+                    project_id=project["id"],
+                    template="python-basic",
+                    status="READY",
+                ),
+            ]
+        )
+    assert len(client.get("/runs?limit=1").json()) == 1
+    assert len(client.get("/runs?limit=1&offset=1").json()) == 1
+    assert client.get("/runs?limit=101").status_code == 422
+    assert client.get("/runs?offset=-1").status_code == 422
+    assert (
+        client.get(f"/projects/{project['id']}/runs?status=WAITING_EXTENSION_SCOPE").json()[0]["id"]
+        == "scope-run"
+    )
+    assert client.get("/projects/missing/runs").status_code == 404
 ````

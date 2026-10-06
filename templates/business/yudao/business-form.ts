@@ -1,7 +1,7 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import { requestClient } from '#/api/request';
-interface Field { name: string; label: string; kind: string; required: boolean; min_length: number; max_length: number; choices: string[]; choice_labels: Record<string, string>; searchable: boolean; filterable: boolean; date_range: boolean }
+interface Field { name: string; label: string; kind: string; required: boolean; min_length: number; max_length: number; choices: string[]; choice_labels: Record<string, string>; searchable: boolean; filterable: boolean; date_range: boolean; minimum?: number; maximum?: number; exclusive_minimum?: number; exclusive_maximum?: number; pattern?: string; example?: string }
 interface Reference { target: string; label: string }
 interface BusinessFormSpec { fields: Field[]; controlled: string[]; references: Record<string, Reference>; statusField: string }
 const specs: Record<string, BusinessFormSpec> = __FORM_CONFIG__;
@@ -88,7 +88,7 @@ function fieldSchema(entity: string, item: VbenFormSchema, search: boolean): Vbe
       : { format: 'YYYY-MM-DD', valueFormat: 'YYYY-MM-DD' };
     if (field.kind === 'datetime') result.label = `${label} (UTC)`;
   } else if (field.kind === 'integer') {
-    result.component = 'InputNumber'; result.componentProps = { precision: 0 };
+    result.component = 'InputNumber'; result.componentProps = { precision: 0, min: search ? -2147483648 : Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1), max: search ? 2147483647 : Math.min(field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1) };
   } else {
     result.component = !search && field.max_length > 500 ? 'Textarea' : 'Input';
     result.componentProps = { maxlength: field.max_length, minlength: field.min_length };

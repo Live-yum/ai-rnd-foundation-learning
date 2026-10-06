@@ -171,6 +171,7 @@
 - [ui/tests/questions.test.ts](08-control-plane/sources/ui__tests__questions_test_ts--001.md)（1 段）
 - [ui/tests/settings.test.ts](08-control-plane/sources/ui__tests__settings_test_ts--001.md)（1 段）
 - [ui/tests/state.test.ts](08-control-plane/sources/ui__tests__state_test_ts--001.md)（1 段）
+- [ui/tests/workflow.test.ts](08-control-plane/sources/ui__tests__workflow_test_ts--001.md)（1 段）
 - [ui/tsconfig.json](08-control-plane/sources/ui__tsconfig_json--001.md)（1 段）
 - [ui/vite.config.ts](08-control-plane/sources/ui__vite_config_ts--001.md)（1 段）
 - [workbench/api.py](08-control-plane/sources/workbench__api_py--001.md)（1 段）
@@ -492,6 +493,7 @@
 - [docs/real-model-acceptance.md](14-acceptance/sources/docs__real-model-acceptance_md--001.md)（1 段）
 - [docs/recommendation-recovery.md](14-acceptance/sources/docs__recommendation-recovery_md--001.md)（1 段）
 - [docs/toolchain.md](14-acceptance/sources/docs__toolchain_md--001.md)（1 段）
+- [docs/workflow-optimization.md](14-acceptance/sources/docs__workflow-optimization_md--001.md)（1 段）
 - [scripts/build_handbook.py](14-acceptance/sources/scripts__build_handbook_py--001.md)（1 段）
 - [scripts/build_learning_docs.py](14-acceptance/sources/scripts__build_learning_docs_py--001.md)（1 段）
 - [scripts/capability_browser.cjs](14-acceptance/sources/scripts__capability_browser_cjs--001.md)（1 段）
@@ -585,9 +587,11 @@
 - [tests/test_ci_restored_acceptance.py](14-acceptance/sources/tests__test_ci_restored_acceptance_py--001.md)（1 段）
 - [tests/test_ci_source_artifact.py](14-acceptance/sources/tests__test_ci_source_artifact_py--001.md)（1 段）
 - [tests/test_container_diagnostic_review.py](14-acceptance/sources/tests__test_container_diagnostic_review_py--001.md)（1 段）
+- [tests/test_declarative_fields.py](14-acceptance/sources/tests__test_declarative_fields_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）
 - [tests/test_entity_group_clause_scope.py](14-acceptance/sources/tests__test_entity_group_clause_scope_py--001.md)（1 段）
 - [tests/test_extension_business_oracle.py](14-acceptance/sources/tests__test_extension_business_oracle_py--001.md)（1 段）
+- [tests/test_feature_workflow.py](14-acceptance/sources/tests__test_feature_workflow_py--001.md)（1 段）
 - [tests/test_guided_completion.py](14-acceptance/sources/tests__test_guided_completion_py--001.md)（1 段）
 - [tests/test_guided_delivery_rereview.py](14-acceptance/sources/tests__test_guided_delivery_rereview_py--001.md)（1 段）
 - [tests/test_guided_postgres.py](14-acceptance/sources/tests__test_guided_postgres_py--001.md)（1 段）

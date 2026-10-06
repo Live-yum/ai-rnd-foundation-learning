@@ -13,18 +13,18 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `verify_business.allowed`（L679–L686）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L681按`action not in grant.get("actions", [])`分支；L683按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L682的`False`；L684的`True`；L686的`row.get(key) == identity`。
-- `verify_business.start`（L727–L768）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L757遍历`range(150)`；L759按`client.get("/health").status_code == 200`分支；L763按`process.poll() is not None`分支；L768抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L760的`process, client`。
-- `verify_business.request`（L778–L816）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L786按`method == "GET" and path == "/business/notifications"`分支；L788按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L792按`len(parts) == 2`分支；L795按`len(parts) == 4`分支；L801按`event`分支；L810按`event`分支；L813遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L816的`result`。
-- `verify_business.selected`（L1259–L1275）：接收`row`。 控制顺序：L1260遍历`metric["filters"]`；L1262按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1271按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1270的`False`；L1274的`False`；L1275的`True`。
+- `verify_business.allowed`（L692–L699）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L694按`action not in grant.get("actions", [])`分支；L696按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L695的`False`；L697的`True`；L699的`row.get(key) == identity`。
+- `verify_business.start`（L740–L781）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L770遍历`range(150)`；L772按`client.get("/health").status_code == 200`分支；L776按`process.poll() is not None`分支；L781抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L773的`process, client`。
+- `verify_business.request`（L791–L829）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L799按`method == "GET" and path == "/business/notifications"`分支；L801按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L805按`len(parts) == 2`分支；L808按`len(parts) == 4`分支；L814按`event`分支；L823按`event`分支；L826遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L829的`result`。
+- `verify_business.selected`（L1277–L1293）：接收`row`。 控制顺序：L1278遍历`metric["filters"]`；L1280按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1289按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1288的`False`；L1292的`False`；L1293的`True`。
 
 </details>
 
-**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L679–L1723。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L692–L1741。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`50674`。本段原文以LF换行结束。
+本段原始字节数：`50949`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "ef74b7c428eb1d74dc0f147ad5c67963989dbd4228d4043c7b4b5c4742593137"} -->
+<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "a2f66903d426af5e8a6ca253c3eb01d45194df84c69514d440663a827ef7b6a5"} -->
 ````python
 # templates/product/verify_business.py
     def allowed(role, entity, action, row=None, identity=None):
@@ -274,7 +274,10 @@
                         elif kind == "boolean":
                             sample[name] = True
                         elif kind == "integer":
-                            sample[name] = 1
+                            from fields import integer_bounds
+
+                            low, high = integer_bounds(field)
+                            sample[name] = max(low, min(1, high))
                         elif kind == "date":
                             sample[name] = "2026-01-01"
                         elif kind == "datetime":
@@ -283,6 +286,8 @@
                             sample[name] = (
                                 "Verify " + name + " x" * max(1, field.get("min_length", 0))
                             )[: field["max_length"]]
+                            if field.get("example") is not None:
+                                sample[name] = field["example"]
                     rule = next(
                         (r for r in spec.get("custom_rules", []) if r["entity"] == entity), None
                     )

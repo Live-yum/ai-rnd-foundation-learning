@@ -15,24 +15,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `TemplateAdapter`（L16–L204）：继承`object`。声明的数据项为`template`、`name`、`backend`、`frontends`、`databases`、`scope`、`features`、`field_kinds`、`languages`、`runtimes`、`package_managers`、`generator`、`verifier`；类型约束/数据库列参数以完整定义为准。
+- `TemplateAdapter`（L16–L209）：继承`object`。声明的数据项为`template`、`name`、`backend`、`frontends`、`databases`、`scope`、`features`、`field_kinds`、`languages`、`runtimes`、`package_managers`、`generator`、`verifier`；类型约束/数据库列参数以完整定义为准。
 - `TemplateAdapter.validate_selection`（L31–L37）：接收`backend`、`frontend`、`database`。 控制顺序：L32按`backend != self.backend or frontend not in self.frontends or database not in self.dat…`分支；L37抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `TemplateAdapter.selection_spec`（L39–L49）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`list`、`self.blocked_features`。 返回路径：L40的`{ "backend": self.backend, "frontends": list(self.frontends), "databases": list(self.datab…`。
 - `TemplateAdapter.blocked_features`（L51–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L52的`[ "public-anonymous-site", "external-payments", "web-scraping", "arbitrary-code-execution"…`。
 - `TemplateAdapter.source_pins`（L61–L82）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62按`self.template == "python-basic"`分支。 调用`sha256((ROOT / path).read_bytes()).hexdigest`、`sha256`、`(ROOT / path).read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`。 返回路径：L66的`[ { "slot": "product", "origin": "platform-repository", "revision": "platform-head", "lice…`；L78的`[ {key: row[key] for key in ("slot", "url", "sha", "license", "archive_sha256")} for row i…`。
 - `TemplateAdapter.ui_contract`（L84–L115）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`self.template == "python-basic"`分支。 调用`native_page_contracts`、`sorted`、`pages.values`、`list`。 返回路径：L86的`{ "family": "simple-admin / semantic HTML", "source_root": "templates/frontends/simple-adm…`；L99的`{ "family": profile["family"], "source_root": "frontend/web" if self.template == "fastapia…`。
-- `TemplateAdapter.capabilities`（L117–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`deepcopy`、`self.source_pins`、`self.selection_spec`、`list`、`sorted`、`self.ui_contract`、`self.blocked_features`。 返回路径：L123的`{ **self.selection_spec(), "id": self.template, "template": self.template, "catalog_versio…`。
-- `get_adapter`（L266–L270）：接收`template`。 控制顺序：L270抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L268的`_ADAPTERS[template]`。
-- `template_ids`（L273–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`tuple`。 返回路径：L274的`tuple(_ADAPTERS)`。
-- `template_catalog`（L277–L278）：接收`template`。 调用`get_adapter(template).capabilities`、`get_adapter`。 返回路径：L278的`get_adapter(template).capabilities()`。
+- `TemplateAdapter.capabilities`（L117–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`deepcopy`、`self.source_pins`、`self.selection_spec`、`list`、`sorted`、`self.ui_contract`、`self.blocked_features`。 返回路径：L123的`{ **self.selection_spec(), "id": self.template, "template": self.template, "catalog_versio…`。
+- `get_adapter`（L271–L275）：接收`template`。 控制顺序：L275抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L273的`_ADAPTERS[template]`。
+- `template_ids`（L278–L279）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`tuple`。 返回路径：L279的`tuple(_ADAPTERS)`。
+- `template_catalog`（L282–L283）：接收`template`。 调用`get_adapter(template).capabilities`、`get_adapter`。 返回路径：L283的`get_adapter(template).capabilities()`。
 
 </details>
 
-**创建路径：** `workbench/template_adapters.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L278。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/template_adapters.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L283。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11207`。本段原文以LF换行结束。
+本段原始字节数：`11536`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/template_adapters.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f2a402e1adc0d0b7f4b074fa0562c5cdd14c72d5fb6720d0247fd77a6831ef20"} -->
+<!-- learning-source: {"path": "workbench/template_adapters.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7b1e5b975e47391bbd13dde0ef1b739155efd99c1c73a3c72245489a4ff05e8"} -->
 ````python
 # workbench/template_adapters.py
 """One executable template contract for selection, discovery and delivery planning.
@@ -191,6 +191,11 @@ class TemplateAdapter:
                     "status": "candidate-only",
                     "available": False,
                     "preverified_features": [],
+                    "reviewed_modules": [],
+                    "module_blockers": {
+                        "batch-import-v1": "runtime and UI templates are absent; installation is not executable"
+                    },
+                    "selection": "RunInput.allow_custom_extensions; approval and evidence remain required",
                     "requires": [
                         "explicit user approval of scope and source plan",
                         "implemented selected-template adapter and native UI integration",

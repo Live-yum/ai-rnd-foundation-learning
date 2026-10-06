@@ -12,9 +12,9 @@
 
 **创建路径：** `scripts/business_yudao_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L638。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`40628`。本段原文以LF换行结束。
+本段原始字节数：`40804`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/business_yudao_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "273563c1943c83da88419aca7238ac57df260f022fa9c2ca4922fd9be7404d83"} -->
+<!-- learning-source: {"path": "scripts/business_yudao_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9c0735e9164f6a54f8c906319af690a2c5059712859da41d5f499b6426057ce0"} -->
 ````javascript
 // scripts/business_yudao_browser.cjs
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
@@ -527,7 +527,7 @@ async function main() {
         expectedRelations[field.name.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())] = created[relation.target_entity];
       } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
-      else if (field.kind === 'integer') await input.fill('1');
+      else if (field.kind === 'integer') await input.fill(String(Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1, Math.min(1, field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1))));
       else if (field.kind === 'datetime' || field.kind === 'date') {
         if (field.required) {
           await input.fill(field.kind === 'date' ? '2026-09-30' : '2026-09-30 12:00:00 UTC');

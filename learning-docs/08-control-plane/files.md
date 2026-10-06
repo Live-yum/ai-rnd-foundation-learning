@@ -37,6 +37,7 @@
 - [ui/tests/questions.test.ts](sources/ui__tests__questions_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/settings.test.ts](sources/ui__tests__settings_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/state.test.ts](sources/ui__tests__state_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/tests/workflow.test.ts](sources/ui__tests__workflow_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tsconfig.json](sources/ui__tsconfig_json--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/vite.config.ts](sources/ui__vite_config_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [workbench/api.py](sources/workbench__api_py--001.md)：网页及CLI调用的HTTP接口；1 段

@@ -228,6 +228,73 @@ def test_generated_native_status_is_initialized_without_exposing_it_to_input():
     assert "set(data) - set(fields)" in runtime
 
 
+def test_native_quantity_validator_rejects_out_of_contract_post_and_put_values():
+    """Exercise the native callback over HTTP without importing its ORM stack."""
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.testclient import TestClient
+
+    spec = importlib.util.spec_from_file_location(
+        "native_numeric_policy", ROOT / "templates/business/common/policy.py"
+    )
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    config = {
+        "entities": [
+            {
+                "name": "cases",
+                "fields": [
+                    {
+                        "name": "quantity",
+                        "kind": "integer",
+                        "required": True,
+                        "minimum": 2,
+                        "maximum": 8,
+                    }
+                ],
+            }
+        ],
+        "business": {
+            "resources": [{"entity": "cases"}],
+            "roles": [],
+            "permissions": [],
+            "workflows": [],
+            "relations": [],
+        },
+    }
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
+    functions = [
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in {"fail", "validate"}
+    ]
+    scope = {
+        "HTTPException": HTTPException,
+        "ENTITIES": {"cases": config["entities"][0]},
+        "POLICY": policy.Policy(config),
+        "SPEC": config["business"],
+        "PolicyError": policy.PolicyError,
+        "validate_scalar_constraints": policy.validate_scalar_constraints,
+    }
+    exec(compile(ast.Module(body=functions, type_ignores=[]), "native-validate", "exec"), scope)
+    app = FastAPI()
+
+    async def validate_record(data: dict, request: Request):
+        return await scope["validate"](None, None, "cases", data, creation=request.method == "POST")
+
+    app.post("/cases", status_code=201)(validate_record)
+    app.put("/cases/1")(validate_record)
+    with TestClient(app) as client:
+        for method, path, success in (("POST", "/cases", 201), ("PUT", "/cases/1", 200)):
+            for value in (2, 8):
+                response = client.request(method, path, json={"quantity": value})
+                assert response.status_code == success, response.text
+                assert response.json() == {"quantity": value}
+            for value in (0, 1, 9, -1, 2**31, -(2**31) - 1, True, 2.0, "2"):
+                response = client.request(method, path, json={"quantity": value})
+                assert response.status_code == 422, (method, value, response.text)
+
+
 def generated_relation_model():
     return """from datetime import datetime
 from sqlalchemy import DateTime, Integer, String

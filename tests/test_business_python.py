@@ -39,6 +39,52 @@ def runtime_plan():
     return Plan.model_validate(raw)
 
 
+def test_due_rules_bind_their_own_deadline_and_recipient(tmp_path):
+    raw = runtime_plan().model_dump()
+    raw["entities"][1]["fields"].append(
+        {"name": "creator_due_at", "kind": "datetime", "required": False}
+    )
+    raw["business"]["notifications"].append(
+        {
+            "entity": "requests",
+            "event": "due",
+            "due_field": "creator_due_at",
+            "recipient": "creator",
+        }
+    )
+    product = tmp_path / "product"
+    generate_basic(Plan.model_validate(raw), product)
+    scenario = (
+        SCENARIO.split("    reminders=")[0]
+        + r"""
+    from sqlalchemy import update
+    target=metadata.tables['requests']
+    with engine.begin() as conn:
+        conn.execute(update(target).where(target.c.id==identity).values(creator_due_at='2099-01-01T00:00:00.000000Z'))
+    service_due=[n for n in call('GET','/business/notifications',service).json() if n['event']=='due']
+    assert len(service_due)==1,service_due
+    assert not [n for n in call('GET','/business/notifications',employee).json() if n['event']=='due']
+    with engine.begin() as conn:
+        conn.execute(update(target).where(target.c.id==identity).values(creator_due_at='2020-01-01T00:00:00.000000Z'))
+    creator_due=[n for n in call('GET','/business/notifications',employee).json() if n['event']=='due']
+    assert len(creator_due)==1,creator_due
+    assert len([n for n in call('GET','/business/notifications',service).json() if n['event']=='due'])==1
+"""
+    )
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+        }
+    )
+    for argv in ([sys.executable, "manage.py", "init"], [sys.executable, "-c", scenario]):
+        result = subprocess.run(
+            argv, cwd=product, env=env, capture_output=True, text=True, encoding="utf-8", timeout=90
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
+
 SCENARIO = r"""
 import getpass,json
 from fastapi.testclient import TestClient

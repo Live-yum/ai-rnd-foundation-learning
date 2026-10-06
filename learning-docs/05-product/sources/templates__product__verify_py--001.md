@@ -13,21 +13,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `CheckFailed`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BrowserPrerequisite`（L27–L28）：继承`CheckFailed`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `need`（L31–L33）：接收`condition`、`message`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`CheckFailed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `stop`（L36–L51）：接收`process`。 控制顺序：L37按`process.poll() is not None`分支；L39按`os.name == "nt"`分支。 调用`process.poll`、`subprocess.run`、`str`、`os.killpg`、`process.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify`（L54–L414）：接收`product`、`python`、`business_screenshots`。 控制顺序：L57按`spec.get("business")`分支；L71按`selection["database"] == "postgresql"`分支；L147按`selection["frontend"] == "simple-admin"`分支；L180遍历`spec["entities"]`；L194按`rules`分支；L209遍历`("GET", "PUT", "DELETE")`；L222遍历`entity["fields"]`；L237按`f["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`json.loads`、`(product / "approved-spec.json").read_text`、`spec.get`、`verify_business`、`uuid.uuid4`、`tempfile.TemporaryDirectory`、`os.environ.items`等。 返回路径：L60的`verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)`；L406的`{ "passed": True, "checks": checks, "entities": len(spec["entities"]), "http": True, "data…`。
-- `verify.start_server`（L97–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126遍历`range(150)`；L127按`process.poll() is not None`分支；L129抛异常，停止当前正常路径；L131按`client.get("/health").status_code == 200`分支；L138抛异常，停止当前正常路径。 调用`socket.socket`、`sock.bind`、`sock.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`process.poll`、`client.close`等。 返回路径：L132的`process, client`。
-- `main`（L417–L448）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L443按`args.report`分支；L447按`not result["passed"]`分支；L448抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`verify`、`type`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CheckFailed`（L26–L27）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserPrerequisite`（L30–L31）：继承`CheckFailed`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `need`（L34–L36）：接收`condition`、`message`。 控制顺序：L35按`not condition`分支；L36抛异常，停止当前正常路径。 调用`CheckFailed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stop`（L39–L54）：接收`process`。 控制顺序：L40按`process.poll() is not None`分支；L42按`os.name == "nt"`分支。 调用`process.poll`、`subprocess.run`、`str`、`os.killpg`、`process.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify`（L57–L455）：接收`product`、`python`、`business_screenshots`。 控制顺序：L60按`spec.get("business")`分支；L74按`selection["database"] == "postgresql"`分支；L150按`selection["frontend"] == "simple-admin"`分支；L183遍历`spec["entities"]`；L200按`rules`分支；L215遍历`("GET", "PUT", "DELETE")`；L228遍历`entity["fields"]`；L244按`f["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`json.loads`、`(product / "approved-spec.json").read_text`、`spec.get`、`verify_business`、`uuid.uuid4`、`tempfile.TemporaryDirectory`、`os.environ.items`等。 返回路径：L63的`verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)`；L447的`{ "passed": True, "checks": checks, "entities": len(spec["entities"]), "http": True, "data…`。
+- `verify.start_server`（L100–L141）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L129遍历`range(150)`；L130按`process.poll() is not None`分支；L132抛异常，停止当前正常路径；L134按`client.get("/health").status_code == 200`分支；L141抛异常，停止当前正常路径。 调用`socket.socket`、`sock.bind`、`sock.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`process.poll`、`client.close`等。 返回路径：L135的`process, client`。
+- `main`（L458–L489）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L484按`args.report`分支；L488按`not result["passed"]`分支；L489抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`verify`、`type`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `templates/product/verify.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L452。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/verify.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L493。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18337`。本段原文以LF换行结束。
+本段原始字节数：`20669`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/verify.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "37d89464ffdc0da1716bb38914943eb769a2bf84e1d129b5626e5e39f7816e76"} -->
+<!-- learning-source: {"path": "templates/product/verify.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "21cfd9a227d358ac81a899d8e9d5b751fe913597e6ca8c4e55dcf86ef0cbb76f"} -->
 ````python
 # templates/product/verify.py
 """Run real migrations and HTTP checks against an isolated product database.
@@ -48,8 +48,11 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 import httpx
+from fields import integer_bounds
+from pydantic import Field, TypeAdapter, ValidationError
 
 
 class CheckFailed(RuntimeError):
@@ -214,10 +217,13 @@ def verify(product, python=sys.executable, business_screenshots=None):
                 path = "/api/" + name
                 sample = {
                     f["name"]: {
-                        "text": "x" * max(1, f.get("min_length", 0)),
-                        "integer": 1,
+                        "text": f.get("example")
+                        if f.get("example") is not None
+                        else "x" * max(1, f.get("min_length", 0)),
+                        "integer": max(integer_bounds(f)[0], min(1, integer_bounds(f)[1])),
                         "boolean": True,
                         "date": "2026-01-15",
+                        "datetime": "2026-01-15T00:00:34.123456Z",
                         "enum": (f.get("choices") or ["sample"])[0],
                     }[f["kind"]]
                     for f in entity["fields"]
@@ -259,6 +265,7 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             "integer": True,
                             "boolean": "yes",
                             "date": "2026/01/15",
+                            "datetime": "2026-01-15T00:00:00",
                             "enum": "__invalid_choice__",
                         }[f["kind"]],
                     }
@@ -272,6 +279,21 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             client.post(path, headers=auth_a, json=missing).status_code == 422,
                             "missing field accepted",
                         )
+                    if f["kind"] == "integer":
+                        low, high = integer_bounds(f)
+                        for invalid in (low - 1, high + 1):
+                            for target, method in ((path, "POST"), (detail, "PUT")):
+                                need(
+                                    client.request(
+                                        method,
+                                        target,
+                                        headers=auth_a,
+                                        json={**sample, f["name"]: invalid},
+                                    ).status_code
+                                    == 422,
+                                    "approved integer boundary accepted invalid input",
+                                )
+                        checks.append(f"integer-boundaries:{name}.{f['name']}")
                     if f["kind"] == "text":
                         need(
                             client.post(
@@ -282,6 +304,25 @@ def verify(product, python=sys.executable, business_screenshots=None):
                             == 422,
                             "overlong field accepted",
                         )
+                        if f.get("pattern") is not None:
+                            validator = TypeAdapter(Annotated[str, Field(pattern=f["pattern"])])
+                            for invalid in (
+                                "__invalid_pattern__",
+                                "!",
+                                str(sample[f["name"]])[::-1],
+                            ):
+                                try:
+                                    validator.validate_python(invalid)
+                                except ValidationError:
+                                    need(
+                                        client.post(
+                                            path,
+                                            headers=auth_a,
+                                            json={**sample, f["name"]: invalid},
+                                        ).status_code
+                                        == 422,
+                                        "text violates approved pattern but was accepted",
+                                    )
                 need(
                     client.put(detail, headers=auth_a, json=sample).status_code == 200,
                     "update failed",

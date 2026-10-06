@@ -1,9 +1,28 @@
 name: Customer-service native integration
 on:
-  pull_request:
-    branches: [feat/complete-platform-acceptance]
+  push:
+    branches: [main]
     paths:
-      - '从零实现AI研发平台_逐步实操手册_完整版.md'
+      - 'workbench/**'
+      - 'templates/**'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - 'examples/plans/customer-service.json'
+      - 'tests/fixtures/customer_design_diagnostics/**'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/customer-runtime.yml'
+  pull_request:
+    branches: [main, feat/complete-platform-acceptance]
+    paths:
+      - 'workbench/**'
+      - 'templates/**'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - 'examples/plans/customer-service.json'
+      - 'tests/fixtures/customer_design_diagnostics/**'
+      - 'uv.lock'
+      - 'pyproject.toml'
       - '.github/workflows/customer-runtime.yml'
   workflow_dispatch:
 permissions:
@@ -17,12 +36,9 @@ env:
 jobs:
   gate:
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'feat/customer-service-acceptance' &&
-       github.event.pull_request.base.ref == 'feat/complete-platform-acceptance') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref == 'refs/heads/feat/customer-service-acceptance')
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

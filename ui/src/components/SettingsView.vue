@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { CheckOutlined, SafetyCertificateOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { api, ApiError, errorText } from '../api'
@@ -65,8 +65,15 @@ function load() {
   baseline.value = JSON.stringify(form)
   conflict.value = false
 }
-load()
 const dirty = computed(() => baseline.value !== JSON.stringify(form) || keyAction.value !== 'keep')
+baseline.value = JSON.stringify(form)
+watch(
+  () => state.settings,
+  () => {
+    if (!dirty.value) load()
+  },
+  { immediate: true },
+)
 const original = computed(() =>
   active.value === 'default' ? state.settings?.default : state.settings?.stages?.[active.value],
 )

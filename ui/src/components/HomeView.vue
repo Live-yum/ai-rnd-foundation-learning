@@ -19,14 +19,21 @@ let mounted = true
 onBeforeUnmount(() => {
   mounted = false
 })
-const requirement = ref(''),
-  title = ref(''),
+const draftKey = computed(() => props.projectId || 'home')
+const requirement = computed({
+  get: () => state.homeDrafts[draftKey.value] || '',
+  set: (value: string) => {
+    state.homeDrafts[draftKey.value] = value
+  },
+})
+const title = ref(''),
   showCreate = ref(false),
   submitting = ref(false),
   template = ref(''),
   frontend = ref(''),
   database = ref(''),
   intelligent = ref(false),
+  allowCustomExtensions = ref(false),
   composer = ref<any>(),
   error = ref('')
 const selected = computed(() => state.catalog.find((c) => c.template === template.value))
@@ -68,7 +75,7 @@ function prepare() {
     return
   }
   if (!state.settings?.ready) {
-    emit('navigate', 'settings')
+    configure()
     state.notice = '先完成默认模型连接配置，再开始研发对话'
     return
   }
@@ -77,6 +84,10 @@ function prepare() {
   intelligent.value = false
   error.value = ''
   showCreate.value = true
+}
+function configure() {
+  state.settingsReturn = props.projectId ? 'project/' + props.projectId + '/new' : 'home'
+  emit('navigate', 'settings')
 }
 function keydown(event: KeyboardEvent) {
   if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
@@ -104,6 +115,7 @@ async function create() {
     frontend: frontend.value,
     database: database.value,
     intelligent: intelligent.value,
+    allow_custom_extensions: allowCustomExtensions.value,
   })
   try {
     const p = props.projectId
@@ -125,6 +137,7 @@ async function create() {
           database: database.value,
         },
         intelligent: intelligent.value,
+        allow_custom_extensions: allowCustomExtensions.value,
       },
       key: mutationKey('run:' + fingerprint),
     })
@@ -149,8 +162,11 @@ async function create() {
     <div class="home-hero">
       <div class="sparkle-tile"><ThunderboltOutlined aria-hidden="true" /></div>
       <div class="eyebrow">YOUR NEXT IDEA STARTS HERE</div>
-      <h1>{{ project ? `继续「${project.title}」` : '今天，想做点什么？' }}</h1>
+      <h1>
+        {{ projectId ? `为「${project?.title || '当前项目'}」开始新一轮` : '今天，想做点什么？' }}
+      </h1>
       <p>从一句需求开始，一起推进到方案、开发与可验证的交付。</p>
+      <p v-if="projectId">新一轮从本次需求重新生成，不会读取或修改上一轮产物；请写全本次需求。</p>
     </div>
     <form class="home-composer" @submit.prevent="prepare">
       <a-textarea
@@ -166,7 +182,7 @@ async function create() {
       <div class="composer-tools">
         <a-button type="text" aria-label="查看新对话技术选型" @click="prepare"
           ><PlusOutlined aria-hidden="true" /></a-button
-        ><button type="button" class="model-pill" @click="emit('navigate', 'settings')">
+        ><button type="button" class="model-pill" @click="configure">
           <ThunderboltOutlined aria-hidden="true" />默认模型 ·
           {{
             state.authenticated ? (state.settings?.ready ? '已配置' : '待配置') : '连接后查看'
@@ -317,7 +333,13 @@ async function create() {
               声明式业务合同支持已登记的角色与行范围、关联、分配、状态、处理记录、站内提醒和统计；不会执行任意跨实体脚本。
             </p></a-collapse-panel
           ></a-collapse
-        ><a-checkbox v-model:checked="intelligent" :disabled="submitting"
+        ><a-checkbox v-model:checked="allowCustomExtensions" :disabled="submitting"
+          >允许受控自定义扩展</a-checkbox
+        >
+        <p class="field-hint">
+          逐功能选择现有生成器或受控扩展。扩展仍需明确设计审批和独立验收；此选项不代表能力已实现。
+        </p>
+        <a-checkbox v-model:checked="intelligent" :disabled="submitting"
           >启用智能推荐（持续委托）</a-checkbox
         ><a-alert
           v-if="intelligent"

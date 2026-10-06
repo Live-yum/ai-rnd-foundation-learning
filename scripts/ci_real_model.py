@@ -443,6 +443,8 @@ DESIGN_REASON_CODES = {
     "Native runtime currently requires explicitly approved shared data with role permissions": "native_data_scope",
     "Native normalized business names collide": "native_entity_collision",
     "Native enum/date/datetime fields require a business contract": "native_business_field_kind",
+    "Native pattern constraints require a reviewed cross-language regex adapter": "native_pattern_unsupported",
+    "Native numeric bounds require a business contract": "native_numeric_bounds_unsupported",
     "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
     "use a supported template or explicitly revise the requirement": "native_unsupported_field_option",
     "Native runtime requires a required text field in each entity for independent UI acceptance": "native_required_text",

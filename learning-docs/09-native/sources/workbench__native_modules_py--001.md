@@ -17,20 +17,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `validate_plan`（L59–L99）：接收`plan`。 控制顺序：L61按`plan.unsupported`分支；L62抛异常，停止当前正常路径；L63按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L64抛异常，停止当前正常路径；L67遍历`plan.entities`；L68遍历`entity.fields`；L69按`field.name in RULE_RESERVED`分支；L70抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`e.name.replace`、`re.fullmatch`、`any`。 返回路径：L99的`plan`。
-- `native_metadata`（L102–L215）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L107按`template == "fastapiadmin"`分支；L109按`template == "yudao-vben" and plan.business`分支；L120遍历`plan.entities`；L122按`template == "fastapiadmin"`分支；L149按`template == "yudao-vben"`分支；L171抛异常，停止当前正常路径；L172遍历`entity.fields`；L183按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L215的`metadata, tables, mapping`。
-- `create_native_tables`（L218–L243）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L224按`existing.intersection(mapping.values())`分支；L225抛异常，停止当前正常路径；L230遍历`metadata.sorted_tables`；L231按`table not in tables`分支；L233按`template == "yudao-vben"`分支；L238遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L243的`mapping`。
-- `yudao_menu`（L246–L248）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L248的`record_id(payload(response))`。
-- `mount_yudao_export`（L251–L344）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L259遍历`sorted(root.rglob("*"))`；L260按`not file.is_file()`分支；L264按`"ErrorCodeConstants_手动操作" in name`分支；L267按`name.startswith("sql/")`分支；L269按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L271按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L272抛异常，停止当前正常路径；L274按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L344的`{"files": writes, "error_constants": added}`。
-- `generate_modules`（L347–L578）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L363按`template == "fastapiadmin"`分支；L368遍历`plan.entities`；L396按`export.headers.get("X-Skipped-Tables")`分支；L397抛异常，停止当前正常路径；L429按`template == "yudao-vben"`分支；L453按`len(ids) != len(plan.entities)`分支；L454抛异常，停止当前正常路径；L465遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L578的`targets`。
+- `validate_plan`（L61–L110）：接收`plan`。 控制顺序：L63按`plan.unsupported`分支；L64抛异常，停止当前正常路径；L65按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L66抛异常，停止当前正常路径；L69遍历`plan.entities`；L70遍历`entity.fields`；L71按`field.name in RULE_RESERVED`分支；L72抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`e.name.replace`、`any`、`getattr`、`re.fullmatch`。 返回路径：L110的`plan`。
+- `native_metadata`（L113–L231）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L118按`template == "fastapiadmin"`分支；L120按`template == "yudao-vben" and plan.business`分支；L131遍历`plan.entities`；L133按`template == "fastapiadmin"`分支；L160按`template == "yudao-vben"`分支；L182抛异常，停止当前正常路径；L183遍历`entity.fields`；L194按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L231的`metadata, tables, mapping`。
+- `create_native_tables`（L234–L259）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L240按`existing.intersection(mapping.values())`分支；L241抛异常，停止当前正常路径；L246遍历`metadata.sorted_tables`；L247按`table not in tables`分支；L249按`template == "yudao-vben"`分支；L254遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L259的`mapping`。
+- `yudao_menu`（L262–L264）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L264的`record_id(payload(response))`。
+- `mount_yudao_export`（L267–L360）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L275遍历`sorted(root.rglob("*"))`；L276按`not file.is_file()`分支；L280按`"ErrorCodeConstants_手动操作" in name`分支；L283按`name.startswith("sql/")`分支；L285按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L287按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L288抛异常，停止当前正常路径；L290按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L360的`{"files": writes, "error_constants": added}`。
+- `generate_modules`（L363–L594）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L379按`template == "fastapiadmin"`分支；L384遍历`plan.entities`；L412按`export.headers.get("X-Skipped-Tables")`分支；L413抛异常，停止当前正常路径；L445按`template == "yudao-vben"`分支；L469按`len(ids) != len(plan.entities)`分支；L470抛异常，停止当前正常路径；L481遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L594的`targets`。
 
 </details>
 
-**创建路径：** `workbench/native_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L578。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L594。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`24534`。本段原文以LF换行结束。
+本段原始字节数：`25339`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "491158fbebfa2a0ea077cc2f4f37de748182b75e934af1748bb3182e8e09d46b"} -->
+<!-- learning-source: {"path": "workbench/native_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e5bae641723fdda612df131bd4b254daa95db7ded2eb1a3dbee5f04cf09e788e"} -->
 ````python
 # workbench/native_modules.py
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
@@ -42,6 +42,7 @@ from pathlib import Path
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -58,6 +59,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.schema import CreateIndex, CreateSequence, CreateTable
 
+from templates.product.fields import integer_bounds
 from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
@@ -111,6 +113,15 @@ def validate_plan(plan):
         raise ValueError("Native normalized business names collide")
     for entity in plan.entities:
         for field in entity.fields:
+            if field.pattern is not None:
+                raise ValueError(
+                    "Native pattern constraints require a reviewed cross-language regex adapter"
+                )
+            if plan.business is None and any(
+                getattr(field, attr) is not None
+                for attr in ("minimum", "maximum", "exclusive_minimum", "exclusive_maximum")
+            ):
+                raise ValueError("Native numeric bounds require a business contract")
             if plan.business is None and field.kind not in {"text", "integer", "boolean"}:
                 raise ValueError("Native enum/date/datetime fields require a business contract")
             if plan.business is None and (
@@ -223,6 +234,11 @@ def native_metadata(template, plan, url, run_id):
                     else mapping[relation.target_entity]
                 )
                 constraints.append(ForeignKey(target + ".id", ondelete="RESTRICT"))
+            elif field.kind == "integer":
+                low, high = integer_bounds(field.model_dump())
+                constraints.append(
+                    CheckConstraint(f'"{field.name}" >= {low} AND "{field.name}" <= {high}')
+                )
             columns.append(
                 Column(
                     field.name, kind, *constraints, nullable=not field.required, comment=field.name

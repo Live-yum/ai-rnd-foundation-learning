@@ -17,15 +17,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `coverage_gaps.gap`（L2309–L2337）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2311按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `coverage_gaps.gap`（L2373–L2401）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2375按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2309–L2736。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2373–L2804。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20381`。本段原文以LF换行结束。
+本段原始字节数：`20544`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "05f7f25414e4260e799b405779b27e8e29f6a51ec2e5863dc5cfccbb7b49993e"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b23845f2d0421e9b078546869bedf2a843df8876bcb938bbe04254263fd95057"} -->
 ````python
 # workbench/requirement_coverage.py
     def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
@@ -81,7 +81,7 @@
             if key in {"field", "entity"} or value is None:
                 continue
             actual = getattr(field, key)
-            matches_constraint = _matches_constraint(key, value, actual)
+            matches_constraint = _field_constraint_matches(field, key, value)
             if key in {"searchable", "filterable", "date_range"} and type(value) is bool:
                 typed_queries[(id(field), key, value)] = matches_constraint
             if not matches_constraint:
@@ -125,9 +125,9 @@
             for attribute, expected in attributes.items():
                 if expected is None:
                     continue
-                if (attribute == "choices" and field.kind != "enum") or not _matches_constraint(
-                    attribute, expected, getattr(field, attribute)
-                ):
+                if (
+                    attribute == "choices" and field.kind != "enum"
+                ) or not _field_constraint_matches(field, attribute, expected):
                     gap(
                         f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致",
                         "constraint_mismatch",
@@ -438,14 +438,18 @@
                     )
         for field in mentioned:
             for attribute, expected in _legacy_scalar_constraints(text):
+                if (
+                    attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}
+                    and field.kind != "integer"
+                ):
+                    continue
                 actual = getattr(field, attribute)
-                if actual == expected:
+                if _field_constraint_matches(field, attribute, expected):
                     continue
                 description = (
                     ("必填" if expected else "可选")
                     if attribute == "required"
-                    else ("长度上限为 " if attribute == "max_length" else "最小长度为 ")
-                    + str(expected)
+                    else attribute + "=" + str(expected)
                 )
                 gap(
                     f"已确认字段 {field.name} {description}: {text}",

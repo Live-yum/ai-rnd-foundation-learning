@@ -14,18 +14,19 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `date_string`（L9–L13）：接收`value`。 控制顺序：L10按`not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value)`分支；L11抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`ValueError`、`date.fromisoformat`。 返回路径：L13的`value`。
-- `input_model`（L16–L48）：接收`entity`。 控制顺序：L18遍历`entity["fields"]`；L29按`kind in {"text", "enum", "date", "datetime"}`分支；L38按`kind == "integer"`分支。 调用`max`、`field.get`、`Field`、`create_model`、`ConfigDict`。 返回路径：L44的`create_model( entity["name"] + "Input", __config__=ConfigDict(extra="forbid", str_strip_wh…`。
-- `validate_options`（L51–L62）：接收`entity`、`values`。 控制顺序：L52遍历`entity["fields"]`；L54按`value is None`分支；L56按`field["kind"] == "date"`分支；L58按`field["kind"] == "datetime"`分支；L60按`field["kind"] == "enum" and value not in field["choices"]`分支；L61抛异常，停止当前正常路径。 调用`values.get`、`date_string`、`datetime_string`、`ValueError`。 返回路径：L62的`values`。
-- `filter_value`（L65–L89）：接收`field`、`value`。 控制顺序：L66按`len(value) > max(field["max_length"], 100)`分支；L67抛异常，停止当前正常路径；L70按`not re.fullmatch(r"-?[0-9]+", value)`分支；L71抛异常，停止当前正常路径；L73按`not -9223372036854775808 <= number <= 9223372036854775807`分支；L74抛异常，停止当前正常路径；L77按`value not in {"true", "false"}`分支；L78抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`max`、`ValueError`、`re.fullmatch`、`int`、`date_string`、`datetime_string`。 返回路径：L75的`number`；L79的`value == "true"`；L81的`date_string(value)`。
-- `datetime_string`（L92–L98）：接收`value`。 控制顺序：L93按`not isinstance(value, str)`分支；L94抛异常，停止当前正常路径；L96按`parsed.tzinfo is None`分支；L97抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`datetime.fromisoformat`、`value.replace`、`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds"…`、`parsed.astimezone(timezone.utc).isoformat`、`parsed.astimezone`。 返回路径：L98的`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")`。
+- `integer_bounds`（L16–L27）：接收`field`。 源码说明：Ordinary integers use the same exact int32 domain in JSON, Java and SQL.。 控制顺序：L19按`field.get("minimum") is not None`分支；L21按`field.get("maximum") is not None`分支；L23按`field.get("exclusive_minimum") is not None`分支；L25按`field.get("exclusive_maximum") is not None`分支。 调用`field.get`、`max`、`min`。 返回路径：L27的`low, high`。
+- `input_model`（L30–L65）：接收`entity`。 控制顺序：L32遍历`entity["fields"]`；L43按`kind in {"text", "enum", "date", "datetime"}`分支；L52按`kind == "integer"`分支；L55按`kind == "text" and field.get("pattern") is not None`分支。 调用`max`、`field.get`、`integer_bounds`、`Field`、`create_model`、`ConfigDict`。 返回路径：L61的`create_model( entity["name"] + "Input", __config__=ConfigDict(extra="forbid", str_strip_wh…`。
+- `validate_options`（L68–L79）：接收`entity`、`values`。 控制顺序：L69遍历`entity["fields"]`；L71按`value is None`分支；L73按`field["kind"] == "date"`分支；L75按`field["kind"] == "datetime"`分支；L77按`field["kind"] == "enum" and value not in field["choices"]`分支；L78抛异常，停止当前正常路径。 调用`values.get`、`date_string`、`datetime_string`、`ValueError`。 返回路径：L79的`values`。
+- `filter_value`（L82–L106）：接收`field`、`value`。 控制顺序：L83按`len(value) > max(field["max_length"], 100)`分支；L84抛异常，停止当前正常路径；L87按`not re.fullmatch(r"-?[0-9]+", value)`分支；L88抛异常，停止当前正常路径；L90按`not -(2**31) <= number < 2**31`分支；L91抛异常，停止当前正常路径；L94按`value not in {"true", "false"}`分支；L95抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`max`、`ValueError`、`re.fullmatch`、`int`、`date_string`、`datetime_string`。 返回路径：L92的`number`；L96的`value == "true"`；L98的`date_string(value)`。
+- `datetime_string`（L109–L115）：接收`value`。 控制顺序：L110按`not isinstance(value, str)`分支；L111抛异常，停止当前正常路径；L113按`parsed.tzinfo is None`分支；L114抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`datetime.fromisoformat`、`value.replace`、`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds"…`、`parsed.astimezone(timezone.utc).isoformat`、`parsed.astimezone`。 返回路径：L115的`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")`。
 
 </details>
 
-**创建路径：** `templates/product/fields.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L98。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/fields.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L115。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3497`。本段原文以LF换行结束。
+本段原始字节数：`4151`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/fields.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5bb5ed2677bcecc68749b0410a65f4c5b04e5b564d4ddf38f65f62788e832c42"} -->
+<!-- learning-source: {"path": "templates/product/fields.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "34506dc5ae704e2c05dbff23e7eabdfb8b9526ecb90430a36eeebd7c4866e143"} -->
 ````python
 # templates/product/fields.py
 """Deterministic validators shared by CRUD and query filters; no LLM execution."""
@@ -41,6 +42,20 @@ def date_string(value):
         raise ValueError("日期格式必须是 YYYY-MM-DD")
     date.fromisoformat(value)
     return value
+
+
+def integer_bounds(field):
+    """Ordinary integers use the same exact int32 domain in JSON, Java and SQL."""
+    low, high = -(2**31), 2**31 - 1
+    if field.get("minimum") is not None:
+        low = max(low, field["minimum"])
+    if field.get("maximum") is not None:
+        high = min(high, field["maximum"])
+    if field.get("exclusive_minimum") is not None:
+        low = max(low, field["exclusive_minimum"] + 1)
+    if field.get("exclusive_maximum") is not None:
+        high = min(high, field["exclusive_maximum"] - 1)
+    return low, high
 
 
 def input_model(entity):
@@ -66,7 +81,10 @@ def input_model(entity):
                 else field["max_length"],
             }
         elif kind == "integer":
-            constraints = {"ge": -9223372036854775808, "le": 9223372036854775807}
+            low, high = integer_bounds(field)
+            constraints = {"ge": low, "le": high}
+        if kind == "text" and field.get("pattern") is not None:
+            constraints["pattern"] = field["pattern"]
         fields[field["name"]] = (
             annotation if field["required"] else annotation | None,
             Field(default=... if field["required"] else None, **constraints),
@@ -100,7 +118,7 @@ def filter_value(field, value):
             if not re.fullmatch(r"-?[0-9]+", value):
                 raise ValueError("整数筛选值无效")
             number = int(value)
-            if not -9223372036854775808 <= number <= 9223372036854775807:
+            if not -(2**31) <= number < 2**31:
                 raise ValueError("整数超出范围")
             return number
         case "boolean":

@@ -72,3 +72,36 @@ def test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files(clien
         client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).status_code
         == 401
     )
+
+
+def test_run_list_pagination_parameters_and_status_filter(client):
+    from workbench.store import Run
+
+    store = client.app.state.store
+    project = store.create_project("history", "history-project")
+    with store.tx() as session:
+        session.add_all(
+            [
+                Run(
+                    id="scope-run",
+                    project_id=project["id"],
+                    template="python-basic",
+                    status="WAITING_EXTENSION_SCOPE",
+                ),
+                Run(
+                    id="ready-run",
+                    project_id=project["id"],
+                    template="python-basic",
+                    status="READY",
+                ),
+            ]
+        )
+    assert len(client.get("/runs?limit=1").json()) == 1
+    assert len(client.get("/runs?limit=1&offset=1").json()) == 1
+    assert client.get("/runs?limit=101").status_code == 422
+    assert client.get("/runs?offset=-1").status_code == 422
+    assert (
+        client.get(f"/projects/{project['id']}/runs?status=WAITING_EXTENSION_SCOPE").json()[0]["id"]
+        == "scope-run"
+    )
+    assert client.get("/projects/missing/runs").status_code == 404

@@ -16,20 +16,21 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `runtime_plan`（L16–L39）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L18遍历`raw["business"]["permissions"]`；L19按`permission["role"] == "manager"`分支；L30按`permission["role"] == "service"`分支；L32按`permission["role"] == "employee"`分支；L34遍历`["employee", "service"]`。 调用`business_plan`、`raw["business"]["permissions"].append`、`Plan.model_validate`。 返回路径：L39的`Plan.model_validate(raw)`。
-- `test_generated_business_api_transactions_and_permissions`（L187–L226）：接收`tmp_path`、`monkeypatch`。 控制顺序：L208断言`init.returncode == 0`；L218断言`result.returncode == 0`；L219断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L220遍历`["sqlite", "postgresql"]`；L222断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_common_metric_normalizes_datetime_predicate_offsets`（L229–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L239遍历`["eq", "gte", "lte", "in"]`；L252断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_business_postgres_actual_fk_and_permissions`（L256–L302）：接收`tmp_path`。 控制顺序：L263按`not url`分支；L291断言`init.returncode == 0`；L301断言`result.returncode == 0`；L302断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_customer_service_example_three_resources`（L395–L431）：接收`tmp_path`、`monkeypatch`。 控制顺序：L420断言`init.returncode == 0`；L430断言`result.returncode == 0`；L431断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_api_only_independent_receipt`（L434–L462）：接收`tmp_path`。 控制顺序：L457断言`result.returncode == 0`；L459断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L460断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L461断言`receipt["browser"]["applicable"] is False`；L462断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_postgres_independent_receipt`（L466–L513）：接收`tmp_path`。 控制顺序：L475按`not url`分支；L509断言`result.returncode == 0`；L511断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L512断言`receipt["database"] == "real-isolated-postgresql"`；L513断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_due_rules_bind_their_own_deadline_and_recipient`（L42–L85）：接收`tmp_path`。 控制顺序：L81遍历`([sys.executable, "manage.py", "init"], [sys.executable, "-c", sc…`；L85断言`result.returncode == 0`。 调用`runtime_plan().model_dump`、`runtime_plan`、`raw["entities"][1]["fields"].append`、`raw["business"]["notifications"].append`、`generate_basic`、`Plan.model_validate`、`SCENARIO.split`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_api_transactions_and_permissions`（L233–L272）：接收`tmp_path`、`monkeypatch`。 控制顺序：L254断言`init.returncode == 0`；L264断言`result.returncode == 0`；L265断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L266遍历`["sqlite", "postgresql"]`；L268断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_common_metric_normalizes_datetime_predicate_offsets`（L275–L298）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L285遍历`["eq", "gte", "lte", "in"]`；L298断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_postgres_actual_fk_and_permissions`（L302–L348）：接收`tmp_path`。 控制顺序：L309按`not url`分支；L337断言`init.returncode == 0`；L347断言`result.returncode == 0`；L348断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_customer_service_example_three_resources`（L441–L477）：接收`tmp_path`、`monkeypatch`。 控制顺序：L466断言`init.returncode == 0`；L476断言`result.returncode == 0`；L477断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_api_only_independent_receipt`（L480–L508）：接收`tmp_path`。 控制顺序：L503断言`result.returncode == 0`；L505断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L506断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L507断言`receipt["browser"]["applicable"] is False`；L508断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_postgres_independent_receipt`（L512–L559）：接收`tmp_path`。 控制顺序：L521按`not url`分支；L555断言`result.returncode == 0`；L557断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L558断言`receipt["database"] == "real-isolated-postgresql"`；L559断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_business_python.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L513。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_business_python.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L559。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26781`。本段原文以LF换行结束。
+本段原始字节数：`28760`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_business_python.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1aa0c9d1ac9abae1d22ec805f73094ca5c3fd5eab4334eac9d7a145e1be9b400"} -->
+<!-- learning-source: {"path": "tests/test_business_python.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a9d284bb4839af0e44a81f75faee954dd11649ac0ec67edda57fc005a34528f4"} -->
 ````python
 # tests/test_business_python.py
 """Real generated Python product HTTP/SQL behavior in an isolated interpreter."""
@@ -71,6 +72,52 @@ def runtime_plan():
         )
     raw["entities"][0]["fields"][0]["searchable"] = True
     return Plan.model_validate(raw)
+
+
+def test_due_rules_bind_their_own_deadline_and_recipient(tmp_path):
+    raw = runtime_plan().model_dump()
+    raw["entities"][1]["fields"].append(
+        {"name": "creator_due_at", "kind": "datetime", "required": False}
+    )
+    raw["business"]["notifications"].append(
+        {
+            "entity": "requests",
+            "event": "due",
+            "due_field": "creator_due_at",
+            "recipient": "creator",
+        }
+    )
+    product = tmp_path / "product"
+    generate_basic(Plan.model_validate(raw), product)
+    scenario = (
+        SCENARIO.split("    reminders=")[0]
+        + r"""
+    from sqlalchemy import update
+    target=metadata.tables['requests']
+    with engine.begin() as conn:
+        conn.execute(update(target).where(target.c.id==identity).values(creator_due_at='2099-01-01T00:00:00.000000Z'))
+    service_due=[n for n in call('GET','/business/notifications',service).json() if n['event']=='due']
+    assert len(service_due)==1,service_due
+    assert not [n for n in call('GET','/business/notifications',employee).json() if n['event']=='due']
+    with engine.begin() as conn:
+        conn.execute(update(target).where(target.c.id==identity).values(creator_due_at='2020-01-01T00:00:00.000000Z'))
+    creator_due=[n for n in call('GET','/business/notifications',employee).json() if n['event']=='due']
+    assert len(creator_due)==1,creator_due
+    assert len([n for n in call('GET','/business/notifications',service).json() if n['event']=='due'])==1
+"""
+    )
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+        }
+    )
+    for argv in ([sys.executable, "manage.py", "init"], [sys.executable, "-c", scenario]):
+        result = subprocess.run(
+            argv, cwd=product, env=env, capture_output=True, text=True, encoding="utf-8", timeout=90
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 SCENARIO = r"""

@@ -12,15 +12,15 @@
 
 **带着一个具体问题阅读：** 页面显示‘Key已配置’不代表拿到了Key原文；留空表示不修改，明确清除才删除覆盖。保存只验证并落盘，不能显示‘模型连接成功’。如果另一窗口先保存导致409，应读取新版本让用户复核，而不是自动拿新revision重发旧表单。
 
-**创建路径：** `ui/src/components/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L520。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L527。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19629`。本段原文以LF换行结束。
+本段原始字节数：`19767`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "73c4a1522c44b3ce3174c59125b9679cd377693442a38efb09b84c93a8fc0e87"} -->
+<!-- learning-source: {"path": "ui/src/components/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1b582174147bffef23f912a569120424c3b37e4a5034ffd601604466de66c804"} -->
 ````vue
 <!-- ui/src/components/SettingsView.vue -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { CheckOutlined, SafetyCertificateOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { Modal } from 'ant-design-vue'
 import { api, ApiError, errorText } from '../api'
@@ -86,8 +86,15 @@ function load() {
   baseline.value = JSON.stringify(form)
   conflict.value = false
 }
-load()
 const dirty = computed(() => baseline.value !== JSON.stringify(form) || keyAction.value !== 'keep')
+baseline.value = JSON.stringify(form)
+watch(
+  () => state.settings,
+  () => {
+    if (!dirty.value) load()
+  },
+  { immediate: true },
+)
 const original = computed(() =>
   active.value === 'default' ? state.settings?.default : state.settings?.stages?.[active.value],
 )

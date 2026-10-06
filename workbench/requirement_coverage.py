@@ -321,6 +321,11 @@ FACT_ATTRIBUTES = {
     "filterable",
     "date_range",
     "choices",
+    "minimum",
+    "maximum",
+    "exclusive_minimum",
+    "exclusive_maximum",
+    "pattern",
 }
 
 
@@ -2086,7 +2091,14 @@ def _normalized_constraint_value(attribute, expected):
                 expected = True
             elif word in {"false", "否", "可选", "非必填"}:
                 expected = False
-    if attribute in {"min_length", "max_length"}:
+    if attribute in {
+        "min_length",
+        "max_length",
+        "minimum",
+        "maximum",
+        "exclusive_minimum",
+        "exclusive_maximum",
+    }:
         if isinstance(expected, str):
             legacy = re.fullmatch(r"\s*(\d+)\s*(?:字符|字|characters?)?\s*", expected, re.I)
             if legacy:
@@ -2098,7 +2110,14 @@ def _matches_constraint(attribute, expected, actual):
     expected = _normalized_constraint_value(attribute, expected)
     if attribute in {"required", "searchable", "filterable", "date_range"}:
         return type(expected) is bool and actual is expected
-    if attribute in {"min_length", "max_length"}:
+    if attribute in {
+        "min_length",
+        "max_length",
+        "minimum",
+        "maximum",
+        "exclusive_minimum",
+        "exclusive_maximum",
+    }:
         return type(expected) is int and actual == expected
     if attribute == "choices":
         return (
@@ -2107,6 +2126,22 @@ def _matches_constraint(attribute, expected, actual):
             and set(actual) == set(expected)
         )
     return type(expected) is str and actual == expected
+
+
+def _field_constraint_matches(field, attribute, expected):
+    if attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}:
+        from templates.product.fields import integer_bounds
+
+        if field.kind != "integer" or type(expected) is not int:
+            return False
+        low, high = integer_bounds(field.model_dump())
+        return {
+            "minimum": low == expected,
+            "maximum": high == expected,
+            "exclusive_minimum": low == expected + 1,
+            "exclusive_maximum": high == expected - 1,
+        }[attribute]
+    return _matches_constraint(attribute, expected, getattr(field, attribute))
 
 
 def _legacy_scalar_constraints(text):
@@ -2132,6 +2167,27 @@ def _legacy_scalar_constraints(text):
         number = re.search(rf"(?:{pattern})[^\d]*?(\d+)", text, re.I)
         if number:
             yield attribute, int(number.group(1))
+    yield from _legacy_integer_constraints(text)
+
+
+def _legacy_integer_constraints(text):
+    if not re.search(
+        r"minimum\s*[:=]|maximum\s*[:=]|必须|保存|校验|拒绝|不得|应当|应满足", text, re.I
+    ):
+        return
+    # Numeric query thresholds select records; only save-time requirements
+    # and explicit scalar declarations constrain the input domain.
+    if not re.search(r"筛选|过滤|统计|查询|filter|query|metric", text, re.I) or re.search(
+        r"保存|校验|拒绝|必须", text
+    ):
+        for attribute, pattern in (
+            ("minimum", r"(?<!exclusive_)minimum\s*[:=]|>=|≥|大于等于|不小于|至少为"),
+            ("maximum", r"(?<!exclusive_)maximum\s*[:=]|<=|≤|小于等于|不大于|至多为"),
+            ("exclusive_minimum", r"exclusive_minimum\s*[:=]|>(?!=)|大于(?!等于)"),
+            ("exclusive_maximum", r"exclusive_maximum\s*[:=]|<(?!=)|小于(?!等于)"),
+        ):
+            for match in re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I):
+                yield attribute, int(match.group(1))
 
 
 def explicit_legacy_field_constraints(requirement: Requirement):
@@ -2185,7 +2241,15 @@ def explicit_legacy_field_constraints(requirement: Requirement):
     ):
         if subject not in vocabulary:
             continue
-        for attribute in ("required", "min_length", "max_length"):
+        for attribute in (
+            "required",
+            "min_length",
+            "max_length",
+            "minimum",
+            "maximum",
+            "exclusive_minimum",
+            "exclusive_maximum",
+        ):
             value = _normalized_constraint_value(attribute, attributes.get(attribute))
             if type(value) is not (bool if attribute == "required" else int):
                 continue
@@ -2359,7 +2423,7 @@ def coverage_gaps(
             if key in {"field", "entity"} or value is None:
                 continue
             actual = getattr(field, key)
-            matches_constraint = _matches_constraint(key, value, actual)
+            matches_constraint = _field_constraint_matches(field, key, value)
             if key in {"searchable", "filterable", "date_range"} and type(value) is bool:
                 typed_queries[(id(field), key, value)] = matches_constraint
             if not matches_constraint:
@@ -2403,9 +2467,9 @@ def coverage_gaps(
             for attribute, expected in attributes.items():
                 if expected is None:
                     continue
-                if (attribute == "choices" and field.kind != "enum") or not _matches_constraint(
-                    attribute, expected, getattr(field, attribute)
-                ):
+                if (
+                    attribute == "choices" and field.kind != "enum"
+                ) or not _field_constraint_matches(field, attribute, expected):
                     gap(
                         f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致",
                         "constraint_mismatch",
@@ -2716,14 +2780,18 @@ def coverage_gaps(
                     )
         for field in mentioned:
             for attribute, expected in _legacy_scalar_constraints(text):
+                if (
+                    attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}
+                    and field.kind != "integer"
+                ):
+                    continue
                 actual = getattr(field, attribute)
-                if actual == expected:
+                if _field_constraint_matches(field, attribute, expected):
                     continue
                 description = (
                     ("必填" if expected else "可选")
                     if attribute == "required"
-                    else ("长度上限为 " if attribute == "max_length" else "最小长度为 ")
-                    + str(expected)
+                    else attribute + "=" + str(expected)
                 )
                 gap(
                     f"已确认字段 {field.name} {description}: {text}",

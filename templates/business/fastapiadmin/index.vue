@@ -72,7 +72,7 @@
             </ElSelect>
             <ElSelect v-else-if="field.kind === 'enum'" v-model="form[field.name]" clearable><ElOption v-for="choice in field.choices" :key="choice" :value="choice" :label="field.choice_labels?.[choice] || choice" /></ElSelect>
             <ElSwitch v-else-if="field.kind === 'boolean'" v-model="form[field.name]" />
-            <ElInputNumber v-else-if="field.kind === 'integer'" v-model="form[field.name]" />
+            <ElInputNumber v-else-if="field.kind === 'integer'" v-model="form[field.name]" :precision="0" :min="Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1)" :max="Math.min(field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1)" />
             <ElDatePicker v-else-if="field.kind === 'date' || field.kind === 'datetime'" v-model="form[field.name]" :type="field.kind === 'date' ? 'date' : 'datetime'" :value-format="field.kind === 'date' ? 'YYYY-MM-DD' : undefined" />
             <ElInput v-else v-model="form[field.name]" :maxlength="field.max_length" show-word-limit :type="field.max_length > 500 ? 'textarea' : 'text'" />
           </div></template>

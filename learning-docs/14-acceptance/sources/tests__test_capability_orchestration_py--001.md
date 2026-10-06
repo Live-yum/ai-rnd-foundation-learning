@@ -25,19 +25,19 @@
 - `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review`（L97–L139）：接收`settings`、`store`。 控制顺序：L130断言`saved["status"] == "WAITING_EXTENSION_DESIGN"`；L131断言`len(gateway.calls) == 1`；L133断言`gate["data"]["atomic_review"]["complete_source_ids"]`。 调用`create`、`AtomicGateway`、`Runtime`、`runtime.tick`、`store.get_run`、`len`、`pytest.raises`、`store.submit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review.AtomicGateway`（L101–L123）：继承`Gateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_model_atomic_completeness_proposal_always_stops_for_exact_human_review.AtomicGateway.complete`（L102–L123）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L104按`schema is ExtensionDesign`分支。 调用`super().complete`、`super`、`result.implementation.model_dump`、`CapabilityPlan.model_validate`。 返回路径：L123的`result`。
-- `test_source_coverage_cannot_discard_contest_requirements`（L142–L160）：接收`settings`、`store`。 控制顺序：L156断言`saved["status"] == "BLOCKED"`；L157断言`not any(schema == "CapabilityEdits" for _, schema in gateway.calls)`；L159断言`"加权评分和盲审" in "".join(row["text"] for row in data["source_units"])`；L160断言`any("来源" in error for error in data["blocked"])`。 调用`create`、`DropsSource`、`Runtime`、`runtime.tick`、`store.get_run`、`any`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_coverage_cannot_discard_contest_requirements`（L142–L161）：接收`settings`、`store`。 控制顺序：L156断言`saved["status"] == "WAITING_EXTENSION_DESIGN"`；L157断言`saved["pending"]["can_approve"] is False`；L158断言`not any(schema == "CapabilityEdits" for _, schema in gateway.calls)`；L160断言`"加权评分和盲审" in "".join(row["text"] for row in data["source_units"])`；L161断言`any("来源" in error for error in data["blocked"])`。 调用`create`、`DropsSource`、`Runtime`、`runtime.tick`、`store.get_run`、`any`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_source_coverage_cannot_discard_contest_requirements.DropsSource`（L145–L149）：继承`Gateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_source_coverage_cannot_discard_contest_requirements.DropsSource.complete`（L146–L149）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`super().complete`、`super`。 返回路径：L149的`result`。
-- `test_custom_route_requires_human_intent_and_honors_later_cancellation`（L163–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164断言`custom_requested(["模板不支持跨记录规则", "全部自己实现"])`；L165断言`not custom_requested(["全部自己实现", "不要自定义实现，仅使用模板"])`；L166断言`not custom_requested(["竞赛报名网站"])`。 调用`custom_requested`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_automation_endpoint_cannot_consume_explicit_extension_gate`（L169–L215）：接收`settings`、`store`。 控制顺序：L190断言`response.status_code == 202`；L191断言`store.get_run(run)["pending"] == gate`；L192遍历`({"version": gate["version"] + 1}, {"digest": "0" * 64})`；L198断言`response.status_code == 409`；L209断言`first.status_code == 202`；L213断言`replay.json() == first.json()`。 调用`SecretStr`、`create`、`Runtime`、`Gateway`、`runtime.tick`、`store.get_run`、`TestClient`、`create_app`、`client.post`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_custom_route_requires_human_intent_and_honors_later_cancellation`（L164–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165断言`custom_requested(["模板不支持跨记录规则", "全部自己实现"])`；L166断言`not custom_requested(["全部自己实现", "不要自定义实现，仅使用模板"])`；L167断言`not custom_requested(["竞赛报名网站"])`。 调用`custom_requested`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_automation_endpoint_cannot_consume_explicit_extension_gate`（L170–L216）：接收`settings`、`store`。 控制顺序：L191断言`response.status_code == 202`；L192断言`store.get_run(run)["pending"] == gate`；L193遍历`({"version": gate["version"] + 1}, {"digest": "0" * 64})`；L199断言`response.status_code == 409`；L210断言`first.status_code == 202`；L214断言`replay.json() == first.json()`。 调用`SecretStr`、`create`、`Runtime`、`Gateway`、`runtime.tick`、`store.get_run`、`TestClient`、`create_app`、`client.post`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_orchestration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L215。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_orchestration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L216。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8884`。本段原文以LF换行结束。
+本段原始字节数：`8953`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_orchestration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b4df35585231b6c57738755c2c140649930b4676d7b49978bbafeb909549da9"} -->
+<!-- learning-source: {"path": "tests/test_capability_orchestration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5b56dcd8ab6d92ac813dc38328d01da7d78686d052e53b622a2301f969b82213"} -->
 ````python
 # tests/test_capability_orchestration.py
 """Authored routing fixtures, never evidence of real model/sandbox acceptance."""
@@ -195,7 +195,8 @@ def test_source_coverage_cannot_discard_contest_requirements(settings, store):
     with Runtime(settings, store, gateway) as runtime:
         runtime.tick()
     saved = store.get_run(run)
-    assert saved["status"] == "BLOCKED"
+    assert saved["status"] == "WAITING_EXTENSION_DESIGN"
+    assert saved["pending"]["can_approve"] is False
     assert not any(schema == "CapabilityEdits" for _, schema in gateway.calls)
     data = saved["pending"]["data"]
     assert "加权评分和盲审" in "".join(row["text"] for row in data["source_units"])

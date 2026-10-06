@@ -7,7 +7,7 @@ text is retained, and a missing user quote never authorizes removing it.
 It detects contradictions within a reconciled candidate, including retained prior
 requirements. On first analysis it also compares corresponding explicit scalar
 obligations in the original/current user input. This is not complete semantic
-grounding: prose normalization covers required/min_length/max_length only, using
+grounding: prose normalization covers required, length and explicit integer bounds, using
 typed, entity-qualified field vocabulary. Unknown prose remains untouched.
 """
 
@@ -36,11 +36,16 @@ def _records(requirement):
 
 
 def _identity(record):
-    return record["entity"], record["field"], record["attribute"]
+    attribute = {"exclusive_minimum": "minimum", "exclusive_maximum": "maximum"}.get(
+        record["attribute"], record["attribute"]
+    )
+    return record["entity"], record["field"], attribute
 
 
 def _value(record):
     value = record["expected"]
+    if type(value) is int:
+        value += {"exclusive_minimum": 1, "exclusive_maximum": -1}.get(record["attribute"], 0)
     if record["attribute"] == "choices":
         value = sorted(set(value))
     # Do not conflate True with 1 or a string number with a numeric obligation.

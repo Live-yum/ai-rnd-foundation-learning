@@ -12,15 +12,15 @@
 
 **创建路径：** `templates/business/yudao/business-form.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L126。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8686`。本段原文以LF换行结束。
+本段原始字节数：`9039`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/business/yudao/business-form.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "03d31aa9a87c739bc6654830f6205e8566085d4e115ad49806460766c391caad"} -->
+<!-- learning-source: {"path": "templates/business/yudao/business-form.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6db8570337cfe8781fe82e6f2abe90d68a85909cf4dedacb27524c8ab272725b"} -->
 ````typescript
 // templates/business/yudao/business-form.ts
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
 import { requestClient } from '#/api/request';
-interface Field { name: string; label: string; kind: string; required: boolean; min_length: number; max_length: number; choices: string[]; choice_labels: Record<string, string>; searchable: boolean; filterable: boolean; date_range: boolean }
+interface Field { name: string; label: string; kind: string; required: boolean; min_length: number; max_length: number; choices: string[]; choice_labels: Record<string, string>; searchable: boolean; filterable: boolean; date_range: boolean; minimum?: number; maximum?: number; exclusive_minimum?: number; exclusive_maximum?: number; pattern?: string; example?: string }
 interface Reference { target: string; label: string }
 interface BusinessFormSpec { fields: Field[]; controlled: string[]; references: Record<string, Reference>; statusField: string }
 const specs: Record<string, BusinessFormSpec> = __FORM_CONFIG__;
@@ -107,7 +107,7 @@ function fieldSchema(entity: string, item: VbenFormSchema, search: boolean): Vbe
       : { format: 'YYYY-MM-DD', valueFormat: 'YYYY-MM-DD' };
     if (field.kind === 'datetime') result.label = `${label} (UTC)`;
   } else if (field.kind === 'integer') {
-    result.component = 'InputNumber'; result.componentProps = { precision: 0 };
+    result.component = 'InputNumber'; result.componentProps = { precision: 0, min: search ? -2147483648 : Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1), max: search ? 2147483647 : Math.min(field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1) };
   } else {
     result.component = !search && field.max_length > 500 ? 'Textarea' : 'Input';
     result.componentProps = { maxlength: field.max_length, minlength: field.min_length };

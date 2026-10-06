@@ -107,7 +107,10 @@ class NativeOracle:
             elif field.kind == "boolean":
                 values[field.name] = bool(side)
             elif field.kind == "integer":
-                values[field.name] = 41 + side
+                from templates.product.fields import integer_bounds
+
+                low, high = integer_bounds(field.model_dump())
+                values[field.name] = max(low, min(41 + side, high))
             elif field.kind == "date":
                 values[field.name] = f"2098-02-0{side + 1}"
             elif field.kind == "datetime":

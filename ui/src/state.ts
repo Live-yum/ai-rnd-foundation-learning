@@ -24,6 +24,8 @@ export const state = reactive({
   lastSync: '',
   cursor: 0,
   stale: false,
+  homeDrafts: {} as Record<string, string>,
+  settingsReturn: '',
 })
 let runController: AbortController | undefined,
   runGeneration = 0,
@@ -113,6 +115,8 @@ export function lock() {
     notice: '',
     cursor: 0,
     stale: false,
+    homeDrafts: {},
+    settingsReturn: '',
   })
 }
 export async function refreshLists() {

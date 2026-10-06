@@ -154,6 +154,11 @@ class TemplateAdapter:
                     "status": "candidate-only",
                     "available": False,
                     "preverified_features": [],
+                    "reviewed_modules": [],
+                    "module_blockers": {
+                        "batch-import-v1": "runtime and UI templates are absent; installation is not executable"
+                    },
+                    "selection": "RunInput.allow_custom_extensions; approval and evidence remain required",
                     "requires": [
                         "explicit user approval of scope and source plan",
                         "implemented selected-template adapter and native UI integration",

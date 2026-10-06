@@ -77,6 +77,8 @@ function control(field, mode = "record", name = field.name) {
     if (field.kind === "integer") {
       input.type = "number";
       input.step = "1";
+      input.min = mode === "record" ? Math.max(-2147483648, field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1) : -2147483648;
+      input.max = mode === "record" ? Math.min(2147483647, field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1) : 2147483647;
     } else if (field.kind === "date") input.type = "date";
     else if (field.kind === "datetime") input.type = "datetime-local";
     else {
@@ -197,7 +199,11 @@ async function edit(row) {
       if (sequence !== editorSequence || chosen !== entity) return;
       for (const item of related) node("option", item.name || item.title || item.id, input).value = item.id;
     } else input = control(field);
-    if (row && row[field.name] !== null) input.value = field.kind === "datetime" ? String(row[field.name]).replace(/Z$/, "").slice(0,16) : String(row[field.name]);
+    if (row && row[field.name] != null) {
+      input.value = field.kind === "datetime" ? String(row[field.name]).replace(/Z$/, "").slice(0,16) : String(row[field.name]);
+      input.dataset.originalValue = String(row[field.name]);
+      input.dataset.originalInput = input.value;
+    }
   }
   if (sequence === editorSequence && chosen === entity) $("editor").showModal();
 }
@@ -278,11 +284,14 @@ $("record").onsubmit = async (e) => {
     for (const field of entity.fields) {
       if (spec.business && protectedFields().has(field.name)) continue;
       let v = raw[field.name];
+      const input = $("record").elements.namedItem(field.name);
+      if (field.kind === "integer" && v !== "" && (!Number.isSafeInteger(Number(v)) || Number(v) < -2147483648 || Number(v) > 2147483647))
+        throw new Error(`${fieldLabel(field.name)} 必须是 -2147483648 到 2147483647 之间的整数`);
       data[field.name] =
         v === "" && !field.required
           ? null
           : field.kind === "datetime"
-            ? new Date(v + "Z").toISOString()
+            ? (v === input.dataset.originalInput ? input.dataset.originalValue : new Date(v + "Z").toISOString())
           : field.kind === "integer"
             ? Number(v)
             : field.kind === "boolean"

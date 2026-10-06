@@ -15,19 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `canonical`（L29–L32）：接收`value`。 调用`"".join`、`unicodedata.normalize("NFKC", value).casefold`、`unicodedata.normalize`、`char.isalnum`。 返回路径：L30的`"".join( char for char in unicodedata.normalize("NFKC", value).casefold() if char.isalnum(…`。
-- `scope_policy`（L35–L75）：接收`scope`、`selection`。 控制顺序：L54遍历`scope["sources"]`；L57遍历`CONTEST_BINDINGS.items()`；L58按`canonical(quote) in normalized`分支；L60遍历`semantics`。 调用`canonical`、`"".join`、`sum`、`any`、`CONTEST_BINDINGS.items`、`semantics.extend`、`goals.append`、`digest`。 返回路径：L62的`{ "version": 3, "source_digest": scope["source_digest"], "source_units_digest": digest(sco…`。
-- `contract_errors`（L78–L161）：接收`plan`。 源码说明：A source reference/health endpoint alone is never business acceptance. This structural minimum cannot prove arbitrary natural-language semantics; the frozen design review remains responsible for the c。 控制顺序：L104遍历`plan.tasks`；L106遍历`task.requirements`；L121遍历`writes`；L122遍历`reads`；L123按`owners[id(write)][0] == owners[id(read)][0] and owners[id(write)][1] < owners[id(read…`分支；L135按`not linked`分支；L141按`not any( step.status in {401, 403} and step.path.split("?", 1)[0] in paths for step i…`分支；L145按`not any( step.status in {400, 409, 422} and step.path.split("?", 1)[0] in paths for s…`分支。后续分支沿下方源码相同行号继续阅读。 调用`set`、`id`、`enumerate`、`step.path.split`、`positive`、`any`、`linked.extend`、`digest`、`read.equals.items`等。 返回路径：L161的`list(dict.fromkeys(errors))`。
-- `contract_errors.positive`（L88–L96）：接收`step`。 调用`step.path.split`、`any`、`key.rsplit`、`step.equals.items`。 返回路径：L89的`200 <= step.status < 300 and step.path.split("?", 1)[0] not in ignored and any( key.rsplit…`。
-- `business_coverage`（L164–L210）：接收`policy`、`proof`。 控制顺序：L165按`policy["requires_explicit_review"]`分支；L166抛异常，停止当前正常路径；L167按`policy["trusted_oracle"] is None`分支；L189按`not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict)`分支；L190抛异常，停止当前正常路径；L191按`business.get("protocol") != policy["trusted_oracle"] or set(business.get("witnesses",…`分支；L202抛异常，停止当前正常路径。 调用`CheckFailure`、`digest`、`sorted`、`proof.get`、`isinstance`、`business.get`、`set`、`any`、`business.get("witnesses", {}).values`等。 返回路径：L178的`{ "obligations": rows, "complete_source_ids": [], "remaining_source_ids": sorted({row["sou…`；L206的`{ **result, "coverage_level": policy["coverage_level"], "source_units_digest": policy["sou…`。
+- `canonical`（L30–L33）：接收`value`。 调用`"".join`、`unicodedata.normalize("NFKC", value).casefold`、`unicodedata.normalize`、`char.isalnum`。 返回路径：L31的`"".join( char for char in unicodedata.normalize("NFKC", value).casefold() if char.isalnum(…`。
+- `_contest_binding`（L36–L94）：接收`messages`。 控制顺序：L47遍历`enumerate(messages)`；L79按`negative[0]`分支；L83按`any(negative[1:]) and bound_messages`分支；L87按`(authored >= 2 and not any(negative)) or all(positive)`分支；L90按`positive[0]`分支。 调用`set`、`enumerate`、`canonical`、`re.split`、`any`、`re.search`、`re.fullmatch`、`bool`、`zip`等。 返回路径：L94的`bound_messages, ambiguous`。
+- `scope_policy`（L97–L125）：接收`scope`、`selection`。 控制顺序：L101遍历`scope["sources"]`；L104遍历`CONTEST_BINDINGS.items()`；L105按`row.get("message_index") in bound_messages and canonical(quote) in normalized`分支；L107遍历`semantics`。 调用`_contest_binding`、`bool`、`canonical`、`CONTEST_BINDINGS.items`、`row.get`、`semantics.extend`、`goals.append`、`digest`。 返回路径：L109的`{ "version": 4, "source_digest": scope["source_digest"], "source_units_digest": digest(sco…`。
+- `contract_errors`（L128–L211）：接收`plan`。 源码说明：A source reference/health endpoint alone is never business acceptance. This structural minimum cannot prove arbitrary natural-language semantics; the frozen design review remains responsible for the c。 控制顺序：L154遍历`plan.tasks`；L156遍历`task.requirements`；L171遍历`writes`；L172遍历`reads`；L173按`owners[id(write)][0] == owners[id(read)][0] and owners[id(write)][1] < owners[id(read…`分支；L185按`not linked`分支；L191按`not any( step.status in {401, 403} and step.path.split("?", 1)[0] in paths for step i…`分支；L195按`not any( step.status in {400, 409, 422} and step.path.split("?", 1)[0] in paths for s…`分支。后续分支沿下方源码相同行号继续阅读。 调用`set`、`id`、`enumerate`、`step.path.split`、`positive`、`any`、`linked.extend`、`digest`、`read.equals.items`等。 返回路径：L211的`list(dict.fromkeys(errors))`。
+- `contract_errors.positive`（L138–L146）：接收`step`。 调用`step.path.split`、`any`、`key.rsplit`、`step.equals.items`。 返回路径：L139的`200 <= step.status < 300 and step.path.split("?", 1)[0] not in ignored and any( key.rsplit…`。
+- `business_coverage`（L214–L260）：接收`policy`、`proof`。 控制顺序：L215按`policy["requires_explicit_review"]`分支；L216抛异常，停止当前正常路径；L217按`policy["trusted_oracle"] is None`分支；L239按`not isinstance(business, dict) or not isinstance(business.get("witnesses"), dict)`分支；L240抛异常，停止当前正常路径；L241按`business.get("protocol") != policy["trusted_oracle"] or set(business.get("witnesses",…`分支；L252抛异常，停止当前正常路径。 调用`CheckFailure`、`digest`、`sorted`、`proof.get`、`isinstance`、`business.get`、`set`、`any`、`business.get("witnesses", {}).values`等。 返回路径：L228的`{ "obligations": rows, "complete_source_ids": [], "remaining_source_ids": sorted({row["sou…`；L256的`{ **result, "coverage_level": policy["coverage_level"], "source_units_digest": policy["sou…`。
 
 </details>
 
-**创建路径：** `workbench/capability_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L210。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L260。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8814`。本段原文以LF换行结束。
+本段原始字节数：`10983`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ee6cebefe894e9982f613f91062d654b042d3b63d535bcbeed5b22288e7f5d24"} -->
+<!-- learning-source: {"path": "workbench/capability_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a63c124257d8302f890b749e7594770f4b53e84938ca1b7a1e5687959a166b61"} -->
 ````python
 # workbench/capability_policy.py
 """Controller-owned scope policy, never supplied by a candidate or model plan.
@@ -37,6 +38,7 @@ requests additionally retain authored semantic obligations; a bounded oracle
 cannot grant completion of the original website.
 """
 
+import re
 import unicodedata
 
 from scripts.extension_oracles import contest
@@ -64,39 +66,88 @@ def canonical(value):
     )
 
 
+def _contest_binding(messages):
+    # Only a coherent human source can bind a domain oracle. Unrelated historical
+    # keywords and standalone invitation systems must not acquire contest semantics.
+    words = (
+        "竞赛|赛事|contest|competition",
+        "邀请码|邀请加入|邀请队员|invitecode|invitationcode",
+        "盲审|匿名评审|匿名审稿|blindreview|anonymousreview",
+    )
+    bound_messages = set()
+    ambiguous = False
+    # ponytail: bounded negation grammar; unclear domain changes require independent review.
+    for index, message in enumerate(messages):
+        clauses = [canonical(part) for part in re.split(r"[。；;，,\n]", message)]
+        negative = [
+            any(
+                re.search(
+                    r"(?:不要|不需要|不做|不再|取消|去掉|移除|删除|without|no|not).{0,12}(?:"
+                    + word
+                    + ")|(?:"
+                    + word
+                    + r")(?:功能|模块|需求|网站|系统)?(?:取消|不做|不要|不需要)",
+                    part,
+                )
+                for part in clauses
+            )
+            for word in words
+        ]
+        # Cancelling a deadline/field/display rule does not cancel the business.
+        negative[0] = any(
+            re.fullmatch(
+                r"(?:请|现在)?(?:不要|不需要|不做|不再做?|取消|去掉|移除|删除|without|no|not)"
+                r"(?:整个|全部)?(?:竞赛|赛事|contest|competition)(?:业务|模块|需求|网站|系统|功能)?(?:了|吧)?"
+                r"|(?:竞赛|赛事|contest|competition)(?:业务|模块|需求|网站|系统|功能)?"
+                r"(?:取消|不做|不要|不需要)(?:了|吧)?",
+                part,
+            )
+            for part in clauses
+        )
+        text = canonical(message)
+        positive = [
+            bool(re.search(word, text)) and not neg
+            for word, neg in zip(words, negative, strict=True)
+        ]
+        if negative[0]:
+            bound_messages.clear()
+            ambiguous = False
+            continue
+        if any(negative[1:]) and bound_messages:
+            bound_messages.clear()
+            ambiguous = True  # Changed compound scope needs its own reviewed contract.
+        authored = sum(canonical(quote) in text for quote in CONTEST_BINDINGS)
+        if (authored >= 2 and not any(negative)) or all(positive):
+            bound_messages.add(index)
+            ambiguous = False
+        elif positive[0]:
+            ambiguous = True
+    registered = bool(bound_messages)
+    ambiguous = ambiguous and not registered
+    return bound_messages, ambiguous
+
+
 def scope_policy(scope, selection):
-    # Formatting cannot choose a weaker verifier. Join immutable messages before
-    # normalization so line/chunk splits do not erase an authored scope match.
-    text = canonical("".join(scope["messages"]))
-    authored = sum(canonical(quote) in text for quote in CONTEST_BINDINGS)
-    concepts = [
-        any(word in text for word in ("竞赛", "赛事", "contest", "competition")),
-        any(
-            word in text
-            for word in ("邀请码", "邀请加入", "邀请队员", "invitecode", "invitationcode")
-        ),
-        any(
-            word in text
-            for word in ("盲审", "匿名评审", "匿名审稿", "blindreview", "anonymousreview")
-        ),
-    ]
-    registered = authored >= 2 or sum(concepts) >= 2
-    ambiguous = not registered and any(concepts)
+    bound_messages, ambiguous = _contest_binding(scope["messages"])
+    registered = bool(bound_messages)
     goals = []
     for row in scope["sources"]:
         semantics = ["original.full_source"]
         normalized = canonical(row["text"])
         for quote, predicates in CONTEST_BINDINGS.items():
-            if canonical(quote) in normalized:
+            if row.get("message_index") in bound_messages and canonical(quote) in normalized:
                 semantics.extend(predicates)
         for semantic in semantics:
             goals.append({"source_id": row["id"], "source_text": row["text"], "semantic": semantic})
     return {
-        "version": 3,
+        "version": 4,
         "source_digest": scope["source_digest"],
         "source_units_digest": digest(scope["sources"]),
         "selection": selection,
         "trusted_oracle": contest.CONTRACT_VERSION if registered else None,
+        "oracle_source_ids": [
+            row["id"] for row in scope["sources"] if row.get("message_index") in bound_messages
+        ],
         "requires_explicit_review": ambiguous,
         "coverage_level": "bounded-business-slice"
         if registered

@@ -106,3 +106,43 @@ def test_existing_non_directory_is_not_removed(tmp_path, plan):
     with pytest.raises(PrerequisiteError, match="已保留"):
         generate_basic(plan, product)
     assert product.read_bytes() == b"user-file"
+
+
+@pytest.mark.parametrize("failure", ["copy", "publish", "receipt"])
+def test_interrupted_generation_retries_without_partial_product(
+    tmp_path, plan, monkeypatch, failure
+):
+    import workbench.generator as generator
+
+    product = tmp_path / "product"
+
+    def fail(*args):
+        raise OSError(f"{failure} interrupted")
+
+    with monkeypatch.context() as patch:
+        if failure == "copy":
+            patch.setattr(generator.shutil, "copyfile", fail)
+        elif failure == "publish":
+            patch.setattr(generator.Path, "rename", fail)
+        else:
+            write = generator.write_json
+
+            def interrupted(path, value):
+                if path == tmp_path / "generation.json":
+                    raise OSError("receipt interrupted")
+                return write(path, value)
+
+            patch.setattr(generator, "write_json", interrupted)
+        with pytest.raises(OSError, match="interrupted"):
+            generate_basic(plan, product)
+    assert product.exists() == (failure == "receipt")
+    assert not list(tmp_path.glob(".generating-*"))
+    if product.exists():
+        (product / ".data").mkdir()
+        (product / ".data/product.db").write_bytes(b"preserve after publication")
+        before = snapshot(product)
+    receipt = generate_basic(plan, product)
+    assert receipt == json.loads((tmp_path / "generation.json").read_text())
+    assert not list(tmp_path.glob(".generation-*.pending.json"))
+    if failure == "receipt":
+        assert snapshot(product) == before

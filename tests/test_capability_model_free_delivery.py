@@ -24,7 +24,9 @@ def waiting_run(store, stage):
     return run, gate
 
 
-@pytest.mark.parametrize("stage", ["extension_scope", "extension_delivery", "extension_design"])
+@pytest.mark.parametrize(
+    "stage", ["delivery", "extension_scope", "extension_delivery", "extension_design"]
+)
 def test_api_allows_only_exact_model_free_approval_and_its_idempotent_replay(
     settings, store, stage
 ):
@@ -71,8 +73,11 @@ def test_model_free_admission_uses_persisted_same_run_gate_not_payload_stage(sto
     assert store.claim(only_rejections=True, include_model_free=True) is None
 
 
-def test_worker_resumes_saved_final_approval_without_model_calls(settings, store, monkeypatch):
-    run, gate = waiting_run(store, "extension_scope")
+@pytest.mark.parametrize("stage", ["delivery", "extension_scope", "extension_delivery"])
+def test_worker_resumes_saved_final_approval_without_model_calls(
+    settings, store, monkeypatch, stage
+):
+    run, gate = waiting_run(store, stage)
     reply = store.submit(
         run,
         {"action": "approve", "approved": True, "gate_id": gate["gate_id"]},

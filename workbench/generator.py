@@ -3,6 +3,7 @@
 import ast
 import json
 import shutil
+import tempfile
 from pathlib import Path
 
 from workbench.domain import Plan, digest
@@ -21,11 +22,38 @@ def generate_basic(plan: Plan, destination: Path, selection=None):
     if (plan.business is None and plan.data_scope != "per_user") or plan.unsupported:
         raise PrerequisiteError("免服务模板仅支持逐用户 CRUD；不允许静默替换共享数据或未支持项")
     destination = Path(destination)
+    receipt_path = destination.parent / "generation.json"
+    pending = destination.parent / f".generation-{destination.name}.pending.json"
     if destination.is_symlink() or (
         hasattr(destination, "is_junction") and destination.is_junction()
     ):
         raise PrerequisiteError("生成目录不能是符号链接或 junction；原路径未修改")
     if destination.exists():
+        # The directory rename succeeded but the final receipt write may not have.
+        if (
+            destination.is_dir()
+            and pending.is_file()
+            and not pending.is_symlink()
+            and not receipt_path.is_symlink()
+            and not receipt_path.is_dir()
+        ):
+            try:
+                journal = json.loads(pending.read_text(encoding="utf-8"))
+                recovered = journal["receipt"]
+                recoverable = (
+                    journal["destination"] == str(destination.resolve())
+                    and recovered["spec_digest"] == digest(plan.model_dump())
+                    and recovered["selection"] == selection
+                    and recovered["files"] == manifest(destination)
+                )
+            except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
+                raise PrerequisiteError(
+                    "待恢复生成回执无效；已保留现有产品，请恢复回执或使用新目录"
+                ) from exc
+            if recoverable:
+                write_json(receipt_path, recovered)
+                pending.unlink()
+                return recovered
         error = (
             "现有产品目录缺少有效且匹配的生成回执；已保留源码、用户文件和.data数据库。"
             "请恢复此运行原有的generation.json及批准设计，或使用新的空目录生成；"
@@ -49,7 +77,20 @@ def generate_basic(plan: Plan, destination: Path, selection=None):
         # Idempotence never authorizes resetting an existing product. Runtime
         # verification separately binds its source hashes before any delivery.
         return previous
-    destination.mkdir(parents=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".generating-", dir=destination.parent) as temporary:
+        staging = Path(temporary) / "product"
+        staging.mkdir()
+        receipt = _generate_product(plan, staging, selection)
+        write_json(pending, {"destination": str(destination.resolve()), "receipt": receipt})
+        # rename, never copy, so a published product is always complete.
+        staging.rename(destination)
+        write_json(receipt_path, receipt)
+        pending.unlink()
+        return receipt
+
+
+def _generate_product(plan, destination, selection):
     for name, source in files(ROOT / "templates" / "product"):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +122,7 @@ with engine.begin() as connection:
 import json
 from alembic import op
 import sqlalchemy as sa
+from fields import integer_bounds
 revision = "0001"
 down_revision = None
 SPEC = json.loads(SPEC_LITERAL)
@@ -95,8 +137,11 @@ def upgrade():
         columns = [sa.Column("id", sa.String(36), primary_key=True),
             sa.Column("owner_id", sa.String(36), sa.ForeignKey("users.id"), nullable=False)]
         for f in entity["fields"]:
-            kind = {"text": sa.String(f["max_length"]), "integer": sa.Integer(), "boolean": sa.Boolean(), "date": sa.String(10), "enum": sa.String(f["max_length"])}[f["kind"]]
+            kind = {"text": sa.String(f["max_length"]), "integer": sa.Integer(), "boolean": sa.Boolean(), "date": sa.String(10), "datetime": sa.String(40), "enum": sa.String(f["max_length"])}[f["kind"]]
             columns.append(sa.Column(f["name"], kind, nullable=not f["required"]))
+            if f["kind"] == "integer":
+                low, high = integer_bounds(f)
+                columns.append(sa.CheckConstraint(f'"{f["name"]}" BETWEEN {low} AND {high}'))
         op.create_table(entity["name"], *columns)
         op.create_index("ix_" + entity["name"] + "_owner_id", entity["name"], ["owner_id"])
 def downgrade():
@@ -121,5 +166,4 @@ def downgrade():
         "selection": selection,
         "files": manifest(destination),
     }
-    write_json(destination.parent / "generation.json", receipt)
     return receipt

@@ -379,7 +379,7 @@ it('keeps full reviewed-contract scope distinct from partial delivery', () => {
   wrapper.unmount()
 })
 
-it.each(['extension_scope', 'extension_delivery'])(
+it.each(['delivery', 'extension_scope', 'extension_delivery'])(
   'permits exact %s approval after model configuration is removed',
   async (stage) => {
     state.settings = { ready: false } as any
@@ -389,6 +389,7 @@ it.each(['extension_scope', 'extension_delivery'])(
       stage,
       can_approve: true,
       actions: ['approve', 'reject'],
+      needs_model: { approve: false, reject: false },
       data: { delivery_kind: 'partial', full_request_complete: false },
     }
     const wrapper = mount(RunView, {

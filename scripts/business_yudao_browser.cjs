@@ -508,7 +508,7 @@ async function main() {
         expectedRelations[field.name.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())] = created[relation.target_entity];
       } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
-      else if (field.kind === 'integer') await input.fill('1');
+      else if (field.kind === 'integer') await input.fill(String(Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1, Math.min(1, field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1))));
       else if (field.kind === 'datetime' || field.kind === 'date') {
         if (field.required) {
           await input.fill(field.kind === 'date' ? '2026-09-30' : '2026-09-30 12:00:00 UTC');

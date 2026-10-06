@@ -10,19 +10,38 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/customer-runtime.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L176。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/customer-runtime.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L192。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7053`。本段原文以LF换行结束。
+本段原始字节数：`7320`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/customer-runtime.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "89c293d03df1334c6a5834183aca9ab85dcf0254ded7621f21ea4ea052c2570a"} -->
+<!-- learning-source: {"path": ".github/workflows/customer-runtime.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a7443c0ef0773cfbf8f34582f6b5a25b531b40de98ac9304a4f3a23c48bfaa53"} -->
 ````yaml
 # .github/workflows/customer-runtime.yml
 name: Customer-service native integration
 on:
-  pull_request:
-    branches: [feat/complete-platform-acceptance]
+  push:
+    branches: [main]
     paths:
-      - '从零实现AI研发平台_逐步实操手册_完整版.md'
+      - 'workbench/**'
+      - 'templates/**'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - 'examples/plans/customer-service.json'
+      - 'tests/fixtures/customer_design_diagnostics/**'
+      - 'uv.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/customer-runtime.yml'
+  pull_request:
+    branches: [main, feat/complete-platform-acceptance]
+    paths:
+      - 'workbench/**'
+      - 'templates/**'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - 'examples/plans/customer-service.json'
+      - 'tests/fixtures/customer_design_diagnostics/**'
+      - 'uv.lock'
+      - 'pyproject.toml'
       - '.github/workflows/customer-runtime.yml'
   workflow_dispatch:
 permissions:
@@ -36,12 +55,9 @@ env:
 jobs:
   gate:
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'feat/customer-service-acceptance' &&
-       github.event.pull_request.base.ref == 'feat/complete-platform-acceptance') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref == 'refs/heads/feat/customer-service-acceptance')
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

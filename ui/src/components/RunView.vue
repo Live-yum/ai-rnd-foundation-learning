@@ -90,9 +90,7 @@ const canSubmit = computed(
   () => state.online && state.authenticated && !submitting.value && !state.stale,
 )
 const modelReady = computed(() => !!state.settings?.ready)
-const modelFreeApproval = computed(() =>
-  ['extension_scope', 'extension_delivery'].includes(gate.value?.stage || ''),
-)
+const modelFreeApproval = computed(() => gate.value?.needs_model?.approve === false)
 const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
 const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
 const isQuestions = computed(() => gate.value?.actions.includes('answer'))

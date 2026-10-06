@@ -12,9 +12,9 @@
 
 **创建路径：** `templates/business/fastapiadmin/index.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L194。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21435`。本段原文以LF换行结束。
+本段原始字节数：`21632`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/business/fastapiadmin/index.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7a5ef9285f80691fe8c68263f4a917155ccf3d122de82d6fa7116dbac98c3a10"} -->
+<!-- learning-source: {"path": "templates/business/fastapiadmin/index.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "608cb7c05169999e81079fda4051dd9f3bb8dacc6526b6b6b521c5a02623ed5b"} -->
 ````vue
 <!-- templates/business/fastapiadmin/index.vue -->
 <template>
@@ -91,7 +91,7 @@
             </ElSelect>
             <ElSelect v-else-if="field.kind === 'enum'" v-model="form[field.name]" clearable><ElOption v-for="choice in field.choices" :key="choice" :value="choice" :label="field.choice_labels?.[choice] || choice" /></ElSelect>
             <ElSwitch v-else-if="field.kind === 'boolean'" v-model="form[field.name]" />
-            <ElInputNumber v-else-if="field.kind === 'integer'" v-model="form[field.name]" />
+            <ElInputNumber v-else-if="field.kind === 'integer'" v-model="form[field.name]" :precision="0" :min="Math.max(field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1)" :max="Math.min(field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1)" />
             <ElDatePicker v-else-if="field.kind === 'date' || field.kind === 'datetime'" v-model="form[field.name]" :type="field.kind === 'date' ? 'date' : 'datetime'" :value-format="field.kind === 'date' ? 'YYYY-MM-DD' : undefined" />
             <ElInput v-else v-model="form[field.name]" :maxlength="field.max_length" show-word-limit :type="field.max_length > 500 ? 'textarea' : 'text'" />
           </div></template>

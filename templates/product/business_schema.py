@@ -1,6 +1,15 @@
 """Pure SQL metadata for approved business specs; no connections or environment reads."""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, MetaData, String, Table
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+)
 
 
 def build_metadata(spec):
@@ -65,9 +74,25 @@ def build_metadata(spec):
                     nullable=not field["required"],
                 )
             )
+            if field["kind"] == "integer" and not target:
+                columns.append(integer_check(field))
         Table(entity["name"], metadata, *columns)
     business_tables(metadata)
     return metadata
+
+
+def integer_check(field):
+    low = max(
+        -(2**31),
+        field.get("minimum") if field.get("minimum") is not None else -(2**31),
+        field["exclusive_minimum"] + 1 if field.get("exclusive_minimum") is not None else -(2**31),
+    )
+    high = min(
+        2**31 - 1,
+        field.get("maximum") if field.get("maximum") is not None else 2**31 - 1,
+        field["exclusive_maximum"] - 1 if field.get("exclusive_maximum") is not None else 2**31 - 1,
+    )
+    return CheckConstraint(f'"{field["name"]}" BETWEEN {low} AND {high}')
 
 
 def business_tables(metadata):

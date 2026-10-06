@@ -91,10 +91,15 @@ def verify_query_matrix(spec, actors, rows, samples, create_roles, request, allo
                             sample[name] = marker.ljust(max(1, field.get("min_length", 0)), "z")[
                                 : field["max_length"]
                             ]
+                            if field.get("pattern") is not None:
+                                sample[name] = field["example"]
                         elif kind == "enum":
                             sample[name] = field["choices"][min(side, len(field["choices"]) - 1)]
                         elif kind == "integer":
-                            sample[name] = 41 + side
+                            from fields import integer_bounds
+
+                            low, high = integer_bounds(field)
+                            sample[name] = max(low, min(41 + side, high))
                         elif kind == "boolean":
                             sample[name] = bool(side)
                         elif kind == "date":
@@ -331,6 +336,14 @@ def verify_field_constraints(client, actor, entity, fields, sample, row, protect
             evidence.append(proof)
             continue
         invalid = []
+        if kind == "integer":
+            from fields import integer_bounds
+
+            low, high = integer_bounds(field)
+            invalid.extend(
+                (("below_minimum_rejected", low - 1), ("above_maximum_rejected", high + 1))
+            )
+            proof.update(minimum=low, maximum=high)
         if field["required"]:
             missing = {key: value for key, value in sample.items() if key != name}
             response = client.post(route, headers=headers, json=missing)
@@ -923,7 +936,10 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         elif kind == "boolean":
                             sample[name] = True
                         elif kind == "integer":
-                            sample[name] = 1
+                            from fields import integer_bounds
+
+                            low, high = integer_bounds(field)
+                            sample[name] = max(low, min(1, high))
                         elif kind == "date":
                             sample[name] = "2026-01-01"
                         elif kind == "datetime":
@@ -932,6 +948,8 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             sample[name] = (
                                 "Verify " + name + " x" * max(1, field.get("min_length", 0))
                             )[: field["max_length"]]
+                            if field.get("example") is not None:
+                                sample[name] = field["example"]
                     rule = next(
                         (r for r in spec.get("custom_rules", []) if r["entity"] == entity), None
                     )

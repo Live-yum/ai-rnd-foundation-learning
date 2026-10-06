@@ -9,10 +9,11 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from workbench.capability_contracts import CapabilityTask, Identifier
+from workbench.capability_contracts import CapabilityPlan, CapabilityTask, Identifier
 from workbench.catalog import Selection
 from workbench.domain import ClarificationQuestion, Contract, Plan, digest
 from workbench.module_imports import ImportModuleSpec
+from workbench.settings import ROOT
 from workbench.template_adapters import get_adapter
 
 
@@ -98,6 +99,54 @@ class FeatureOutline(Contract):
                 raise ValueError("模块依赖必须引用本计划模块且不能形成循环")
             finished.update(ready)
         return self
+
+
+class FeatureDesign(Contract):
+    outline: FeatureOutline
+    baseline: Plan
+    implementation: CapabilityPlan | None = None
+
+
+def import_files(plan):
+    return [
+        "backend/app/plugin/module_business/" + name
+        for name in ("controller.py", "import.json", "import_runtime.py", "import_routes.py")
+    ] + [
+        "frontend/web/src/components/business/ImportWizard.vue",
+        *(f"frontend/web/src/views/module_rnd/{e.name}/index.vue" for e in plan.entities),
+    ]
+
+
+def feature_design_errors(design, scope, selected):
+    outline = design.outline
+    errors = route_errors(outline, scope["sources"], selected, scope["source_digest"])
+    errors.extend(baseline_errors(outline, design.baseline))
+    errors.extend(feature.blocker for feature in outline.features if feature.route == "blocked")
+    errors.extend(question.prompt for question in outline.questions)
+    for module in outline.modules:
+        if module.extension == "batch-import-v1" and set(module.files) != set(
+            import_files(design.baseline)
+        ):
+            errors.append("批导模块必须准确审阅确定性安装器修改的全部业务文件")
+        if module.extension == "batch-import-v1" and not all(
+            (ROOT / "templates/modules/fastapiadmin" / name).is_file()
+            for name in ("import_runtime.py", "import_routes.py", "ImportWizard.vue")
+        ):
+            errors.append("batch-import-v1缺少实际运行时与页面模板，当前不能生成或验收")
+        if module.dependency_requests or module.migrations:
+            errors.append("当前混合流程不支持新增依赖或既有数据迁移")
+    if bool(outline.modules) != (design.implementation is not None):
+        errors.append("模块必须有独立CapabilityPlan验收；基础功能不能伪造源码任务")
+    if design.implementation:
+        tasks = {task.id: task for task in design.implementation.tasks}
+        if set(tasks) != {module.id for module in outline.modules}:
+            errors.append("验收任务必须与分派模块逐个对应")
+        for module in outline.modules:
+            if module.id in tasks and tasks[module.id].model_dump() != module.model_dump(
+                include=set(CapabilityTask.model_fields)
+            ):
+                errors.append("模块任务与批准功能分派的文件、场景及契约不一致")
+    return list(dict.fromkeys(errors))
 
 
 def route_errors(outline, sources, selected, source_digest):

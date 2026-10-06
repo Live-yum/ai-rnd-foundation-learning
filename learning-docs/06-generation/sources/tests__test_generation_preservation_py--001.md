@@ -22,14 +22,17 @@
 - `test_matching_generation_is_idempotent_and_preserves_user_data`（L88–L92）：接收`tmp_path`、`plan`。 控制顺序：L91断言`generate_basic(plan, product) == receipt`；L92断言`snapshot(tmp_path) == before`。 调用`existing`、`snapshot`、`generate_basic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unknown_existing_empty_directory_is_not_adopted`（L95–L100）：接收`tmp_path`、`plan`。 控制顺序：L100断言`product.is_dir() and list(product.iterdir()) == []`。 调用`product.mkdir`、`pytest.raises`、`generate_basic`、`product.is_dir`、`list`、`product.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_existing_non_directory_is_not_removed`（L103–L108）：接收`tmp_path`、`plan`。 控制顺序：L108断言`product.read_bytes() == b"user-file"`。 调用`product.write_bytes`、`pytest.raises`、`generate_basic`、`product.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_interrupted_generation_retries_without_partial_product`（L112–L148）：接收`tmp_path`、`plan`、`monkeypatch`、`failure`。 控制顺序：L123按`failure == "copy"`分支；L125按`failure == "publish"`分支；L138断言`product.exists() == (failure == "receipt")`；L139断言`not list(tmp_path.glob(".generating-*"))`；L140按`product.exists()`分支；L145断言`receipt == json.loads((tmp_path / "generation.json").read_text())`；L146断言`not list(tmp_path.glob(".generation-*.pending.json"))`；L147按`failure == "receipt"`分支。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.context`、`patch.setattr`、`pytest.raises`、`generate_basic`、`product.exists`、`list`、`tmp_path.glob`、`(product / ".data").mkdir`、`(product / ".data/product.db").write_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_interrupted_generation_retries_without_partial_product.fail`（L119–L120）：接收`*args`。 控制顺序：L120抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_interrupted_generation_retries_without_partial_product.interrupted`（L130–L133）：接收`path`、`value`。 控制顺序：L131按`path == tmp_path / "generation.json"`分支；L132抛异常，停止当前正常路径。 调用`OSError`、`write`。 返回路径：L133的`write(path, value)`。
 
 </details>
 
-**创建路径：** `tests/test_generation_preservation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L108。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_generation_preservation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L148。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3694`。本段原文以LF换行结束。
+本段原始字节数：`5211`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_generation_preservation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d60fe978bc9800432c0639d1db0031cd7a0674817d301bb32974b24abb610a92"} -->
+<!-- learning-source: {"path": "tests/test_generation_preservation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d8f691dd5db6c9247b3a0012c6a2fb17a61c86fd8daee7528613bcbb006a4e26"} -->
 ````python
 # tests/test_generation_preservation.py
 """Generator retries must not remove product databases, credentials or user files."""
@@ -140,4 +143,44 @@ def test_existing_non_directory_is_not_removed(tmp_path, plan):
     with pytest.raises(PrerequisiteError, match="已保留"):
         generate_basic(plan, product)
     assert product.read_bytes() == b"user-file"
+
+
+@pytest.mark.parametrize("failure", ["copy", "publish", "receipt"])
+def test_interrupted_generation_retries_without_partial_product(
+    tmp_path, plan, monkeypatch, failure
+):
+    import workbench.generator as generator
+
+    product = tmp_path / "product"
+
+    def fail(*args):
+        raise OSError(f"{failure} interrupted")
+
+    with monkeypatch.context() as patch:
+        if failure == "copy":
+            patch.setattr(generator.shutil, "copyfile", fail)
+        elif failure == "publish":
+            patch.setattr(generator.Path, "rename", fail)
+        else:
+            write = generator.write_json
+
+            def interrupted(path, value):
+                if path == tmp_path / "generation.json":
+                    raise OSError("receipt interrupted")
+                return write(path, value)
+
+            patch.setattr(generator, "write_json", interrupted)
+        with pytest.raises(OSError, match="interrupted"):
+            generate_basic(plan, product)
+    assert product.exists() == (failure == "receipt")
+    assert not list(tmp_path.glob(".generating-*"))
+    if product.exists():
+        (product / ".data").mkdir()
+        (product / ".data/product.db").write_bytes(b"preserve after publication")
+        before = snapshot(product)
+    receipt = generate_basic(plan, product)
+    assert receipt == json.loads((tmp_path / "generation.json").read_text())
+    assert not list(tmp_path.glob(".generation-*.pending.json"))
+    if failure == "receipt":
+        assert snapshot(product) == before
 ````

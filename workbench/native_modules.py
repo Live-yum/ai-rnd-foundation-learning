@@ -7,6 +7,7 @@ from pathlib import Path
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -23,6 +24,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.schema import CreateIndex, CreateSequence, CreateTable
 
+from templates.product.fields import integer_bounds
 from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
@@ -76,6 +78,15 @@ def validate_plan(plan):
         raise ValueError("Native normalized business names collide")
     for entity in plan.entities:
         for field in entity.fields:
+            if field.pattern is not None:
+                raise ValueError(
+                    "Native pattern constraints require a reviewed cross-language regex adapter"
+                )
+            if plan.business is None and any(
+                getattr(field, attr) is not None
+                for attr in ("minimum", "maximum", "exclusive_minimum", "exclusive_maximum")
+            ):
+                raise ValueError("Native numeric bounds require a business contract")
             if plan.business is None and field.kind not in {"text", "integer", "boolean"}:
                 raise ValueError("Native enum/date/datetime fields require a business contract")
             if plan.business is None and (
@@ -188,6 +199,11 @@ def native_metadata(template, plan, url, run_id):
                     else mapping[relation.target_entity]
                 )
                 constraints.append(ForeignKey(target + ".id", ondelete="RESTRICT"))
+            elif field.kind == "integer":
+                low, high = integer_bounds(field.model_dump())
+                constraints.append(
+                    CheckConstraint(f'"{field.name}" >= {low} AND "{field.name}" <= {high}')
+                )
             columns.append(
                 Column(
                     field.name, kind, *constraints, nullable=not field.required, comment=field.name

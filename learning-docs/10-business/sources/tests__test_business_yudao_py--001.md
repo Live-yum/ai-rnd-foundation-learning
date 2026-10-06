@@ -47,9 +47,9 @@
 
 **创建路径：** `tests/test_business_yudao.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L491。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`22470`。本段原文以LF换行结束。
+本段原始字节数：`22473`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_business_yudao.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "afb3183abcf1a9516e5d76cdb367012c075f9047bdb3d11bd6bc189d722460e4"} -->
+<!-- learning-source: {"path": "tests/test_business_yudao.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8a67ab1ff26de34877ee757c2eac121a47ae043e56cff7867d3775be786c1367"} -->
 ````python
 # tests/test_business_yudao.py
 """Native adapter source/safety contracts. These do not claim a Maven/browser runtime pass."""
@@ -195,7 +195,7 @@ def test_vben_form_field_type_covers_the_exact_emitted_metadata():
 
     source = (TEMPLATES / "business-form.ts").read_text(encoding="utf-8")
     declaration = re.search(r"interface Field \{([^}]+)\}", source).group(1)
-    fields = set(re.findall(r"(\w+)\s*:", declaration))
+    fields = set(re.findall(r"(\w+)\??\s*:", declaration))
     assert fields == set(FieldSpec.model_fields)
     assert "businessPayload<T extends object>" in source
     assert "Reflect.deleteProperty(result, name)" in source

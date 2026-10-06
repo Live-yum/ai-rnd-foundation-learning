@@ -13,33 +13,56 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `PolicyError`（L7–L8）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `utc`（L11–L19）：接收`value`。 控制顺序：L17按`parsed.tzinfo is None`分支；L18抛异常，停止当前正常路径。 调用`datetime.now`、`datetime.fromisoformat`、`value.replace`、`PolicyError`、`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds"…`、`parsed.astimezone(timezone.utc).isoformat`、`parsed.astimezone`。 返回路径：L19的`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")`。
-- `Policy`（L22–L201）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Policy.__init__`（L23–L35）：接收`spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Policy.resource`（L37–L40）：接收`entity`。 控制顺序：L38按`entity not in self.resources`分支；L39抛异常，停止当前正常路径。 调用`PolicyError`。 返回路径：L40的`self.resources[entity]`。
-- `Policy.grant`（L42–L47）：接收`role`、`entity`、`action`。 控制顺序：L45按`grant is None or action not in grant["actions"]`分支；L46抛异常，停止当前正常路径。 调用`self.resource`、`self.permissions.get`、`PolicyError`。 返回路径：L47的`grant`。
-- `Policy.visible`（L49–L54）：接收`actor`、`row`、`entity`、`action`。 控制顺序：L51按`grant["scope"] == "all"`分支。 调用`self.grant`、`self.resource`、`str`、`row.get`。 返回路径：L52的`True`；L54的`str(row.get(key)) == str(actor["id"])`。
-- `Policy.workflow`（L56–L57）：接收`entity`。 调用`self.workflows.get`。 返回路径：L57的`self.workflows.get(entity)`。
-- `Policy.transition`（L59–L71）：接收`role`、`entity`、`name`、`state`。 控制顺序：L65按`transition is None or role not in transition["roles"] or state not in transition["fro…`分支；L70抛异常，停止当前正常路径。 调用`self.grant`、`self.workflow`、`next`、`(workflow or {}).get`、`PolicyError`。 返回路径：L71的`transition`。
-- `Policy.protected`（L73–L86）：接收`entity`。 控制顺序：L76按`resource.get("assignee_field")`分支；L79按`workflow`分支。 调用`self.resource`、`resource.get`、`fields.add`、`self.workflow`、`fields.update`、`item.get`。 返回路径：L86的`fields`。
-- `Policy.validate_fields`（L88–L123）：接收`entity`、`data`。 控制顺序：L90按`set(data) - set(fields)`分支；L91抛异常，停止当前正常路径；L93遍历`fields.items()`；L95按`value is None`分支；L96按`field["required"]`分支；L97抛异常，停止当前正常路径；L102按`type(value) is not expected`分支；L103抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`set`、`PolicyError`、`fields.items`、`data.get`、`{"integer": int, "boolean": bool}.get`、`type`、`isinstance`、`value.strip`、`max`等。 返回路径：L123的`result`。
-- `Policy.metric`（L125–L201）：接收`rows`、`metric`。 控制顺序：L164按`kind == "count"`分支；L166按`kind == "average_duration"`分支；L168遍历`rows`；L170按`start and end`分支；L175按`seconds >= 0`分支；L183按`kind == "group_count"`分支；L192按`kind == "time_count"`分支；L201抛异常，停止当前正常路径。 调用`matches`、`len`、`row.get`、`( datetime.fromisoformat(end.replace("Z", "+00:00")) - datetime.f…`、`datetime.fromisoformat`、`end.replace`、`start.replace`、`durations.append`、`sum`等。 返回路径：L165的`{"kind": kind, "value": len(rows)}`；L177的`{ "kind": kind, "value": sum(durations) / len(durations) if durations else None, "samples"…`；L185的`{ "kind": kind, "groups": [ {"key": key, "count": value} for key, value in sorted(groups.i…`。
-- `Policy.metric.matches`（L126–L160）：接收`row`。 控制顺序：L127遍历`metric.get("filters", [])`；L141按`predicate["field"] in {"created_at", "updated_at", "archived_at"}`分支；L143按`kind == "datetime"`分支；L152按`op == "eq" and actual != expected or op == "ne" and actual == expected`分支；L154按`op == "in" and actual not in expected`分支；L156按`op in {"gte", "lte"} and ( actual is None or (actual < expected if op == "gte" else a…`分支。 调用`metric.get`、`row.get`、`next`、`utc`。 返回路径：L153的`False`；L155的`False`；L159的`False`。
+- `validate_scalar_constraints`（L10–L26）：接收`kind`、`field`、`value`。 控制顺序：L11按`kind == "integer"`分支；L12按`not -(2**31) <= value < 2**31`分支；L13抛异常，停止当前正常路径；L14遍历`( ("minimum", lambda limit: value < limit), ("maximum", lambda li…`；L20按`field.get(attribute) is not None and invalid(field[attribute])`分支；L21抛异常，停止当前正常路径；L22按`kind == "text" and field.get("pattern") is not None`分支；L26抛异常，停止当前正常路径。 调用`PolicyError`、`field.get`、`invalid`、`TypeAdapter(Annotated[str, Field(pattern=field["pattern"])]).vali…`、`TypeAdapter`、`Field`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `PolicyError`（L29–L30）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `utc`（L33–L41）：接收`value`。 控制顺序：L39按`parsed.tzinfo is None`分支；L40抛异常，停止当前正常路径。 调用`datetime.now`、`datetime.fromisoformat`、`value.replace`、`PolicyError`、`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds"…`、`parsed.astimezone(timezone.utc).isoformat`、`parsed.astimezone`。 返回路径：L41的`parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")`。
+- `Policy`（L44–L222）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Policy.__init__`（L45–L57）：接收`spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Policy.resource`（L59–L62）：接收`entity`。 控制顺序：L60按`entity not in self.resources`分支；L61抛异常，停止当前正常路径。 调用`PolicyError`。 返回路径：L62的`self.resources[entity]`。
+- `Policy.grant`（L64–L69）：接收`role`、`entity`、`action`。 控制顺序：L67按`grant is None or action not in grant["actions"]`分支；L68抛异常，停止当前正常路径。 调用`self.resource`、`self.permissions.get`、`PolicyError`。 返回路径：L69的`grant`。
+- `Policy.visible`（L71–L76）：接收`actor`、`row`、`entity`、`action`。 控制顺序：L73按`grant["scope"] == "all"`分支。 调用`self.grant`、`self.resource`、`str`、`row.get`。 返回路径：L74的`True`；L76的`str(row.get(key)) == str(actor["id"])`。
+- `Policy.workflow`（L78–L79）：接收`entity`。 调用`self.workflows.get`。 返回路径：L79的`self.workflows.get(entity)`。
+- `Policy.transition`（L81–L93）：接收`role`、`entity`、`name`、`state`。 控制顺序：L87按`transition is None or role not in transition["roles"] or state not in transition["fro…`分支；L92抛异常，停止当前正常路径。 调用`self.grant`、`self.workflow`、`next`、`(workflow or {}).get`、`PolicyError`。 返回路径：L93的`transition`。
+- `Policy.protected`（L95–L108）：接收`entity`。 控制顺序：L98按`resource.get("assignee_field")`分支；L101按`workflow`分支。 调用`self.resource`、`resource.get`、`fields.add`、`self.workflow`、`fields.update`、`item.get`。 返回路径：L108的`fields`。
+- `Policy.validate_fields`（L110–L144）：接收`entity`、`data`。 控制顺序：L112按`set(data) - set(fields)`分支；L113抛异常，停止当前正常路径；L115遍历`fields.items()`；L117按`value is None`分支；L118按`field["required"]`分支；L119抛异常，停止当前正常路径；L124按`type(value) is not expected`分支；L125抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`set`、`PolicyError`、`fields.items`、`data.get`、`{"integer": int, "boolean": bool}.get`、`type`、`isinstance`、`value.strip`、`max`等。 返回路径：L144的`result`。
+- `Policy.metric`（L146–L222）：接收`rows`、`metric`。 控制顺序：L185按`kind == "count"`分支；L187按`kind == "average_duration"`分支；L189遍历`rows`；L191按`start and end`分支；L196按`seconds >= 0`分支；L204按`kind == "group_count"`分支；L213按`kind == "time_count"`分支；L222抛异常，停止当前正常路径。 调用`matches`、`len`、`row.get`、`( datetime.fromisoformat(end.replace("Z", "+00:00")) - datetime.f…`、`datetime.fromisoformat`、`end.replace`、`start.replace`、`durations.append`、`sum`等。 返回路径：L186的`{"kind": kind, "value": len(rows)}`；L198的`{ "kind": kind, "value": sum(durations) / len(durations) if durations else None, "samples"…`；L206的`{ "kind": kind, "groups": [ {"key": key, "count": value} for key, value in sorted(groups.i…`。
+- `Policy.metric.matches`（L147–L181）：接收`row`。 控制顺序：L148遍历`metric.get("filters", [])`；L162按`predicate["field"] in {"created_at", "updated_at", "archived_at"}`分支；L164按`kind == "datetime"`分支；L173按`op == "eq" and actual != expected or op == "ne" and actual == expected`分支；L175按`op == "in" and actual not in expected`分支；L177按`op in {"gte", "lte"} and ( actual is None or (actual < expected if op == "gte" else a…`分支。 调用`metric.get`、`row.get`、`next`、`utc`。 返回路径：L174的`False`；L176的`False`；L180的`False`。
 
 </details>
 
-**创建路径：** `templates/business/common/policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L201。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/business/common/policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L222。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8198`。本段原文以LF换行结束。
+本段原始字节数：`9119`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/business/common/policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba5404d84b49cea256ab5cf493433959fc2bfe330246b85565558c144e13454c"} -->
+<!-- learning-source: {"path": "templates/business/common/policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d771f433a9210b01bdf129362e55f90fbaa35e05c709bb75fd3f55ace1a8e18c"} -->
 ````python
 # templates/business/common/policy.py
 """Portable approved-business semantics; no database, network, or platform imports."""
 
 from collections import Counter
 from datetime import date, datetime, timezone
+from typing import Annotated
+
+from pydantic import Field, TypeAdapter, ValidationError
+
+
+def validate_scalar_constraints(kind, field, value):
+    if kind == "integer":
+        if not -(2**31) <= value < 2**31:
+            raise PolicyError("Integer outside supported range")
+        for attribute, invalid in (
+            ("minimum", lambda limit: value < limit),
+            ("maximum", lambda limit: value > limit),
+            ("exclusive_minimum", lambda limit: value <= limit),
+            ("exclusive_maximum", lambda limit: value >= limit),
+        ):
+            if field.get(attribute) is not None and invalid(field[attribute]):
+                raise PolicyError("Integer violates approved constraint")
+    if kind == "text" and field.get("pattern") is not None:
+        try:
+            TypeAdapter(Annotated[str, Field(pattern=field["pattern"])]).validate_python(value)
+        except ValidationError as error:
+            raise PolicyError("Text violates approved pattern") from error
 
 
 class PolicyError(ValueError):
@@ -150,8 +173,7 @@ class Policy:
                 raise PolicyError("Invalid field length: " + name)
             if kind == "enum" and value not in field["choices"]:
                 raise PolicyError("Invalid enum value: " + name)
-            if kind == "integer" and not -(2**63) <= value < 2**63:
-                raise PolicyError("Integer outside supported range")
+            validate_scalar_constraints(kind, field, value)
             if kind == "date":
                 if date.fromisoformat(value).isoformat() != value:
                     raise PolicyError("Date must use YYYY-MM-DD")

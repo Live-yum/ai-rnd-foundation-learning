@@ -12,11 +12,11 @@
 
 **带着一个具体问题阅读：** 快速打开运行A再打开B时，即使A的请求最后才返回，也不能把A消息写到B。openRun先关闭旧订阅并递增runGeneration；回调核对代次后才更新。重连只接受id大于当前cursor的事件，因此同一已提交delta不会再追加一次。
 
-**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L292。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L296。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9148`。本段原文以LF换行结束。
+本段原始字节数：`9258`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fc18cae167e3d6ba9f5ab64ed2e6375ccce4093a072246b0aed5e9abfae3cc10"} -->
+<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8d44af4cb521f2e70f54c81a46a67f4fbf3c3bff81952909e37d74e626c78a81"} -->
 ````typescript
 // ui/src/state.ts
 import { reactive } from 'vue'
@@ -45,6 +45,8 @@ export const state = reactive({
   lastSync: '',
   cursor: 0,
   stale: false,
+  homeDrafts: {} as Record<string, string>,
+  settingsReturn: '',
 })
 let runController: AbortController | undefined,
   runGeneration = 0,
@@ -134,6 +136,8 @@ export function lock() {
     notice: '',
     cursor: 0,
     stale: false,
+    homeDrafts: {},
+    settingsReturn: '',
   })
 }
 export async function refreshLists() {

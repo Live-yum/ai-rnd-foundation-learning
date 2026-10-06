@@ -13,21 +13,31 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `build_metadata`（L6–L70）：接收`spec`。 控制顺序：L30遍历`spec["entities"]`；L39遍历`entity["fields"]`；L49按`target`分支。 调用`MetaData`、`Table`、`Column`、`String`、`ForeignKey`、`Integer`、`Boolean`、`relations.get`、`columns.append`等。 返回路径：L70的`metadata`。
-- `business_tables`（L73–L108）：接收`metadata`。 调用`Table`、`Column`、`String`、`ForeignKey`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `build_metadata`（L15–L81）：接收`spec`。 控制顺序：L39遍历`spec["entities"]`；L48遍历`entity["fields"]`；L58按`target`分支；L77按`field["kind"] == "integer" and not target`分支。 调用`MetaData`、`Table`、`Column`、`String`、`ForeignKey`、`Integer`、`Boolean`、`relations.get`、`columns.append`等。 返回路径：L81的`metadata`。
+- `integer_check`（L84–L95）：接收`field`。 调用`max`、`field.get`、`min`、`CheckConstraint`。 返回路径：L95的`CheckConstraint(f'"{field["name"]}" BETWEEN {low} AND {high}')`。
+- `business_tables`（L98–L133）：接收`metadata`。 调用`Table`、`Column`、`String`、`ForeignKey`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `templates/product/business_schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L108。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/business_schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L133。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4261`。本段原文以LF换行结束。
+本段原始字节数：`4970`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/business_schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4e862f471938baf095e0bd908723940c64ac2472ae186ff69139bbed87411f44"} -->
+<!-- learning-source: {"path": "templates/product/business_schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2e56ce0d08e611b644659b8bc2518aec40d2e312de83468fd239dbc291ecba5c"} -->
 ````python
 # templates/product/business_schema.py
 """Pure SQL metadata for approved business specs; no connections or environment reads."""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, MetaData, String, Table
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+)
 
 
 def build_metadata(spec):
@@ -92,9 +102,25 @@ def build_metadata(spec):
                     nullable=not field["required"],
                 )
             )
+            if field["kind"] == "integer" and not target:
+                columns.append(integer_check(field))
         Table(entity["name"], metadata, *columns)
     business_tables(metadata)
     return metadata
+
+
+def integer_check(field):
+    low = max(
+        -(2**31),
+        field.get("minimum") if field.get("minimum") is not None else -(2**31),
+        field["exclusive_minimum"] + 1 if field.get("exclusive_minimum") is not None else -(2**31),
+    )
+    high = min(
+        2**31 - 1,
+        field.get("maximum") if field.get("maximum") is not None else 2**31 - 1,
+        field["exclusive_maximum"] - 1 if field.get("exclusive_maximum") is not None else 2**31 - 1,
+    )
+    return CheckConstraint(f'"{field["name"]}" BETWEEN {low} AND {high}')
 
 
 def business_tables(metadata):

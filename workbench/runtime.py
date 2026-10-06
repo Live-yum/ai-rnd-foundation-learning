@@ -21,7 +21,7 @@ from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.local_only import local_database_url
 from workbench.recommendation import blocked_report
-from workbench.store import MODEL_FREE_APPROVAL_STAGES, Conflict
+from workbench.store import Conflict, action_needs_model
 from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
@@ -126,14 +126,15 @@ class Runtime:
                 model_free_wait = (
                     payload["action"] == "approve"
                     and waiting
-                    and waiting.get("stage") in MODEL_FREE_APPROVAL_STAGES
+                    and not action_needs_model(waiting.get("stage"), payload["action"])
                     and waiting.get("gate_id") == payload.get("gate_id")
                 )
                 model_free_resume = (
                     snapshot.values
                     and snapshot.next
                     and not waiting
-                    and set(snapshot.next) <= {"extension_package", "extension_delivery"}
+                    and set(snapshot.next)
+                    <= {"delivery", "extension_package", "extension_delivery"}
                     and snapshot.values.get("last_job_id")
                     in {job["id"], payload.get("resume_from_job_id")}
                     and snapshot.values.get("last_job_id") is not None

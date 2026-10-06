@@ -10,20 +10,21 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/native-runtime.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L108。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/native-runtime.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L109。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4252`。本段原文以LF换行结束。
+本段原始字节数：`4263`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-runtime.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f163b019ce3f7cdf865c9b24ecec1bd8ba605e6c62b630504308f6f70bbd017"} -->
+<!-- learning-source: {"path": ".github/workflows/native-runtime.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a4ea3514548ee3ff17cd081bc4aa7ce4b28a51e5da11252192121d21cee6dd88"} -->
 ````yaml
 # .github/workflows/native-runtime.yml
 name: Native generated full-stack acceptance
 on:
   push:
     branches: [main]
-    paths: ['workbench/**', 'templates/deployment/**', 'templates/vendor/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
+    paths: ['workbench/**', 'templates/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', 'uv.lock', 'pyproject.toml', '.github/workflows/native-runtime.yml']
   pull_request:
-    paths: ['workbench/**', 'templates/deployment/**', 'templates/vendor/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
+    paths: ['workbench/**', 'templates/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', 'uv.lock', 'pyproject.toml', '.github/workflows/native-runtime.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

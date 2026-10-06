@@ -18,16 +18,16 @@
 - `Selection`（L11–L28）：继承`BaseModel`。声明的数据项为`template`、`backend`、`frontend`、`database`；类型约束/数据库列参数以完整定义为准。
 - `Selection.supported`（L19–L25）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter`、`adapter.validate_selection`、`model_validator`。 返回路径：L25的`self`。
 - `Selection.capabilities`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter(self.template).capabilities`、`get_adapter`、`self.model_dump`。 返回路径：L28的`{**get_adapter(self.template).capabilities(), **self.model_dump()}`。
-- `options_for_run`（L31–L32）：接收`run`。 调用`Selection.model_validate`、`run.get`。 返回路径：L32的`Selection.model_validate(run.get("options") or {"template": run["template"]})`。
-- `selections`（L35–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`、`template_ids`。 返回路径：L36的`[Selection(template=template).capabilities() for template in template_ids()]`。
+- `options_for_run`（L31–L34）：接收`run`。 调用`dict`、`run.get`、`options.pop`、`Selection.model_validate`。 返回路径：L34的`Selection.model_validate(options)`。
+- `selections`（L37–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`、`template_ids`。 返回路径：L38的`[Selection(template=template).capabilities() for template in template_ids()]`。
 
 </details>
 
-**创建路径：** `workbench/catalog.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L36。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/catalog.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L38。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1299`。本段原文以LF换行结束。
+本段原始字节数：`1376`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/catalog.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19eb77c215fb4abcbc880bfd89fd4cbb32a21cabc4909b11f577ac5532583a0e"} -->
+<!-- learning-source: {"path": "workbench/catalog.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d8ebaf8824aa12c5f4f436e42bcecd45929e14b97e6cf896775bc6531d6fed2c"} -->
 ````python
 # workbench/catalog.py
 """Validated selection uses the same executable catalog exposed by all discovery surfaces."""
@@ -61,7 +61,9 @@ class Selection(BaseModel):
 
 
 def options_for_run(run):
-    return Selection.model_validate(run.get("options") or {"template": run["template"]})
+    options = dict(run.get("options") or {"template": run["template"]})
+    options.pop("allow_custom_extensions", None)
+    return Selection.model_validate(options)
 
 
 def selections():

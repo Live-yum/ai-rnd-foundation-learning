@@ -14,7 +14,7 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `workflow`（L19–L20）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`yaml.load`、`WORKFLOW.read_text`。 返回路径：L20的`yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)`。
-- `test_runtime_trigger_is_customer_pr_only_with_manual_compatibility`（L23–L41）：接收`workflow`。 控制顺序：L24断言`workflow["on"] == { "pull_request": { "branches": ["feat/complete-platform-acceptance…`；L34断言`" ".join(workflow["jobs"]["gate"]["if"].split()) == ( "(github.event_name == 'pull_re…`。 调用`" ".join`、`workflow["jobs"]["gate"]["if"].split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_triggers_cover_main_business_changes_and_manual_runs`（L23–L41）：接收`workflow`。 控制顺序：L25断言`triggers["push"]["branches"] == ["main"]`；L26断言`"main" in triggers["pull_request"]["branches"]`；L27断言`"workflow_dispatch" in triggers`；L28遍历`("push", "pull_request")`；L29断言`{"workbench/**", "templates/**", "examples/plans/customer-service.json"} <= set( trig…`；L33断言`"head.ref" not in gate and "head.repo" not in gate`；L34断言`"pull_request_target" not in triggers`；L39断言`"workflow_dispatch" in native["on"]`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`yaml.load`、`(ROOT / ".github/workflows/native-runtime.yml").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_runtime_gate_is_cheap_read_only_and_uses_literal_sha`（L44–L70）：接收`workflow`。 控制顺序：L45断言`workflow["permissions"] == {"contents": "read"}`；L46断言`workflow["concurrency"]["cancel-in-progress"] == "false"`；L47断言`set(workflow["jobs"]) == {"gate", "runtime"}`；L49断言`gate["timeout-minutes"] == "5"`；L50断言`"services" not in gate and "strategy" not in gate`；L51断言`len(gate["steps"]) == 2`；L52断言`gate["outputs"] == { "sha": "${{ steps.head.outputs.sha }}", "eligible": "${{ steps.h…`；L57断言`runtime["needs"] == "gate"`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`len`、`WORKFLOW.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_runtime_retains_all_four_cases_and_verification_budgets`（L73–L125）：接收`workflow`。 控制顺序：L75断言`runtime["strategy"] == { "fail-fast": "false", "matrix": { "include": [ { "template":…`；L106断言`runtime["timeout-minutes"] == "55"`；L108断言`verify["timeout-minutes"] == "45"`；L109断言`verify["run"] == ( 'if [ "$CUSTOMER_CASE" = approved-1d7 ]; then\n' ' uv run python -…`；L121断言`runtime["steps"][-1]["with"] == { "name": "native-runtime-${{ matrix.template }}-${{ …`。 调用`next`、`step.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `_git`（L128–L142）：接收`root`、`*args`。 调用`subprocess.run( [ "git", "-c", "user.name=Runtime gate test", "-c…`、`subprocess.run`。 返回路径：L129的`subprocess.run( [ "git", "-c", "user.name=Runtime gate test", "-c", "user.email=gate@examp…`。
@@ -30,9 +30,9 @@
 
 **创建路径：** `tests/test_customer_runtime_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L240。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9232`。本段原文以LF换行结束。
+本段原始字节数：`9202`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_customer_runtime_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "840d808f130b362ee934033f9204f32814fd1cee423cd76a419e2db7f411b583"} -->
+<!-- learning-source: {"path": "tests/test_customer_runtime_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "636810da8ddc3e27e96ad43182f56998b6259223a43435cbce66acea619e2eda"} -->
 ````python
 # tests/test_customer_runtime_workflow.py
 """The customer runtime matrix must exercise the literal, helper-free final head."""
@@ -57,25 +57,25 @@ def workflow():
     return yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
 
 
-def test_runtime_trigger_is_customer_pr_only_with_manual_compatibility(workflow):
-    assert workflow["on"] == {
-        "pull_request": {
-            "branches": ["feat/complete-platform-acceptance"],
-            "paths": [
-                "从零实现AI研发平台_逐步实操手册_完整版.md",
-                ".github/workflows/customer-runtime.yml",
-            ],
-        },
-        "workflow_dispatch": "",
-    }
-    assert " ".join(workflow["jobs"]["gate"]["if"].split()) == (
-        "(github.event_name == 'pull_request' && "
-        "github.event.pull_request.head.repo.full_name == github.repository && "
-        "github.event.pull_request.head.ref == 'feat/customer-service-acceptance' && "
-        "github.event.pull_request.base.ref == 'feat/complete-platform-acceptance') || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "github.ref == 'refs/heads/feat/customer-service-acceptance')"
+def test_runtime_triggers_cover_main_business_changes_and_manual_runs(workflow):
+    triggers = workflow["on"]
+    assert triggers["push"]["branches"] == ["main"]
+    assert "main" in triggers["pull_request"]["branches"]
+    assert "workflow_dispatch" in triggers
+    for event in ("push", "pull_request"):
+        assert {"workbench/**", "templates/**", "examples/plans/customer-service.json"} <= set(
+            triggers[event]["paths"]
+        )
+    gate = workflow["jobs"]["gate"]["if"]
+    assert "head.ref" not in gate and "head.repo" not in gate
+    assert "pull_request_target" not in triggers
+    native = yaml.load(
+        (ROOT / ".github/workflows/native-runtime.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
     )
+    assert "workflow_dispatch" in native["on"]
+    for event in ("push", "pull_request"):
+        assert "templates/**" in native["on"][event]["paths"]
 
 
 def test_runtime_gate_is_cheap_read_only_and_uses_literal_sha(workflow):

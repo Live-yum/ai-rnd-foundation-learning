@@ -10,30 +10,33 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.catalog`、`workbench.domain`、`workbench.module_imports`、`workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_contracts`、`workbench.catalog`、`workbench.domain`、`workbench.module_imports`、`workbench.settings`、`workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `RoutedFeature`（L19–L36）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`route`、`capability`、`depends_on`、`entity`、`module_id`、`blocker`；类型约束/数据库列参数以完整定义为准。
-- `RoutedFeature.route_shape`（L31–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L32按`(self.route == "module") != (self.module_id is not None)`分支；L33抛异常，停止当前正常路径；L34按`(self.route == "blocked") != bool(self.blocker)`分支；L35抛异常，停止当前正常路径。 调用`ValueError`、`bool`、`model_validator`。 返回路径：L36的`self`。
-- `PlannedModule`（L39–L59）：继承`CapabilityTask`。声明的数据项为`adapter`、`extension`、`page_patterns`、`interfaces`、`dependency_requests`、`migrations`、`permission_changes`、`import_spec`；类型约束/数据库列参数以完整定义为准。
-- `PlannedModule.exact_module_configuration`（L52–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L53按`(self.extension == "batch-import-v1") != (self.import_spec is not None)`分支；L54抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L55的`self`。
-- `PlannedModule.requires_explicit_review`（L58–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L59的`bool(self.dependency_requests or self.migrations or self.permission_changes)`。
-- `FeatureOutline`（L62–L100）：继承`Contract`。声明的数据项为`version`、`summary`、`selection`、`source_digest`、`features`、`modules`、`questions`；类型约束/数据库列参数以完整定义为准。
-- `FeatureOutline.dependencies`（L72–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L74按`len(keys) != len(self.features)`分支；L75抛异常，停止当前正常路径；L76按`any(not set(feature.depends_on) <= keys for feature in self.features)`分支；L77抛异常，停止当前正常路径；L79在`len(done) < len(keys)`成立时循环；L83按`not ready`分支；L84抛异常，停止当前正常路径；L87按`len(module_ids) != len(self.modules)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`any`、`set`、`done.update`、`finished.update`、`model_validator`。 返回路径：L100的`self`。
-- `route_errors`（L103–L135）：接收`outline`、`sources`、`selected`、`source_digest`。 控制顺序：L106按`outline.selection.model_dump() != Selection.model_validate(selected).model_dump()`分支；L108按`outline.source_digest != source_digest`分支；L112按`covered != expected`分支；L117遍历`outline.features`；L118按`feature.route == "native" and feature.capability not in native`分支；L120按`feature.route == "declarative" and feature.capability not in business`分支；L122按`feature.route == "module"`分支；L124按`not set(feature.requirements) <= set(module.requirements)`分支。后续分支沿下方源码相同行号继续阅读。 调用`get_adapter(selected["template"]).capabilities`、`get_adapter`、`outline.selection.model_dump`、`Selection.model_validate(selected).model_dump`、`Selection.model_validate`、`errors.append`、`set`、`errors.extend`、`module_path_errors`。 返回路径：L135的`errors`。
-- `module_path_errors`（L138–L181）：接收`module`。 源码说明：An approved filename never grants access to trusted product control files.。 控制顺序：L144遍历`module.files`；L160按`module.adapter == "fastapiadmin"`分支；L170按`module.adapter == "yudao-vben"`分支；L179按`blocked`分支。 调用`get_adapter(module.adapter).ui_contract`、`get_adapter`、`ui.get`、`PurePosixPath`、`path.startswith`、`name.startswith`、`any`、`p.endswith`、`errors.append`。 返回路径：L181的`errors`。
-- `baseline_errors`（L184–L214）：接收`outline`、`baseline`。 控制顺序：L185按`baseline is None`分支；L193按`baseline.unsupported`分支；L195按`any(feature.route == "declarative" for feature in outline.features) and baseline.busi…`分支；L201遍历`outline.modules`；L202按`module.import_spec and module.import_spec.entity not in entities`分支；L204按`module.import_spec and baseline.business is None`分支；L206按`any( feature.entity and feature.entity not in entities for feature in outline.feature…`分支；L212按`outline.selection.template != "python-basic" and baseline.data_scope != "shared"`分支。 调用`any`、`Plan.model_validate`、`errors.append`。 返回路径：L186的`["原生和声明式路由需要单独评审基础业务契约"] if any(feature.route in {"native", "declarative"} for feature in …`；L214的`errors`。
-- `planning_payload`（L217–L231）：接收`scope`。 调用`Selection.model_validate`、`selection.model_dump`、`selection.capabilities`、`digest`。 返回路径：L219的`{ "source_digest": scope["source_digest"], "source_units": scope["sources"], "selection": …`。
+- `RoutedFeature`（L20–L37）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`route`、`capability`、`depends_on`、`entity`、`module_id`、`blocker`；类型约束/数据库列参数以完整定义为准。
+- `RoutedFeature.route_shape`（L32–L37）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33按`(self.route == "module") != (self.module_id is not None)`分支；L34抛异常，停止当前正常路径；L35按`(self.route == "blocked") != bool(self.blocker)`分支；L36抛异常，停止当前正常路径。 调用`ValueError`、`bool`、`model_validator`。 返回路径：L37的`self`。
+- `PlannedModule`（L40–L60）：继承`CapabilityTask`。声明的数据项为`adapter`、`extension`、`page_patterns`、`interfaces`、`dependency_requests`、`migrations`、`permission_changes`、`import_spec`；类型约束/数据库列参数以完整定义为准。
+- `PlannedModule.exact_module_configuration`（L53–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L54按`(self.extension == "batch-import-v1") != (self.import_spec is not None)`分支；L55抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L56的`self`。
+- `PlannedModule.requires_explicit_review`（L59–L60）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L60的`bool(self.dependency_requests or self.migrations or self.permission_changes)`。
+- `FeatureOutline`（L63–L101）：继承`Contract`。声明的数据项为`version`、`summary`、`selection`、`source_digest`、`features`、`modules`、`questions`；类型约束/数据库列参数以完整定义为准。
+- `FeatureOutline.dependencies`（L73–L101）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75按`len(keys) != len(self.features)`分支；L76抛异常，停止当前正常路径；L77按`any(not set(feature.depends_on) <= keys for feature in self.features)`分支；L78抛异常，停止当前正常路径；L80在`len(done) < len(keys)`成立时循环；L84按`not ready`分支；L85抛异常，停止当前正常路径；L88按`len(module_ids) != len(self.modules)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`any`、`set`、`done.update`、`finished.update`、`model_validator`。 返回路径：L101的`self`。
+- `FeatureDesign`（L104–L107）：继承`Contract`。声明的数据项为`outline`、`baseline`、`implementation`；类型约束/数据库列参数以完整定义为准。
+- `import_files`（L110–L117）：接收`plan`。 返回路径：L111的`[ "backend/app/plugin/module_business/" + name for name in ("controller.py", "import.json"…`。
+- `feature_design_errors`（L120–L149）：接收`design`、`scope`、`selected`。 控制顺序：L126遍历`outline.modules`；L127按`module.extension == "batch-import-v1" and set(module.files) != set( import_files(desi…`分支；L131按`module.extension == "batch-import-v1" and not all( (ROOT / "templates/modules/fastapi…`分支；L136按`module.dependency_requests or module.migrations`分支；L138按`bool(outline.modules) != (design.implementation is not None)`分支；L140按`design.implementation`分支；L142按`set(tasks) != {module.id for module in outline.modules}`分支；L144遍历`outline.modules`。后续分支沿下方源码相同行号继续阅读。 调用`route_errors`、`errors.extend`、`baseline_errors`、`set`、`import_files`、`errors.append`、`all`、`(ROOT / "templates/modules/fastapiadmin" / name).is_file`、`bool`等。 返回路径：L149的`list(dict.fromkeys(errors))`。
+- `route_errors`（L152–L184）：接收`outline`、`sources`、`selected`、`source_digest`。 控制顺序：L155按`outline.selection.model_dump() != Selection.model_validate(selected).model_dump()`分支；L157按`outline.source_digest != source_digest`分支；L161按`covered != expected`分支；L166遍历`outline.features`；L167按`feature.route == "native" and feature.capability not in native`分支；L169按`feature.route == "declarative" and feature.capability not in business`分支；L171按`feature.route == "module"`分支；L173按`not set(feature.requirements) <= set(module.requirements)`分支。后续分支沿下方源码相同行号继续阅读。 调用`get_adapter(selected["template"]).capabilities`、`get_adapter`、`outline.selection.model_dump`、`Selection.model_validate(selected).model_dump`、`Selection.model_validate`、`errors.append`、`set`、`errors.extend`、`module_path_errors`。 返回路径：L184的`errors`。
+- `module_path_errors`（L187–L230）：接收`module`。 源码说明：An approved filename never grants access to trusted product control files.。 控制顺序：L193遍历`module.files`；L209按`module.adapter == "fastapiadmin"`分支；L219按`module.adapter == "yudao-vben"`分支；L228按`blocked`分支。 调用`get_adapter(module.adapter).ui_contract`、`get_adapter`、`ui.get`、`PurePosixPath`、`path.startswith`、`name.startswith`、`any`、`p.endswith`、`errors.append`。 返回路径：L230的`errors`。
+- `baseline_errors`（L233–L263）：接收`outline`、`baseline`。 控制顺序：L234按`baseline is None`分支；L242按`baseline.unsupported`分支；L244按`any(feature.route == "declarative" for feature in outline.features) and baseline.busi…`分支；L250遍历`outline.modules`；L251按`module.import_spec and module.import_spec.entity not in entities`分支；L253按`module.import_spec and baseline.business is None`分支；L255按`any( feature.entity and feature.entity not in entities for feature in outline.feature…`分支；L261按`outline.selection.template != "python-basic" and baseline.data_scope != "shared"`分支。 调用`any`、`Plan.model_validate`、`errors.append`。 返回路径：L235的`["原生和声明式路由需要单独评审基础业务契约"] if any(feature.route in {"native", "declarative"} for feature in …`；L263的`errors`。
+- `planning_payload`（L266–L280）：接收`scope`。 调用`Selection.model_validate`、`selection.model_dump`、`selection.capabilities`、`digest`。 返回路径：L268的`{ "source_digest": scope["source_digest"], "source_units": scope["sources"], "selection": …`。
 
 </details>
 
-**创建路径：** `workbench/feature_planning.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L231。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/feature_planning.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L280。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10682`。本段原文以LF换行结束。
+本段原始字节数：`13144`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/feature_planning.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0c3c5221a588e1a231a65f41a26c37b22109db8778079188358c297596d99cce"} -->
+<!-- learning-source: {"path": "workbench/feature_planning.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fbd7cac6807e40f40906fa86d59a959c95b239b149d89570cf01c809967dcbb3"} -->
 ````python
 # workbench/feature_planning.py
 """Per-feature routing over the selected adapter, separate from graph orchestration.
@@ -47,10 +50,11 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from workbench.capability_contracts import CapabilityTask, Identifier
+from workbench.capability_contracts import CapabilityPlan, CapabilityTask, Identifier
 from workbench.catalog import Selection
 from workbench.domain import ClarificationQuestion, Contract, Plan, digest
 from workbench.module_imports import ImportModuleSpec
+from workbench.settings import ROOT
 from workbench.template_adapters import get_adapter
 
 
@@ -136,6 +140,54 @@ class FeatureOutline(Contract):
                 raise ValueError("模块依赖必须引用本计划模块且不能形成循环")
             finished.update(ready)
         return self
+
+
+class FeatureDesign(Contract):
+    outline: FeatureOutline
+    baseline: Plan
+    implementation: CapabilityPlan | None = None
+
+
+def import_files(plan):
+    return [
+        "backend/app/plugin/module_business/" + name
+        for name in ("controller.py", "import.json", "import_runtime.py", "import_routes.py")
+    ] + [
+        "frontend/web/src/components/business/ImportWizard.vue",
+        *(f"frontend/web/src/views/module_rnd/{e.name}/index.vue" for e in plan.entities),
+    ]
+
+
+def feature_design_errors(design, scope, selected):
+    outline = design.outline
+    errors = route_errors(outline, scope["sources"], selected, scope["source_digest"])
+    errors.extend(baseline_errors(outline, design.baseline))
+    errors.extend(feature.blocker for feature in outline.features if feature.route == "blocked")
+    errors.extend(question.prompt for question in outline.questions)
+    for module in outline.modules:
+        if module.extension == "batch-import-v1" and set(module.files) != set(
+            import_files(design.baseline)
+        ):
+            errors.append("批导模块必须准确审阅确定性安装器修改的全部业务文件")
+        if module.extension == "batch-import-v1" and not all(
+            (ROOT / "templates/modules/fastapiadmin" / name).is_file()
+            for name in ("import_runtime.py", "import_routes.py", "ImportWizard.vue")
+        ):
+            errors.append("batch-import-v1缺少实际运行时与页面模板，当前不能生成或验收")
+        if module.dependency_requests or module.migrations:
+            errors.append("当前混合流程不支持新增依赖或既有数据迁移")
+    if bool(outline.modules) != (design.implementation is not None):
+        errors.append("模块必须有独立CapabilityPlan验收；基础功能不能伪造源码任务")
+    if design.implementation:
+        tasks = {task.id: task for task in design.implementation.tasks}
+        if set(tasks) != {module.id for module in outline.modules}:
+            errors.append("验收任务必须与分派模块逐个对应")
+        for module in outline.modules:
+            if module.id in tasks and tasks[module.id].model_dump() != module.model_dump(
+                include=set(CapabilityTask.model_fields)
+            ):
+                errors.append("模块任务与批准功能分派的文件、场景及契约不一致")
+    return list(dict.fromkeys(errors))
 
 
 def route_errors(outline, sources, selected, source_digest):

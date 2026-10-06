@@ -265,7 +265,15 @@ public class RndBusinessService {
                 if(field.path("kind").asText().equals("enum")&&!contains(field.path("choices"),incoming.toString())) throw bad("Invalid enum: "+key);
                 break;
             case "boolean": if(!(incoming instanceof Boolean)) throw bad("Expected boolean: "+key); break;
-            case "integer": if(!(incoming instanceof Integer)&&!(incoming instanceof Long)) throw bad("Expected integer: "+key); if(((Number)incoming).longValue()<Integer.MIN_VALUE||((Number)incoming).longValue()>Integer.MAX_VALUE) throw bad("Integer out of range"); break;
+            case "integer":
+                if(!(incoming instanceof Integer)&&!(incoming instanceof Long)) throw bad("Expected integer: "+key);
+                long number=((Number)incoming).longValue();
+                if(number<Integer.MIN_VALUE||number>Integer.MAX_VALUE) throw bad("Integer out of range");
+                if((field.hasNonNull("minimum")&&number<field.path("minimum").asLong())
+                    ||(field.hasNonNull("maximum")&&number>field.path("maximum").asLong())
+                    ||(field.hasNonNull("exclusive_minimum")&&number<=field.path("exclusive_minimum").asLong())
+                    ||(field.hasNonNull("exclusive_maximum")&&number>=field.path("exclusive_maximum").asLong())) throw bad("Integer constraint: "+key);
+                break;
             case "date": LocalDate.parse(String.valueOf(incoming)); break;
             case "datetime": instant(incoming); break;
             default: throw bad("Unsupported field type");

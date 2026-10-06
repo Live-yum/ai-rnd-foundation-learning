@@ -337,7 +337,12 @@ onBeforeUnmount(() => {
             :view="runView"
             @navigate="navigate"
           />
-          <SettingsView v-else-if="section === 'settings'" ref="settingsView" />
+          <template v-else-if="section === 'settings'">
+            <div v-if="state.settingsReturn" class="global-alert">
+              <a-button @click="navigate(state.settingsReturn)">返回需求草稿</a-button>
+            </div>
+            <SettingsView ref="settingsView" />
+          </template>
           <div v-else class="page">
             <a-empty description="没有这个页面"
               ><a-button @click="navigate('home')">返回工作台</a-button></a-empty

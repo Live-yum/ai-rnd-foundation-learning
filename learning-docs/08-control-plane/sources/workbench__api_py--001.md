@@ -15,7 +15,7 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `create_app`（L25–L282）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L282的`app`。
+- `create_app`（L25–L293）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L293的`app`。
 - `create_app.lifespan`（L29–L51）：接收`app`。 控制顺序：L37按`start_worker`分支。 调用`Store`、`store.token`、`FileLock`、`str`、`store.migrate`、`gateway_factory`、`Runtime`、`threading.Thread`、`worker.start`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `create_app.response_security`（L60–L72）：接收`request`、`call_next`。 控制顺序：L65按`request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/")`分支。 调用`call_next`、`request.url.path.startswith`、`app.middleware`。 返回路径：L72的`response`。
 - `create_app.auth`（L74–L79）：接收`request`、`credentials`。核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。 控制顺序：L75按`not credentials or not hmac.compare_digest( credentials.credentials, request.app.stat…`分支；L78抛异常，停止当前正常路径。 调用`Depends`、`hmac.compare_digest`、`HTTPException`。 返回路径：L79的`request.app.state.store`。
@@ -32,26 +32,26 @@
 - `create_app.ready`（L157–L166）：接收`request`。 控制顺序：L162按`start_worker and (worker is None or not worker.is_alive())`分支。 调用`request.app.state.store.engine.connect`、`c.execute`、`text`、`worker.is_alive`、`JSONResponse`、`bool`、`app.get`。 返回路径：L163的`JSONResponse(status_code=503, content={"status": "worker_unavailable"})`；L164的`{"status": "ready", "worker": bool(worker)}`；L166的`JSONResponse(status_code=503, content={"status": "database_unavailable"})`。
 - `create_app.create_project`（L169–L170）：接收`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.create_project`、`app.post`。 返回路径：L170的`store.create_project(body.title, idempotency_key)`。
 - `create_app.projects`（L173–L174）：接收`store`。 调用`Depends`、`store.list_projects`、`app.get`。 返回路径：L174的`store.list_projects()`。
-- `create_app.project_runs`（L177–L178）：接收`project_id`、`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L178的`store.list_runs(project_id)`。
-- `create_app.require_models`（L180–L184）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L184抛异常，停止当前正常路径。 调用`settings.require_model`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `create_app.create_run`（L187–L191）：接收`project_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.create_run`、`body.model_dump`、`app.post`。 返回路径：L191的`store.create_run(project_id, body.model_dump(), idempotency_key)`。
-- `create_app.runs`（L194–L195）：接收`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L195的`store.list_runs()`。
-- `create_app.get_run`（L198–L199）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L199的`store.get_run(run_id)`。
-- `create_app.messages`（L202–L204）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L204的`store.messages(run_id)`。
-- `create_app.resume`（L207–L212）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L210按`body.action != "reject" and not store.is_model_free_approval(run_id, body.model_dump(…`分支。 调用`Header`、`Depends`、`store.is_model_free_approval`、`body.model_dump`、`require_models`、`store.submit`、`app.post`。 返回路径：L212的`store.submit(run_id, body.model_dump(), idempotency_key)`。
-- `create_app.retry`（L215–L219）：接收`run_id`、`idempotency_key`、`store`。 控制顺序：L216按`store.is_model_free_retry(run_id, idempotency_key)`分支。 调用`Header`、`Depends`、`store.is_model_free_retry`、`store.retry`、`require_models`、`app.post`。 返回路径：L217的`store.retry(run_id, idempotency_key, require_model_free=True)`；L219的`store.retry(run_id, idempotency_key)`。
-- `create_app.events`（L222–L223）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L223的`store.events(run_id, after)`。
-- `create_app.report`（L226–L249）：接收`run_id`、`store`。 控制顺序：L230遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L247按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L249的`result`。
-- `create_app.download`（L252–L269）：接收`run_id`、`store`。 控制顺序：L254按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L255抛异常，停止当前正常路径；L257按`not path.is_file()`分支；L258抛异常，停止当前正常路径；L260按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L261抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L262的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
-- `create_app.templates`（L272–L275）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L275的`catalog(settings)`。
+- `create_app.project_runs`（L177–L184）：接收`project_id`、`limit`、`offset`、`status`、`store`。 调用`Query`、`Depends`、`store.list_runs`、`app.get`。 返回路径：L184的`store.list_runs(project_id, limit=limit, offset=offset, statuses=status)`。
+- `create_app.require_models`（L186–L190）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190抛异常，停止当前正常路径。 调用`settings.require_model`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `create_app.create_run`（L193–L197）：接收`project_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.create_run`、`body.model_dump`、`app.post`。 返回路径：L197的`store.create_run(project_id, body.model_dump(), idempotency_key)`。
+- `create_app.runs`（L200–L206）：接收`limit`、`offset`、`status`、`store`。 调用`Query`、`Depends`、`store.list_runs`、`app.get`。 返回路径：L206的`store.list_runs(limit=limit, offset=offset, statuses=status)`。
+- `create_app.get_run`（L209–L210）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L210的`store.get_run(run_id)`。
+- `create_app.messages`（L213–L215）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L215的`store.messages(run_id)`。
+- `create_app.resume`（L218–L223）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L221按`body.action != "reject" and not store.is_model_free_approval(run_id, body.model_dump(…`分支。 调用`Header`、`Depends`、`store.is_model_free_approval`、`body.model_dump`、`require_models`、`store.submit`、`app.post`。 返回路径：L223的`store.submit(run_id, body.model_dump(), idempotency_key)`。
+- `create_app.retry`（L226–L230）：接收`run_id`、`idempotency_key`、`store`。 控制顺序：L227按`store.is_model_free_retry(run_id, idempotency_key)`分支。 调用`Header`、`Depends`、`store.is_model_free_retry`、`store.retry`、`require_models`、`app.post`。 返回路径：L228的`store.retry(run_id, idempotency_key, require_model_free=True)`；L230的`store.retry(run_id, idempotency_key)`。
+- `create_app.events`（L233–L234）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L234的`store.events(run_id, after)`。
+- `create_app.report`（L237–L260）：接收`run_id`、`store`。 控制顺序：L241遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L258按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L260的`result`。
+- `create_app.download`（L263–L280）：接收`run_id`、`store`。 控制顺序：L265按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L266抛异常，停止当前正常路径；L268按`not path.is_file()`分支；L269抛异常，停止当前正常路径；L271按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L272抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L273的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
+- `create_app.templates`（L283–L286）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L286的`catalog(settings)`。
 
 </details>
 
-**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L285。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L296。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11287`。本段原文以LF换行结束。
+本段原始字节数：`11709`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bbf9267bd08311dcd303aca96ee202069676869db3626bb988f9c8c6a30307ab"} -->
+<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e0cf6a885eb032401629b8fe97a013bf3c3eb10fd763cde55bff1e19152c58eb"} -->
 ````python
 # workbench/api.py
 """Local operator API. Authentication protects every data endpoint, including downloads."""
@@ -230,8 +230,14 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return store.list_projects()
 
     @app.get("/projects/{project_id}/runs")
-    def project_runs(project_id: str, store=Depends(auth)):
-        return store.list_runs(project_id)
+    def project_runs(
+        project_id: str,
+        limit: int = Query(default=100, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        status: list[str] = Query(default=[]),
+        store=Depends(auth),
+    ):
+        return store.list_runs(project_id, limit=limit, offset=offset, statuses=status)
 
     def require_models():
         try:
@@ -247,8 +253,13 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return store.create_run(project_id, body.model_dump(), idempotency_key)
 
     @app.get("/runs")
-    def runs(store=Depends(auth)):
-        return store.list_runs()
+    def runs(
+        limit: int = Query(default=100, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        status: list[str] = Query(default=[]),
+        store=Depends(auth),
+    ):
+        return store.list_runs(limit=limit, offset=offset, statuses=status)
 
     @app.get("/runs/{run_id}")
     def get_run(run_id: str, store=Depends(auth)):

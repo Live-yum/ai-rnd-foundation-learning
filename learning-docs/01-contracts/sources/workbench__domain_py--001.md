@@ -17,49 +17,51 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `digest`（L28–L30）：接收`data`。 调用`json.dumps`、`hashlib.sha256(raw.encode()).hexdigest`、`hashlib.sha256`、`raw.encode`。 返回路径：L30的`hashlib.sha256(raw.encode()).hexdigest()`。
-- `Contract`（L33–L34）：继承`BaseModel`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ProjectInput`（L37–L38）：继承`Contract`。声明的数据项为`title`；类型约束/数据库列参数以完整定义为准。
-- `RunInput`（L41–L57）：继承`Contract`。声明的数据项为`requirement`、`template`、`selection`、`intelligent`；类型约束/数据库列参数以完整定义为准。
-- `RunInput.validate_selection`（L48–L57）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L52按`chosen.template != self.template`分支；L53抛异常，停止当前正常路径；L55按`not self.requirement.strip()`分支；L56抛异常，停止当前正常路径。 调用`Selection.model_validate`、`ValueError`、`chosen.model_dump`、`self.requirement.strip`、`model_validator`。 返回路径：L57的`self`。
-- `ClarificationAnswer`（L60–L73）：继承`Contract`。声明的数据项为`question_id`、`option_ids`、`text`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationAnswer.unique_options`（L70–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71按`len(self.option_ids) != len(set(self.option_ids))`分支；L72抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`model_validator`。 返回路径：L73的`self`。
-- `ResumeInput`（L76–L122）：继承`Contract`。声明的数据项为`gate_id`、`action`、`version`、`digest`、`answers`、`text`、`approved`；类型约束/数据库列参数以完整定义为准。
-- `ResumeInput.action_matches`（L86–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`self.answers and self.action != "answer"`分支；L88抛异常，停止当前正常路径；L89按`len({answer.question_id for answer in self.answers}) != len(self.answers)`分支；L90抛异常，停止当前正常路径；L91按`self.action in {"answer", "revise"} and not self.text.strip() and not self.answers`分支；L92抛异常，停止当前正常路径；L93按`self.action in {"answer", "revise"}`分支；L96按`command_word(self.text) in { "批准", "approve", "拒绝", "reject", "智能推荐", "推荐", "smart", …`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`self.text.strip`、`command_word`、`model_validator`。 返回路径：L122的`self`。
-- `RequirementChange`（L125–L140）：继承`Contract`。声明的数据项为`section`、`key`、`replacement`、`source_quote`；类型约束/数据库列参数以完整定义为准。
-- `FieldRequirement`（L143–L158）：继承`Contract`。声明的数据项为`field`、`entity`、`kind`、`required`、`min_length`、`max_length`、`searchable`、`filterable`、`date_range`、`choices`；类型约束/数据库列参数以完整定义为准。
-- `EntityRequirement`（L161–L176）：继承`Contract`。声明的数据项为`entity`、`fields`、`additional_fields`；类型约束/数据库列参数以完整定义为准。
-- `EntityRequirement.unique_fields`（L173–L176）：接收`value`。 控制顺序：L174按`len(set(value)) != len(value)`分支；L175抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`field_validator`。 返回路径：L176的`value`。
-- `ClarificationOption`（L179–L182）：继承`Contract`。声明的数据项为`id`、`label`、`description`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationQuestion`（L185–L205）：继承`Contract`。声明的数据项为`id`、`prompt`、`kind`、`options`、`required`、`allow_other`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationQuestion.valid_options`（L196–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L197按`self.kind == "text" and self.options`分支；L198抛异常，停止当前正常路径；L199按`self.kind != "text" and len(self.options) < 2`分支；L200抛异常，停止当前正常路径；L201按`len({option.id for option in self.options}) != len(self.options)`分支；L202抛异常，停止当前正常路径；L203按`len({option.label for option in self.options}) != len(self.options)`分支；L204抛异常，停止当前正常路径。 调用`ValueError`、`len`、`model_validator`。 返回路径：L205的`self`。
-- `Requirement`（L208–L282）：继承`Contract`。声明的数据项为`summary`、`users`、`data_scope`、`features`、`acceptance`、`questions`、`question_items`、`assumptions`、`unsupported`、`limitations`、`recommendations`、`facts`、`field_requirements`、`entity_requirements`、`additional_entities`、`changes`；类型约束/数据库列参数以完整定义为准。
-- `Requirement.gate_dump`（L235–L251）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`getattr`、`set`。 返回路径：L238的`self.model_dump( exclude={ name for name in ( "limitations", "field_requirements", "entity…`。
-- `Requirement.question_presentation`（L254–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L255按`len({item.id for item in self.question_items}) != len(self.question_items)`分支；L256抛异常，停止当前正常路径；L257按`len({item.prompt for item in self.question_items}) != len(self.question_items)`分支；L258抛异常，停止当前正常路径；L259按`self.question_items and {item.prompt for item in self.question_items} != set( self.qu…`分支；L262抛异常，停止当前正常路径。 调用`len`、`ValueError`、`set`、`model_validator`。 返回路径：L263的`self`。
-- `Requirement.unique_entity_requirements`（L267–L270）：接收`value`。 控制顺序：L268按`len({item.entity for item in value}) != len(value)`分支；L269抛异常，停止当前正常路径。 调用`len`、`ValueError`、`field_validator`。 返回路径：L270的`value`。
-- `Requirement.ready`（L273–L282）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L274的`bool( self.summary and self.users and self.features and self.acceptance and self.data_scop…`。
-- `FieldSpec`（L285–L335）：继承`Contract`。声明的数据项为`name`、`label`、`choice_labels`、`kind`、`required`、`max_length`、`min_length`、`choices`、`searchable`、`filterable`、`date_range`；类型约束/数据库列参数以完整定义为准。
-- `FieldSpec.field_options`（L311–L328）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312按`self.min_length > self.max_length`分支；L313抛异常，停止当前正常路径；L314按`self.kind == "enum" and ( not self.choices or len(set(self.choices)) != len(self.choi…`分支；L317抛异常，停止当前正常路径；L318按`self.kind != "enum" and self.choices`分支；L319抛异常，停止当前正常路径；L320按`self.choice_labels and ( self.kind != "enum" or not set(self.choice_labels) <= set(se…`分支；L323抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`set`、`model_validator`。 返回路径：L328的`self`。
-- `FieldSpec.reserved`（L332–L335）：接收`value`。 控制顺序：L333按`keyword.iskeyword(value) or value in {"id", "owner_id", "created_at", "updated_at"}`分支；L334抛异常，停止当前正常路径。 调用`keyword.iskeyword`、`ValueError`、`field_validator`。 返回路径：L335的`value`。
-- `Entity`（L338–L347）：继承`Contract`。声明的数据项为`name`、`description`、`fields`；类型约束/数据库列参数以完整定义为准。
-- `Entity.unique_fields`（L344–L347）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L345按`len({f.name for f in self.fields}) != len(self.fields)`分支；L346抛异常，停止当前正常路径。 调用`len`、`ValueError`、`model_validator`。 返回路径：L347的`self`。
-- `CustomRule`（L350–L354）：继承`Contract`。声明的数据项为`description`、`entity`、`accept_examples`、`reject_examples`；类型约束/数据库列参数以完整定义为准。
-- `Plan`（L357–L413）：继承`Contract`。声明的数据项为`title`、`data_scope`、`entities`、`acceptance`、`custom_rules`、`business`、`unsupported`；类型约束/数据库列参数以完整定义为准。
-- `Plan.unique_entities`（L367–L413）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`len(names) != len(self.entities) or ( names & {"users", "tokens", "alembic_version"} …`分支；L373抛异常，停止当前正常路径；L374按`any(rule.entity not in names for rule in self.custom_rules)`分支；L375抛异常，停止当前正常路径；L376遍历`self.custom_rules`；L378遍历`rule.accept_examples + rule.reject_examples`；L379按`set(sample) - {f.name for f in entity.fields}`分支；L380抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`any`、`n.startswith`、`ValueError`、`next`、`set`、`sample.get`、`type`、`date.fromisoformat`等。 返回路径：L413的`self`。
-- `Patch`（L416–L419）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
-- `Patches`（L422–L424）：继承`Contract`。声明的数据项为`explanation`、`patches`；类型约束/数据库列参数以完整定义为准。
-- `safe_component`（L427–L430）：接收`value`。 控制顺序：L428按`not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value)`分支；L429抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L430的`value`。
-- `ModelReview`（L433–L436）：继承`Contract`。声明的数据项为`summary`、`observations`、`uncovered_requirements`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput`（L441–L449）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput.consent`（L446–L449）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L447按`self.enabled and not self.accepted`分支；L448抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L449的`self`。
+- `digest`（L31–L33）：接收`data`。 调用`json.dumps`、`hashlib.sha256(raw.encode()).hexdigest`、`hashlib.sha256`、`raw.encode`。 返回路径：L33的`hashlib.sha256(raw.encode()).hexdigest()`。
+- `Contract`（L36–L37）：继承`BaseModel`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ProjectInput`（L40–L41）：继承`Contract`。声明的数据项为`title`；类型约束/数据库列参数以完整定义为准。
+- `RunInput`（L44–L61）：继承`Contract`。声明的数据项为`requirement`、`template`、`selection`、`intelligent`、`allow_custom_extensions`；类型约束/数据库列参数以完整定义为准。
+- `RunInput.validate_selection`（L52–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L56按`chosen.template != self.template`分支；L57抛异常，停止当前正常路径；L59按`not self.requirement.strip()`分支；L60抛异常，停止当前正常路径。 调用`Selection.model_validate`、`ValueError`、`chosen.model_dump`、`self.requirement.strip`、`model_validator`。 返回路径：L61的`self`。
+- `ClarificationAnswer`（L64–L77）：继承`Contract`。声明的数据项为`question_id`、`option_ids`、`text`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationAnswer.unique_options`（L74–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75按`len(self.option_ids) != len(set(self.option_ids))`分支；L76抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`model_validator`。 返回路径：L77的`self`。
+- `ResumeInput`（L80–L126）：继承`Contract`。声明的数据项为`gate_id`、`action`、`version`、`digest`、`answers`、`text`、`approved`；类型约束/数据库列参数以完整定义为准。
+- `ResumeInput.action_matches`（L90–L126）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L91按`self.answers and self.action != "answer"`分支；L92抛异常，停止当前正常路径；L93按`len({answer.question_id for answer in self.answers}) != len(self.answers)`分支；L94抛异常，停止当前正常路径；L95按`self.action in {"answer", "revise"} and not self.text.strip() and not self.answers`分支；L96抛异常，停止当前正常路径；L97按`self.action in {"answer", "revise"}`分支；L100按`command_word(self.text) in { "批准", "approve", "拒绝", "reject", "智能推荐", "推荐", "smart", …`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`self.text.strip`、`command_word`、`model_validator`。 返回路径：L126的`self`。
+- `RequirementChange`（L129–L144）：继承`Contract`。声明的数据项为`section`、`key`、`replacement`、`source_quote`；类型约束/数据库列参数以完整定义为准。
+- `FieldRequirement`（L147–L177）：继承`Contract`。声明的数据项为`field`、`entity`、`kind`、`required`、`min_length`、`max_length`、`searchable`、`filterable`、`date_range`、`choices`、`minimum`、`maximum`、`exclusive_minimum`、`exclusive_maximum`、`pattern`；类型约束/数据库列参数以完整定义为准。
+- `EntityRequirement`（L180–L195）：继承`Contract`。声明的数据项为`entity`、`fields`、`additional_fields`；类型约束/数据库列参数以完整定义为准。
+- `EntityRequirement.unique_fields`（L192–L195）：接收`value`。 控制顺序：L193按`len(set(value)) != len(value)`分支；L194抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`field_validator`。 返回路径：L195的`value`。
+- `ClarificationOption`（L198–L201）：继承`Contract`。声明的数据项为`id`、`label`、`description`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationQuestion`（L204–L224）：继承`Contract`。声明的数据项为`id`、`prompt`、`kind`、`options`、`required`、`allow_other`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationQuestion.valid_options`（L215–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216按`self.kind == "text" and self.options`分支；L217抛异常，停止当前正常路径；L218按`self.kind != "text" and len(self.options) < 2`分支；L219抛异常，停止当前正常路径；L220按`len({option.id for option in self.options}) != len(self.options)`分支；L221抛异常，停止当前正常路径；L222按`len({option.label for option in self.options}) != len(self.options)`分支；L223抛异常，停止当前正常路径。 调用`ValueError`、`len`、`model_validator`。 返回路径：L224的`self`。
+- `Requirement`（L227–L301）：继承`Contract`。声明的数据项为`summary`、`users`、`data_scope`、`features`、`acceptance`、`questions`、`question_items`、`assumptions`、`unsupported`、`limitations`、`recommendations`、`facts`、`field_requirements`、`entity_requirements`、`additional_entities`、`changes`；类型约束/数据库列参数以完整定义为准。
+- `Requirement.gate_dump`（L254–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`getattr`、`set`。 返回路径：L257的`self.model_dump( exclude={ name for name in ( "limitations", "field_requirements", "entity…`。
+- `Requirement.question_presentation`（L273–L282）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L274按`len({item.id for item in self.question_items}) != len(self.question_items)`分支；L275抛异常，停止当前正常路径；L276按`len({item.prompt for item in self.question_items}) != len(self.question_items)`分支；L277抛异常，停止当前正常路径；L278按`self.question_items and {item.prompt for item in self.question_items} != set( self.qu…`分支；L281抛异常，停止当前正常路径。 调用`len`、`ValueError`、`set`、`model_validator`。 返回路径：L282的`self`。
+- `Requirement.unique_entity_requirements`（L286–L289）：接收`value`。 控制顺序：L287按`len({item.entity for item in value}) != len(value)`分支；L288抛异常，停止当前正常路径。 调用`len`、`ValueError`、`field_validator`。 返回路径：L289的`value`。
+- `Requirement.ready`（L292–L301）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L293的`bool( self.summary and self.users and self.features and self.acceptance and self.data_scop…`。
+- `FieldSpec`（L304–L425）：继承`Contract`。声明的数据项为`name`、`label`、`choice_labels`、`kind`、`required`、`max_length`、`min_length`、`minimum`、`maximum`、`exclusive_minimum`、`exclusive_maximum`、`pattern`、`example`、`choices`、`searchable`、`filterable`、`date_range`；类型约束/数据库列参数以完整定义为准。
+- `FieldSpec.field_options`（L351–L368）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L352按`self.min_length > self.max_length`分支；L353抛异常，停止当前正常路径；L354按`self.kind == "enum" and ( not self.choices or len(set(self.choices)) != len(self.choi…`分支；L357抛异常，停止当前正常路径；L358按`self.kind != "enum" and self.choices`分支；L359抛异常，停止当前正常路径；L360按`self.choice_labels and ( self.kind != "enum" or not set(self.choice_labels) <= set(se…`分支；L363抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`set`、`model_validator`。 返回路径：L368的`self`。
+- `FieldSpec.enum_domain`（L371–L378）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L372按`self.kind == "enum" and any( not max(1 if self.required else 0, self.min_length) <= l…`分支；L377抛异常，停止当前正常路径。 调用`any`、`max`、`len`、`value.strip`、`ValueError`、`model_validator`。 返回路径：L378的`self`。
+- `FieldSpec.scalar_constraints`（L381–L418）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L383按`any(value is not None for value in bounds)`分支；L384按`self.kind != "integer"`分支；L385抛异常，停止当前正常路径；L396按`low > high`分支；L397抛异常，停止当前正常路径；L398按`self.pattern is not None`分支；L399按`self.kind != "text"`分支；L400抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`any`、`ValueError`、`max`、`min`、`TypeAdapter`、`Field`、`validator.validate_python`、`self.example.strip`、`len`等。 返回路径：L418的`self`。
+- `FieldSpec.reserved`（L422–L425）：接收`value`。 控制顺序：L423按`keyword.iskeyword(value) or value in {"id", "owner_id", "created_at", "updated_at"}`分支；L424抛异常，停止当前正常路径。 调用`keyword.iskeyword`、`ValueError`、`field_validator`。 返回路径：L425的`value`。
+- `Entity`（L428–L437）：继承`Contract`。声明的数据项为`name`、`description`、`fields`；类型约束/数据库列参数以完整定义为准。
+- `Entity.unique_fields`（L434–L437）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L435按`len({f.name for f in self.fields}) != len(self.fields)`分支；L436抛异常，停止当前正常路径。 调用`len`、`ValueError`、`model_validator`。 返回路径：L437的`self`。
+- `CustomRule`（L440–L444）：继承`Contract`。声明的数据项为`description`、`entity`、`accept_examples`、`reject_examples`；类型约束/数据库列参数以完整定义为准。
+- `Plan`（L447–L503）：继承`Contract`。声明的数据项为`title`、`data_scope`、`entities`、`acceptance`、`custom_rules`、`business`、`unsupported`；类型约束/数据库列参数以完整定义为准。
+- `Plan.unique_entities`（L457–L503）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L459按`len(names) != len(self.entities) or ( names & {"users", "tokens", "alembic_version"} …`分支；L463抛异常，停止当前正常路径；L464按`any(rule.entity not in names for rule in self.custom_rules)`分支；L465抛异常，停止当前正常路径；L466遍历`self.custom_rules`；L468遍历`rule.accept_examples + rule.reject_examples`；L469按`set(sample) - {f.name for f in entity.fields}`分支；L470抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`any`、`n.startswith`、`ValueError`、`next`、`set`、`sample.get`、`type`、`date.fromisoformat`等。 返回路径：L503的`self`。
+- `Patch`（L506–L509）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
+- `Patches`（L512–L514）：继承`Contract`。声明的数据项为`explanation`、`patches`；类型约束/数据库列参数以完整定义为准。
+- `safe_component`（L517–L520）：接收`value`。 控制顺序：L518按`not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value)`分支；L519抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L520的`value`。
+- `ModelReview`（L523–L526）：继承`Contract`。声明的数据项为`summary`、`observations`、`uncovered_requirements`；类型约束/数据库列参数以完整定义为准。
+- `AutomationInput`（L531–L539）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
+- `AutomationInput.consent`（L536–L539）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L537按`self.enabled and not self.accepted`分支；L538抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L539的`self`。
 
 </details>
 
-**创建路径：** `workbench/domain.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L449。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/domain.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L539。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17888`。本段原文以LF换行结束。
+本段原始字节数：`22012`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/domain.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "25b4a1c769eb04052f1c48c3e369fb8a9a0bcfc49d650f63b982a1ced3578a6f"} -->
+<!-- learning-source: {"path": "workbench/domain.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d1f752f5582353df13ba55f95d91728a45b15a88c00749ca98ff24b172a8e7fa"} -->
 ````python
 # workbench/domain.py
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
@@ -77,10 +79,13 @@ from pydantic import (
     Field,
     JsonValue,
     StrictBool,
+    StrictInt,
     StringConstraints,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
+from pydantic_core import SchemaError
 
 from workbench.business_contracts import BusinessSpec
 
@@ -107,6 +112,7 @@ class RunInput(Contract):
     template: Literal["python-basic", "fastapiadmin", "yudao-vben"] = "python-basic"
     selection: dict | None = None
     intelligent: StrictBool = False
+    allow_custom_extensions: StrictBool = False
 
     @model_validator(mode="after")
     def validate_selection(self):
@@ -220,6 +226,21 @@ class FieldRequirement(Contract):
         description="Only kind=date supports this; datetime must use false. Do not invent date ranges when none were requested.",
     )
     choices: list[str] | None = None
+    minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    pattern: str | None = Field(
+        default=None, min_length=1, max_length=500, exclude_if=lambda value: value is None
+    )
 
 
 class EntityRequirement(Contract):
@@ -361,6 +382,27 @@ class FieldSpec(Contract):
     required: bool = True
     max_length: int = Field(default=200, ge=1, le=20000)
     min_length: int = Field(default=0, ge=0, le=20000)
+    minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_minimum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    exclusive_maximum: StrictInt | None = Field(
+        default=None, ge=-(2**31), le=2**31 - 1, exclude_if=lambda value: value is None
+    )
+    pattern: str | None = Field(
+        default=None, min_length=1, max_length=500, exclude_if=lambda value: value is None
+    )
+    example: str | None = Field(
+        default=None,
+        max_length=20000,
+        exclude_if=lambda value: value is None,
+        description="A valid text example is required for pattern constraints; independent API/browser checks use it.",
+    )
     choices: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
         default_factory=list, max_length=50
     )
@@ -389,6 +431,56 @@ class FieldSpec(Contract):
             raise ValueError("关键词搜索只能使用文本/枚举字段")
         if self.date_range and self.kind != "date":
             raise ValueError("日期范围只支持 date 类型")
+        return self
+
+    @model_validator(mode="after")
+    def enum_domain(self):
+        if self.kind == "enum" and any(
+            not max(1 if self.required else 0, self.min_length) <= len(value) <= self.max_length
+            or value != value.strip()
+            for value in self.choices
+        ):
+            raise ValueError("全部枚举选项必须满足长度约束且不能含首尾空白")
+        return self
+
+    @model_validator(mode="after")
+    def scalar_constraints(self):
+        bounds = (self.minimum, self.maximum, self.exclusive_minimum, self.exclusive_maximum)
+        if any(value is not None for value in bounds):
+            if self.kind != "integer":
+                raise ValueError("数值边界仅适用于 integer 字段")
+            low = max(
+                -(2**31),
+                self.minimum if self.minimum is not None else -(2**31),
+                self.exclusive_minimum + 1 if self.exclusive_minimum is not None else -(2**31),
+            )
+            high = min(
+                2**31 - 1,
+                self.maximum if self.maximum is not None else 2**31 - 1,
+                self.exclusive_maximum - 1 if self.exclusive_maximum is not None else 2**31 - 1,
+            )
+            if low > high:
+                raise ValueError("整数约束没有可接受的值")
+        if self.pattern is not None:
+            if self.kind != "text":
+                raise ValueError("pattern 仅适用于 text 字段")
+            if self.searchable or self.filterable:
+                raise ValueError("pattern 与查询组合尚缺可隔离的独立正例，当前不能同时声明")
+            try:
+                validator = TypeAdapter(Annotated[str, Field(pattern=self.pattern)])
+            except SchemaError as exc:
+                raise ValueError("pattern 正则表达式无效") from exc
+            if self.example is None:
+                raise ValueError("pattern 必须提供符合格式的 example，供独立验收使用")
+            validator.validate_python(self.example)
+        if self.example is not None and (
+            self.kind != "text"
+            or self.example != self.example.strip()
+            or not max(1 if self.required else 0, self.min_length)
+            <= len(self.example)
+            <= self.max_length
+        ):
+            raise ValueError("example 必须满足文本字段完整约束")
         return self
 
     @field_validator("name")

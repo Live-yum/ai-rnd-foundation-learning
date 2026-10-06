@@ -1,9 +1,20 @@
 """Human-readable SQL generated from the same frozen product fields as the migration."""
 
-from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, MetaData, String, Table
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+)
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.schema import CreateIndex, CreateTable
 
+from templates.product.fields import integer_bounds
 from workbench.filesystem import atomic_text
 
 
@@ -33,10 +44,14 @@ def render(plan, destination):
                 "text": String(field.max_length),
                 "enum": String(field.max_length),
                 "date": String(10),
+                "datetime": String(40),
                 "integer": Integer(),
                 "boolean": Boolean(),
             }[field.kind]
             columns.append(Column(field.name, kind, nullable=not field.required))
+            if field.kind == "integer":
+                low, high = integer_bounds(field.model_dump())
+                columns.append(CheckConstraint(f'"{field.name}" BETWEEN {low} AND {high}'))
         table = Table(entity.name, metadata, *columns)
         Index("ix_" + entity.name + "_owner_id", table.c.owner_id)
     for name, dialect in [("sqlite", sqlite.dialect()), ("postgresql", postgresql.dialect())]:

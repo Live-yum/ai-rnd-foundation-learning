@@ -4,8 +4,10 @@ import json
 import os
 from pathlib import Path
 
+from fields import integer_bounds
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     ForeignKey,
     Integer,
@@ -88,4 +90,7 @@ else:
                 "enum": String(field["max_length"]),
             }[field["kind"]]
             columns.append(Column(field["name"], kind, nullable=not field["required"]))
+            if field["kind"] == "integer":
+                low, high = integer_bounds(field)
+                columns.append(CheckConstraint(f'"{field["name"]}" BETWEEN {low} AND {high}'))
         Table(entity["name"], metadata, *columns)

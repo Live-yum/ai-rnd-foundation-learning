@@ -20,25 +20,25 @@ def workflow():
     return yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
 
 
-def test_runtime_trigger_is_customer_pr_only_with_manual_compatibility(workflow):
-    assert workflow["on"] == {
-        "pull_request": {
-            "branches": ["feat/complete-platform-acceptance"],
-            "paths": [
-                "从零实现AI研发平台_逐步实操手册_完整版.md",
-                ".github/workflows/customer-runtime.yml",
-            ],
-        },
-        "workflow_dispatch": "",
-    }
-    assert " ".join(workflow["jobs"]["gate"]["if"].split()) == (
-        "(github.event_name == 'pull_request' && "
-        "github.event.pull_request.head.repo.full_name == github.repository && "
-        "github.event.pull_request.head.ref == 'feat/customer-service-acceptance' && "
-        "github.event.pull_request.base.ref == 'feat/complete-platform-acceptance') || "
-        "(github.event_name == 'workflow_dispatch' && "
-        "github.ref == 'refs/heads/feat/customer-service-acceptance')"
+def test_runtime_triggers_cover_main_business_changes_and_manual_runs(workflow):
+    triggers = workflow["on"]
+    assert triggers["push"]["branches"] == ["main"]
+    assert "main" in triggers["pull_request"]["branches"]
+    assert "workflow_dispatch" in triggers
+    for event in ("push", "pull_request"):
+        assert {"workbench/**", "templates/**", "examples/plans/customer-service.json"} <= set(
+            triggers[event]["paths"]
+        )
+    gate = workflow["jobs"]["gate"]["if"]
+    assert "head.ref" not in gate and "head.repo" not in gate
+    assert "pull_request_target" not in triggers
+    native = yaml.load(
+        (ROOT / ".github/workflows/native-runtime.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
     )
+    assert "workflow_dispatch" in native["on"]
+    for event in ("push", "pull_request"):
+        assert "templates/**" in native["on"][event]["paths"]
 
 
 def test_runtime_gate_is_cheap_read_only_and_uses_literal_sha(workflow):

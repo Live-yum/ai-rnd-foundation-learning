@@ -24,14 +24,16 @@
 - `test_step_reuses_receipt.fn`（L55–L57）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`calls.append`。 返回路径：L57的`{"answer": 42}`。
 - `test_gate_cannot_bypass_approval`（L63–L69）：接收`store`。 调用`new_run`、`store.gate`、`pytest.raises`、`store.check_decision`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_budget`（L72–L80）：接收`store`。 控制顺序：L77遍历`range(store.settings.max_model_calls)`。 调用`new_run`、`range`、`store.reserve_model_call`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_run_pagination_and_project_history_are_independent`（L83–L112）：接收`store`。 控制顺序：L98遍历`range(105)`；L109断言`len(first) == 100 and len(second) == 6`；L110断言`not {row["id"] for row in first} & {row["id"] for row in second}`；L111断言`store.list_runs(older["id"])[0]["id"] == "old-run"`；L112断言`store.list_runs(statuses=["WAITING_EXTENSION_DELIVERY"])[0]["id"] == "old-run"`。 调用`store.create_project`、`store.tx`、`session.add`、`Run`、`session.flush`、`range`、`store.list_runs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_capabilities_are_server_owned_even_for_saved_gates`（L115–L124）：接收`store`。 控制顺序：L118断言`gate["needs_model"] == {"approve": False, "reject": False}`；L124断言`store.get_run(run)["pending"]["needs_model"] == gate["needs_model"]`。 调用`new_run`、`store.gate`、`store.tx`、`session.get`、`gate.items`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_store.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L80。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_store.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L124。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2453`。本段原文以LF换行结束。
+本段原始字节数：`4127`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_store.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e789bb7d0d04a59e7c2cd5051e315c99a8efe2363f5472952391c73aab61b427"} -->
+<!-- learning-source: {"path": "tests/test_store.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d9ff34b47559bf284d68f34180a1ff6fb544879d9332e5788afd6aa98aa36cd2"} -->
 ````python
 # tests/test_store.py
 import uuid
@@ -114,4 +116,48 @@ def test_model_budget(store):
         store.reserve_model_call(run)
     with pytest.raises(PausedLimit):
         store.reserve_model_call(run)
+
+
+def test_run_pagination_and_project_history_are_independent(store):
+    from workbench.store import Run
+
+    older = store.create_project("older", "older-project")
+    newer = store.create_project("newer", "newer-project")
+    with store.tx() as session:
+        session.add(
+            Run(
+                id="old-run",
+                project_id=older["id"],
+                template="python-basic",
+                status="WAITING_EXTENSION_DELIVERY",
+            )
+        )
+        session.flush()
+        for index in range(105):
+            session.add(
+                Run(
+                    id=f"new-{index:03}",
+                    project_id=newer["id"],
+                    template="python-basic",
+                    status="READY",
+                )
+            )
+    first = store.list_runs(limit=100)
+    second = store.list_runs(limit=100, offset=100)
+    assert len(first) == 100 and len(second) == 6
+    assert not {row["id"] for row in first} & {row["id"] for row in second}
+    assert store.list_runs(older["id"])[0]["id"] == "old-run"
+    assert store.list_runs(statuses=["WAITING_EXTENSION_DELIVERY"])[0]["id"] == "old-run"
+
+
+def test_model_capabilities_are_server_owned_even_for_saved_gates(store):
+    run = new_run(store)
+    gate = store.gate(run, "delivery", 1, {}, ["approve", "reject"])
+    assert gate["needs_model"] == {"approve": False, "reject": False}
+    from workbench.store import Run
+
+    with store.tx() as session:
+        record = session.get(Run, run)
+        record.pending = {key: value for key, value in gate.items() if key != "needs_model"}
+    assert store.get_run(run)["pending"]["needs_model"] == gate["needs_model"]
 ````

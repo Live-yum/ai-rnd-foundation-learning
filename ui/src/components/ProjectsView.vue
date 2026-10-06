@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   PlusOutlined,
   ArrowRightOutlined,
@@ -7,13 +7,56 @@ import {
   SearchOutlined,
   ReloadOutlined,
 } from '@ant-design/icons-vue'
-import { state, refreshLists } from '../state'
+import { state, refreshLists, reportError, sessionIdentity, isSessionActive } from '../state'
+import { api } from '../api'
+import type { Run } from '../types'
 import { statusColor, statusLabel, formatDate, shortId } from '../presentation'
 const props = defineProps<{ view: string; projectId?: string }>()
 const emit = defineEmits<{ navigate: [path: string] }>()
 const query = ref(''),
   filter = ref('all'),
   refreshing = ref(false)
+const listedRuns = ref<Run[]>([]),
+  hasMore = ref(false),
+  loadingRuns = ref(false)
+let listGeneration = 0
+const deliveryStatuses = [
+  'READY',
+  'SOURCE_READY',
+  'WAITING_DELIVERY',
+  'WAITING_EXTENSION_SCOPE',
+  'WAITING_EXTENSION_DELIVERY',
+]
+async function loadRuns(append = false) {
+  if (append && loadingRuns.value) return
+  const generation = ++listGeneration,
+    session = sessionIdentity()
+  loadingRuns.value = true
+  if (!append) listedRuns.value = []
+  const parameters = new URLSearchParams({
+    limit: '100',
+    offset: String(append ? listedRuns.value.length : 0),
+  })
+  if (props.view === 'delivery')
+    deliveryStatuses.forEach((status) => parameters.append('status', status))
+  try {
+    const page = await api<Run[]>(
+      (props.projectId ? `/projects/${props.projectId}/runs` : '/runs') + '?' + parameters,
+    )
+    if (generation !== listGeneration || !isSessionActive(session)) return
+    listedRuns.value = append ? [...listedRuns.value, ...page] : page
+    hasMore.value = page.length === 100
+  } catch (error) {
+    if (generation === listGeneration && isSessionActive(session)) reportError(error)
+  } finally {
+    if (generation === listGeneration) loadingRuns.value = false
+  }
+}
+watch(
+  () => [props.projectId, props.view],
+  () => void loadRuns(),
+  { immediate: true },
+)
 const project = computed(() => state.projects.find((p) => p.id === props.projectId))
 const title = computed(() =>
   props.view === 'history'
@@ -23,11 +66,10 @@ const title = computed(() =>
       : project.value?.title || '每个项目，都能继续往下走',
 )
 const runs = computed(() =>
-  state.runs.filter(
+  listedRuns.value.filter(
     (r) =>
       (!props.projectId || r.project_id === props.projectId) &&
-      (props.view !== 'delivery' ||
-        ['READY', 'SOURCE_READY', 'WAITING_DELIVERY'].includes(r.status)) &&
+      (props.view !== 'delivery' || deliveryStatuses.includes(r.status)) &&
       (filter.value === 'all' ||
         (filter.value === 'ready'
           ? ['READY', 'SOURCE_READY'].includes(r.status)
@@ -52,6 +94,7 @@ const projects = computed(() =>
 async function refresh() {
   refreshing.value = true
   await refreshLists()
+  await loadRuns()
   refreshing.value = false
 }
 </script>
@@ -80,8 +123,8 @@ async function refresh() {
       <a-button
         type="primary"
         size="large"
-        @click="emit('navigate', project ? 'project/' + project.id + '/new' : 'home')"
-        ><PlusOutlined aria-hidden="true" />{{ project ? '新一轮运行' : '新建项目' }}</a-button
+        @click="emit('navigate', projectId ? 'project/' + projectId + '/new' : 'home')"
+        ><PlusOutlined aria-hidden="true" />{{ projectId ? '新一轮运行' : '新建项目' }}</a-button
       >
     </header>
     <div class="list-toolbar">
@@ -133,7 +176,7 @@ async function refresh() {
     <section class="panel run-list">
       <div class="panel-heading">
         <h2>{{ view === 'delivery' ? '交付与待确认产物' : '最近运行' }}</h2>
-        <span class="muted">{{ runs.length }} 条 · 最多读取最近 100 条</span>
+        <span class="muted">已读取 {{ listedRuns.length }} 条 · 匹配 {{ runs.length }} 条</span>
       </div>
       <div v-if="runs.length" class="table-scroll">
         <table>
@@ -180,11 +223,16 @@ async function refresh() {
         class="list-empty"
         ><a-button
           v-if="!query"
-          @click="emit('navigate', project ? 'project/' + project.id + '/new' : 'home')"
+          @click="emit('navigate', projectId ? 'project/' + projectId + '/new' : 'home')"
           >开始一轮新需求</a-button
         ></a-empty
       >
+      <a-button v-if="hasMore" :loading="loadingRuns" @click="loadRuns(true)"
+        >加载更早的运行</a-button
+      >
     </section>
-    <p class="page-footnote">同一项目可有多轮运行；故障恢复保留原 run_id，新需求迭代才新建运行。</p>
+    <p class="page-footnote">
+      故障恢复保留原 run_id。新一轮按新需求从零生成，不会读取或修改上一轮产物。
+    </p>
   </div>
 </template>

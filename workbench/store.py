@@ -29,7 +29,11 @@ from workbench.domain import ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.settings import ROOT, Settings
 
-MODEL_FREE_APPROVAL_STAGES = frozenset({"extension_scope", "extension_delivery"})
+MODEL_FREE_APPROVAL_STAGES = frozenset({"delivery", "extension_scope", "extension_delivery"})
+
+
+def action_needs_model(stage, action):
+    return action != "reject" and not (action == "approve" and stage in MODEL_FREE_APPROVAL_STAGES)
 
 
 def now():
@@ -225,7 +229,10 @@ class Store:
             run = Run(
                 project_id=project_id,
                 template=data["template"],
-                options=data["selection"],
+                options={
+                    **data["selection"],
+                    "allow_custom_extensions": data["allow_custom_extensions"],
+                },
                 auto_mode=data["intelligent"],
             )
             session.add(run)
@@ -385,6 +392,15 @@ class Store:
                 raise Missing("运行不存在")
             return {
                 **{c.name: getattr(run, c.name) for c in Run.__table__.columns},
+                "pending": {
+                    **run.pending,
+                    "needs_model": {
+                        action: action_needs_model(run.pending["stage"], action)
+                        for action in run.pending["actions"]
+                    },
+                }
+                if run.pending
+                else None,
                 "model_free_retry": self._model_free_retry(session, run) is not None,
             }
 
@@ -752,6 +768,7 @@ class Store:
             "data": data,
             "actions": actions,
             "can_approve": can_approve,
+            "needs_model": {action: action_needs_model(stage, action) for action in actions},
         }
 
     def check_decision(self, run_id, gate, value):
@@ -818,7 +835,7 @@ class Store:
             return bool(
                 revision
                 and revision.run_id == run_id
-                and revision.stage in MODEL_FREE_APPROVAL_STAGES
+                and not action_needs_model(revision.stage, data["action"])
             )
 
     def claim(self, *, only_rejections=False, include_model_free=False):
@@ -981,13 +998,16 @@ class Store:
                 )
             ]
 
-    def list_runs(self, project_id=None):
+    def list_runs(self, project_id=None, *, limit=100, offset=0, statuses=None):
         with self.tx() as session:
-            statement = select(Run).order_by(Run.created_at.desc()).limit(100)
+            statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc())
             if project_id is not None:
                 if not session.get(Project, project_id):
                     raise Missing("项目不存在")
                 statement = statement.where(Run.project_id == project_id)
+            if statuses:
+                statement = statement.where(Run.status.in_(statuses))
+            statement = statement.offset(offset).limit(limit)
             return [
                 {
                     "id": r.id,

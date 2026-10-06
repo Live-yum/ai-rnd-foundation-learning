@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L466。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L467。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17247`。本段原文以LF换行结束。
+本段原始字节数：`17313`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ff31d57cd902af8b60d26d14ff08e76585e426ba6034615a925797dd456fce27"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c63cc2f841c655225899b4fa1aa445eccb35231de12741d8915b64dd95bf87ca"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -398,7 +398,7 @@ it('keeps full reviewed-contract scope distinct from partial delivery', () => {
   wrapper.unmount()
 })
 
-it.each(['extension_scope', 'extension_delivery'])(
+it.each(['delivery', 'extension_scope', 'extension_delivery'])(
   'permits exact %s approval after model configuration is removed',
   async (stage) => {
     state.settings = { ready: false } as any
@@ -408,6 +408,7 @@ it.each(['extension_scope', 'extension_delivery'])(
       stage,
       can_approve: true,
       actions: ['approve', 'reject'],
+      needs_model: { approve: false, reject: false },
       data: { delivery_kind: 'partial', full_request_complete: false },
     }
     const wrapper = mount(RunView, {

@@ -5,6 +5,7 @@ requests additionally retain authored semantic obligations; a bounded oracle
 cannot grant completion of the original website.
 """
 
+import re
 import unicodedata
 
 from scripts.extension_oracles import contest
@@ -32,39 +33,88 @@ def canonical(value):
     )
 
 
+def _contest_binding(messages):
+    # Only a coherent human source can bind a domain oracle. Unrelated historical
+    # keywords and standalone invitation systems must not acquire contest semantics.
+    words = (
+        "竞赛|赛事|contest|competition",
+        "邀请码|邀请加入|邀请队员|invitecode|invitationcode",
+        "盲审|匿名评审|匿名审稿|blindreview|anonymousreview",
+    )
+    bound_messages = set()
+    ambiguous = False
+    # ponytail: bounded negation grammar; unclear domain changes require independent review.
+    for index, message in enumerate(messages):
+        clauses = [canonical(part) for part in re.split(r"[。；;，,\n]", message)]
+        negative = [
+            any(
+                re.search(
+                    r"(?:不要|不需要|不做|不再|取消|去掉|移除|删除|without|no|not).{0,12}(?:"
+                    + word
+                    + ")|(?:"
+                    + word
+                    + r")(?:功能|模块|需求|网站|系统)?(?:取消|不做|不要|不需要)",
+                    part,
+                )
+                for part in clauses
+            )
+            for word in words
+        ]
+        # Cancelling a deadline/field/display rule does not cancel the business.
+        negative[0] = any(
+            re.fullmatch(
+                r"(?:请|现在)?(?:不要|不需要|不做|不再做?|取消|去掉|移除|删除|without|no|not)"
+                r"(?:整个|全部)?(?:竞赛|赛事|contest|competition)(?:业务|模块|需求|网站|系统|功能)?(?:了|吧)?"
+                r"|(?:竞赛|赛事|contest|competition)(?:业务|模块|需求|网站|系统|功能)?"
+                r"(?:取消|不做|不要|不需要)(?:了|吧)?",
+                part,
+            )
+            for part in clauses
+        )
+        text = canonical(message)
+        positive = [
+            bool(re.search(word, text)) and not neg
+            for word, neg in zip(words, negative, strict=True)
+        ]
+        if negative[0]:
+            bound_messages.clear()
+            ambiguous = False
+            continue
+        if any(negative[1:]) and bound_messages:
+            bound_messages.clear()
+            ambiguous = True  # Changed compound scope needs its own reviewed contract.
+        authored = sum(canonical(quote) in text for quote in CONTEST_BINDINGS)
+        if (authored >= 2 and not any(negative)) or all(positive):
+            bound_messages.add(index)
+            ambiguous = False
+        elif positive[0]:
+            ambiguous = True
+    registered = bool(bound_messages)
+    ambiguous = ambiguous and not registered
+    return bound_messages, ambiguous
+
+
 def scope_policy(scope, selection):
-    # Formatting cannot choose a weaker verifier. Join immutable messages before
-    # normalization so line/chunk splits do not erase an authored scope match.
-    text = canonical("".join(scope["messages"]))
-    authored = sum(canonical(quote) in text for quote in CONTEST_BINDINGS)
-    concepts = [
-        any(word in text for word in ("竞赛", "赛事", "contest", "competition")),
-        any(
-            word in text
-            for word in ("邀请码", "邀请加入", "邀请队员", "invitecode", "invitationcode")
-        ),
-        any(
-            word in text
-            for word in ("盲审", "匿名评审", "匿名审稿", "blindreview", "anonymousreview")
-        ),
-    ]
-    registered = authored >= 2 or sum(concepts) >= 2
-    ambiguous = not registered and any(concepts)
+    bound_messages, ambiguous = _contest_binding(scope["messages"])
+    registered = bool(bound_messages)
     goals = []
     for row in scope["sources"]:
         semantics = ["original.full_source"]
         normalized = canonical(row["text"])
         for quote, predicates in CONTEST_BINDINGS.items():
-            if canonical(quote) in normalized:
+            if row.get("message_index") in bound_messages and canonical(quote) in normalized:
                 semantics.extend(predicates)
         for semantic in semantics:
             goals.append({"source_id": row["id"], "source_text": row["text"], "semantic": semantic})
     return {
-        "version": 3,
+        "version": 4,
         "source_digest": scope["source_digest"],
         "source_units_digest": digest(scope["sources"]),
         "selection": selection,
         "trusted_oracle": contest.CONTRACT_VERSION if registered else None,
+        "oracle_source_ids": [
+            row["id"] for row in scope["sources"] if row.get("message_index") in bound_messages
+        ],
         "requires_explicit_review": ambiguous,
         "coverage_level": "bounded-business-slice"
         if registered

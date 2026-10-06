@@ -63,6 +63,37 @@ FLAGGED_FIELDS = [
 ]
 
 
+@pytest.mark.parametrize("maximum", [8, 2])
+def test_bounded_integer_query_controls_use_valid_values_including_singleton(tmp_path, maximum):
+    raw = runtime_plan().model_dump()
+    raw["entities"][0]["fields"].append(
+        {
+            "name": "quantity",
+            "kind": "integer",
+            "required": True,
+            "minimum": 2,
+            "maximum": maximum,
+            "filterable": True,
+        }
+    )
+    product = tmp_path / "product"
+    generate_basic(
+        Plan.model_validate(raw),
+        product,
+        {"template": "python-basic", "frontend": "api-only", "database": "sqlite"},
+    )
+    result = execute(product)
+    assert result.returncode == 0, result.stdout + result.stderr
+    evidence = json.loads(result.stdout.splitlines()[-1])["business"]["evidence"]
+    validation = next(item for item in evidence["field_validation"] if item["field"] == "quantity")
+    assert validation["minimum"] == 2 and validation["maximum"] == maximum
+    assert validation["below_minimum_rejected"] and validation["above_maximum_rejected"]
+    controls = [item for item in evidence["query_matrix"] if item["field"] == "quantity"]
+    assert controls and all(
+        item["positive_matches"] > 0 and item["excluded_records"] > 0 for item in controls
+    )
+
+
 @pytest.mark.parametrize("maximum", [1, 2])
 def test_short_keyword_fields_keep_independent_positive_controls(tmp_path, maximum):
     raw = runtime_plan().model_dump()

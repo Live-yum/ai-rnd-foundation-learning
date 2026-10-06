@@ -153,7 +153,8 @@ def test_source_coverage_cannot_discard_contest_requirements(settings, store):
     with Runtime(settings, store, gateway) as runtime:
         runtime.tick()
     saved = store.get_run(run)
-    assert saved["status"] == "BLOCKED"
+    assert saved["status"] == "WAITING_EXTENSION_DESIGN"
+    assert saved["pending"]["can_approve"] is False
     assert not any(schema == "CapabilityEdits" for _, schema in gateway.calls)
     data = saved["pending"]["data"]
     assert "加权评分和盲审" in "".join(row["text"] for row in data["source_units"])

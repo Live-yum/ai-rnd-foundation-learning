@@ -13,15 +13,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `configure`（L44–L53）：接收`connection`、`_`。 调用`connection.cursor`、`cursor.execute`、`cursor.close`、`event.listens_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configure`（L46–L55）：接收`connection`、`_`。 调用`connection.cursor`、`cursor.execute`、`cursor.close`、`event.listens_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `templates/product/schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L91。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L96。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3245`。本段原文以LF换行结束。
+本段原始字节数：`3488`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "59f7df987c0f041c757bbea362652528b07db911cef59db55d57696533cd8be9"} -->
+<!-- learning-source: {"path": "templates/product/schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "50e3ddbf376feeef25ba0e4b25debd0bf2db0dedb2153ceda28a59b49efd6fb8"} -->
 ````python
 # templates/product/schema.py
 """Product database is independent of the platform; no credentials are inherited."""
@@ -30,8 +30,10 @@ import json
 import os
 from pathlib import Path
 
+from fields import integer_bounds
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     ForeignKey,
     Integer,
@@ -114,5 +116,8 @@ else:
                 "enum": String(field["max_length"]),
             }[field["kind"]]
             columns.append(Column(field["name"], kind, nullable=not field["required"]))
+            if field["kind"] == "integer":
+                low, high = integer_bounds(field)
+                columns.append(CheckConstraint(f'"{field["name"]}" BETWEEN {low} AND {high}'))
         Table(entity["name"], metadata, *columns)
 ````

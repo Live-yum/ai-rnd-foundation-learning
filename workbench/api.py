@@ -174,8 +174,14 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return store.list_projects()
 
     @app.get("/projects/{project_id}/runs")
-    def project_runs(project_id: str, store=Depends(auth)):
-        return store.list_runs(project_id)
+    def project_runs(
+        project_id: str,
+        limit: int = Query(default=100, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        status: list[str] = Query(default=[]),
+        store=Depends(auth),
+    ):
+        return store.list_runs(project_id, limit=limit, offset=offset, statuses=status)
 
     def require_models():
         try:
@@ -191,8 +197,13 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return store.create_run(project_id, body.model_dump(), idempotency_key)
 
     @app.get("/runs")
-    def runs(store=Depends(auth)):
-        return store.list_runs()
+    def runs(
+        limit: int = Query(default=100, ge=1, le=100),
+        offset: int = Query(default=0, ge=0),
+        status: list[str] = Query(default=[]),
+        store=Depends(auth),
+    ):
+        return store.list_runs(limit=limit, offset=offset, statuses=status)
 
     @app.get("/runs/{run_id}")
     def get_run(run_id: str, store=Depends(auth)):

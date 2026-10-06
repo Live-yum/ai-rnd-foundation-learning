@@ -782,6 +782,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                         dict(row),
                         "due",
                         f"due:{entity}:{row['id']}:{due}:{row[due]}",
+                        notification=item,
                     )
             return [
                 dict(row)

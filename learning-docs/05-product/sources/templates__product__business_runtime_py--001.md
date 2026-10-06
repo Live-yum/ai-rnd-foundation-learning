@@ -20,7 +20,7 @@
 - `LabelRequest`（L29–L30）：继承`StrictBody`。声明的数据项为`record_ids`；类型约束/数据库列参数以完整定义为准。
 - `UserBody`（L33–L36）：继承`StrictBody`。声明的数据项为`username`、`password`、`role`；类型约束/数据库列参数以完整定义为准。
 - `RoleBody`（L39–L40）：继承`StrictBody`。声明的数据项为`role`；类型约束/数据库列参数以完整定义为准。
-- `install_business`（L43–L820）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business`（L43–L821）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `install_business.current`（L61–L70）：接收`user_id`。 控制顺序：L68按`not row or row["role"] not in policy.roles`分支；L69抛异常，停止当前正常路径。 调用`Depends`、`engine.connect`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`。 返回路径：L70的`{"id": row["id"], "username": row["username"], "role": row["role"]}`。
 - `install_business.grant`（L72–L76）：接收`actor`、`entity`、`action`。 控制顺序：L76抛异常，停止当前正常路径。 调用`policy.grant`、`HTTPException`、`str`。 返回路径：L74的`policy.grant(actor["role"], entity, action)`。
 - `install_business.table`（L78–L81）：接收`entity`。 控制顺序：L79按`entity not in entities`分支；L80抛异常，停止当前正常路径。 调用`HTTPException`。 返回路径：L81的`tables[entity]`。
@@ -51,16 +51,16 @@
 - `install_business.history`（L631–L675）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`record`、`connection.execute( select(tables["business_audit"]) .where( tabl…`、`connection.execute`、`select(tables["business_audit"]) .where( tables["business_audit"]…`、`select(tables["business_audit"]) .where`等。 返回路径：L659的`[ { **{k: row[k] for k in ("id", "actor_id", "action", "created_at")}, "actor_username": n…`。
 - `install_business.related`（L678–L710）：接收`entity`、`identity`、`actor`。 控制顺序：L682遍历`business["relations"]`；L684按`relation["target_entity"] != entity or "read" not in policy.permissions.get( (actor["…`分支。 调用`Depends`、`engine.connect`、`record`、`policy.permissions.get( (actor["role"], source), {} ).get`、`policy.permissions.get`、`table`、`connection.execute( select(target) .where( target.c[relation["fie…`、`connection.execute`、`select(target) .where( target.c[relation["field"]] == identity, t…`等。 返回路径：L710的`result`。
 - `install_business.metrics`（L713–L739）：接收`actor`。 控制顺序：L716遍历`business["metrics"]`；L717按`"read_metrics" not in policy.permissions.get( (actor["role"], metric["entity"]), {} )…`分支。 调用`Depends`、`engine.connect`、`policy.permissions.get( (actor["role"], metric["entity"]), {} ).g…`、`policy.permissions.get`、`table`、`connection.execute( select(target).where( target.c.archived_at.is…`、`connection.execute`、`select(target).where`、`select`等。 返回路径：L739的`result`。
-- `install_business.notifications`（L742–L797）：接收`actor`。 控制顺序：L744遍历`business["notifications"]`；L745按`item["event"] != "due"`分支；L748按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L771遍历`rows`；L773按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L786的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
-- `install_business.mark_read`（L800–L820）：接收`identity`、`actor`。 控制顺序：L812按`row is None`分支；L813抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L820的`{"id": identity, "read_at": timestamp}`。
+- `install_business.notifications`（L742–L798）：接收`actor`。 控制顺序：L744遍历`business["notifications"]`；L745按`item["event"] != "due"`分支；L748按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L771遍历`rows`；L773按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L787的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
+- `install_business.mark_read`（L801–L821）：接收`identity`、`actor`。 控制顺序：L813按`row is None`分支；L814抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L821的`{"id": identity, "read_at": timestamp}`。
 
 </details>
 
-**创建路径：** `templates/product/business_runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L820。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/business_runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L821。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`33899`。本段原文以LF换行结束。
+本段原始字节数：`33942`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/business_runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60d0cef61fa1b8143f5398930bf3fc1021b97210a68983fce02d5cc625c51675"} -->
+<!-- learning-source: {"path": "templates/product/business_runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "96c0c25f2a963c2f77a5f2e988aeee19cbb5fa257495c750fab954d0727ad4a9"} -->
 ````python
 # templates/product/business_runtime.py
 """Generated-product business runtime. Authorization and events are database-backed."""
@@ -847,6 +847,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                         dict(row),
                         "due",
                         f"due:{entity}:{row['id']}:{due}:{row[due]}",
+                        notification=item,
                     )
             return [
                 dict(row)

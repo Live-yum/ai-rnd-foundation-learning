@@ -30,27 +30,29 @@
 - `test_extension_preserves_actual_generated_model_and_backs_up_originals.response`（L182–L185）：接收`**kwargs`。 控制顺序：L183断言`calls == ["native_create_flushed", "committed"]`。 调用`calls.append`。 返回路径：L185的`kwargs["data"]`。
 - `test_bootstrap_and_role_mutation_serialization_are_explicit`（L216–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218断言`'source_key="bootstrap"' in source`；L219断言`'source_key == "bootstrap"' in source`；L220断言`"except IntegrityError" in source`；L222断言`role.index("with_for_update()") < role.index("await rt.actor")`。 调用`(ROOT / "templates/business/fastapiadmin/controller.py").read_tex…`、`source.index`、`role.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_generated_native_status_is_initialized_without_exposing_it_to_input`（L225–L228）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L227断言`'values["status"] = 0' in runtime`；L228断言`"set(data) - set(fields)" in runtime`。 调用`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `generated_relation_model`（L231–L243）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L232的`"""from datetime import datetime from sqlalchemy import DateTime, Integer, String from sql…`。
-- `relation_contract`（L246–L257）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`。 返回路径：L257的`entity, relations, targets`。
-- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata`（L260–L292）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L280断言`table.c.resolved_at.type.timezone is True`；L281断言`{(fk.parent.name, fk.target_fullname, fk.ondelete) for fk in table.foreign_keys} == {…`；L285断言`"# 原生生成字段；保留备注与所有其他字段" in transformed`；L286断言`"title: Mapped[str] = mapped_column(String(250), nullable=False, comment='标题')" in tr…`；L290断言`"FOREIGN KEY" in str( __import__("sqlalchemy").schema.CreateTable(table).compile(dial…`。 调用`Table`、`Column`、`generated_relation_model`、`extend_model`、`relation_contract`、`exec`、`compile`、`str`、`__import__("sqlalchemy").schema.CreateTable(table).compile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata.NativeBase`（L266–L267）：继承`DeclarativeBase`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata.ModelMixin`（L269–L271）：继承`NativeBase`。声明的数据项为`id`；类型约束/数据库列参数以完整定义为准。
-- `test_model_extension_rejects_unrecognized_native_shapes`（L296–L311）：接收`change`。 控制顺序：L300按`change == "missing"`分支；L302按`change == "wrong_table"`分支；L304按`change == "wrong_type"`分支。 调用`generated_relation_model`、`source.replace`、`pytest.raises`、`extend_model`、`relation_contract`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_namespaced_roles_pass_the_pinned_native_output_validator`（L314–L346）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L342遍历`("manager", "service", "employee", "a" * 40)`；L344断言`scope["validate_required_code"](code) == code`。 调用`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`next`、`ast.parse`、`isinstance`、`any`、`eval`、`compile`、`ast.Expression`、`zipfile.ZipFile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_business_menus_follow_read_grants_without_admin_fallback`（L349–L369）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L362断言`readable("manager") == {"customers", "requests", "tasks"}`；L363断言`readable("service") == {"customers", "requests", "tasks"}`；L364断言`readable("employee") == {"customers", "requests"}`；L365断言`readable("unknown") == set()`；L367断言`readable("manager") == set()`；L368断言`"for e in readable_entities(role)" in source`；L369断言`"while parent in by_id and parent not in chosen" in source`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`next`、`ast.parse`、`isinstance`、`exec`、`compile`、`ast.Module`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values`（L372–L439）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L426断言`values == original`；L427断言`all(visible[key] == value for key, value in original.items())`；L428断言`visible["_display"] == { "partner": "Authorized partner", "assignee": "Business membe…`；L433断言`visible["_title"] == "Synthetic subject"`；L434断言`called == [("partners", "7", "read"), ("$users", "6", "name"), ("$users", "2", "name"…`；L438断言`denied["_display"]["partner"] == "无权查看关联记录"`；L439断言`"Authorized partner" not in denied["_display"].values()`。 调用`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`ast.parse`、`isinstance`、`exec`、`compile`、`ast.Module`、`deepcopy`、`asyncio.run`、`scope["present_values"]`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values.record`（L387–L391）：接收`db`、`who`、`entity`、`identifier`、`action`。 控制顺序：L389按`str(identifier) == "99"`分支；L390抛异常，停止当前正常路径。 调用`called.append`、`str`、`HTTPException`。 返回路径：L391的`{"display_name": "Authorized partner"}`。
-- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values.user_label`（L393–L395）：接收`db`、`identifier`、`cache`。 调用`called.append`、`str`。 返回路径：L395的`"Business member"`。
-- `test_native_display_uses_contract_labels_and_keeps_parseable_original_components`（L442–L453）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L447断言`"field.label \|\| field.name" in source`；L448断言`"field.choice_labels?.[choice] \|\| choice" in source`；L449断言`"transition.label \|\| transition.name" in source`；L450断言`"item.actor_name" in source and "row._display" in source`；L451断言`':min-width="columnWidth(field)"' in source`；L452断言`"white-space: nowrap" in source and " + ' UTC'" in source`；L453断言`parse_file(page)["parse_error"] is False`。 调用`page.read_text`、`parse_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_assignee_selection_uses_unique_authorized_username_after_restart`（L456–L466）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L462断言`"UserModel.name, UserModel.username, RoleModel.code" in controller`；L463断言`'"username": username' in controller`；L464断言`"${user.name} · ${user.username}" in page`；L465断言`"assign(page, 'requests', request, scenario.actors.service.username)" in browser`；L466断言`"assign(page, 'tasks', task, scenario.actors.service.username)" in browser`。 调用`(ROOT / "templates/business/fastapiadmin/controller.py").read_tex…`、`(ROOT / "templates/business/fastapiadmin/index.vue").read_text`、`(ROOT / "scripts/business_fastapi_browser.cjs").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_quantity_validator_rejects_out_of_contract_post_and_put_values`（L231–L295）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Exercise the native callback over HTTP without importing its ORM stack.。 控制顺序：L288遍历`(("POST", "/cases", 201), ("PUT", "/cases/1", 200))`；L289遍历`(2, 8)`；L291断言`response.status_code == success`；L292断言`response.json() == {"quantity": value}`；L293遍历`(0, 1, 9, -1, 2**31, -(2**31) - 1, True, 2.0, "2")`；L295断言`response.status_code == 422`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`ast.parse`、`isinstance`、`policy.Policy`、`exec`、`compile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_quantity_validator_rejects_out_of_contract_post_and_put_values.validate_record`（L282–L283）：接收`data`、`request`。 调用`scope["validate"]`。 返回路径：L283的`await scope["validate"](None, None, "cases", data, creation=request.method == "POST")`。
+- `generated_relation_model`（L298–L310）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L299的`"""from datetime import datetime from sqlalchemy import DateTime, Integer, String from sql…`。
+- `relation_contract`（L313–L324）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`。 返回路径：L324的`entity, relations, targets`。
+- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata`（L327–L359）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L347断言`table.c.resolved_at.type.timezone is True`；L348断言`{(fk.parent.name, fk.target_fullname, fk.ondelete) for fk in table.foreign_keys} == {…`；L352断言`"# 原生生成字段；保留备注与所有其他字段" in transformed`；L353断言`"title: Mapped[str] = mapped_column(String(250), nullable=False, comment='标题')" in tr…`；L357断言`"FOREIGN KEY" in str( __import__("sqlalchemy").schema.CreateTable(table).compile(dial…`。 调用`Table`、`Column`、`generated_relation_model`、`extend_model`、`relation_contract`、`exec`、`compile`、`str`、`__import__("sqlalchemy").schema.CreateTable(table).compile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata.NativeBase`（L333–L334）：继承`DeclarativeBase`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_actual_generator_shape_preserves_native_fk_and_timezone_on_fresh_metadata.ModelMixin`（L336–L338）：继承`NativeBase`。声明的数据项为`id`；类型约束/数据库列参数以完整定义为准。
+- `test_model_extension_rejects_unrecognized_native_shapes`（L363–L378）：接收`change`。 控制顺序：L367按`change == "missing"`分支；L369按`change == "wrong_table"`分支；L371按`change == "wrong_type"`分支。 调用`generated_relation_model`、`source.replace`、`pytest.raises`、`extend_model`、`relation_contract`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_namespaced_roles_pass_the_pinned_native_output_validator`（L381–L413）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L409遍历`("manager", "service", "employee", "a" * 40)`；L411断言`scope["validate_required_code"](code) == code`。 调用`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`next`、`ast.parse`、`isinstance`、`any`、`eval`、`compile`、`ast.Expression`、`zipfile.ZipFile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_business_menus_follow_read_grants_without_admin_fallback`（L416–L436）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L429断言`readable("manager") == {"customers", "requests", "tasks"}`；L430断言`readable("service") == {"customers", "requests", "tasks"}`；L431断言`readable("employee") == {"customers", "requests"}`；L432断言`readable("unknown") == set()`；L434断言`readable("manager") == set()`；L435断言`"for e in readable_entities(role)" in source`；L436断言`"while parent in by_id and parent not in chosen" in source`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`next`、`ast.parse`、`isinstance`、`exec`、`compile`、`ast.Module`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values`（L439–L506）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L493断言`values == original`；L494断言`all(visible[key] == value for key, value in original.items())`；L495断言`visible["_display"] == { "partner": "Authorized partner", "assignee": "Business membe…`；L500断言`visible["_title"] == "Synthetic subject"`；L501断言`called == [("partners", "7", "read"), ("$users", "6", "name"), ("$users", "2", "name"…`；L505断言`denied["_display"]["partner"] == "无权查看关联记录"`；L506断言`"Authorized partner" not in denied["_display"].values()`。 调用`(ROOT / "templates/business/fastapiadmin/runtime.py").read_text`、`ast.parse`、`isinstance`、`exec`、`compile`、`ast.Module`、`deepcopy`、`asyncio.run`、`scope["present_values"]`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values.record`（L454–L458）：接收`db`、`who`、`entity`、`identifier`、`action`。 控制顺序：L456按`str(identifier) == "99"`分支；L457抛异常，停止当前正常路径。 调用`called.append`、`str`、`HTTPException`。 返回路径：L458的`{"display_name": "Authorized partner"}`。
+- `test_presentation_resolves_only_authorized_references_and_preserves_raw_values.user_label`（L460–L462）：接收`db`、`identifier`、`cache`。 调用`called.append`、`str`。 返回路径：L462的`"Business member"`。
+- `test_native_display_uses_contract_labels_and_keeps_parseable_original_components`（L509–L520）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L514断言`"field.label \|\| field.name" in source`；L515断言`"field.choice_labels?.[choice] \|\| choice" in source`；L516断言`"transition.label \|\| transition.name" in source`；L517断言`"item.actor_name" in source and "row._display" in source`；L518断言`':min-width="columnWidth(field)"' in source`；L519断言`"white-space: nowrap" in source and " + ' UTC'" in source`；L520断言`parse_file(page)["parse_error"] is False`。 调用`page.read_text`、`parse_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_assignee_selection_uses_unique_authorized_username_after_restart`（L523–L533）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L529断言`"UserModel.name, UserModel.username, RoleModel.code" in controller`；L530断言`'"username": username' in controller`；L531断言`"${user.name} · ${user.username}" in page`；L532断言`"assign(page, 'requests', request, scenario.actors.service.username)" in browser`；L533断言`"assign(page, 'tasks', task, scenario.actors.service.username)" in browser`。 调用`(ROOT / "templates/business/fastapiadmin/controller.py").read_tex…`、`(ROOT / "templates/business/fastapiadmin/index.vue").read_text`、`(ROOT / "scripts/business_fastapi_browser.cjs").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_business_fastapi.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L466。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_business_fastapi.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L533。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18547`。本段原文以LF换行结束。
+本段原始字节数：`21237`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_business_fastapi.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c91f6f989cb9afd7820d8ff6b01f4edac65fd6671233e9f658a3547daff6cad"} -->
+<!-- learning-source: {"path": "tests/test_business_fastapi.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b899241021d5060129b6dc32d56ddd54a0f6a24281eb8b74aafffb8078f1cba6"} -->
 ````python
 # tests/test_business_fastapi.py
 """Native business extension mounting and safety boundaries (no provider calls)."""
@@ -281,6 +283,73 @@ def test_generated_native_status_is_initialized_without_exposing_it_to_input():
     runtime = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
     assert 'values["status"] = 0' in runtime
     assert "set(data) - set(fields)" in runtime
+
+
+def test_native_quantity_validator_rejects_out_of_contract_post_and_put_values():
+    """Exercise the native callback over HTTP without importing its ORM stack."""
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.testclient import TestClient
+
+    spec = importlib.util.spec_from_file_location(
+        "native_numeric_policy", ROOT / "templates/business/common/policy.py"
+    )
+    policy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(policy)
+    config = {
+        "entities": [
+            {
+                "name": "cases",
+                "fields": [
+                    {
+                        "name": "quantity",
+                        "kind": "integer",
+                        "required": True,
+                        "minimum": 2,
+                        "maximum": 8,
+                    }
+                ],
+            }
+        ],
+        "business": {
+            "resources": [{"entity": "cases"}],
+            "roles": [],
+            "permissions": [],
+            "workflows": [],
+            "relations": [],
+        },
+    }
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
+    functions = [
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in {"fail", "validate"}
+    ]
+    scope = {
+        "HTTPException": HTTPException,
+        "ENTITIES": {"cases": config["entities"][0]},
+        "POLICY": policy.Policy(config),
+        "SPEC": config["business"],
+        "PolicyError": policy.PolicyError,
+        "validate_scalar_constraints": policy.validate_scalar_constraints,
+    }
+    exec(compile(ast.Module(body=functions, type_ignores=[]), "native-validate", "exec"), scope)
+    app = FastAPI()
+
+    async def validate_record(data: dict, request: Request):
+        return await scope["validate"](None, None, "cases", data, creation=request.method == "POST")
+
+    app.post("/cases", status_code=201)(validate_record)
+    app.put("/cases/1")(validate_record)
+    with TestClient(app) as client:
+        for method, path, success in (("POST", "/cases", 201), ("PUT", "/cases/1", 200)):
+            for value in (2, 8):
+                response = client.request(method, path, json={"quantity": value})
+                assert response.status_code == success, response.text
+                assert response.json() == {"quantity": value}
+            for value in (0, 1, 9, -1, 2**31, -(2**31) - 1, True, 2.0, "2"):
+                response = client.request(method, path, json={"quantity": value})
+                assert response.status_code == 422, (method, value, response.text)
 
 
 def generated_relation_model():

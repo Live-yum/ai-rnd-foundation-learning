@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `templates/frontends/simple-admin/app.js`；**本文件共有 1 段**。本段覆盖源文件 L1–L414。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/frontends/simple-admin/app.js`；**本文件共有 1 段**。本段覆盖源文件 L1–L423。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21158`。本段原文以LF换行结束。
+本段原始字节数：`21957`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/frontends/simple-admin/app.js", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1919345d3c001796a2f34e0e6e24bde24d760cf1c0102532fd1a6eca7bf582c6"} -->
+<!-- learning-source: {"path": "templates/frontends/simple-admin/app.js", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ff8ed47df650657b72ac829d5e0afe0586f9adcf43fc9c19507da43a29b18808"} -->
 ````javascript
 // templates/frontends/simple-admin/app.js
 "use strict";
@@ -96,6 +96,8 @@ function control(field, mode = "record", name = field.name) {
     if (field.kind === "integer") {
       input.type = "number";
       input.step = "1";
+      input.min = mode === "record" ? Math.max(-2147483648, field.minimum ?? -2147483648, (field.exclusive_minimum ?? -2147483649) + 1) : -2147483648;
+      input.max = mode === "record" ? Math.min(2147483647, field.maximum ?? 2147483647, (field.exclusive_maximum ?? 2147483648) - 1) : 2147483647;
     } else if (field.kind === "date") input.type = "date";
     else if (field.kind === "datetime") input.type = "datetime-local";
     else {
@@ -216,7 +218,11 @@ async function edit(row) {
       if (sequence !== editorSequence || chosen !== entity) return;
       for (const item of related) node("option", item.name || item.title || item.id, input).value = item.id;
     } else input = control(field);
-    if (row && row[field.name] !== null) input.value = field.kind === "datetime" ? String(row[field.name]).replace(/Z$/, "").slice(0,16) : String(row[field.name]);
+    if (row && row[field.name] != null) {
+      input.value = field.kind === "datetime" ? String(row[field.name]).replace(/Z$/, "").slice(0,16) : String(row[field.name]);
+      input.dataset.originalValue = String(row[field.name]);
+      input.dataset.originalInput = input.value;
+    }
   }
   if (sequence === editorSequence && chosen === entity) $("editor").showModal();
 }
@@ -297,11 +303,14 @@ $("record").onsubmit = async (e) => {
     for (const field of entity.fields) {
       if (spec.business && protectedFields().has(field.name)) continue;
       let v = raw[field.name];
+      const input = $("record").elements.namedItem(field.name);
+      if (field.kind === "integer" && v !== "" && (!Number.isSafeInteger(Number(v)) || Number(v) < -2147483648 || Number(v) > 2147483647))
+        throw new Error(`${fieldLabel(field.name)} 必须是 -2147483648 到 2147483647 之间的整数`);
       data[field.name] =
         v === "" && !field.required
           ? null
           : field.kind === "datetime"
-            ? new Date(v + "Z").toISOString()
+            ? (v === input.dataset.originalInput ? input.dataset.originalValue : new Date(v + "Z").toISOString())
           : field.kind === "integer"
             ? Number(v)
             : field.kind === "boolean"

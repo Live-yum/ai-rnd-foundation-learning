@@ -17,21 +17,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Store._recover_assistants`（L867–L948）：接收`session`、`run_id`。 源码说明：Resolve every abandoned attempt, even after a model/profile change.。 控制顺序：L870遍历`session.scalars( select(Event) .where( Event.run_id == run_id, Ev…`；L891按`not unfinished`分支；L896遍历`session.scalars( select(Step.data["assistant"]).where( Step.run_i…`；L903按`isinstance(data, dict) and data.get("validation") == "validated" and data.get("status…`分支；L910遍历`unfinished.items()`；L911按`message_id in committed`分支。 调用`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( { "…`、`select(Event) .where`、`select`、`Event.kind.in_`、`latest.items`、`select(Step.data["assistant"]).where`、`Step.name.like`、`Step.data["contract_version"].as_integer`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.finish`（L950–L959）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L955按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.events`（L961–L973）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L970的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
-- `Store.list_projects`（L975–L982）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L977的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
-- `Store.list_runs`（L984–L1002）：接收`project_id`。 控制顺序：L987按`project_id is not None`分支；L988按`not session.get(Project, project_id)`分支；L989抛异常，停止当前正常路径。 调用`self.tx`、`select(Run).order_by(Run.created_at.desc()).limit`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`session.get`、`Missing`、`statement.where`、`session.scalars`。 返回路径：L991的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
-- `Store.latest_revision`（L1004–L1012）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L1012的`row.data if row else None`。
-- `_cursor`（L1016–L1021）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `Store._recover_assistants`（L884–L965）：接收`session`、`run_id`。 源码说明：Resolve every abandoned attempt, even after a model/profile change.。 控制顺序：L887遍历`session.scalars( select(Event) .where( Event.run_id == run_id, Ev…`；L908按`not unfinished`分支；L913遍历`session.scalars( select(Step.data["assistant"]).where( Step.run_i…`；L920按`isinstance(data, dict) and data.get("validation") == "validated" and data.get("status…`分支；L927遍历`unfinished.items()`；L928按`message_id in committed`分支。 调用`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( { "…`、`select(Event) .where`、`select`、`Event.kind.in_`、`latest.items`、`select(Step.data["assistant"]).where`、`Step.name.like`、`Step.data["contract_version"].as_integer`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.finish`（L967–L976）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L972按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.events`（L978–L990）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L987的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
+- `Store.list_projects`（L992–L999）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L994的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
+- `Store.list_runs`（L1001–L1022）：接收`project_id`、`limit`、`offset`、`statuses`。 控制顺序：L1004按`project_id is not None`分支；L1005按`not session.get(Project, project_id)`分支；L1006抛异常，停止当前正常路径；L1008按`statuses`分支。 调用`self.tx`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`Run.id.desc`、`session.get`、`Missing`、`statement.where`、`Run.status.in_`等。 返回路径：L1011的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
+- `Store.latest_revision`（L1024–L1032）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L1032的`row.data if row else None`。
+- `_cursor`（L1036–L1041）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L867–L1021。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L884–L1041。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5735`。本段原文以LF换行结束。
+本段原始字节数：`5935`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/store.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "aba421cc163907f9125e63e26e0a8a509e333a242f1d1de8a2ce8f3dcba077d3"} -->
+<!-- learning-source: {"path": "workbench/store.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "857947ef695706cf177bdf2a49faa5c3d4473540c130add4d45023b69d0ad8f3"} -->
 ````python
 # workbench/store.py
     def _recover_assistants(self, session, run_id):
@@ -151,13 +151,16 @@
                 )
             ]
 
-    def list_runs(self, project_id=None):
+    def list_runs(self, project_id=None, *, limit=100, offset=0, statuses=None):
         with self.tx() as session:
-            statement = select(Run).order_by(Run.created_at.desc()).limit(100)
+            statement = select(Run).order_by(Run.created_at.desc(), Run.id.desc())
             if project_id is not None:
                 if not session.get(Project, project_id):
                     raise Missing("项目不存在")
                 statement = statement.where(Run.project_id == project_id)
+            if statuses:
+                statement = statement.where(Run.status.in_(statuses))
+            statement = statement.offset(offset).limit(limit)
             return [
                 {
                     "id": r.id,

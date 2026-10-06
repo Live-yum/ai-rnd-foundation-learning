@@ -78,3 +78,47 @@ def test_model_budget(store):
         store.reserve_model_call(run)
     with pytest.raises(PausedLimit):
         store.reserve_model_call(run)
+
+
+def test_run_pagination_and_project_history_are_independent(store):
+    from workbench.store import Run
+
+    older = store.create_project("older", "older-project")
+    newer = store.create_project("newer", "newer-project")
+    with store.tx() as session:
+        session.add(
+            Run(
+                id="old-run",
+                project_id=older["id"],
+                template="python-basic",
+                status="WAITING_EXTENSION_DELIVERY",
+            )
+        )
+        session.flush()
+        for index in range(105):
+            session.add(
+                Run(
+                    id=f"new-{index:03}",
+                    project_id=newer["id"],
+                    template="python-basic",
+                    status="READY",
+                )
+            )
+    first = store.list_runs(limit=100)
+    second = store.list_runs(limit=100, offset=100)
+    assert len(first) == 100 and len(second) == 6
+    assert not {row["id"] for row in first} & {row["id"] for row in second}
+    assert store.list_runs(older["id"])[0]["id"] == "old-run"
+    assert store.list_runs(statuses=["WAITING_EXTENSION_DELIVERY"])[0]["id"] == "old-run"
+
+
+def test_model_capabilities_are_server_owned_even_for_saved_gates(store):
+    run = new_run(store)
+    gate = store.gate(run, "delivery", 1, {}, ["approve", "reject"])
+    assert gate["needs_model"] == {"approve": False, "reject": False}
+    from workbench.store import Run
+
+    with store.tx() as session:
+        record = session.get(Run, run)
+        record.pending = {key: value for key, value in gate.items() if key != "needs_model"}
+    assert store.get_run(run)["pending"]["needs_model"] == gate["needs_model"]

@@ -29,7 +29,9 @@ class Selection(BaseModel):
 
 
 def options_for_run(run):
-    return Selection.model_validate(run.get("options") or {"template": run["template"]})
+    options = dict(run.get("options") or {"template": run["template"]})
+    options.pop("allow_custom_extensions", None)
+    return Selection.model_validate(options)
 
 
 def selections():

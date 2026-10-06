@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/App.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L406。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/App.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L411。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14958`。本段原文以LF换行结束。
+本段原始字节数：`15183`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5b781a616f0242efef222290f81ca9510afd49065bbfc2b068fa3a750876abf8"} -->
+<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1aa6a500ae2b2081ef263418ab6490b30bf0d3621936150048dde2b0b1a0a864"} -->
 ````vue
 <!-- ui/src/App.vue -->
 <script setup lang="ts">
@@ -356,7 +356,12 @@ onBeforeUnmount(() => {
             :view="runView"
             @navigate="navigate"
           />
-          <SettingsView v-else-if="section === 'settings'" ref="settingsView" />
+          <template v-else-if="section === 'settings'">
+            <div v-if="state.settingsReturn" class="global-alert">
+              <a-button @click="navigate(state.settingsReturn)">返回需求草稿</a-button>
+            </div>
+            <SettingsView ref="settingsView" />
+          </template>
           <div v-else class="page">
             <a-empty description="没有这个页面"
               ><a-button @click="navigate('home')">返回工作台</a-button></a-empty

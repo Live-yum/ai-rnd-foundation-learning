@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `templates/business/yudao/RndBusinessService.java`；**本文件共有 1 段**。本段覆盖源文件 L1–L523。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/business/yudao/RndBusinessService.java`；**本文件共有 1 段**。本段覆盖源文件 L1–L531。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`44316`。本段原文以LF换行结束。
+本段原始字节数：`44819`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/business/yudao/RndBusinessService.java", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f521abe950ede7e2e874acd00b08be024d77307519680e0c78c79184f35b8c31"} -->
+<!-- learning-source: {"path": "templates/business/yudao/RndBusinessService.java", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "56aa83e408e8692089f27e0f97c41528d8d9e30722f12f3dca143ced7d4bb4e7"} -->
 ````java
 // templates/business/yudao/RndBusinessService.java
 package cn.iocoder.yudao.module.infra.business;
@@ -284,7 +284,15 @@ public class RndBusinessService {
                 if(field.path("kind").asText().equals("enum")&&!contains(field.path("choices"),incoming.toString())) throw bad("Invalid enum: "+key);
                 break;
             case "boolean": if(!(incoming instanceof Boolean)) throw bad("Expected boolean: "+key); break;
-            case "integer": if(!(incoming instanceof Integer)&&!(incoming instanceof Long)) throw bad("Expected integer: "+key); if(((Number)incoming).longValue()<Integer.MIN_VALUE||((Number)incoming).longValue()>Integer.MAX_VALUE) throw bad("Integer out of range"); break;
+            case "integer":
+                if(!(incoming instanceof Integer)&&!(incoming instanceof Long)) throw bad("Expected integer: "+key);
+                long number=((Number)incoming).longValue();
+                if(number<Integer.MIN_VALUE||number>Integer.MAX_VALUE) throw bad("Integer out of range");
+                if((field.hasNonNull("minimum")&&number<field.path("minimum").asLong())
+                    ||(field.hasNonNull("maximum")&&number>field.path("maximum").asLong())
+                    ||(field.hasNonNull("exclusive_minimum")&&number<=field.path("exclusive_minimum").asLong())
+                    ||(field.hasNonNull("exclusive_maximum")&&number>=field.path("exclusive_maximum").asLong())) throw bad("Integer constraint: "+key);
+                break;
             case "date": LocalDate.parse(String.valueOf(incoming)); break;
             case "datetime": instant(incoming); break;
             default: throw bad("Unsupported field type");

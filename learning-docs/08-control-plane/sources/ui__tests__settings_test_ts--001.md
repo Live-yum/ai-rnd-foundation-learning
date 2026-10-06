@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L220。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L234。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7958`。本段原文以LF换行结束。
+本段原始字节数：`8618`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7d1dd3652c277f1a3385588cd178d6c9d60ce5803345406c9a05f931215b688d"} -->
+<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "62e12664d538735e3bf33ee2ca1a5b659d52a70ae35979e9a8354a78b84bf960"} -->
 ````typescript
 // ui/tests/settings.test.ts
 import { mount, flushPromises } from '@vue/test-utils'
@@ -236,5 +236,19 @@ describe('model settings save baseline', () => {
     expect(wrapper.text()).not.toContain('未保存')
     wrapper.unmount()
   })
+})
+
+it('initializes settings arriving after the view mounts and preserves unsaved edits', async () => {
+  state.settings = null
+  const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+  connectionSettings()
+  await flushPromises()
+  expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('saved-model')
+  expect((wrapper.vm as any).dirty).toBe(false)
+  await wrapper.find('#model-name').setValue('unsaved-model')
+  state.settings = { ...state.settings!, revision: 'newer-revision' }
+  await flushPromises()
+  expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('unsaved-model')
+  wrapper.unmount()
 })
 ````
