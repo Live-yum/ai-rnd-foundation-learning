@@ -10,6 +10,8 @@
 
 普通 `integer` 明确使用有符号 32 位范围，并支持 `minimum`、`maximum`、`exclusive_minimum`、`exclusive_maximum`。声明式数值边界参与需求覆盖、API 校验、SQL CHECK 与独立边界测试，不需要模型写规则代码。Python 文本 `pattern` 需同时提供合法 `example`；原生模板暂不支持跨语言正则。优化范围与验证说明见 [流程优化说明](docs/workflow-optimization.md)。
 
+登录后的比赛报名、学生本人记录权限和管理员审核可优先使用现有模板能力，通常无需勾选自定义扩展。首页提供可编辑的报名需求示例。规划失败会保留原运行，并显示具体格式、长度等约束以便重试；技术模板与后续业务预设的区别、报名配置和实施路线见 [模板定制流程审查](docs/template-customization-roadmap.md)。
+
 ## 从零学习：推荐新的分阶段教材
 
 从 [learning-docs/README.md](learning-docs/README.md) 开始：15个依赖有序阶段，每站有实现解释、小实验、预期结果与排错。每个代码块首行标注相对路径，大文件按模块分为连续小页。只保存整个 `learning-docs` 目录就能在空目录重建自有源码、测试、锁文件和截图，第三方模板按固定上游提交自行下载处理；无需先下载本仓库骨架。

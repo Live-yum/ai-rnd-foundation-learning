@@ -18,12 +18,27 @@ from workbench.template_adapters import get_adapter
 
 
 class RoutedFeature(Contract):
-    id: Identifier
+    id: Identifier = Field(
+        description="稳定的功能技术标识：以小写英文字母开头，仅含小写英文、数字、下划线或连字符，最多64字符；中文名称写入title。",
+        examples=["registration-submit"],
+    )
     title: str = Field(min_length=1, max_length=300)
-    requirements: list[Identifier] = Field(min_length=1, max_length=256)
+    requirements: list[Identifier] = Field(
+        min_length=1,
+        max_length=256,
+        description="逐字引用本轮source_units中的来源ID，不能自行编造、翻译或改写。",
+    )
     route: Literal["native", "declarative", "module", "blocked"]
-    capability: str = Field(min_length=1, max_length=100)
-    depends_on: list[Identifier] = Field(default_factory=list, max_length=32)
+    capability: str = Field(
+        min_length=1,
+        max_length=100,
+        description="单个能力技术键。native/declarative须逐字选择当前adapter对应features中的一项，不能填写业务说明或拼接多个能力；业务含义写入title，阻塞原因写入blocker。",
+    )
+    depends_on: list[Identifier] = Field(
+        default_factory=list,
+        max_length=32,
+        description="只引用本轮outline.features中的准确id；修改id时同步修正引用，不能形成循环。",
+    )
     entity: str | None = None
     module_id: Identifier | None = None
     blocker: str = Field(default="", max_length=2000)
@@ -265,16 +280,28 @@ def baseline_errors(outline, baseline):
 
 def planning_payload(scope):
     selection = Selection.model_validate(scope["selection"])
+    adapter = selection.capabilities()
+    fields = RoutedFeature.model_json_schema()["properties"]
     return {
         "source_digest": scope["source_digest"],
         "source_units": scope["sources"],
         "selection": selection.model_dump(),
-        "adapter": selection.capabilities(),
+        "adapter": adapter,
         "rules": {
             "routes": ["native", "declarative", "module", "blocked"],
             "route_is_not_verification": True,
             "native_stack_and_ui_must_remain": True,
             "baseline_contract_is_separate": True,
             "scope_review_digest": digest(scope["sources"]),
+            "feature_id": {
+                "pattern": fields["id"]["pattern"],
+                "examples": fields["id"]["examples"],
+                "description": fields["id"]["description"],
+            },
+            "capability_choices": {
+                "native": adapter["capability_layers"]["native_generator"]["features"],
+                "declarative": adapter["capability_layers"]["declarative_business"]["features"],
+            },
+            "capability_description": fields["capability"]["description"],
         },
     }

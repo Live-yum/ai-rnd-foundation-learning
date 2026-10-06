@@ -492,6 +492,7 @@
 - [docs/provider-structured-outputs.md](14-acceptance/sources/docs__provider-structured-outputs_md--001.md)（1 段）
 - [docs/real-model-acceptance.md](14-acceptance/sources/docs__real-model-acceptance_md--001.md)（1 段）
 - [docs/recommendation-recovery.md](14-acceptance/sources/docs__recommendation-recovery_md--001.md)（1 段）
+- [docs/template-customization-roadmap.md](14-acceptance/sources/docs__template-customization-roadmap_md--001.md)（1 段）
 - [docs/toolchain.md](14-acceptance/sources/docs__toolchain_md--001.md)（1 段）
 - [docs/workflow-optimization.md](14-acceptance/sources/docs__workflow-optimization_md--001.md)（1 段）
 - [scripts/build_handbook.py](14-acceptance/sources/scripts__build_handbook_py--001.md)（1 段）
@@ -613,6 +614,8 @@
 - [tests/test_owned_lifecycle.py](14-acceptance/sources/tests__test_owned_lifecycle_py--001.md)（1 段）
 - [tests/test_permission_analysis_contract.py](14-acceptance/sources/tests__test_permission_analysis_contract_py--001.md)（1 段）
 - [tests/test_permission_contract_equivalence.py](14-acceptance/sources/tests__test_permission_contract_equivalence_py--001.md)（1 段）
+- [tests/test_planning_model_contracts.py](14-acceptance/sources/tests__test_planning_model_contracts_py--001.md)（1 段）
+- [tests/test_planning_transcript.py](14-acceptance/sources/tests__test_planning_transcript_py--001.md)（1 段）
 - [tests/test_postgres.py](14-acceptance/sources/tests__test_postgres_py--001.md)（1 段）
 - [tests/test_product_reload_readiness.py](14-acceptance/sources/tests__test_product_reload_readiness_py--001.md)（1 段）
 - [tests/test_pytest_reporting.py](14-acceptance/sources/tests__test_pytest_reporting_py--001.md)（1 段）

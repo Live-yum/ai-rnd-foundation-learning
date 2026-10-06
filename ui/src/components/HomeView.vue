@@ -53,9 +53,9 @@ const starters = [
   },
   {
     icon: CodeOutlined,
-    title: '从一个业务流程开始',
-    subtitle: '把日常操作变成易用的工具',
-    text: '我想把一个日常业务流程变成工具：',
+    title: '做一个比赛报名系统',
+    subtitle: '学生登录报名与管理员审核',
+    text: '为大学生计算机设计大赛提供登录后使用的报名管理系统。参赛学生自行提交并查看本人报名记录；大赛管理员查看所有报名记录，并审核为通过或退回。学生不能访问其他学生的记录，不能自行审核或提升为管理员。请推荐报名字段和界面细节，保留上述角色与权限要求。',
   },
   {
     icon: FileTextOutlined,
@@ -337,7 +337,7 @@ async function create() {
           >允许受控自定义扩展</a-checkbox
         >
         <p class="field-hint">
-          逐功能选择现有生成器或受控扩展。扩展仍需明确设计审批和独立验收；此选项不代表能力已实现。
+          登录、数据管理、角色与本人记录权限、已支持的审核流程可直接使用模板，无需勾选。确有模板外功能时再启用扩展；扩展需要额外设计审批、执行环境和独立验收。
         </p>
         <a-checkbox v-model:checked="intelligent" :disabled="submitting"
           >启用智能推荐（持续委托）</a-checkbox

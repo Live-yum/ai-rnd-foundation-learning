@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/workflow.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L108。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/workflow.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L121。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3438`。本段原文以LF换行结束。
+本段原始字节数：`4278`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/workflow.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8ed5377d824664e6294a17192c7e2328be93961080f0daaf4b0761c0ad57b2c0"} -->
+<!-- learning-source: {"path": "ui/tests/workflow.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "81ce4227936755349e9d360f7b157a8fe738bb513daccde79390005f55f9b471"} -->
 ````typescript
 // ui/tests/workflow.test.ts
 import { mount, flushPromises } from '@vue/test-utils'
@@ -28,15 +28,13 @@ import * as apiModule from '../src/api'
 beforeAll(() => {
   vi.stubGlobal(
     'matchMedia',
-    vi
-      .fn()
-      .mockReturnValue({
-        matches: false,
-        addListener() {},
-        removeListener() {},
-        addEventListener() {},
-        removeEventListener() {},
-      }),
+    vi.fn().mockReturnValue({
+      matches: false,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+    }),
   )
   vi.stubGlobal(
     'ResizeObserver',
@@ -50,6 +48,23 @@ beforeAll(() => {
 afterEach(() => {
   lock()
   vi.restoreAllMocks()
+})
+
+it('lets users edit the authenticated contest example before creating a run', async () => {
+  const request = vi.spyOn(apiModule, 'api')
+  const wrapper = mount(HomeView, { global: { plugins: [Antd] } })
+  await wrapper
+    .findAll('.starter-card')
+    .find((button) => button.text().includes('比赛报名系统'))!
+    .trigger('click')
+  const input = wrapper.find('textarea')
+  expect((input.element as HTMLTextAreaElement).value).toContain('登录后使用的报名管理系统')
+  expect((input.element as HTMLTextAreaElement).value).toContain('查看本人报名记录')
+  expect((input.element as HTMLTextAreaElement).value).toContain('不能自行审核或提升为管理员')
+  expect(request).not.toHaveBeenCalled()
+  await input.setValue('修改后的报名需求')
+  expect((input.element as HTMLTextAreaElement).value).toBe('修改后的报名需求')
+  wrapper.unmount()
 })
 
 it('retains the requirement and return target across model setup navigation', async () => {
@@ -107,17 +122,15 @@ it('reads older project history directly and requests the next server page', asy
 it('queries extension scope and delivery states in the delivery center', async () => {
   state.authenticated = true
   apiModule.setToken('test-token')
-  const request = vi
-    .spyOn(apiModule, 'api')
-    .mockResolvedValue([
-      {
-        id: 'extension',
-        project_id: 'old',
-        status: 'WAITING_EXTENSION_DELIVERY',
-        template: 'python-basic',
-        auto_mode: false,
-      },
-    ])
+  const request = vi.spyOn(apiModule, 'api').mockResolvedValue([
+    {
+      id: 'extension',
+      project_id: 'old',
+      status: 'WAITING_EXTENSION_DELIVERY',
+      template: 'python-basic',
+      auto_mode: false,
+    },
+  ])
   const wrapper = mount(ProjectsView, { props: { view: 'delivery' }, global: { plugins: [Antd] } })
   await flushPromises()
   expect(request.mock.calls[0][0]).toContain('status=WAITING_EXTENSION_SCOPE')

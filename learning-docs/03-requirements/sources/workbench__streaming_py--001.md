@@ -17,45 +17,47 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `public_field`（L26–L34）：接收`schema`。 调用`getattr`、`PUBLIC_FIELDS.get`。 返回路径：L30的`PUBLIC_FIELDS.get(schema.__name__) if getattr(domain, schema.__name__, None) is schema els…`。
-- `public_text`（L37–L39）：接收`value`、`schema`。 调用`public_field`、`str`、`getattr`。 返回路径：L39的`str(getattr(value, field, "")) if field else ""`。
-- `string_projection`（L42–L84）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L49在`index < len(source)`成立时循环；L51按`char == '"'`分支；L54按`char == "\\"`分支；L55按`index + 1 >= len(source)`分支；L58按`end > len(source)`分支；L64按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L65按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L72按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L84的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
-- `string_prefix`（L87–L89）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L89的`string_projection(source)[0]`。
-- `root_string_projection`（L92–L129）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L94按`not field`分支；L105按`source[position : position + 1] != "{"`分支；L109在`True`成立时循环；L112按`not isinstance(key, str)`分支；L115按`source[position : position + 1] != ":"`分支；L119按`key == field`分支；L120按`source[position : position + 1] != '"'`分支；L125按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L95的`"", False`；L106的`"", False`；L113的`"", False`。
-- `root_string_projection.whitespace`（L99–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L101在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `root_string_prefix`（L132–L134）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L134的`root_string_projection(source, field)[0]`。
-- `AssistantStream`（L137–L258）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AssistantStream.__init__`（L140–L171）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L157按`not self.enabled`分支；L168按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.refresh_secrets`（L173–L178）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L175按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.redact`（L180–L185）：接收`value`。 控制顺序：L183遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L185的`value`。
-- `AssistantStream.emit`（L187–L189）：接收`kind`、`data`。 控制顺序：L188按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.mode`（L191–L193）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.content`（L195–L234）：接收`fragment`。 控制顺序：L196按`not self.enabled or not self.field or self.projection_finished`分支；L200按`self.projection_finished`分支；L207遍历`self.secrets`；L208遍历`range(1, min(len(secret), len(projected) + 1))`；L209按`projected.endswith(secret[:size])`分支；L211按`hold`分支；L215在`True`成立时循环；L217遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.failed`（L236–L250）：接收`code`、`attempt`、`details`。 调用`self.emit`、`failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.completed_data`（L252–L258）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L253的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
-- `sse_event`（L261–L267）：接收`event`。 调用`json.dumps`。 返回路径：L262的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
-- `event_stream`（L270–L298）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L274在`not await request.is_disconnected()`成立时循环；L276遍历`events`；L277按`await request.is_disconnected()`分支；L281按`events`分支；L285按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L287按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L296按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `register_streaming_routes`（L301–L334）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_streaming_routes.transcript`（L303–L304）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L304的`store.transcript(run_id)`。
-- `register_streaming_routes.stream`（L307–L334）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L315按`last_event_id is not None`分支；L316按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L321抛异常，停止当前正常路径；L323按`value > 9223372036854775807`分支；L324抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L326的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
+- `public_path`（L34–L40）：接收`schema`。 控制顺序：L38按`getattr(sys.modules.get(module), name, None) is schema`分支。 调用`getattr`、`sys.modules.get`、`PUBLIC_PATHS.get`。 返回路径：L39的`PUBLIC_PATHS.get((module, name))`；L40的`None`。
+- `public_field`（L43–L45）：接收`schema`。 调用`public_path`、`len`。 返回路径：L45的`path[0] if path and len(path) == 1 else None`。
+- `public_text`（L48–L54）：接收`value`、`schema`。 控制顺序：L50按`not path`分支；L52遍历`path`。 调用`public_path`、`getattr`、`isinstance`。 返回路径：L51的`""`；L54的`value if isinstance(value, str) else ""`。
+- `string_projection`（L57–L99）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L64在`index < len(source)`成立时循环；L66按`char == '"'`分支；L69按`char == "\\"`分支；L70按`index + 1 >= len(source)`分支；L73按`end > len(source)`分支；L79按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L80按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L87按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L99的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
+- `string_prefix`（L102–L104）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L104的`string_projection(source)[0]`。
+- `root_string_projection`（L107–L144）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L109按`not field`分支；L120按`source[position : position + 1] != "{"`分支；L124在`True`成立时循环；L127按`not isinstance(key, str)`分支；L130按`source[position : position + 1] != ":"`分支；L134按`key == field`分支；L135按`source[position : position + 1] != '"'`分支；L140按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L110的`"", False`；L121的`"", False`；L128的`"", False`。
+- `root_string_projection.whitespace`（L114–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L116在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `root_string_prefix`（L147–L149）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L149的`root_string_projection(source, field)[0]`。
+- `AssistantStream`（L152–L273）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AssistantStream.__init__`（L155–L186）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L172按`not self.enabled`分支；L183按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.refresh_secrets`（L188–L193）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.redact`（L195–L200）：接收`value`。 控制顺序：L198遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L200的`value`。
+- `AssistantStream.emit`（L202–L204）：接收`kind`、`data`。 控制顺序：L203按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.mode`（L206–L208）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.content`（L210–L249）：接收`fragment`。 控制顺序：L211按`not self.enabled or not self.field or self.projection_finished`分支；L215按`self.projection_finished`分支；L222遍历`self.secrets`；L223遍历`range(1, min(len(secret), len(projected) + 1))`；L224按`projected.endswith(secret[:size])`分支；L226按`hold`分支；L230在`True`成立时循环；L232遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.failed`（L251–L265）：接收`code`、`attempt`、`details`。 调用`self.emit`、`failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.completed_data`（L267–L273）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L268的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
+- `sse_event`（L276–L282）：接收`event`。 调用`json.dumps`。 返回路径：L277的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
+- `event_stream`（L285–L313）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L289在`not await request.is_disconnected()`成立时循环；L291遍历`events`；L292按`await request.is_disconnected()`分支；L296按`events`分支；L300按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L302按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L311按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `register_streaming_routes`（L316–L349）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_streaming_routes.transcript`（L318–L319）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L319的`store.transcript(run_id)`。
+- `register_streaming_routes.stream`（L322–L349）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L330按`last_event_id is not None`分支；L331按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L336抛异常，停止当前正常路径；L338按`value > 9223372036854775807`分支；L339抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L341的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
 
 </details>
 
-**创建路径：** `workbench/streaming.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L334。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/streaming.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L349。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11884`。本段原文以LF换行结束。
+本段原始字节数：`12807`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/streaming.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9e1b2b9a82f5036865dae993bc6dc1b19fefe5cb2afe76f1408e57cff95fb926"} -->
+<!-- learning-source: {"path": "workbench/streaming.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "99c2a307c704f66dcaaa66f5470cb7e499f85d28e027b09ea153d86430c92444"} -->
 ````python
 # workbench/streaming.py
 """Durable, authenticated UI streams. A subscriber never owns the model worker.
 
-Only a schema's explicitly user-facing root string is projected. Partial text is
-always a draft; executable/schema data is available only after strict validation.
+Only an explicitly user-facing string is projected. Partial text is limited to
+root fields; nested summaries are exposed only after full strict validation.
 """
 
 import asyncio
 import json
+import sys
 import uuid
 
 from fastapi import Depends, Header, HTTPException, Query, Request
@@ -64,29 +66,43 @@ from pydantic import SecretStr
 
 from workbench.model_diagnostics import failure_diagnostic
 
-PUBLIC_FIELDS = {
-    "Requirement": "summary",
-    "Plan": "title",
-    "Patches": "explanation",
-    "ModelReview": "summary",
+PUBLIC_PATHS = {
+    ("workbench.domain", "Requirement"): ("summary",),
+    ("workbench.domain", "Plan"): ("title",),
+    ("workbench.domain", "Patches"): ("explanation",),
+    ("workbench.domain", "ModelReview"): ("summary",),
+    ("workbench.feature_planning", "FeatureOutline"): ("summary",),
+    ("workbench.feature_planning", "FeatureDesign"): ("outline", "summary"),
+    ("workbench.orchestration", "ExtensionDesign"): ("implementation", "summary"),
+    ("workbench.capability_contracts", "CapabilityPlan"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityOutline"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityScenarioBatch"): ("summary",),
+    ("workbench.capability_contracts", "CapabilityEdits"): ("explanation",),
 }
 MAX_PUBLIC_TEXT = 20000
 
 
-def public_field(schema):
-    # Identity, rather than an arbitrary schema with the same name, is intentional.
-    from workbench import domain
+def public_path(schema):
+    # Check the real class identity without importing optional workflow modules
+    # just to display a summary. A same-named external schema is not trusted.
+    module, name = schema.__module__, schema.__name__
+    if getattr(sys.modules.get(module), name, None) is schema:
+        return PUBLIC_PATHS.get((module, name))
+    return None
 
-    return (
-        PUBLIC_FIELDS.get(schema.__name__)
-        if getattr(domain, schema.__name__, None) is schema
-        else None
-    )
+
+def public_field(schema):
+    path = public_path(schema)
+    return path[0] if path and len(path) == 1 else None
 
 
 def public_text(value, schema):
-    field = public_field(schema)
-    return str(getattr(value, field, "")) if field else ""
+    path = public_path(schema)
+    if not path:
+        return ""
+    for field in path:
+        value = getattr(value, field, None)
+    return value if isinstance(value, str) else ""
 
 
 def string_projection(source):
