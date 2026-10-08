@@ -307,8 +307,14 @@ def _permission_action_sets(records):
 
 def _semantic_descriptor(kind, descriptor):
     descriptor = _aliases(descriptor, _ALIASES.get(kind, {}))
-    if kind == "permissions" and "actions" in descriptor:
-        descriptor["actions"] = _actions(descriptor["actions"])
+    if kind == "permissions":
+        for key in ("actions", "only_actions", "denied_actions", "forbidden_actions"):
+            if key in descriptor:
+                descriptor[key] = _actions(descriptor[key])
+        if "actions" in descriptor and not descriptor["actions"]:
+            raise ValueError("actions 需要非空动作标识列表")
+        if "read_only" in descriptor and type(descriptor["read_only"]) is not bool:
+            raise ValueError("read_only 需要布尔值")
     if kind == "metrics" and "filter" in descriptor:
         value = _decode(descriptor["filter"])
         if not isinstance(value, dict) or not value:
@@ -377,6 +383,67 @@ def _semantic_descriptor(kind, descriptor):
                 )
             expected["transitions"] = normalized
     return expected
+
+
+def business_analysis_conflicts(requirement, *, previous=None):
+    """Reject malformed fact expressions before they become approved obligations.
+
+    Reuse the design validator's structural grammar. This does not compare a
+    candidate Plan, infer permissions, or remove facts: the ordinary analysis
+    repair gate must preserve the original request and correct its expression.
+    """
+    entities = {item.entity for item in requirement.entity_requirements}
+    entities.update(item.entity for item in requirement.field_requirements if item.entity)
+    previous = previous or {}
+    previous_entities = entities | {
+        item["entity"]
+        for section in ("entity_requirements", "field_requirements")
+        for item in previous.get(section, [])
+        if item.get("entity")
+    }
+
+    def signature(kind, path, descriptor):
+        return kind, path, json.dumps(descriptor, ensure_ascii=False, sort_keys=True)
+
+    retained = {
+        signature(kind, path, descriptor)
+        for kind, path, descriptor, _ in _business_facts(
+            previous.get("facts", {}), previous_entities
+        )
+    }
+    diagnostics = []
+    for kind, path, descriptor, _ in _business_facts(requirement.facts, entities):
+        code = "requirement_business_shape"
+        try:
+            expected = _semantic_descriptor(kind, descriptor)
+            if requirement.data_scope == "per_user" and expected:
+                code = "requirement_business_scope"
+                raise ValueError(
+                    "per_user 与声明式业务义务冲突；业务契约要求 shared 和明确行权限。"
+                    "依据原文区分普通本人记录 CRUD 与团队业务，不自动改范围或删除需求"
+                )
+        except ValueError as exc:
+            source = {"section": "facts", "path": path, "domain": kind}
+            old = signature(kind, path, descriptor) in retained
+            diagnostics.append(
+                {
+                    "code": code,
+                    "target": {"entity": descriptor.get("entity"), "field": None},
+                    "attribute": kind,
+                    "sources": [
+                        {
+                            "source": source,
+                            "expected": descriptor,
+                            "origin": "previous_requirement" if old else "model_analysis",
+                            **({"previous_source": dict(source)} if old else {}),
+                            "text": str(exc) + ": " + json.dumps(descriptor, ensure_ascii=False),
+                            "user_sources": [],
+                        }
+                    ],
+                    "message": f"需求分析的业务事实 {path} 表达无效：{exc}；依据原始需求修正分析后再设计",
+                }
+            )
+    return diagnostics
 
 
 def _metric_scope(descriptor):
@@ -739,8 +806,6 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
             "add_note",
         }:
             return False
-        if "read_only" in descriptor and type(descriptor["read_only"]) is not bool:
-            raise ValueError("read_only 需要布尔值")
         for key in ("denied_actions", "forbidden_actions"):
             if key in descriptor and actual & set(_actions(descriptor[key])):
                 return False
@@ -902,8 +967,6 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
             descriptor = _aliases(raw_descriptor, _ALIASES.get(kind, {}))
             expected = _semantic_descriptor(kind, raw_descriptor)
             if kind == "permissions" and "actions" in expected:
-                if not expected["actions"]:
-                    raise ValueError("actions 需要非空动作标识列表")
                 key = (collection, _permission_key(expected))
                 if key in permission_actions:
                     expected["actions"] = sorted(permission_actions[key])

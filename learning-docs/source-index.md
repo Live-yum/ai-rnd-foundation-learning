@@ -310,6 +310,7 @@
 - [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](10-business/sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)（1 段）
 - [tests/fixtures/yudao-native-date/WbRequestsSaveReqVO.java](10-business/sources/tests__fixtures__yudao-native-date__WbRequestsSaveReqVO_java--001.md)（1 段）
 - [tests/test_business_acceptance_evidence.py](10-business/sources/tests__test_business_acceptance_evidence_py--001.md)（1 段）
+- [tests/test_business_analysis_validation.py](10-business/sources/tests__test_business_analysis_validation_py--001.md)（1 段）
 - [tests/test_business_assignment_probe.py](10-business/sources/tests__test_business_assignment_probe_py--001.md)（1 段）
 - [tests/test_business_audit_dialog.py](10-business/sources/tests__test_business_audit_dialog_py--001.md)（1 段）
 - [tests/test_business_audit_permissions.py](10-business/sources/tests__test_business_audit_permissions_py--001.md)（1 段）
@@ -611,6 +612,7 @@
 - [tests/test_container_diagnostic_review.py](14-acceptance/sources/tests__test_container_diagnostic_review_py--001.md)（1 段）
 - [tests/test_declarative_fields.py](14-acceptance/sources/tests__test_declarative_fields_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）
+- [tests/test_entity_field_fact_inventory.py](14-acceptance/sources/tests__test_entity_field_fact_inventory_py--001.md)（1 段）
 - [tests/test_entity_group_clause_scope.py](14-acceptance/sources/tests__test_entity_group_clause_scope_py--001.md)（1 段）
 - [tests/test_extension_business_oracle.py](14-acceptance/sources/tests__test_extension_business_oracle_py--001.md)（1 段）
 - [tests/test_feature_workflow.py](14-acceptance/sources/tests__test_feature_workflow_py--001.md)（1 段）
@@ -624,6 +626,7 @@
 - [tests/test_handbook_runtime.py](14-acceptance/sources/tests__test_handbook_runtime_py--001.md)（1 段）
 - [tests/test_handbook_source_spans.py](14-acceptance/sources/tests__test_handbook_source_spans_py--001.md)（1 段）
 - [tests/test_json_diagnostics.py](14-acceptance/sources/tests__test_json_diagnostics_py--001.md)（1 段）
+- [tests/test_keyword_query_binding.py](14-acceptance/sources/tests__test_keyword_query_binding_py--001.md)（1 段）
 - [tests/test_learning_docs.py](14-acceptance/sources/tests__test_learning_docs_py--001.md)（1 段）
 - [tests/test_learning_docs_frontend.py](14-acceptance/sources/tests__test_learning_docs_frontend_py--001.md)（1 段）
 - [tests/test_learning_docs_signup.py](14-acceptance/sources/tests__test_learning_docs_signup_py--001.md)（1 段）

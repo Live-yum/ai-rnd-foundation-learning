@@ -147,6 +147,7 @@
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_declarative_fields.py](sources/tests__test_declarative_fields_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
+- [tests/test_entity_field_fact_inventory.py](sources/tests__test_entity_field_fact_inventory_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_feature_workflow.py](sources/tests__test_feature_workflow_py--001.md)：可重复的验收用例；1 段
@@ -160,6 +161,7 @@
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_source_spans.py](sources/tests__test_handbook_source_spans_py--001.md)：可重复的验收用例；1 段
 - [tests/test_json_diagnostics.py](sources/tests__test_json_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_keyword_query_binding.py](sources/tests__test_keyword_query_binding_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs.py](sources/tests__test_learning_docs_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_frontend.py](sources/tests__test_learning_docs_frontend_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_signup.py](sources/tests__test_learning_docs_signup_py--001.md)：可重复的验收用例；1 段

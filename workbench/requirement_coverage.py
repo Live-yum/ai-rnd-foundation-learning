@@ -505,7 +505,7 @@ def _business_schema(value):
     )
 
 
-def _fact_records(facts, fields):
+def _fact_records(facts, fields, *, entity_names=()):
     """Classify structural facts before projecting field constraints or prose.
 
     A name/entity pair alone is not a field declaration. Field definitions have
@@ -513,7 +513,7 @@ def _fact_records(facts, fields):
     names, kinds, reference fields and scalar lists. We still descend into every
     structural object so nested explicit field definitions cannot disappear.
     """
-    entities = {entity for entity, _ in fields}
+    entities = {entity for entity, _ in fields} | set(entity_names)
 
     def walk(
         key, value, path, entity=None, subject=None, business=False, container=None, domain=None
@@ -564,7 +564,33 @@ def _fact_records(facts, fields):
         ):
             yield "constraint", label, {}, _fact_subject(None, fields, entity, declared=True)
             return
-        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        # An unambiguous entity key groups field declarations; it is not itself
+        # an enum field whose choices are those field names. Retain the legacy
+        # enum shorthand when the same key already identifies a real field.
+        field_group = (
+            container == "fields"
+            and subject is None
+            and entity is None
+            and key in entities
+            and isinstance(value, (dict, list))
+            and _fact_subject(key, fields) is None
+            and not (
+                isinstance(value, dict)
+                and (
+                    set(value) & FACT_ATTRIBUTES
+                    or "field" in value
+                    or (
+                        "name" in value
+                        and not isinstance(_decode_fact(value["name"]), (dict, list))
+                    )
+                )
+            )
+        )
+        if field_group:
+            entity = key
+        field_container = field_group or (
+            key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        )
         resource_container = (
             key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
         )
@@ -580,7 +606,7 @@ def _fact_records(facts, fields):
             if relation_container
             else None
         )
-        declared = container == "fields"
+        declared = container == "fields" and not field_group
         direct = _fact_subject(key, fields, entity, declared=declared and not key.isdigit())
         attributes = (
             {name: _decode_fact(item) for name, item in value.items() if name in FACT_ATTRIBUTES}
@@ -721,6 +747,22 @@ def _fact_records(facts, fields):
                     domain,
                 )
         elif isinstance(value, list):
+            if collection == "fields" and entity is not None and domain != "constraints":
+                # A scoped list of identifiers declares field presence. Emit
+                # each obligation even when the candidate omitted that field
+                # or its entire entity; do not silently discard malformed rows.
+                for index, item in enumerate(value or [None]):
+                    decoded = _decode_fact(item)
+                    if not isinstance(decoded, (dict, list)):
+                        yield (
+                            "constraint",
+                            f"{label}.{index}",
+                            {},
+                            _fact_subject(decoded, fields, entity, declared=True)
+                            or _fact_subject(None, fields, entity, declared=True),
+                        )
+                if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
+                    return
             if domain == "constraints" and collection == "fields":
                 for index, item in enumerate(value):
                     if not isinstance(_decode_fact(item), dict):
@@ -783,8 +825,8 @@ def _fact_records(facts, fields):
             yield from walk(key, value, [key])
 
 
-def _fact_constraints(facts, fields=()):
-    for kind, path, value, subject in _fact_records(facts, fields):
+def _fact_constraints(facts, fields=(), *, entity_names=()):
+    for kind, path, value, subject in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "constraint":
             yield path, value, subject
 
@@ -835,8 +877,8 @@ def _scalar_fact_attribute(label, value):
     return attribute
 
 
-def _fact_texts(facts, fields=()):
-    for kind, path, value, _ in _fact_records(facts, fields):
+def _fact_texts(facts, fields=(), *, entity_names=()):
+    for kind, path, value, _ in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "text":
             yield path, value
 
@@ -985,6 +1027,18 @@ def _query_predicate_text(text, fields):
     # exclusion. Output/display surfaces (e.g. search results) are not controls.
     subject = rf"(?:[a-z][a-z0-9_]*(?:::|\.))?(?:{subjects.pattern})"
     targets = rf"{subject}(?:\s*(?:[、/]|和|与|\band\b)\s*{subject})*"
+    # A keyword query (or a field-bound keyword shorthand) is a search
+    # predicate. Lower it before noun/negative/clause handling, so a following
+    # exact-filter operator cannot absorb these already-complete targets.
+    keyword = r"(?:关键词|关键字|(?<![a-z0-9_])keywords?(?![a-z0-9_]))"
+    text = re.sub(keyword + r"\s*(?:查询|\bquer(?:y|ies)\b)", " search ", text, flags=re.I)
+    text = re.sub(
+        rf"(?P<targets>{targets})\s*(?:的\s*)?{keyword}"
+        r"(?=\s*(?:以及|及|并且|并|且|和|与|\band\b|[、，,；;。\n]|$))",
+        r"\g<targets> search ",
+        text,
+        flags=re.I,
+    )
     controls = r"(?:filters?|filter\s+(?:criteria|conditions?)|search\s+(?:criteria|conditions?))"
 
     def negative_membership(match):
@@ -2497,7 +2551,8 @@ def coverage_gaps(
         for section in ("features", "acceptance")
         for index, text in enumerate(getattr(requirement, section))
     ]
-    structured = list(_fact_constraints(requirement.facts, fields))
+    entity_names = {item.entity for item in requirement.entity_requirements}
+    structured = list(_fact_constraints(requirement.facts, fields, entity_names=entity_names))
     for index, (key, attributes, subject) in enumerate(structured):
         source = {"section": "facts", "index": index, "encoding": "structured", "path": key}
         source_text = key
@@ -2534,7 +2589,9 @@ def coverage_gaps(
                     )
     texts.extend(
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
-        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
+        for index, (path, text) in enumerate(
+            _fact_texts(requirement.facts, fields, entity_names=entity_names)
+        )
     )
     affirmative_texts = []
     for origin, text in texts:

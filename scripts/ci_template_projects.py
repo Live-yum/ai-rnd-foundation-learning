@@ -7,6 +7,7 @@ mode, fixed-Plan fallback, automatic rerun, or success inferred from model prose
 """
 
 import argparse
+import hashlib
 import hmac
 import json
 import math
@@ -71,7 +72,8 @@ DIAGNOSTIC_CODES = set(
     "structured_missing_field legacy_missing_field forbidden_field date_kind missing_metric_predicate "
     "uncovered_operation business_constraint_mismatch business_missing_record business_scope_mismatch "
     "business_unapproved_grant business_unapproved_role business_unsupported_shape "
-    "business_missing_history_grant".split()
+    "business_missing_history_grant requirement_business_shape requirement_business_scope "
+    "requirement_source_conflict additional_source_conflicts".split()
 )
 BLOCK_SOURCES = set(
     "planner_unsupported feature_routing template_field_kind requirement_coverage business_coverage "
@@ -88,7 +90,7 @@ def feedback_vocabulary(cases):
         | BLOCK_SOURCES
         | set(
             "summary facts features acceptance users business policy resources relations permissions "
-            "notifications workflows metrics field_requirements entity_requirements structured legacy "
+            "notifications workflows metrics field_requirements entity_requirements user_messages structured legacy "
             "search filter metric capability_catalog negation explicit_entity_inventory "
             "explicit_field_inventory assignment handling_note comment_added state_change state_changed "
             "overdue assignee_id created_by request_submitter".split()
@@ -157,12 +159,10 @@ def feedback_snapshot(feedback, settings, vocabulary):
             return selected
         return {"type": "unknown"}
 
-    def diagnostic(item):
-        code = item.get("code")
-        result = {"code": code if isinstance(code, str) and code in DIAGNOSTIC_CODES else "unknown"}
-        source = item.get("source", {})
+    def source_location(source):
+        result = {}
         if isinstance(source, dict):
-            result["source"] = {
+            result = {
                 key: source[key]
                 for key in ("section", "domain", "encoding")
                 if isinstance(source.get(key), str) and source[key] in known
@@ -176,15 +176,23 @@ def feedback_snapshot(feedback, settings, vocabulary):
                 "metric_clause",
             ):
                 if type(source.get(key)) is int and 0 <= source[key] <= 100000:
-                    result["source"][key] = source[key]
+                    result[key] = source[key]
             if isinstance(source.get("path"), str):
                 parts = re.split(r"[.\[\]/]+", source["path"])
-                result["source"]["path"] = ".".join(
+                result["path"] = ".".join(
                     part if part in known or re.fullmatch(r"\d{1,6}", part) else "<key>"
                     for part in parts[:20]
                 )
+        return result
+
+    def diagnostic(item):
+        code = item.get("code")
+        result = {"code": code if isinstance(code, str) and code in DIAGNOSTIC_CODES else "unknown"}
+        if "source" in item:
+            result["source"] = source_location(item["source"])
         for key in (
             "targets",
+            "target",
             "attribute",
             "expected",
             "actual",
@@ -195,6 +203,28 @@ def feedback_snapshot(feedback, settings, vocabulary):
         ):
             if key in item:
                 result[key] = value(item[key])
+        if type(item.get("count")) is int and 0 <= item["count"] <= 100000:
+            result["count"] = item["count"]
+        if isinstance(item.get("sources"), list):
+            result["sources"] = [
+                {
+                    "source": source_location(record.get("source")),
+                    "expected": value(record.get("expected")),
+                    "origin": record["origin"]
+                    if isinstance(record.get("origin"), str)
+                    and record["origin"] in {"model_analysis", "previous_requirement", "user_input"}
+                    else "unknown",
+                    **(
+                        {"previous_source": source_location(record["previous_source"])}
+                        if "previous_source" in record
+                        else {}
+                    ),
+                }
+                for record in item["sources"][:4]
+                if isinstance(record, dict)
+            ]
+            result["sources_count"] = len(item["sources"])
+            result["sources_omitted"] = len(item["sources"]) - len(result["sources"])
         return result
 
     sources = feedback.get("block_sources", [])
@@ -217,7 +247,7 @@ def feedback_snapshot(feedback, settings, vocabulary):
     }
     if type(feedback.get("round")) is int and 0 <= feedback["round"] <= 100000:
         result["round"] = feedback["round"]
-    for kind in ("coverage_diagnostics", "business_diagnostics"):
+    for kind in ("coverage_diagnostics", "business_diagnostics", "analysis_diagnostics"):
         items = feedback.get(kind, [])
         items = items if isinstance(items, list) else []
         result[kind] = []
@@ -455,13 +485,14 @@ class ObservedGateway(ModelGateway):
             else "unknown",
             "validated": False,
         }
-        if stage == "plan":
+        if stage in {"plan", "recommend", "requirement"}:
             feedback = payload.get("resolution_feedback", {})
             trace.update(
-                previous_plan_sha256=digest(payload.get("previous_plan", {})),
                 feedback_sha256=digest(feedback),
                 resolution_feedback=feedback_snapshot(feedback, self.settings, self.vocabulary),
             )
+        if stage == "plan":
+            trace["previous_plan_sha256"] = digest(payload.get("previous_plan", {}))
         self.traces.append(trace)
         result = super().complete(run_id, key, instruction, payload, schema)
         trace["validated"] = True
@@ -715,9 +746,12 @@ def run_suite(settings, directory, binding):
                             "error_type": type(error).__name__,
                         }
                         if run.get("error"):
-                            receipt["failure"]["workflow_error"] = settings.redact(run["error"])[
-                                :2000
-                            ]
+                            receipt["failure"]["workflow_error"] = {
+                                "code": receipt["failure"]["code"],
+                                "status": run["status"],
+                                "sha256": hashlib.sha256(run["error"].encode()).hexdigest(),
+                                "characters": len(run["error"]),
+                            }
                     receipt["provider_receipts"] = [
                         {key: value for key, value in item.items() if key != "run_id"}
                         for item in transport.receipts

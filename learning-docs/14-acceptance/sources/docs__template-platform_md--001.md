@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L185。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L187。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12890`。本段原文以LF换行结束。
+本段原始字节数：`13445`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "060ac7ac45972e4ffc814c2224989d8f455f13a651f3b7784e7baef067ecff58"} -->
+<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "82225007cdac783d827c5e00baa39505584942dc8cf77a6e5fcda5dd3e7d289c"} -->
 ````markdown
 <!-- docs/template-platform.md -->
 # 从零实现可批量定制的模板研发平台
@@ -49,6 +49,8 @@
 | 6 | 执行与恢复 | `Workflow.compile`、`Runtime.tick` | 图状态按 run ID 持久化，审批绑定当前 gate，失败保留原运行 |
 | 7 | 操作台 | `api.py`、`ui/src/state.ts`、Vue 组件 | 用户能提交批次、看到每项真实状态、处理等待与失败、下载交付 |
 | 8 | 跨场景验收 | `scripts/ci_template_projects.py` 与案例目录 | 三个真实模型项目全部完成独立验收 |
+
+实现需求到设计的流程时，先用 `analysis_source_conflicts` 检查明确约束的来源一致性，用 `business_analysis_conflicts` 检查已识别业务事实的表达与范围；发现问题即回到 `clarification`，保留原始输入和 requirement ledger，并沿用原有分析修复预算。分析通过后，设计阶段再检查 `Plan` 是否覆盖已批准需求。旧批准事实继续由同一套基于用户明确修改来源的授权机制保护，不能借修复自动删除已批准事实或改动已确认的数据范围。
 
 不要在数据库事务中调用模型或等待构建。事务只负责建立项目、保存需求并入队；耗时任务由 Worker 完成。这样 API 可以及时返回，页面关闭后队列仍然存在。
 

@@ -17,15 +17,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `coverage_gaps.gap`（L2427–L2455）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2429按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `coverage_gaps.gap`（L2481–L2509）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2483按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2427–L2858。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2481–L2915。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20544`。本段原文以LF换行结束。
+本段原始字节数：`20697`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b23845f2d0421e9b078546869bedf2a843df8876bcb938bbe04254263fd95057"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "51aaba3e2067787d4ab087cac7296fabd54dd4027a659b9f7c55669d5533f203"} -->
 ````python
 # workbench/requirement_coverage.py
     def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
@@ -101,7 +101,8 @@
         for section in ("features", "acceptance")
         for index, text in enumerate(getattr(requirement, section))
     ]
-    structured = list(_fact_constraints(requirement.facts, fields))
+    entity_names = {item.entity for item in requirement.entity_requirements}
+    structured = list(_fact_constraints(requirement.facts, fields, entity_names=entity_names))
     for index, (key, attributes, subject) in enumerate(structured):
         source = {"section": "facts", "index": index, "encoding": "structured", "path": key}
         source_text = key
@@ -138,7 +139,9 @@
                     )
     texts.extend(
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
-        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
+        for index, (path, text) in enumerate(
+            _fact_texts(requirement.facts, fields, entity_names=entity_names)
+        )
     )
     affirmative_texts = []
     for origin, text in texts:

@@ -1,6 +1,7 @@
 """Harness integrity and synthetic HTTP checks. None of these are live-model evidence."""
 
 import copy
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -34,12 +35,13 @@ from scripts.template_acceptance_cases import (
     suite_cases,
 )
 from scripts.template_acceptance_runtime import check_json, resolve, run_scenario
-from workbench.business_capabilities import business_gaps
+from workbench.business_capabilities import business_analysis_conflicts, business_gaps
 from workbench.domain import Plan, Requirement, digest
 from workbench.generator import generate_basic
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.model_protocol import OutputFailure
 from workbench.requirement_coverage import coverage_gaps
+from workbench.requirement_sources import analysis_feedback
 from workbench.store import Store
 
 
@@ -354,6 +356,8 @@ def test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_recei
                 "stage": "requirement",
                 "logical_key": "recommend:1",
                 "payload_sha256": digest({}),
+                "feedback_sha256": digest({}),
+                "resolution_feedback": {},
                 "validated": True,
             }
         ]
@@ -541,6 +545,32 @@ def test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bou
                 "actual": secret,
             }
         ],
+        "analysis_diagnostics": [
+            {
+                "code": "requirement_business_shape",
+                "target": {"entity": "books", "field": None},
+                "sources": [
+                    {
+                        "source": {"section": "facts", "path": "business.private_identifier"},
+                        "expected": {"entity": "books"},
+                        "origin": "previous_requirement",
+                        "previous_source": {
+                            "section": "user_messages",
+                            "index": 0,
+                            "path": "private_identifier.permissions",
+                            "text": "private-source-canary",
+                        },
+                        "excerpt": "private-excerpt-canary",
+                    },
+                    {
+                        "source": {"section": "user_messages", "index": 1},
+                        "expected": "private-input-canary",
+                        "origin": "user_input",
+                    },
+                    {"source": {}, "expected": None, "origin": "private-origin-canary"},
+                ],
+            }
+        ],
         "prompt": "private-prompt-canary",
         "previous_plan": {"title": "private-plan-canary"},
     }
@@ -553,9 +583,130 @@ def test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bou
     assert shown["business_diagnostics"][1]["expected"] == {"enabled": True}
     assert shown["business_diagnostics"][1]["actual"]["enabled"] is False
     assert shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")
+    sources = shown["analysis_diagnostics"][0]["sources"]
+    assert [record["origin"] for record in sources] == [
+        "previous_requirement",
+        "user_input",
+        "unknown",
+    ]
+    assert sources[0]["previous_source"] == {
+        "section": "user_messages",
+        "index": 0,
+        "path": "<key>.permissions",
+    }
+    assert sources[1]["source"] == {"section": "user_messages", "index": 1}
     encoded = json.dumps(shown)
     assert "private" not in encoded and secret not in encoded
     assert all(name not in encoded for name in ("api_key", "previous_plan", "prompt", "label"))
+
+
+@pytest.mark.parametrize(
+    "action,code",
+    [
+        ("private-action-canary", "requirement_business_shape"),
+        ("read", "requirement_business_scope"),
+    ],
+)
+def test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails(
+    tmp_path, action, code
+):
+    analysis = Requirement(
+        summary="private-analysis-canary",
+        users=[],
+        data_scope="per_user",
+        features=[],
+        acceptance=[],
+        facts={
+            "private_fact_namespace": {
+                "business": {
+                    "permissions": [
+                        {
+                            "role": "private-role-canary",
+                            "entity": "books",
+                            "actions": [action],
+                            "scope": "own",
+                        }
+                    ]
+                }
+            }
+        },
+    )
+    issues = business_analysis_conflicts(analysis)
+    assert len(issues) == 1 and issues[0]["code"] == code
+    feedback = {
+        "stage": "clarification",
+        "round": 1,
+        "blocked": [issues[0]["message"]],
+        "analysis_diagnostics": analysis_feedback(issues),
+    }
+    settings = configured_settings(tmp_path)
+    store = Store(settings)
+    store.migrate()
+    transport = BoundedTransport(settings)
+    transport.inner.close()
+    sent = []
+
+    def provider(request):
+        sent.append(json.loads(request.content))
+        content = analysis.model_dump_json() if len(sent) == 1 else '{"private-response-canary":]}'
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"finish_reason": "stop", "message": {"role": "assistant", "content": content}}
+                ]
+            },
+        )
+
+    transport.inner = httpx.MockTransport(provider)
+    gateway = ObservedGateway(settings, store, transport)
+    run_id = new_run(store)
+    try:
+        gateway.complete(run_id, "recommend:1", "private-instruction-canary", {}, Requirement)
+        payload = {"resolution_feedback": feedback, "current_requirement": {}}
+        with pytest.raises(ModelFailure):
+            gateway.complete(
+                run_id, "recommend:2", "private-instruction-canary", payload, Requirement
+            )
+        trace = gateway.receipt_trace(run_id)
+        assert [r["logical_key"] for r in trace["items"]] == ["recommend:1", "recommend:2"]
+        last = trace["items"][-1]
+        assert last["validated"] is False
+        assert last["feedback_sha256"] == digest(feedback)
+        assert last["payload_sha256"] == digest(payload)
+        shown = last["resolution_feedback"]
+        assert shown["stage"] == "clarification" and shown["round"] == 1
+        assert shown["analysis_diagnostics_count"] == 1
+        assert shown["analysis_diagnostics_omitted"] == 0
+        diagnostic = shown["analysis_diagnostics"][0]
+        assert diagnostic["code"] == code
+        assert diagnostic["target"] == {"entity": "books", "field": None}
+        assert diagnostic["attribute"] == "permissions"
+        source = diagnostic["sources"][0]
+        assert source["source"] == {
+            "section": "facts",
+            "path": "<key>.business.permissions.0",
+            "domain": "permissions",
+        }
+        assert source["origin"] == "model_analysis"
+        assert source["expected"]["scope"] == "own"
+        assert source["expected"]["role"] == {"type": "string", "characters": 19}
+        assert source["expected"]["actions"] == (
+            ["read"] if action == "read" else [{"type": "string", "characters": len(action)}]
+        )
+        assert [r["logical_key"] for r in transport.receipts] == [
+            "recommend:1",
+            "recommend:2",
+            "recommend:2",
+        ]
+        assert len(sent) == transport.calls[run_id] == store.get_run(run_id)["model_calls"] == 3
+        assert "private" not in json.dumps(trace) and "unit-only-key" not in json.dumps(trace)
+        assert all(
+            key not in source for key in ("text", "excerpt", "user_sources", "previous_source")
+        )
+    finally:
+        transport.shutdown()
+        store.engine.dispose()
 
 
 def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds(
@@ -598,6 +749,40 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         "business_coverage": 100
     }
     assert "private" not in json.dumps(bounded)
+    analysis = feedback_snapshot(
+        {
+            "stage": "clarification",
+            "analysis_diagnostics": [
+                {
+                    "code": "requirement_business_shape",
+                    "target": {"entity": "books", "field": None},
+                    "attribute": "permissions",
+                    "sources": [
+                        {
+                            "source": {
+                                "section": "facts",
+                                "path": "private.business.permissions.0",
+                            },
+                            "expected": {"entity": "books", "actions": ["read"], "scope": "own"},
+                            "origin": "model_analysis",
+                            "excerpt": "private-analysis-canary",
+                        }
+                    ]
+                    * 6,
+                }
+            ]
+            * 13,
+        },
+        settings,
+        vocabulary,
+    )
+    assert len(json.dumps(analysis, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES
+    assert analysis["analysis_diagnostics_count"] == 13
+    assert analysis["analysis_diagnostics_omitted"] > 0
+    first = analysis["analysis_diagnostics"][0]
+    assert first["sources_count"] == 6 and first["sources_omitted"] == 2
+    assert len(first["sources"]) == 4
+    assert "private" not in json.dumps(analysis)
     transport = BoundedTransport(settings)
     gateway = ObservedGateway(settings, None, transport)
     monkeypatch.setattr(ModelGateway, "complete", lambda *args, **kwargs: object())
@@ -617,6 +802,64 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         assert not transport.receipts
     finally:
         transport.shutdown()
+
+
+def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
+    tmp_path, monkeypatch, capsys
+):
+    from scripts import ci_template_projects as suite
+
+    settings = configured_settings(tmp_path)
+    error = "private_fact_namespace.permissions.0: private-excerpt-canary unit-only-key"
+    internal_errors = []
+
+    class FailedWorker:
+        """Inject a terminal failure into the real Store; no model or browser runs."""
+
+        def __init__(self, settings, store, gateway):
+            self.store = store
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def tick(self):
+            job = self.store.claim()
+            if job is None:
+                return False
+            self.store.finish(job, "BLOCKED", error=error)
+            internal_errors.append(self.store.get_run(job["run_id"])["error"])
+            return True
+
+    reports = tmp_path / "reports"
+    monkeypatch.setattr(suite, "Runtime", FailedWorker)
+    monkeypatch.setattr(suite, "REPORTS", reports)
+    report = suite.run_suite(settings, tmp_path, {"offline_guard": True})
+    assert internal_errors == [error] * 3  # Product details remain available internally.
+    assert report["passed"] is False and report["real_model"] is False
+    assert report["actual_model_calls"] == 0 and len(report["cases"]) == 3
+    for receipt in report["cases"]:
+        assert receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"
+        assert receipt["failure"]["workflow_error"] == {
+            "code": "workflow_not_ready",
+            "status": "BLOCKED",
+            "sha256": hashlib.sha256(error.encode()).hexdigest(),
+            "characters": len(error),
+        }
+    output = capsys.readouterr().out
+    emitted = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
+    assert emitted == report["cases"]
+    for text in [
+        output,
+        json.dumps(report),
+        *(path.read_text() for path in reports.glob("*.json")),
+    ]:
+        assert all(
+            canary not in text
+            for canary in ("private_fact_namespace", "private-excerpt-canary", "unit-only-key")
+        )
 
 
 @pytest.mark.parametrize(

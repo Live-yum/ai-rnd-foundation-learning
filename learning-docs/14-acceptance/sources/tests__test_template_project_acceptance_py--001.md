@@ -10,48 +10,57 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.ci_template_projects`、`scripts.template_acceptance_cases`、`scripts.template_acceptance_runtime`、`workbench.business_capabilities`、`workbench.domain`、`workbench.generator`、`workbench.llm`、`workbench.model_protocol`、`workbench.requirement_coverage`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.ci_template_projects`、`scripts.template_acceptance_cases`、`scripts.template_acceptance_runtime`、`workbench.business_capabilities`、`workbench.domain`、`workbench.generator`、`workbench.llm`、`workbench.model_protocol`、`workbench.requirement_coverage`、`workbench.requirement_sources`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `fixture_plan`（L46–L61）：接收`case`。 源码说明：Test-only metadata for exercising the harness; the live controller cannot import it.。 控制顺序：L58按`data.get("business")`分支；L59遍历`[*data["business"]["roles"], *data["business"]["metrics"]]`。 调用`copy.deepcopy`、`data.update`、`fields.items`、`data["entities"].items`、`data.get`、`Plan.model_validate`。 返回路径：L61的`Plan.model_validate(data)`。
-- `test_three_explicit_scales_and_independent_contracts`（L64–L79）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L66断言`[len(case.contract["entities"]) for case in cases] == [1, 3, 6]`；L67断言`[len(case.contract.get("business", {}).get("workflows", [])) for case in cases] == [ …`；L72断言`[len(case.contract.get("business", {}).get("roles", [])) for case in cases] == [0, 3,…`；L73遍历`cases`；L74断言`require_contract(case, fixture_plan(case).model_dump())`；L75断言`set(case.expected_checks) == {block["id"] for block in case.scenario}`；L76遍历`case.contract["entities"].items()`；L77断言`name in case.requirement`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`len`、`case.contract.get("business", {}).get`、`case.contract.get`、`require_contract`、`fixture_plan(case).model_dump`、`fixture_plan`、`set`、`case.contract["entities"].items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_each_scenario_over_real_generated_http_and_restart`（L83–L93）：接收`tmp_path`、`index`。 控制顺序：L90断言`report["passed"] is True and report["restart"] is True`；L91断言`report["browser"]["real_browser"] is False`；L92断言`report["http_requests"] >= sum(len(block["requests"]) for block in case.scenario)`。 调用`suite_cases`、`generate_basic`、`fixture_plan`、`run_scenario`、`sum`、`len`、`require_scenario_checks`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_model_plan_cannot_drop_or_change_obligations`（L97–L112）：接收`mutation`。 控制顺序：L100按`mutation == "field"`分支；L102按`mutation == "entity"`分支；L104按`mutation == "permission"`分支；L107按`mutation == "query"`分支。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`plan["entities"][0]["fields"].append`、`next`、`policy["actions"].append`、`plan["business"]["metrics"].pop`、`pytest.raises`、`require_contract`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_assertions_preserve_numbers_booleans_counts_and_row_identity`（L115–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L117断言`resolve({"count": "${row.quantity}", "enabled": "${row.enabled}"}, refs) == { "count"…`；L121断言`resolve("/api/orders/${row.id}", refs) == "/api/orders/x"`；L128遍历`[ (True, {"equals": 1}), ([], {"contains": {"id": "x"}}), ([{"id"…`。 调用`resolve`、`check_json`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `github_env`（L138–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L139的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": REPOSITORY, "GITHUB_EVENT_NAME": "pull_re…`。
-- `github_event`（L149–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L150的`{ "action": "labeled", "label": {"name": "run-live-acceptance"}, "pull_request": { "head":…`。
-- `test_explicit_label_and_manual_dispatch_bind_exact_head_and_allow_rerun`（L160–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`trusted_event(env, event)["head_sha"] == "a" * 40`；L164断言`trusted_event(env, {})["event"] == "workflow_dispatch"`。 调用`github_env`、`github_event`、`trusted_event`、`env.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secret_scope_rejects_implicit_or_untrusted_events`（L170–L185）：接收`reason`。 控制顺序：L172按`reason == "fork"`分支；L174按`reason == "wrong_label"`分支；L176按`reason == "new_head"`分支；L178按`reason == "synchronize"`分支；L180按`reason == "pull_request_target"`分支。 调用`github_env`、`github_event`、`pytest.raises`、`trusted_event`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configured_settings`（L188–L196）：接收`tmp_path`。 调用`acceptance_settings`。 返回路径：L189的`acceptance_settings( { "BASE_URL": "https://model.invalid/v1", "MODE": "unit-only-model", …`。
-- `test_live_suite_disables_optional_review_profile_as_well_as_flag`（L199–L203）：接收`tmp_path`。 控制顺序：L201断言`settings.model_review is False`；L202断言`settings.review_enabled is False`；L203断言`settings.max_model_calls == MAX_MODEL_CALLS`。 调用`configured_settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failure_events_keep_safe_structure_and_redact_before_bounding`（L206–L236）：接收`tmp_path`。 控制顺序：L233断言`retained[0]["attempt"] == 2`；L234断言`retained[0]["details"][0]["type"] == "enum"`；L235断言`"unit-only-key" not in json.dumps(retained)`；L236断言`"raw response" not in json.dumps(retained)`。 调用`configured_settings`、`SimpleNamespace`、`failure_events`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_diagnostics_survive_failed_provider_responses_without_their_values`（L239–L276）：接收`tmp_path`。 控制顺序：L268断言`response.status_code == 200`；L269断言`transport.receipts[0]["schema_valid"] is False`；L270断言`transport.receipts[0]["validation_code"] == "schema_validation"`；L271断言`"unit-only-key" not in json.dumps(transport.receipts)`；L272断言`any( item["path"] == ["entities"] for item in transport.receipts[0]["schema_diagnosti…`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`json.dumps`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_provider_receipts_keep_only_static_categories_and_numbers`（L286–L321）：接收`tmp_path`、`content`、`category`。 控制顺序：L313断言`receipt["schema_valid"] is False`；L314断言`receipt["validation_code"] == "invalid_json"`；L316断言`detail["category"] == category`；L317断言`detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}`；L318断言`"message" not in detail`；L319断言`"unit-only-key" not in json.dumps(receipt)`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`len`、`content.encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_receipt_metadata_rejects_text_booleans_and_unbounded_numbers`（L324–L337）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L336断言`details == [{"type": "json_syntax", "lengths": {"bytes": 37}}]`；L337断言`"private-" not in json.dumps(details)`。 调用`diagnostic_facts`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_receipt`（L340–L361）：接收`tmp_path`、`monkeypatch`。 控制顺序：L350断言`transport.stage == "recommend"`；L351断言`gateway.traces == [ { "run_id": "unit-only", "stage": "requirement", "logical_key": "…`。 调用`configured_settings`、`BoundedTransport`、`ObservedGateway`、`monkeypatch.setattr`、`object`、`gateway.complete`、`digest`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure`（L364–L479）：接收`tmp_path`。 控制顺序：L396断言`coverage and business`；L434断言`gateway.complete(run_id, "plan:1", "private-instruction-canary", payload, Plan) == ca…`；L439断言`gateway.complete(run_id, "plan:2", "private-instruction-canary", payload, Plan) == ca…`；L447断言`trace["omitted"] == 0`；L448断言`[item["logical_key"] for item in trace["items"]] == ["plan:1", "plan:2", "plan:3"]`；L449断言`[item["validated"] for item in trace["items"]] == [True, True, False]`；L451断言`last["payload_sha256"] == digest(payload)`；L452断言`last["previous_plan_sha256"] == digest(candidate.model_dump())`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`next`、`Requirement`、`copy.deepcopy`、`approved_grant["actions"].remove`、`Plan.model_validate`、`coverage_gaps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure.provider`（L413–L423）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`candidate.model_dump_json`、`httpx.Response`。 返回路径：L416的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
-- `test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bounding`（L482–L558）：接收`tmp_path`。 控制顺序：L549断言`feedback == original`；L550断言`shown["business_diagnostics"][0]["source"]["path"] == "business.<key>.permissions.0"`；L551断言`shown["business_diagnostics"][0]["expected"] == diagnostic["expected"]`；L552断言`shown["business_diagnostics"][0]["actual"][0]["scope"] == "all"`；L553断言`shown["business_diagnostics"][1]["expected"] == {"enabled": True}`；L554断言`shown["business_diagnostics"][1]["actual"]["enabled"] is False`；L555断言`shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")`；L557断言`"private" not in encoded and secret not in encoded`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`copy.deepcopy`、`feedback_snapshot`、`feedback_vocabulary`、`suite_cases`、`len`、`json.dumps`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds`（L561–L619）：接收`tmp_path`、`monkeypatch`。 控制顺序：L594断言`len(json.dumps(bounded, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L595断言`bounded["business_diagnostics_count"] == 13`；L596断言`bounded["business_diagnostics_omitted"] > 0`；L597断言`bounded["blocked_count"] == 100 and bounded["block_sources"] == { "business_coverage"…`；L600断言`"private" not in json.dumps(bounded)`；L606遍历`range(30)`；L612断言`len(json.dumps(trace, ensure_ascii=False).encode()) <= MAX_TRACE_BYTES`；L613断言`0 < len(trace["items"]) < MAX_MODEL_CALLS + 1`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`feedback_vocabulary`、`suite_cases`、`range`、`".".join`、`feedback_snapshot`、`len`、`json.dumps(bounded, ensure_ascii=False).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_transport_bounds_actual_requests_before_dispatch`（L625–L657）：接收`tmp_path`、`case`。 控制顺序：L640按`case == "destination"`分支；L642按`case == "model"`分支；L644按`case == "token_budget"`分支；L646按`case == "call_budget"`分支；L648按`case == "authorization"`分支；L656断言`not calls`。 调用`BoundedTransport`、`configured_settings`、`transport.inner.close`、`httpx.MockTransport`、`calls.append`、`httpx.Response`、`pytest.raises`、`transport.handle_request`、`httpx.Request`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `success_receipts`（L660–L681）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Fabricated metadata for negative aggregate tests only; never written as evidence.。 调用`list`、`suite_cases`。 返回路径：L662的`[ { "case": case.identity, "source_digest": case.source_digest, "passed": True, "ready": T…`。
-- `test_all_three_must_pass_with_real_calls_and_complete_evidence`（L698–L719）：接收`reason`。 控制顺序：L700断言`aggregate(suite_cases(), results)`；L701按`reason == "missing"`分支；L703按`reason == "duplicate"`分支；L705按`reason == "failure"`分支；L707按`reason == "wrong_source"`分支；L709按`reason == "no_browser"`分支；L711按`reason == "missing_check"`分支；L713按`reason == "no_model_plan"`分支。后续分支沿下方源码相同行号继续阅读。 调用`success_receipts`、`aggregate`、`suite_cases`、`results.pop`、`copy.deepcopy`、`results[2]["scenario"]["checks"].pop`、`results[2].update`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_uses_rnd_key_without_automatic_cost_trigger`（L722–L736）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L727断言`set(events) == {"workflow_dispatch", "pull_request"}`；L728断言`events["pull_request"]["types"] == ["labeled"]`；L730断言`job["environment"] == "rnd"`；L731断言`"run-live-acceptance" in job["if"]`；L732断言`"head.repo.full_name == github.repository" in job["if"]`；L734断言`len(secret_steps) == 1`；L735断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L736断言`secret_steps[0]["run"] == "uv run python -m scripts.ci_template_projects"`。 调用`Path(__file__).resolve`、`Path`、`(root / ".github/workflows/template-project-acceptance.yml").read…`、`yaml.safe_load`、`workflow.get`、`set`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture_plan`（L48–L63）：接收`case`。 源码说明：Test-only metadata for exercising the harness; the live controller cannot import it.。 控制顺序：L60按`data.get("business")`分支；L61遍历`[*data["business"]["roles"], *data["business"]["metrics"]]`。 调用`copy.deepcopy`、`data.update`、`fields.items`、`data["entities"].items`、`data.get`、`Plan.model_validate`。 返回路径：L63的`Plan.model_validate(data)`。
+- `test_three_explicit_scales_and_independent_contracts`（L66–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68断言`[len(case.contract["entities"]) for case in cases] == [1, 3, 6]`；L69断言`[len(case.contract.get("business", {}).get("workflows", [])) for case in cases] == [ …`；L74断言`[len(case.contract.get("business", {}).get("roles", [])) for case in cases] == [0, 3,…`；L75遍历`cases`；L76断言`require_contract(case, fixture_plan(case).model_dump())`；L77断言`set(case.expected_checks) == {block["id"] for block in case.scenario}`；L78遍历`case.contract["entities"].items()`；L79断言`name in case.requirement`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`len`、`case.contract.get("business", {}).get`、`case.contract.get`、`require_contract`、`fixture_plan(case).model_dump`、`fixture_plan`、`set`、`case.contract["entities"].items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_each_scenario_over_real_generated_http_and_restart`（L85–L95）：接收`tmp_path`、`index`。 控制顺序：L92断言`report["passed"] is True and report["restart"] is True`；L93断言`report["browser"]["real_browser"] is False`；L94断言`report["http_requests"] >= sum(len(block["requests"]) for block in case.scenario)`。 调用`suite_cases`、`generate_basic`、`fixture_plan`、`run_scenario`、`sum`、`len`、`require_scenario_checks`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_plan_cannot_drop_or_change_obligations`（L99–L114）：接收`mutation`。 控制顺序：L102按`mutation == "field"`分支；L104按`mutation == "entity"`分支；L106按`mutation == "permission"`分支；L109按`mutation == "query"`分支。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`plan["entities"][0]["fields"].append`、`next`、`policy["actions"].append`、`plan["business"]["metrics"].pop`、`pytest.raises`、`require_contract`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_assertions_preserve_numbers_booleans_counts_and_row_identity`（L117–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L119断言`resolve({"count": "${row.quantity}", "enabled": "${row.enabled}"}, refs) == { "count"…`；L123断言`resolve("/api/orders/${row.id}", refs) == "/api/orders/x"`；L130遍历`[ (True, {"equals": 1}), ([], {"contains": {"id": "x"}}), ([{"id"…`。 调用`resolve`、`check_json`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `github_env`（L140–L148）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L141的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": REPOSITORY, "GITHUB_EVENT_NAME": "pull_re…`。
+- `github_event`（L151–L159）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L152的`{ "action": "labeled", "label": {"name": "run-live-acceptance"}, "pull_request": { "head":…`。
+- `test_explicit_label_and_manual_dispatch_bind_exact_head_and_allow_rerun`（L162–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164断言`trusted_event(env, event)["head_sha"] == "a" * 40`；L166断言`trusted_event(env, {})["event"] == "workflow_dispatch"`。 调用`github_env`、`github_event`、`trusted_event`、`env.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secret_scope_rejects_implicit_or_untrusted_events`（L172–L187）：接收`reason`。 控制顺序：L174按`reason == "fork"`分支；L176按`reason == "wrong_label"`分支；L178按`reason == "new_head"`分支；L180按`reason == "synchronize"`分支；L182按`reason == "pull_request_target"`分支。 调用`github_env`、`github_event`、`pytest.raises`、`trusted_event`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configured_settings`（L190–L198）：接收`tmp_path`。 调用`acceptance_settings`。 返回路径：L191的`acceptance_settings( { "BASE_URL": "https://model.invalid/v1", "MODE": "unit-only-model", …`。
+- `test_live_suite_disables_optional_review_profile_as_well_as_flag`（L201–L205）：接收`tmp_path`。 控制顺序：L203断言`settings.model_review is False`；L204断言`settings.review_enabled is False`；L205断言`settings.max_model_calls == MAX_MODEL_CALLS`。 调用`configured_settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_events_keep_safe_structure_and_redact_before_bounding`（L208–L238）：接收`tmp_path`。 控制顺序：L235断言`retained[0]["attempt"] == 2`；L236断言`retained[0]["details"][0]["type"] == "enum"`；L237断言`"unit-only-key" not in json.dumps(retained)`；L238断言`"raw response" not in json.dumps(retained)`。 调用`configured_settings`、`SimpleNamespace`、`failure_events`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_diagnostics_survive_failed_provider_responses_without_their_values`（L241–L278）：接收`tmp_path`。 控制顺序：L270断言`response.status_code == 200`；L271断言`transport.receipts[0]["schema_valid"] is False`；L272断言`transport.receipts[0]["validation_code"] == "schema_validation"`；L273断言`"unit-only-key" not in json.dumps(transport.receipts)`；L274断言`any( item["path"] == ["entities"] for item in transport.receipts[0]["schema_diagnosti…`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`json.dumps`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_provider_receipts_keep_only_static_categories_and_numbers`（L288–L323）：接收`tmp_path`、`content`、`category`。 控制顺序：L315断言`receipt["schema_valid"] is False`；L316断言`receipt["validation_code"] == "invalid_json"`；L318断言`detail["category"] == category`；L319断言`detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}`；L320断言`"message" not in detail`；L321断言`"unit-only-key" not in json.dumps(receipt)`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`len`、`content.encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_receipt_metadata_rejects_text_booleans_and_unbounded_numbers`（L326–L339）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L338断言`details == [{"type": "json_syntax", "lengths": {"bytes": 37}}]`；L339断言`"private-" not in json.dumps(details)`。 调用`diagnostic_facts`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_receipt`（L342–L365）：接收`tmp_path`、`monkeypatch`。 控制顺序：L352断言`transport.stage == "recommend"`；L353断言`gateway.traces == [ { "run_id": "unit-only", "stage": "requirement", "logical_key": "…`。 调用`configured_settings`、`BoundedTransport`、`ObservedGateway`、`monkeypatch.setattr`、`object`、`gateway.complete`、`digest`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure`（L368–L483）：接收`tmp_path`。 控制顺序：L400断言`coverage and business`；L438断言`gateway.complete(run_id, "plan:1", "private-instruction-canary", payload, Plan) == ca…`；L443断言`gateway.complete(run_id, "plan:2", "private-instruction-canary", payload, Plan) == ca…`；L451断言`trace["omitted"] == 0`；L452断言`[item["logical_key"] for item in trace["items"]] == ["plan:1", "plan:2", "plan:3"]`；L453断言`[item["validated"] for item in trace["items"]] == [True, True, False]`；L455断言`last["payload_sha256"] == digest(payload)`；L456断言`last["previous_plan_sha256"] == digest(candidate.model_dump())`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`next`、`Requirement`、`copy.deepcopy`、`approved_grant["actions"].remove`、`Plan.model_validate`、`coverage_gaps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure.provider`（L417–L427）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`candidate.model_dump_json`、`httpx.Response`。 返回路径：L420的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
+- `test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bounding`（L486–L600）：接收`tmp_path`。 控制顺序：L579断言`feedback == original`；L580断言`shown["business_diagnostics"][0]["source"]["path"] == "business.<key>.permissions.0"`；L581断言`shown["business_diagnostics"][0]["expected"] == diagnostic["expected"]`；L582断言`shown["business_diagnostics"][0]["actual"][0]["scope"] == "all"`；L583断言`shown["business_diagnostics"][1]["expected"] == {"enabled": True}`；L584断言`shown["business_diagnostics"][1]["actual"]["enabled"] is False`；L585断言`shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")`；L587断言`[record["origin"] for record in sources] == [ "previous_requirement", "user_input", "…`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`copy.deepcopy`、`feedback_snapshot`、`feedback_vocabulary`、`suite_cases`、`len`、`json.dumps`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails`（L610–L709）：接收`tmp_path`、`action`、`code`。 控制顺序：L635断言`len(issues) == 1 and issues[0]["code"] == code`；L672断言`[r["logical_key"] for r in trace["items"]] == ["recommend:1", "recommend:2"]`；L674断言`last["validated"] is False`；L675断言`last["feedback_sha256"] == digest(feedback)`；L676断言`last["payload_sha256"] == digest(payload)`；L678断言`shown["stage"] == "clarification" and shown["round"] == 1`；L679断言`shown["analysis_diagnostics_count"] == 1`；L680断言`shown["analysis_diagnostics_omitted"] == 0`。后续分支沿下方源码相同行号继续阅读。 调用`Requirement`、`business_analysis_conflicts`、`len`、`analysis_feedback`、`configured_settings`、`Store`、`store.migrate`、`BoundedTransport`、`transport.inner.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails.provider`（L649–L659）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`analysis.model_dump_json`、`httpx.Response`。 返回路径：L652的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
+- `test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds`（L712–L804）：接收`tmp_path`、`monkeypatch`。 控制顺序：L745断言`len(json.dumps(bounded, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L746断言`bounded["business_diagnostics_count"] == 13`；L747断言`bounded["business_diagnostics_omitted"] > 0`；L748断言`bounded["blocked_count"] == 100 and bounded["block_sources"] == { "business_coverage"…`；L751断言`"private" not in json.dumps(bounded)`；L779断言`len(json.dumps(analysis, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L780断言`analysis["analysis_diagnostics_count"] == 13`；L781断言`analysis["analysis_diagnostics_omitted"] > 0`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`feedback_vocabulary`、`suite_cases`、`range`、`".".join`、`feedback_snapshot`、`len`、`json.dumps(bounded, ensure_ascii=False).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text`（L807–L862）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L840断言`internal_errors == [error] * 3`；L841断言`report["passed"] is False and report["real_model"] is False`；L842断言`report["actual_model_calls"] == 0 and len(report["cases"]) == 3`；L843遍历`report["cases"]`；L844断言`receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"`；L845断言`receipt["failure"]["workflow_error"] == { "code": "workflow_not_ready", "status": "BL…`；L853断言`emitted == report["cases"]`；L854遍历`[ output, json.dumps(report), *(path.read_text() for path in repo…`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`monkeypatch.setattr`、`suite.run_suite`、`len`、`hashlib.sha256(error.encode()).hexdigest`、`hashlib.sha256`、`error.encode`、`capsys.readouterr`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker`（L816–L834）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__init__`（L819–L820）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__enter__`（L822–L823）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L823的`self`。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__exit__`（L825–L826）：接收`*args`。 返回路径：L826的`False`。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.tick`（L828–L834）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L830按`job is None`分支。 调用`self.store.claim`、`self.store.finish`、`internal_errors.append`、`self.store.get_run`。 返回路径：L831的`False`；L834的`True`。
+- `test_transport_bounds_actual_requests_before_dispatch`（L868–L900）：接收`tmp_path`、`case`。 控制顺序：L883按`case == "destination"`分支；L885按`case == "model"`分支；L887按`case == "token_budget"`分支；L889按`case == "call_budget"`分支；L891按`case == "authorization"`分支；L899断言`not calls`。 调用`BoundedTransport`、`configured_settings`、`transport.inner.close`、`httpx.MockTransport`、`calls.append`、`httpx.Response`、`pytest.raises`、`transport.handle_request`、`httpx.Request`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `success_receipts`（L903–L924）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Fabricated metadata for negative aggregate tests only; never written as evidence.。 调用`list`、`suite_cases`。 返回路径：L905的`[ { "case": case.identity, "source_digest": case.source_digest, "passed": True, "ready": T…`。
+- `test_all_three_must_pass_with_real_calls_and_complete_evidence`（L941–L962）：接收`reason`。 控制顺序：L943断言`aggregate(suite_cases(), results)`；L944按`reason == "missing"`分支；L946按`reason == "duplicate"`分支；L948按`reason == "failure"`分支；L950按`reason == "wrong_source"`分支；L952按`reason == "no_browser"`分支；L954按`reason == "missing_check"`分支；L956按`reason == "no_model_plan"`分支。后续分支沿下方源码相同行号继续阅读。 调用`success_receipts`、`aggregate`、`suite_cases`、`results.pop`、`copy.deepcopy`、`results[2]["scenario"]["checks"].pop`、`results[2].update`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_uses_rnd_key_without_automatic_cost_trigger`（L965–L979）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L970断言`set(events) == {"workflow_dispatch", "pull_request"}`；L971断言`events["pull_request"]["types"] == ["labeled"]`；L973断言`job["environment"] == "rnd"`；L974断言`"run-live-acceptance" in job["if"]`；L975断言`"head.repo.full_name == github.repository" in job["if"]`；L977断言`len(secret_steps) == 1`；L978断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L979断言`secret_steps[0]["run"] == "uv run python -m scripts.ci_template_projects"`。 调用`Path(__file__).resolve`、`Path`、`(root / ".github/workflows/template-project-acceptance.yml").read…`、`yaml.safe_load`、`workflow.get`、`set`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_template_project_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L736。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_template_project_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L979。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28005`。本段原文以LF换行结束。
+本段原始字节数：`37522`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_template_project_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1232fee66cc70a63667949620863cd063b4e4f13ada91466f507076df073ef0f"} -->
+<!-- learning-source: {"path": "tests/test_template_project_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8eb29733669a0200f21b4a85283b08bd75b0bde3ec464c8f0c09bfca3144a7af"} -->
 ````python
 # tests/test_template_project_acceptance.py
 """Harness integrity and synthetic HTTP checks. None of these are live-model evidence."""
 
 import copy
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -85,12 +94,13 @@ from scripts.template_acceptance_cases import (
     suite_cases,
 )
 from scripts.template_acceptance_runtime import check_json, resolve, run_scenario
-from workbench.business_capabilities import business_gaps
+from workbench.business_capabilities import business_analysis_conflicts, business_gaps
 from workbench.domain import Plan, Requirement, digest
 from workbench.generator import generate_basic
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.model_protocol import OutputFailure
 from workbench.requirement_coverage import coverage_gaps
+from workbench.requirement_sources import analysis_feedback
 from workbench.store import Store
 
 
@@ -405,6 +415,8 @@ def test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_recei
                 "stage": "requirement",
                 "logical_key": "recommend:1",
                 "payload_sha256": digest({}),
+                "feedback_sha256": digest({}),
+                "resolution_feedback": {},
                 "validated": True,
             }
         ]
@@ -592,6 +604,32 @@ def test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bou
                 "actual": secret,
             }
         ],
+        "analysis_diagnostics": [
+            {
+                "code": "requirement_business_shape",
+                "target": {"entity": "books", "field": None},
+                "sources": [
+                    {
+                        "source": {"section": "facts", "path": "business.private_identifier"},
+                        "expected": {"entity": "books"},
+                        "origin": "previous_requirement",
+                        "previous_source": {
+                            "section": "user_messages",
+                            "index": 0,
+                            "path": "private_identifier.permissions",
+                            "text": "private-source-canary",
+                        },
+                        "excerpt": "private-excerpt-canary",
+                    },
+                    {
+                        "source": {"section": "user_messages", "index": 1},
+                        "expected": "private-input-canary",
+                        "origin": "user_input",
+                    },
+                    {"source": {}, "expected": None, "origin": "private-origin-canary"},
+                ],
+            }
+        ],
         "prompt": "private-prompt-canary",
         "previous_plan": {"title": "private-plan-canary"},
     }
@@ -604,9 +642,130 @@ def test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bou
     assert shown["business_diagnostics"][1]["expected"] == {"enabled": True}
     assert shown["business_diagnostics"][1]["actual"]["enabled"] is False
     assert shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")
+    sources = shown["analysis_diagnostics"][0]["sources"]
+    assert [record["origin"] for record in sources] == [
+        "previous_requirement",
+        "user_input",
+        "unknown",
+    ]
+    assert sources[0]["previous_source"] == {
+        "section": "user_messages",
+        "index": 0,
+        "path": "<key>.permissions",
+    }
+    assert sources[1]["source"] == {"section": "user_messages", "index": 1}
     encoded = json.dumps(shown)
     assert "private" not in encoded and secret not in encoded
     assert all(name not in encoded for name in ("api_key", "previous_plan", "prompt", "label"))
+
+
+@pytest.mark.parametrize(
+    "action,code",
+    [
+        ("private-action-canary", "requirement_business_shape"),
+        ("read", "requirement_business_scope"),
+    ],
+)
+def test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails(
+    tmp_path, action, code
+):
+    analysis = Requirement(
+        summary="private-analysis-canary",
+        users=[],
+        data_scope="per_user",
+        features=[],
+        acceptance=[],
+        facts={
+            "private_fact_namespace": {
+                "business": {
+                    "permissions": [
+                        {
+                            "role": "private-role-canary",
+                            "entity": "books",
+                            "actions": [action],
+                            "scope": "own",
+                        }
+                    ]
+                }
+            }
+        },
+    )
+    issues = business_analysis_conflicts(analysis)
+    assert len(issues) == 1 and issues[0]["code"] == code
+    feedback = {
+        "stage": "clarification",
+        "round": 1,
+        "blocked": [issues[0]["message"]],
+        "analysis_diagnostics": analysis_feedback(issues),
+    }
+    settings = configured_settings(tmp_path)
+    store = Store(settings)
+    store.migrate()
+    transport = BoundedTransport(settings)
+    transport.inner.close()
+    sent = []
+
+    def provider(request):
+        sent.append(json.loads(request.content))
+        content = analysis.model_dump_json() if len(sent) == 1 else '{"private-response-canary":]}'
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"finish_reason": "stop", "message": {"role": "assistant", "content": content}}
+                ]
+            },
+        )
+
+    transport.inner = httpx.MockTransport(provider)
+    gateway = ObservedGateway(settings, store, transport)
+    run_id = new_run(store)
+    try:
+        gateway.complete(run_id, "recommend:1", "private-instruction-canary", {}, Requirement)
+        payload = {"resolution_feedback": feedback, "current_requirement": {}}
+        with pytest.raises(ModelFailure):
+            gateway.complete(
+                run_id, "recommend:2", "private-instruction-canary", payload, Requirement
+            )
+        trace = gateway.receipt_trace(run_id)
+        assert [r["logical_key"] for r in trace["items"]] == ["recommend:1", "recommend:2"]
+        last = trace["items"][-1]
+        assert last["validated"] is False
+        assert last["feedback_sha256"] == digest(feedback)
+        assert last["payload_sha256"] == digest(payload)
+        shown = last["resolution_feedback"]
+        assert shown["stage"] == "clarification" and shown["round"] == 1
+        assert shown["analysis_diagnostics_count"] == 1
+        assert shown["analysis_diagnostics_omitted"] == 0
+        diagnostic = shown["analysis_diagnostics"][0]
+        assert diagnostic["code"] == code
+        assert diagnostic["target"] == {"entity": "books", "field": None}
+        assert diagnostic["attribute"] == "permissions"
+        source = diagnostic["sources"][0]
+        assert source["source"] == {
+            "section": "facts",
+            "path": "<key>.business.permissions.0",
+            "domain": "permissions",
+        }
+        assert source["origin"] == "model_analysis"
+        assert source["expected"]["scope"] == "own"
+        assert source["expected"]["role"] == {"type": "string", "characters": 19}
+        assert source["expected"]["actions"] == (
+            ["read"] if action == "read" else [{"type": "string", "characters": len(action)}]
+        )
+        assert [r["logical_key"] for r in transport.receipts] == [
+            "recommend:1",
+            "recommend:2",
+            "recommend:2",
+        ]
+        assert len(sent) == transport.calls[run_id] == store.get_run(run_id)["model_calls"] == 3
+        assert "private" not in json.dumps(trace) and "unit-only-key" not in json.dumps(trace)
+        assert all(
+            key not in source for key in ("text", "excerpt", "user_sources", "previous_source")
+        )
+    finally:
+        transport.shutdown()
+        store.engine.dispose()
 
 
 def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds(
@@ -649,6 +808,40 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         "business_coverage": 100
     }
     assert "private" not in json.dumps(bounded)
+    analysis = feedback_snapshot(
+        {
+            "stage": "clarification",
+            "analysis_diagnostics": [
+                {
+                    "code": "requirement_business_shape",
+                    "target": {"entity": "books", "field": None},
+                    "attribute": "permissions",
+                    "sources": [
+                        {
+                            "source": {
+                                "section": "facts",
+                                "path": "private.business.permissions.0",
+                            },
+                            "expected": {"entity": "books", "actions": ["read"], "scope": "own"},
+                            "origin": "model_analysis",
+                            "excerpt": "private-analysis-canary",
+                        }
+                    ]
+                    * 6,
+                }
+            ]
+            * 13,
+        },
+        settings,
+        vocabulary,
+    )
+    assert len(json.dumps(analysis, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES
+    assert analysis["analysis_diagnostics_count"] == 13
+    assert analysis["analysis_diagnostics_omitted"] > 0
+    first = analysis["analysis_diagnostics"][0]
+    assert first["sources_count"] == 6 and first["sources_omitted"] == 2
+    assert len(first["sources"]) == 4
+    assert "private" not in json.dumps(analysis)
     transport = BoundedTransport(settings)
     gateway = ObservedGateway(settings, None, transport)
     monkeypatch.setattr(ModelGateway, "complete", lambda *args, **kwargs: object())
@@ -668,6 +861,64 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         assert not transport.receipts
     finally:
         transport.shutdown()
+
+
+def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
+    tmp_path, monkeypatch, capsys
+):
+    from scripts import ci_template_projects as suite
+
+    settings = configured_settings(tmp_path)
+    error = "private_fact_namespace.permissions.0: private-excerpt-canary unit-only-key"
+    internal_errors = []
+
+    class FailedWorker:
+        """Inject a terminal failure into the real Store; no model or browser runs."""
+
+        def __init__(self, settings, store, gateway):
+            self.store = store
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def tick(self):
+            job = self.store.claim()
+            if job is None:
+                return False
+            self.store.finish(job, "BLOCKED", error=error)
+            internal_errors.append(self.store.get_run(job["run_id"])["error"])
+            return True
+
+    reports = tmp_path / "reports"
+    monkeypatch.setattr(suite, "Runtime", FailedWorker)
+    monkeypatch.setattr(suite, "REPORTS", reports)
+    report = suite.run_suite(settings, tmp_path, {"offline_guard": True})
+    assert internal_errors == [error] * 3  # Product details remain available internally.
+    assert report["passed"] is False and report["real_model"] is False
+    assert report["actual_model_calls"] == 0 and len(report["cases"]) == 3
+    for receipt in report["cases"]:
+        assert receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"
+        assert receipt["failure"]["workflow_error"] == {
+            "code": "workflow_not_ready",
+            "status": "BLOCKED",
+            "sha256": hashlib.sha256(error.encode()).hexdigest(),
+            "characters": len(error),
+        }
+    output = capsys.readouterr().out
+    emitted = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
+    assert emitted == report["cases"]
+    for text in [
+        output,
+        json.dumps(report),
+        *(path.read_text() for path in reports.glob("*.json")),
+    ]:
+        assert all(
+            canary not in text
+            for canary in ("private_fact_namespace", "private-excerpt-canary", "unit-only-key")
+        )
 
 
 @pytest.mark.parametrize(

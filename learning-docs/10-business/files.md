@@ -50,6 +50,7 @@
 - [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsSaveReqVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsSaveReqVO_java--001.md)：可重复的验收用例；1 段
 - [tests/test_business_acceptance_evidence.py](sources/tests__test_business_acceptance_evidence_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_analysis_validation.py](sources/tests__test_business_analysis_validation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_business_assignment_probe.py](sources/tests__test_business_assignment_probe_py--001.md)：可重复的验收用例；1 段
 - [tests/test_business_audit_dialog.py](sources/tests__test_business_audit_dialog_py--001.md)：可重复的验收用例；1 段
 - [tests/test_business_audit_permissions.py](sources/tests__test_business_audit_permissions_py--001.md)：可重复的验收用例；1 段

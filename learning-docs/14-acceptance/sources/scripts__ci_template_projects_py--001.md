@@ -15,37 +15,38 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `feedback_vocabulary`（L83–L125）：接收`cases`。 源码说明：Public identifiers come from source contracts and static schema enums, never a Plan.。 控制顺序：L121遍历`cases`。 调用`set`、`"summary facts features acceptance users business policy resource…`、`collect`、`roles.update`、`case.contract.get("business", {}).get`、`case.contract.get`、`enums`、`Plan.model_json_schema`。 返回路径：L125的`known, roles`。
-- `feedback_vocabulary.collect`（L99–L109）：接收`value`。 控制顺序：L100按`isinstance(value, str) and re.fullmatch(r"[A-Za-z$][A-Za-z0-9_$-]{0,63}", value)`分支；L102按`isinstance(value, list)`分支；L103遍历`value`；L105按`isinstance(value, dict)`分支；L106遍历`value.items()`；L108按`key != "pattern"`分支。 调用`isinstance`、`re.fullmatch`、`known.add`、`collect`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `feedback_vocabulary.enums`（L111–L119）：接收`node`。 控制顺序：L112按`isinstance(node, dict)`分支；L115遍历`node.values()`；L117按`isinstance(node, list)`分支；L118遍历`node`。 调用`isinstance`、`collect`、`node.get`、`node.values`、`enums`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `feedback_snapshot`（L128–L238）：接收`feedback`、`settings`、`vocabulary`。 源码说明：Bounded semantic differences only; arbitrary facts keys and strings stay private.。 控制顺序：L130按`not isinstance(feedback, dict)`分支；L133按`not feedback`分支；L218按`type(feedback.get("round")) is int and 0 <= feedback["round"] <= 100000`分支；L220遍历`("coverage_diagnostics", "business_diagnostics")`；L226遍历`items[:12]`；L227按`not isinstance(item, dict)`分支；L230按`len(json.dumps(result, ensure_ascii=False).encode()) + len(json.dumps(projected, ensu…`分支。 调用`isinstance`、`settings.redact_data`、`feedback.get`、`len`、`dict`、`Counter`、`type`、`diagnostic`、`json.dumps(result, ensure_ascii=False).encode`等。 返回路径：L131的`{"invalid_feedback": True}`；L134的`{}`；L238的`result`。
-- `feedback_snapshot.value`（L137–L158）：接收`item`、`depth`。 控制顺序：L138按`item is None or type(item) is bool`分支；L140按`type(item) in {int, float}`分支；L142按`isinstance(item, str)`分支；L144按`depth >= 4`分支；L146按`isinstance(item, list)`分支；L149按`isinstance(item, dict)`分支；L155按`len(selected) < len(item)`分支。 调用`type`、`abs`、`math.isfinite`、`isinstance`、`len`、`value`、`list`、`item.items`。 返回路径：L139的`item`；L141的`item if abs(item) <= 2**63 - 1 and math.isfinite(item) else {"type": "number"}`；L143的`item if item in known else {"type": "string", "characters": len(item)}`。
-- `feedback_snapshot.diagnostic`（L160–L198）：接收`item`。 控制顺序：L164按`isinstance(source, dict)`分支；L170遍历`( "index", "clause", "declaration", "exclusion_clause", "date_cla…`；L178按`type(source.get(key)) is int and 0 <= source[key] <= 100000`分支；L180按`isinstance(source.get("path"), str)`分支；L186遍历`( "targets", "attribute", "expected", "actual", "missing", "extra…`；L196按`key in item`分支。 调用`item.get`、`isinstance`、`source.get`、`type`、`re.split`、`".".join`、`re.fullmatch`、`value`。 返回路径：L198的`result`。
-- `trusted_event`（L241–L270）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L249按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L264的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
-- `acceptance_settings`（L273–L325）：接收`env`、`directory`。 控制顺序：L274遍历`("BASE_URL", "MODE", "API_KEY")`；L323遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L325的`settings`。
-- `BoundedTransport`（L328–L427）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedTransport.__init__`（L331–L337）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.handle_request`（L339–L421）：接收`request`。 控制顺序：L343按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L360抛异常，停止当前正常路径；L373遍历`response.iter_bytes()`；L375按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L376抛异常，停止当前正常路径；L399按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L421的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
-- `BoundedTransport.close`（L423–L424）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.shutdown`（L426–L427）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway`（L430–L481）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ObservedGateway.__init__`（L431–L434）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway.complete`（L436–L468）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L458按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L468的`result`。
-- `ObservedGateway.receipt_trace`（L470–L481）：接收`run_id`。 控制顺序：L474遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L477按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L481的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
-- `diagnostic_facts`（L484–L511）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L487遍历`details[:8]`；L488按`not isinstance(detail, dict)`分支；L492按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L494遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L499按`isinstance(values, dict)`分支；L508按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L511的`retained`。
-- `failure_events`（L514–L542）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L517遍历`range(4)`；L519按`not events`分支；L522遍历`events`；L523按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L528遍历`("stage", "code", "request_id", "response_id", "attempt")`；L530按`isinstance(value, str)`分支；L532按`type(value) is int`分支；L535按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L539的`failures`；L542的`failures`。
-- `verify_delivery`（L545–L593）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L575的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
-- `aggregate`（L596–L621）：接收`cases`、`results`。 控制顺序：L597按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L601遍历`cases`；L603按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L600的`False`；L620的`False`；L621的`True`。
-- `run_suite`（L624–L745）：接收`settings`、`directory`、`binding`。 控制顺序：L679遍历`cases`；L681遍历`assignments.items()`；L683按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L717按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L736的`summary`。
-- `main`（L748–L806）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L756按`args.validate_fixtures`分支；L783按`binding and (REPORTS / "summary.json").is_file()`分支；L785按`saved.get("run_identity") == binding`分支；L806抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `feedback_vocabulary`（L85–L127）：接收`cases`。 源码说明：Public identifiers come from source contracts and static schema enums, never a Plan.。 控制顺序：L123遍历`cases`。 调用`set`、`"summary facts features acceptance users business policy resource…`、`collect`、`roles.update`、`case.contract.get("business", {}).get`、`case.contract.get`、`enums`、`Plan.model_json_schema`。 返回路径：L127的`known, roles`。
+- `feedback_vocabulary.collect`（L101–L111）：接收`value`。 控制顺序：L102按`isinstance(value, str) and re.fullmatch(r"[A-Za-z$][A-Za-z0-9_$-]{0,63}", value)`分支；L104按`isinstance(value, list)`分支；L105遍历`value`；L107按`isinstance(value, dict)`分支；L108遍历`value.items()`；L110按`key != "pattern"`分支。 调用`isinstance`、`re.fullmatch`、`known.add`、`collect`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `feedback_vocabulary.enums`（L113–L121）：接收`node`。 控制顺序：L114按`isinstance(node, dict)`分支；L117遍历`node.values()`；L119按`isinstance(node, list)`分支；L120遍历`node`。 调用`isinstance`、`collect`、`node.get`、`node.values`、`enums`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `feedback_snapshot`（L130–L268）：接收`feedback`、`settings`、`vocabulary`。 源码说明：Bounded semantic differences only; arbitrary facts keys and strings stay private.。 控制顺序：L132按`not isinstance(feedback, dict)`分支；L135按`not feedback`分支；L248按`type(feedback.get("round")) is int and 0 <= feedback["round"] <= 100000`分支；L250遍历`("coverage_diagnostics", "business_diagnostics", "analysis_diagno…`；L256遍历`items[:12]`；L257按`not isinstance(item, dict)`分支；L260按`len(json.dumps(result, ensure_ascii=False).encode()) + len(json.dumps(projected, ensu…`分支。 调用`isinstance`、`settings.redact_data`、`feedback.get`、`len`、`dict`、`Counter`、`type`、`diagnostic`、`json.dumps(result, ensure_ascii=False).encode`等。 返回路径：L133的`{"invalid_feedback": True}`；L136的`{}`；L268的`result`。
+- `feedback_snapshot.value`（L139–L160）：接收`item`、`depth`。 控制顺序：L140按`item is None or type(item) is bool`分支；L142按`type(item) in {int, float}`分支；L144按`isinstance(item, str)`分支；L146按`depth >= 4`分支；L148按`isinstance(item, list)`分支；L151按`isinstance(item, dict)`分支；L157按`len(selected) < len(item)`分支。 调用`type`、`abs`、`math.isfinite`、`isinstance`、`len`、`value`、`list`、`item.items`。 返回路径：L141的`item`；L143的`item if abs(item) <= 2**63 - 1 and math.isfinite(item) else {"type": "number"}`；L145的`item if item in known else {"type": "string", "characters": len(item)}`。
+- `feedback_snapshot.source_location`（L162–L186）：接收`source`。 控制顺序：L164按`isinstance(source, dict)`分支；L170遍历`( "index", "clause", "declaration", "exclusion_clause", "date_cla…`；L178按`type(source.get(key)) is int and 0 <= source[key] <= 100000`分支；L180按`isinstance(source.get("path"), str)`分支。 调用`isinstance`、`source.get`、`type`、`re.split`、`".".join`、`re.fullmatch`。 返回路径：L186的`result`。
+- `feedback_snapshot.diagnostic`（L188–L228）：接收`item`。 控制顺序：L191按`"source" in item`分支；L193遍历`( "targets", "target", "attribute", "expected", "actual", "missin…`；L204按`key in item`分支；L206按`type(item.get("count")) is int and 0 <= item["count"] <= 100000`分支；L208按`isinstance(item.get("sources"), list)`分支。 调用`item.get`、`isinstance`、`source_location`、`value`、`type`、`record.get`、`len`。 返回路径：L228的`result`。
+- `trusted_event`（L271–L300）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L279按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L294的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
+- `acceptance_settings`（L303–L355）：接收`env`、`directory`。 控制顺序：L304遍历`("BASE_URL", "MODE", "API_KEY")`；L353遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L355的`settings`。
+- `BoundedTransport`（L358–L457）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedTransport.__init__`（L361–L367）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.handle_request`（L369–L451）：接收`request`。 控制顺序：L373按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L390抛异常，停止当前正常路径；L403遍历`response.iter_bytes()`；L405按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L406抛异常，停止当前正常路径；L429按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L451的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
+- `BoundedTransport.close`（L453–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.shutdown`（L456–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway`（L460–L512）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ObservedGateway.__init__`（L461–L464）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway.complete`（L466–L499）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L488按`stage in {"plan", "recommend", "requirement"}`分支；L494按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L499的`result`。
+- `ObservedGateway.receipt_trace`（L501–L512）：接收`run_id`。 控制顺序：L505遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L508按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L512的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
+- `diagnostic_facts`（L515–L542）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L518遍历`details[:8]`；L519按`not isinstance(detail, dict)`分支；L523按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L525遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L530按`isinstance(values, dict)`分支；L539按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L542的`retained`。
+- `failure_events`（L545–L573）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L548遍历`range(4)`；L550按`not events`分支；L553遍历`events`；L554按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L559遍历`("stage", "code", "request_id", "response_id", "attempt")`；L561按`isinstance(value, str)`分支；L563按`type(value) is int`分支；L566按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L570的`failures`；L573的`failures`。
+- `verify_delivery`（L576–L624）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L606的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
+- `aggregate`（L627–L652）：接收`cases`、`results`。 控制顺序：L628按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L632遍历`cases`；L634按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L631的`False`；L651的`False`；L652的`True`。
+- `run_suite`（L655–L779）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L770的`summary`。
+- `main`（L782–L840）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L790按`args.validate_fixtures`分支；L817按`binding and (REPORTS / "summary.json").is_file()`分支；L819按`saved.get("run_identity") == binding`分支；L840抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L810。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L844。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`33924`。本段原文以LF换行结束。
+本段原始字节数：`35586`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fd3c0a9374f7a08463185fab2ffb5a5e1a6e41307eb5eb2060185d94728f6cb7"} -->
+<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "13983d4af930d5038798dc8633d25716269f7c792448f431c03ac01b8fe80f6d"} -->
 ````python
 # scripts/ci_template_projects.py
 """Bounded real-model batch acceptance for three independent project scenarios.
@@ -57,6 +58,7 @@ mode, fixed-Plan fallback, automatic rerun, or success inferred from model prose
 """
 
 import argparse
+import hashlib
 import hmac
 import json
 import math
@@ -121,7 +123,8 @@ DIAGNOSTIC_CODES = set(
     "structured_missing_field legacy_missing_field forbidden_field date_kind missing_metric_predicate "
     "uncovered_operation business_constraint_mismatch business_missing_record business_scope_mismatch "
     "business_unapproved_grant business_unapproved_role business_unsupported_shape "
-    "business_missing_history_grant".split()
+    "business_missing_history_grant requirement_business_shape requirement_business_scope "
+    "requirement_source_conflict additional_source_conflicts".split()
 )
 BLOCK_SOURCES = set(
     "planner_unsupported feature_routing template_field_kind requirement_coverage business_coverage "
@@ -138,7 +141,7 @@ def feedback_vocabulary(cases):
         | BLOCK_SOURCES
         | set(
             "summary facts features acceptance users business policy resources relations permissions "
-            "notifications workflows metrics field_requirements entity_requirements structured legacy "
+            "notifications workflows metrics field_requirements entity_requirements user_messages structured legacy "
             "search filter metric capability_catalog negation explicit_entity_inventory "
             "explicit_field_inventory assignment handling_note comment_added state_change state_changed "
             "overdue assignee_id created_by request_submitter".split()
@@ -207,12 +210,10 @@ def feedback_snapshot(feedback, settings, vocabulary):
             return selected
         return {"type": "unknown"}
 
-    def diagnostic(item):
-        code = item.get("code")
-        result = {"code": code if isinstance(code, str) and code in DIAGNOSTIC_CODES else "unknown"}
-        source = item.get("source", {})
+    def source_location(source):
+        result = {}
         if isinstance(source, dict):
-            result["source"] = {
+            result = {
                 key: source[key]
                 for key in ("section", "domain", "encoding")
                 if isinstance(source.get(key), str) and source[key] in known
@@ -226,15 +227,23 @@ def feedback_snapshot(feedback, settings, vocabulary):
                 "metric_clause",
             ):
                 if type(source.get(key)) is int and 0 <= source[key] <= 100000:
-                    result["source"][key] = source[key]
+                    result[key] = source[key]
             if isinstance(source.get("path"), str):
                 parts = re.split(r"[.\[\]/]+", source["path"])
-                result["source"]["path"] = ".".join(
+                result["path"] = ".".join(
                     part if part in known or re.fullmatch(r"\d{1,6}", part) else "<key>"
                     for part in parts[:20]
                 )
+        return result
+
+    def diagnostic(item):
+        code = item.get("code")
+        result = {"code": code if isinstance(code, str) and code in DIAGNOSTIC_CODES else "unknown"}
+        if "source" in item:
+            result["source"] = source_location(item["source"])
         for key in (
             "targets",
+            "target",
             "attribute",
             "expected",
             "actual",
@@ -245,6 +254,28 @@ def feedback_snapshot(feedback, settings, vocabulary):
         ):
             if key in item:
                 result[key] = value(item[key])
+        if type(item.get("count")) is int and 0 <= item["count"] <= 100000:
+            result["count"] = item["count"]
+        if isinstance(item.get("sources"), list):
+            result["sources"] = [
+                {
+                    "source": source_location(record.get("source")),
+                    "expected": value(record.get("expected")),
+                    "origin": record["origin"]
+                    if isinstance(record.get("origin"), str)
+                    and record["origin"] in {"model_analysis", "previous_requirement", "user_input"}
+                    else "unknown",
+                    **(
+                        {"previous_source": source_location(record["previous_source"])}
+                        if "previous_source" in record
+                        else {}
+                    ),
+                }
+                for record in item["sources"][:4]
+                if isinstance(record, dict)
+            ]
+            result["sources_count"] = len(item["sources"])
+            result["sources_omitted"] = len(item["sources"]) - len(result["sources"])
         return result
 
     sources = feedback.get("block_sources", [])
@@ -267,7 +298,7 @@ def feedback_snapshot(feedback, settings, vocabulary):
     }
     if type(feedback.get("round")) is int and 0 <= feedback["round"] <= 100000:
         result["round"] = feedback["round"]
-    for kind in ("coverage_diagnostics", "business_diagnostics"):
+    for kind in ("coverage_diagnostics", "business_diagnostics", "analysis_diagnostics"):
         items = feedback.get(kind, [])
         items = items if isinstance(items, list) else []
         result[kind] = []
@@ -505,13 +536,14 @@ class ObservedGateway(ModelGateway):
             else "unknown",
             "validated": False,
         }
-        if stage == "plan":
+        if stage in {"plan", "recommend", "requirement"}:
             feedback = payload.get("resolution_feedback", {})
             trace.update(
-                previous_plan_sha256=digest(payload.get("previous_plan", {})),
                 feedback_sha256=digest(feedback),
                 resolution_feedback=feedback_snapshot(feedback, self.settings, self.vocabulary),
             )
+        if stage == "plan":
+            trace["previous_plan_sha256"] = digest(payload.get("previous_plan", {}))
         self.traces.append(trace)
         result = super().complete(run_id, key, instruction, payload, schema)
         trace["validated"] = True
@@ -765,9 +797,12 @@ def run_suite(settings, directory, binding):
                             "error_type": type(error).__name__,
                         }
                         if run.get("error"):
-                            receipt["failure"]["workflow_error"] = settings.redact(run["error"])[
-                                :2000
-                            ]
+                            receipt["failure"]["workflow_error"] = {
+                                "code": receipt["failure"]["code"],
+                                "status": run["status"],
+                                "sha256": hashlib.sha256(run["error"].encode()).hexdigest(),
+                                "characters": len(run["error"]),
+                            }
                     receipt["provider_receipts"] = [
                         {key: value for key, value in item.items() if key != "run_id"}
                         for item in transport.receipts

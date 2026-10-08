@@ -409,8 +409,8 @@
     },
     {
       "path": "workbench/business_capabilities.py",
-      "bytes": 55781,
-      "sha256": "0e7769d585438614f6fe286371742868786d0d39c66252b716ee10f621d168e3",
+      "bytes": 58714,
+      "sha256": "ef70ff6720da77c508654b94cb1990e4d201159a9d0dbe376f8ffb729f09ebba",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__business_capabilities_py--001.md",
@@ -482,8 +482,8 @@
     },
     {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 123550,
-      "sha256": "8d35fa5ef75ebfc23c6cc7f14791e3c325b385cc1ba4a9c9347ee2db02adc978",
+      "bytes": 126413,
+      "sha256": "c2603d439ae8da9a57b4a42f4d763ab9b99bcae3b6485215f98495adc1a88d20",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
@@ -1117,8 +1117,8 @@
     },
     {
       "path": "workbench/flow.py",
-      "bytes": 52498,
-      "sha256": "f760268d378c2b8d2d2c30582859b04b17474a3727f8d88c928f81c2d2934288",
+      "bytes": 53032,
+      "sha256": "ced66b81e2990ca58c268ffd747ebdc444d61d6d76442d34dbbfa5ab6c523b59",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__flow_py--001.md"
@@ -2583,6 +2583,15 @@
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_business_acceptance_evidence_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_business_analysis_validation.py",
+      "bytes": 11601,
+      "sha256": "8620a2fb8232c0112ecccc8f4d56142b2885817d16e2ee513e77f69049727804",
+      "stage": "10-business",
+      "parts": [
+        "10-business/sources/tests__test_business_analysis_validation_py--001.md"
       ]
     },
     {
@@ -4300,8 +4309,8 @@
     },
     {
       "path": "docs/template-platform.md",
-      "bytes": 12890,
-      "sha256": "060ac7ac45972e4ffc814c2224989d8f455f13a651f3b7784e7baef067ecff58",
+      "bytes": 13445,
+      "sha256": "82225007cdac783d827c5e00baa39505584942dc8cf77a6e5fcda5dd3e7d289c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-platform_md--001.md"
@@ -4635,8 +4644,8 @@
     },
     {
       "path": "scripts/ci_template_projects.py",
-      "bytes": 33924,
-      "sha256": "fd3c0a9374f7a08463185fab2ffb5a5e1a6e41307eb5eb2060185d94728f6cb7",
+      "bytes": 35586,
+      "sha256": "13983d4af930d5038798dc8633d25716269f7c792448f431c03ac01b8fe80f6d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_template_projects_py--001.md"
@@ -5231,6 +5240,15 @@
       ]
     },
     {
+      "path": "tests/test_entity_field_fact_inventory.py",
+      "bytes": 5370,
+      "sha256": "9d3ae63c0d2105c9f5c50df8adcdd087773f3427ff1a674e2f897a6c717affcf",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_entity_field_fact_inventory_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_entity_group_clause_scope.py",
       "bytes": 13636,
       "sha256": "4cbac39cb073a7b2a19cbc4d311098bea4dd190197300b6eb931b83007746f22",
@@ -5345,6 +5363,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_json_diagnostics_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_keyword_query_binding.py",
+      "bytes": 5004,
+      "sha256": "1758529fff8c03229690fd6cdb53c4047ee3b12e1ed83867299a19f9d5434512",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_keyword_query_binding_py--001.md"
       ]
     },
     {
@@ -5683,8 +5710,8 @@
     },
     {
       "path": "tests/test_template_project_acceptance.py",
-      "bytes": 28005,
-      "sha256": "1232fee66cc70a63667949620863cd063b4e4f13ada91466f507076df073ef0f",
+      "bytes": 37522,
+      "sha256": "8eb29733669a0200f21b4a85283b08bd75b0bde3ec464c8f0c09bfca3144a7af",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md"
