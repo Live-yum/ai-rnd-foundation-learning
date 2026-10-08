@@ -34,20 +34,24 @@
 - `AuditedEventStream.close`（L362–L363）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.response.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `OutputFailure`（L366–L371）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `OutputFailure.__init__`（L369–L371）：接收`code`、`message`、`retry`、`repair`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_json`（L374–L400）：接收`text`。 控制顺序：L400抛异常，停止当前正常路径。 调用`json.loads`、`ValueError`。 返回路径：L393的`json.loads( text, object_pairs_hook=unique_pairs, parse_constant=invalid_constant, parse_f…`。
-- `load_json.unique_pairs`（L375–L381）：接收`pairs`。 控制顺序：L377遍历`pairs`；L378按`key in result`分支；L379抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L381的`result`。
-- `load_json.invalid_constant`（L383–L384）：接收`_`。 控制顺序：L384抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_json.finite_float`（L386–L390）：接收`value`。 控制顺序：L388按`not math.isfinite(result)`分支；L389抛异常，停止当前正常路径。 调用`float`、`math.isfinite`、`ValueError`。 返回路径：L390的`result`。
-- `completion_content`（L403–L448）：接收`envelope`、`contract`。 控制顺序：L404按`not isinstance(envelope, dict) or envelope.get("error")`分支；L405抛异常，停止当前正常路径；L407按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L408抛异常，停止当前正常路径；L411按`not isinstance(message, dict) or message.get("role", "assistant") != "assistant"`分支；L412抛异常，停止当前正常路径；L413按`message.get("refusal") is not None`分支；L414按`message["refusal"] != ""`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`envelope.get`、`OutputFailure`、`len`、`choice.get`、`message.get`、`content.strip`、`usage.items`、`type`。 返回路径：L448的`content, safe_usage, finish or "unknown"`。
-- `validate_content`（L451–L458）：接收`content`、`schema`、`mode`。 控制顺序：L452按`mode != "json_object"`分支；L453抛异常，停止当前正常路径；L456按`not isinstance(value, dict)`分支；L457抛异常，停止当前正常路径。 调用`ValueError`、`load_json`、`isinstance`、`schema.model_validate_json`。 返回路径：L458的`schema.model_validate_json(content, strict=True)`。
+- `json_lengths`（L374–L385）：接收`text`。 源码说明：Numeric input sizes only; never retain the input or a JSON key in an error.。 控制顺序：L376按`isinstance(text, bytes \| bytearray)`分支；L378按`not isinstance(text, str)`分支。 调用`isinstance`、`len`、`text.encode`。 返回路径：L377的`{"bytes": len(text)}`；L379的`{}`；L385的`result`。
+- `JSONGuardFailure`（L388–L391）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `JSONGuardFailure.__init__`（L389–L391）：接收`code`、`text`。 调用`json_lengths`、`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json`（L394–L428）：接收`text`。 控制顺序：L428抛异常，停止当前正常路径。 调用`json.loads`、`JSONGuardFailure`。 返回路径：L420的`json.loads( text, object_pairs_hook=unique_pairs, parse_constant=invalid_constant, parse_f…`。
+- `load_json.unique_pairs`（L395–L401）：接收`pairs`。 控制顺序：L397遍历`pairs`；L398按`key in result`分支；L399抛异常，停止当前正常路径。 调用`JSONGuardFailure`。 返回路径：L401的`result`。
+- `load_json.invalid_constant`（L403–L404）：接收`_`。 控制顺序：L404抛异常，停止当前正常路径。 调用`JSONGuardFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json.finite_float`（L406–L410）：接收`value`。 控制顺序：L408按`not math.isfinite(result)`分支；L409抛异常，停止当前正常路径。 调用`float`、`math.isfinite`、`JSONGuardFailure`。 返回路径：L410的`result`。
+- `load_json.bounded_integer`（L412–L417）：接收`value`。 控制顺序：L417抛异常，停止当前正常路径。 调用`int`、`JSONGuardFailure`。 返回路径：L414的`int(value)`。
+- `completion_content`（L431–L476）：接收`envelope`、`contract`。 控制顺序：L432按`not isinstance(envelope, dict) or envelope.get("error")`分支；L433抛异常，停止当前正常路径；L435按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L436抛异常，停止当前正常路径；L439按`not isinstance(message, dict) or message.get("role", "assistant") != "assistant"`分支；L440抛异常，停止当前正常路径；L441按`message.get("refusal") is not None`分支；L442按`message["refusal"] != ""`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`envelope.get`、`OutputFailure`、`len`、`choice.get`、`message.get`、`content.strip`、`usage.items`、`type`。 返回路径：L476的`content, safe_usage, finish or "unknown"`。
+- `validate_content`（L479–L486）：接收`content`、`schema`、`mode`。 控制顺序：L480按`mode != "json_object"`分支；L481抛异常，停止当前正常路径；L484按`not isinstance(value, dict)`分支；L485抛异常，停止当前正常路径。 调用`ValueError`、`load_json`、`isinstance`、`schema.model_validate_json`。 返回路径：L486的`schema.model_validate_json(content, strict=True)`。
 
 </details>
 
-**创建路径：** `workbench/model_protocol.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L458。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_protocol.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L486。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19503`。本段原文以LF换行结束。
+本段原始字节数：`20459`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_protocol.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d49c15e6b26515c5a45e0b69a4cdc2fa7d9b5cba58751d228164b01b91e496c9"} -->
+<!-- learning-source: {"path": "workbench/model_protocol.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1b730eed6503feb20e432670b557a697be22a12af2949eae3dd27ca4aa5ebf05"} -->
 ````python
 # workbench/model_protocol.py
 """LangChain structured-output integration and provider-independent validation guards."""
@@ -423,23 +427,50 @@ class OutputFailure(ValueError):
         super().__init__(message)
 
 
+def json_lengths(text):
+    """Numeric input sizes only; never retain the input or a JSON key in an error."""
+    if isinstance(text, bytes | bytearray):
+        return {"bytes": len(text)}
+    if not isinstance(text, str):
+        return {}
+    result = {"characters": len(text)}
+    try:
+        result["bytes"] = len(text.encode("utf-8"))
+    except UnicodeEncodeError:
+        pass  # A lone surrogate has no valid UTF-8 byte length.
+    return result
+
+
+class JSONGuardFailure(ValueError):
+    def __init__(self, code, text):
+        self.lengths = json_lengths(text)
+        super().__init__(code)
+
+
 def load_json(text):
     def unique_pairs(pairs):
         result = {}
         for key, value in pairs:
             if key in result:
-                raise ValueError("duplicate_json_key")
+                raise JSONGuardFailure("duplicate_json_key", text)
             result[key] = value
         return result
 
     def invalid_constant(_):
-        raise ValueError("non_finite_json_number")
+        raise JSONGuardFailure("non_finite_json_number", text)
 
     def finite_float(value):
         result = float(value)
         if not math.isfinite(result):
-            raise ValueError("non_finite_json_number")
+            raise JSONGuardFailure("non_finite_json_number", text)
         return result
+
+    def bounded_integer(value):
+        try:
+            return int(value)
+        except ValueError:
+            # Keep Python's existing integer digit limit; expose only its static cause.
+            raise JSONGuardFailure("json_integer_limit", text) from None
 
     try:
         return json.loads(
@@ -447,9 +478,10 @@ def load_json(text):
             object_pairs_hook=unique_pairs,
             parse_constant=invalid_constant,
             parse_float=finite_float,
+            parse_int=bounded_integer,
         )
     except RecursionError:
-        raise ValueError("json_nesting_limit") from None
+        raise JSONGuardFailure("json_nesting_limit", text) from None
 
 
 def completion_content(envelope, contract):

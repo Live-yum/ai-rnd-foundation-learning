@@ -29,8 +29,13 @@ from scripts.template_acceptance_runtime import run_scenario
 from workbench.domain import digest
 from workbench.filesystem import manifest, sha, unpack, write_json
 from workbench.llm import ModelGateway
-from workbench.model_diagnostics import schema_diagnostics
+from workbench.model_diagnostics import (
+    JSON_DIAGNOSTIC_CATEGORIES,
+    json_diagnostics,
+    schema_diagnostics,
+)
 from workbench.model_protocol import (
+    MAX_MODEL_CONTENT_BYTES,
     OutputFailure,
     completion_content,
     output_contract,
@@ -176,7 +181,7 @@ class BoundedTransport(httpx.BaseTransport):
         try:
             for chunk in response.iter_bytes():
                 payload.extend(chunk)
-                if len(payload) > 2_000_000:
+                if len(payload) > MAX_MODEL_CONTENT_BYTES:
                     raise OutputFailure("acceptance_response_limit", "模型响应超过验收字节上限")
         finally:
             response.close()
@@ -202,6 +207,7 @@ class BoundedTransport(httpx.BaseTransport):
             )
             if self.schema is not None and response.status_code == 200:
                 contract = output_contract(profile, self.schema)
+                content = None
                 try:
                     content, _, _ = completion_content(envelope, contract)
                     validate_content(content, self.schema, mode=contract.mode)
@@ -211,8 +217,9 @@ class BoundedTransport(httpx.BaseTransport):
                     receipt["schema_diagnostics"] = schema_diagnostics(error, self.schema)[:8]
                 except OutputFailure as error:
                     receipt.update(schema_valid=False, validation_code=error.code)
-                except ValueError, KeyError, IndexError, AttributeError, TypeError:
+                except (ValueError, KeyError, IndexError, AttributeError, TypeError) as error:
                     receipt.update(schema_valid=False, validation_code="invalid_json")
+                    receipt["json_diagnostics"] = diagnostic_facts(json_diagnostics(error, content))
         except ValueError, KeyError, IndexError, AttributeError, TypeError:
             receipt["envelope_valid"] = False
         headers = {
@@ -254,6 +261,36 @@ class ObservedGateway(ModelGateway):
         return result
 
 
+def diagnostic_facts(details):
+    """Keep existing schema facts and allowlisted numeric JSON diagnostics, not text."""
+    retained = []
+    for detail in details[:8]:
+        if not isinstance(detail, dict):
+            continue
+        item = {key: detail[key] for key in ("type", "path", "constraints") if key in detail}
+        category = detail.get("category")
+        if isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES:
+            item["category"] = category
+        for group, names in (
+            ("position", ("line", "column", "offset")),
+            ("lengths", ("characters", "bytes")),
+        ):
+            values = detail.get(group)
+            if isinstance(values, dict):
+                numbers = {
+                    name: values[name]
+                    for name in names
+                    if type(values.get(name)) is int
+                    and (1 if name in {"line", "column"} else 0)
+                    <= values[name]
+                    <= MAX_MODEL_CONTENT_BYTES
+                }
+                if numbers:
+                    item[group] = numbers
+        retained.append(item)
+    return retained
+
+
 def failure_events(store, run_id, settings):
     """Keep bounded diagnostics already authored by the platform, never response text."""
     failures, after, used = [], 0, 0
@@ -274,11 +311,7 @@ def failure_events(store, run_id, settings):
                     item[key] = value[:100]
                 elif type(value) is int:
                     item[key] = value
-            details = [
-                {key: detail[key] for key in ("type", "path", "constraints") if key in detail}
-                for detail in diagnostic.get("details", [])[:8]
-                if isinstance(detail, dict)
-            ]
+            details = diagnostic_facts(diagnostic.get("details", []))
             if len(json.dumps(details, ensure_ascii=False)) <= 3000:
                 item["details"] = details
             size = len(json.dumps(item, ensure_ascii=False))

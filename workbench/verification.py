@@ -293,6 +293,14 @@ def require_business_proof(spec, report, with_browser):
                     assert item["invalid_enum_rejected"] is True
                 if field["kind"] == "datetime":
                     assert item["invalid_timestamp_rejected"] is True
+                if field["kind"] == "integer":
+                    from templates.product.fields import integer_bounds
+
+                    low, high = integer_bounds(field)
+                    assert type(item["minimum"]) is int and item["minimum"] == low
+                    assert type(item["maximum"]) is int and item["maximum"] == high
+                    assert item["below_minimum_rejected"] is True
+                    assert item["above_maximum_rejected"] is True
                 invalid_count = (
                     int(field["required"])
                     + int(field["required"] and field["kind"] in {"text", "enum"})
@@ -300,6 +308,7 @@ def require_business_proof(spec, report, with_browser):
                     + int(field["kind"] == "text" and bool(field.get("min_length")))
                     + int(field["kind"] == "enum")
                     + int(field["kind"] == "datetime")
+                    + 2 * int(field["kind"] == "integer")
                 )
                 if update and invalid_count:
                     assert (

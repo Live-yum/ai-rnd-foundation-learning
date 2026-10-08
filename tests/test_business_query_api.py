@@ -8,6 +8,7 @@ from test_business_python import runtime_plan
 
 from workbench.domain import Plan
 from workbench.generator import generate_basic
+from workbench.verification import require_business_evidence
 
 
 def test_customer_api_query_matrix_is_field_specific_and_role_scoped(tmp_path):
@@ -77,14 +78,17 @@ def test_bounded_integer_query_controls_use_valid_values_including_singleton(tmp
         }
     )
     product = tmp_path / "product"
+    plan = Plan.model_validate(raw)
     generate_basic(
-        Plan.model_validate(raw),
+        plan,
         product,
         {"template": "python-basic", "frontend": "api-only", "database": "sqlite"},
     )
     result = execute(product)
     assert result.returncode == 0, result.stdout + result.stderr
-    evidence = json.loads(result.stdout.splitlines()[-1])["business"]["evidence"]
+    report = json.loads(result.stdout.splitlines()[-1])
+    require_business_evidence(plan.model_dump(), report, False)
+    evidence = report["business"]["evidence"]
     validation = next(item for item in evidence["field_validation"] if item["field"] == "quantity")
     assert validation["minimum"] == 2 and validation["maximum"] == maximum
     assert validation["below_minimum_rejected"] and validation["above_maximum_rejected"]

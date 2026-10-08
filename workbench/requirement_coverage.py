@@ -1061,7 +1061,11 @@ def _query_predicate_text(text, fields):
         # subject, predicate or field alias from the noun phrase.
         return " " * len(match.group())
 
-    return nouns.sub(replace, text)
+    # A compound range query is one capability. Lower it before the legacy
+    # field/operation splitter can treat its search/filter suffix independently.
+    # Keep noun handling first: "date range filter results" is still output,
+    # while "date range filter and exact filter" keeps both real predicates.
+    return _DATE_RANGE_QUERY.sub("date_range", nouns.sub(replace, text))
 
 
 def _section_entity(text, fields):
@@ -1823,11 +1827,15 @@ def _metric_clauses(text, fields):
 
 
 def _negative_operation_pattern(fields):
-    negative = r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不)"
+    negative = (
+        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不|"
+        r"\b(?:no|without|never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+        r"(?:\s+(?:require|need|allow|support|provide|enable|use))?)\b)"
+    )
     operation = (
         r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
         r"|(?:日期区间|日期范围)(?:筛选|过滤|查询)?"
-        r"|search(?:able)?|filter(?:able)?|date.?range"
+        r"|(?:keyword\s+)?search(?:ing|able|es)?|(?:exact\s+)?filter(?:ing|s|able)?|date.?range"
     )
     names = {field.name for _, field in fields}
     names.update(name for aliases in ALIASES.values() for name in aliases)
@@ -1837,7 +1845,11 @@ def _negative_operation_pattern(fields):
     targets = "(?P<targets>" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
     return re.compile(
         negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
-        r"(?:\s*(?:以及|[、或和及与])\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        r"(?:\s*(?:以及|[、或和及与]|\band\b|\bor\b)\s*(?:"
+        + negative
+        + r")?\s*(?:"
+        + operation
+        + r"))*",
         re.I,
     )
 
@@ -1851,15 +1863,19 @@ def _legacy_boolean_text(text, fields):
 
     def replace(match):
         phrase = match.group()
-        if not re.match(r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与", phrase):
+        if not re.match(
+            r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与|"
+            r"\b(?:never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+            r"(?!\s+(?:require|need)\b))\b",
+            phrase,
+            re.I,
+        ):
             return ""
         attributes = []
         if re.search(r"搜索|检索|search", phrase, re.I):
             attributes.append("searchable=false")
         # A date-range operation is not a separate exact-filter toggle.
-        exact = re.sub(
-            r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|date.?range", "", phrase, flags=re.I
-        )
+        exact = _DATE_RANGE_QUERY.sub("", phrase)
         if re.search(r"筛选|过滤|filter", exact, re.I):
             attributes.append("filterable=false")
         if re.search(r"日期区间|日期范围|date.?range", phrase, re.I):
@@ -1981,6 +1997,12 @@ _DATE_TYPE = re.compile(
 )
 _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
 _DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|date.?range", re.I)
+_DATE_RANGE_QUERY = re.compile(
+    r"(?:\b(?:filter(?:ing)?|search(?:ing)?)\s+(?:by|using|on)\s+)?"
+    rf"(?:{_DATE_RANGE_OPERATOR.pattern})"
+    r"(?:\s*(?:筛选|过滤|查询)|\s+(?:filters?|filtering|search(?:ing)?|quer(?:y|ies))\b)?",
+    re.I,
+)
 _DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
 _DATE_NEGATIVE = re.compile(
     r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"

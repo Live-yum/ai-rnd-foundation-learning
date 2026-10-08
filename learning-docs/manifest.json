@@ -391,8 +391,8 @@
     },
     {
       "path": "tests/test_llm.py",
-      "bytes": 3405,
-      "sha256": "e2c0a2f6e4a1db2a27d71c66cc648e3f321d29c96341fb122e29d58c33ca9c17",
+      "bytes": 10041,
+      "sha256": "0bb1157817085f8acbd3e3cfabd25228e2047eb0e8bc85bc639e4d7cf5a97579",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_llm_py--001.md"
@@ -437,8 +437,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 12647,
-      "sha256": "8d9abba6cc26661867a2db1da0f39874bdb14a8c35eee6ecc1430180f63ed0d3",
+      "bytes": 13424,
+      "sha256": "ef198dc354998f721c55ffc110bc7aebdba6b7a8578de7ba80ef9954a105aa92",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -455,8 +455,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 10293,
-      "sha256": "52cbf24e32591530a9447ef8ec2cf39a7993b75f1af811ea07b36a2c17adb86d",
+      "bytes": 12629,
+      "sha256": "8c4d874d2450d45595593d9a7570bad84b134023b67be49d15fd59e81e77c4ad",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -464,8 +464,8 @@
     },
     {
       "path": "workbench/model_protocol.py",
-      "bytes": 19503,
-      "sha256": "d49c15e6b26515c5a45e0b69a4cdc2fa7d9b5cba58751d228164b01b91e496c9",
+      "bytes": 20459,
+      "sha256": "1b730eed6503feb20e432670b557a697be22a12af2949eae3dd27ca4aa5ebf05",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_protocol_py--001.md"
@@ -482,8 +482,8 @@
     },
     {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 120945,
-      "sha256": "e86aa2038e3039aa3a2dcef070d5f101828fb5882b3ba4d119cb726557f61d03",
+      "bytes": 121904,
+      "sha256": "b15109b62777e73efc66367d206ea2730af4113eb68e007bdf3c4c94fb8d78e6",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
@@ -999,8 +999,8 @@
     },
     {
       "path": "workbench/verification.py",
-      "bytes": 29976,
-      "sha256": "7003537acdadcec1c20a1909be45f33898503651794455ad319b62c3bf84ccaa",
+      "bytes": 30507,
+      "sha256": "fbf7bd6b94fc356c54c460b40c32b8c5e8f953551f082c0d5d8d3caa37b41b16",
       "stage": "06-generation",
       "parts": [
         "06-generation/sources/workbench__verification_py--001.md"
@@ -1172,7 +1172,7 @@
     {
       "path": "scripts/guided_browser.cjs",
       "bytes": 51649,
-      "sha256": "9d32ba43658148eba7624b30911119f977c39f96b455be6f18cf19ffd2643b68",
+      "sha256": "6f3ece740992cb6ff16ef3fd83cbd1b931da412480e35ab24965b5862eab31b0",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/scripts__guided_browser_cjs--001.md",
@@ -2641,8 +2641,8 @@
     },
     {
       "path": "tests/test_business_evidence_contract.py",
-      "bytes": 4820,
-      "sha256": "06506d8400f815073ed1bb1e259b0357e417c7cd00f45708deaa4cfdf3241492",
+      "bytes": 7456,
+      "sha256": "5554900b9e026b3337c8230b8ca0b00a263ae4a09fe4119e4cdb7be77c2f039f",
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_business_evidence_contract_py--001.md"
@@ -2722,8 +2722,8 @@
     },
     {
       "path": "tests/test_business_query_api.py",
-      "bytes": 7391,
-      "sha256": "ff2dbf1d5c67ebc3a82a380c85ee260f2c964b1246697e37067275874da12b1c",
+      "bytes": 7552,
+      "sha256": "e38c7542eb3a2216a043ad3831453eb4decfcac100d16b3737179845437c2fc1",
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_business_query_api_py--001.md"
@@ -4635,8 +4635,8 @@
     },
     {
       "path": "scripts/ci_template_projects.py",
-      "bytes": 23179,
-      "sha256": "4aa0f0ce86779f1d86f6ce410236191ab8cf06be7583a3f17e0207d909dcba8e",
+      "bytes": 24418,
+      "sha256": "f874c30c15508a83f52ca7e7b1fe14ad8101fdc236267ee6a12a499eda2550e2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_template_projects_py--001.md"
@@ -5339,6 +5339,15 @@
       ]
     },
     {
+      "path": "tests/test_json_diagnostics.py",
+      "bytes": 3161,
+      "sha256": "cf22354d7e2fe688ea962d83e238fc8eafe4dd1e562478d07a3e1e6365858980",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_json_diagnostics_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_learning_docs.py",
       "bytes": 27786,
       "sha256": "d2b371cbb8d9abf4ddb18944fe82ef9b7845accac60c146282daa45c88ef02e6",
@@ -5376,8 +5385,8 @@
     },
     {
       "path": "tests/test_legacy_date_requirements.py",
-      "bytes": 6271,
-      "sha256": "16bf8caa2fcaf0dec88e68e2bfef583b036f2359c611c5d152834bcef40eecc5",
+      "bytes": 12227,
+      "sha256": "ed6b502890312a04abc1f9f1b554cf2ee607eef0224c0a1ad326e259c658502c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md"
@@ -5674,8 +5683,8 @@
     },
     {
       "path": "tests/test_template_project_acceptance.py",
-      "bytes": 14756,
-      "sha256": "e42496bb05088d2f6ee1c36f93388421675924fb64cacc6f70805c4992b9fd35",
+      "bytes": 17072,
+      "sha256": "087b557835526f0ec8cc31d6d30ab2ed9d9456cbc6aa9795c711ea857cb43e0a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md"

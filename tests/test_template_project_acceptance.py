@@ -18,6 +18,7 @@ from scripts.ci_template_projects import (
     ObservedGateway,
     acceptance_settings,
     aggregate,
+    diagnostic_facts,
     failure_events,
     trusted_event,
 )
@@ -265,6 +266,67 @@ def test_schema_diagnostics_survive_failed_provider_responses_without_their_valu
         )
     finally:
         transport.shutdown()
+
+
+@pytest.mark.parametrize(
+    "content,category",
+    [
+        ('{\n "title": "unit-only-key",\n "entities": ]}', "expected_value"),
+        ('{"unit-only-key":1,"unit-only-key":2}', "duplicate_json_key"),
+    ],
+)
+def test_json_provider_receipts_keep_only_static_categories_and_numbers(
+    tmp_path, content, category
+):
+    settings = configured_settings(tmp_path)
+    transport = BoundedTransport(settings)
+    transport.inner.close()
+    transport.inner = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={"choices": [{"finish_reason": "stop", "message": {"content": content}}]},
+        )
+    )
+    transport.run_id, transport.stage, transport.schema = "unit-only", "plan", Plan
+    try:
+        transport.handle_request(
+            httpx.Request(
+                "POST",
+                "https://model.invalid/v1/chat/completions",
+                headers={"Authorization": "Bearer unit-only-key"},
+                json={
+                    "model": "unit-only-model",
+                    "response_format": {"type": "json_object"},
+                    "max_tokens": MAX_OUTPUT_TOKENS,
+                },
+            )
+        )
+        receipt = transport.receipts[0]
+        assert receipt["schema_valid"] is False
+        assert receipt["validation_code"] == "invalid_json"
+        detail = receipt["json_diagnostics"][0]
+        assert detail["category"] == category
+        assert detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}
+        assert "message" not in detail
+        assert "unit-only-key" not in json.dumps(receipt)
+    finally:
+        transport.shutdown()
+
+
+def test_json_receipt_metadata_rejects_text_booleans_and_unbounded_numbers():
+    details = diagnostic_facts(
+        [
+            {
+                "type": "json_syntax",
+                "category": "private-category-canary",
+                "position": {"line": "private-location-canary", "column": True, "offset": -1},
+                "lengths": {"characters": 2_000_001, "bytes": 37, "raw": "private-value-canary"},
+                "message": "private-message-canary",
+            }
+        ]
+    )
+    assert details == [{"type": "json_syntax", "lengths": {"bytes": 37}}]
+    assert "private-" not in json.dumps(details)
 
 
 def test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_receipt(

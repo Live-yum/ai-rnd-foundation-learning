@@ -17,32 +17,32 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_metric_clauses.consume`（L1716–L1795）：接收`fragment`、`context`、`inherited`。 控制顺序：L1719按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1724遍历`matches`；L1726按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1739按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1757按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1764按`inherited and not predicates and not scope_only`分支；L1771按`not targets and not predicates and not scope_only`分支；L1773按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1720的`fragment`；L1760的`fragment`；L1765的`fragment`。
-- `_metric_clauses.parenthesis`（L1799–L1806）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1806的`match.group() if filtered == body else ""`。
-- `_negative_operation_pattern`（L1825–L1842）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1838的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
-- `_legacy_boolean_text`（L1845–L1869）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1869的`_negative_operation_pattern(fields).sub(replace, text)`。
-- `_legacy_boolean_text.replace`（L1852–L1867）：接收`match`。 控制顺序：L1854按`not re.match(r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与", phrase)`分支；L1857按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L1863按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L1865按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`re.sub`、`" ".join`。 返回路径：L1855的`""`；L1867的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
-- `_legacy_operation_text`（L1872–L1884）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1884的`_negative_operation_pattern(fields).sub("（）", text)`。
-- `_legacy_field_exclusions`（L1887–L1973）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L1934遍历`sentences`；L1936按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L1973的`"".join(output), obligations`。
-- `_legacy_field_exclusions.replace`（L1939–L1968）：接收`match`。 控制顺序：L1948按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L1956遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L1953的`match.group()`；L1968的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
-- `_legacy_date_obligations`（L2002–L2083）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2012遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2013按`not sentence.strip()`分支；L2021遍历`_legacy_clauses(sentence, fields)`；L2024按`not markers and not formats`分支；L2041遍历`[*markers, *formats]`；L2045按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2051按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2053按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_normalized_constraint_value`（L2086–L2106）：接收`attribute`、`expected`。 控制顺序：L2087按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2088按`isinstance(expected, str)`分支；L2090按`word in {"true", "是", "必填"}`分支；L2092按`word in {"false", "否", "可选", "非必填"}`分支；L2094按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2102按`isinstance(expected, str)`分支；L2104按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2106的`expected`。
-- `_matches_constraint`（L2109–L2128）：接收`attribute`、`expected`、`actual`。 控制顺序：L2111按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2113按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2122按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2112的`type(expected) is bool and actual is expected`；L2121的`type(expected) is int and actual == expected`；L2123的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `_field_constraint_matches`（L2131–L2144）：接收`field`、`attribute`、`expected`。 控制顺序：L2132按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2135按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2136的`False`；L2138的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2144的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
-- `_legacy_scalar_constraints`（L2147–L2170）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2158按`not validation`分支；L2159按`re.search(r"必填\|required", text, re.I) and not optional`分支；L2161按`optional or re.search(r"可选", text)`分支；L2163遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2168按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_integer_constraints`（L2173–L2190）：接收`text`。 控制顺序：L2174按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2180按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2183遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2189遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `explicit_legacy_field_constraints`（L2193–L2271）：接收`requirement`。 源码说明：Reliably bound scalar constraints using Requirement vocabulary only. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported tex。 控制顺序：L2207按`not fields`分支；L2219遍历`texts`；L2223遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2226遍历`_legacy_targets(clause, fields)`；L2228遍历`_legacy_scalar_constraints(clause)`；L2239遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2242按`subject not in vocabulary`分支；L2244遍历`( "required", "min_length", "max_length", "minimum", "maximum", "…`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_field_exclusions`、`_metric_clauses`、`_query_predicate_text`等。 返回路径：L2208的`[]`；L2271的`result`。
-- `_legacy_declared_fields`（L2274–L2344）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2284按`heading`分支；L2286按`owner`分支；L2289按`match`分支；L2308按`declaration`分支；L2310按`body[:1] in "（([【"`分支；L2319按`not descriptor`分支；L2323遍历`_top_level_parts(body, separators)`；L2325按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2320的`[]`；L2344的`result`。
-- `coverage_gaps`（L2347–L2804）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2355按`native_normalization`分支；L2403按`plan.data_scope != requirement.data_scope`分支；L2410遍历`enumerate(requirement.field_requirements)`；L2418按`len(matches) != 1`分支；L2422遍历`obligation.model_dump().items()`；L2423按`key in {"field", "entity"} or value is None`分支；L2427按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2429按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L2804的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.query_matches`（L2365–L2371）：接收`field`、`attribute`、`expected`。 控制顺序：L2367按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2368的`typed_queries[key]`；L2371的`getattr(field, attribute) is expected`。
+- `_metric_clauses.consume`（L1720–L1799）：接收`fragment`、`context`、`inherited`。 控制顺序：L1723按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1728遍历`matches`；L1730按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1743按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1761按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1768按`inherited and not predicates and not scope_only`分支；L1775按`not targets and not predicates and not scope_only`分支；L1777按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1724的`fragment`；L1764的`fragment`；L1769的`fragment`。
+- `_metric_clauses.parenthesis`（L1803–L1810）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1810的`match.group() if filtered == body else ""`。
+- `_negative_operation_pattern`（L1829–L1854）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1846的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
+- `_legacy_boolean_text`（L1857–L1885）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1885的`_negative_operation_pattern(fields).sub(replace, text)`。
+- `_legacy_boolean_text.replace`（L1864–L1883）：接收`match`。 控制顺序：L1866按`not re.match( r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与\|" r"\b(?:never\|cannot\…`分支；L1875按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L1879按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L1881按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`_DATE_RANGE_QUERY.sub`、`" ".join`。 返回路径：L1873的`""`；L1883的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
+- `_legacy_operation_text`（L1888–L1900）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1900的`_negative_operation_pattern(fields).sub("（）", text)`。
+- `_legacy_field_exclusions`（L1903–L1989）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L1950遍历`sentences`；L1952按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L1989的`"".join(output), obligations`。
+- `_legacy_field_exclusions.replace`（L1955–L1984）：接收`match`。 控制顺序：L1964按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L1972遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L1969的`match.group()`；L1984的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
+- `_legacy_date_obligations`（L2024–L2105）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2034遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2035按`not sentence.strip()`分支；L2043遍历`_legacy_clauses(sentence, fields)`；L2046按`not markers and not formats`分支；L2063遍历`[*markers, *formats]`；L2067按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2073按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2075按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_normalized_constraint_value`（L2108–L2128）：接收`attribute`、`expected`。 控制顺序：L2109按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2110按`isinstance(expected, str)`分支；L2112按`word in {"true", "是", "必填"}`分支；L2114按`word in {"false", "否", "可选", "非必填"}`分支；L2116按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2124按`isinstance(expected, str)`分支；L2126按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2128的`expected`。
+- `_matches_constraint`（L2131–L2150）：接收`attribute`、`expected`、`actual`。 控制顺序：L2133按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2135按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2144按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2134的`type(expected) is bool and actual is expected`；L2143的`type(expected) is int and actual == expected`；L2145的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `_field_constraint_matches`（L2153–L2166）：接收`field`、`attribute`、`expected`。 控制顺序：L2154按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2157按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2158的`False`；L2160的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2166的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
+- `_legacy_scalar_constraints`（L2169–L2192）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2180按`not validation`分支；L2181按`re.search(r"必填\|required", text, re.I) and not optional`分支；L2183按`optional or re.search(r"可选", text)`分支；L2185遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2190按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_integer_constraints`（L2195–L2212）：接收`text`。 控制顺序：L2196按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2202按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2205遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2211遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `explicit_legacy_field_constraints`（L2215–L2293）：接收`requirement`。 源码说明：Reliably bound scalar constraints using Requirement vocabulary only. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported tex。 控制顺序：L2229按`not fields`分支；L2241遍历`texts`；L2245遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2248遍历`_legacy_targets(clause, fields)`；L2250遍历`_legacy_scalar_constraints(clause)`；L2261遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2264按`subject not in vocabulary`分支；L2266遍历`( "required", "min_length", "max_length", "minimum", "maximum", "…`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_field_exclusions`、`_metric_clauses`、`_query_predicate_text`等。 返回路径：L2230的`[]`；L2293的`result`。
+- `_legacy_declared_fields`（L2296–L2366）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2306按`heading`分支；L2308按`owner`分支；L2311按`match`分支；L2330按`declaration`分支；L2332按`body[:1] in "（([【"`分支；L2341按`not descriptor`分支；L2345遍历`_top_level_parts(body, separators)`；L2347按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2342的`[]`；L2366的`result`。
+- `coverage_gaps`（L2369–L2826）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2377按`native_normalization`分支；L2425按`plan.data_scope != requirement.data_scope`分支；L2432遍历`enumerate(requirement.field_requirements)`；L2440按`len(matches) != 1`分支；L2444遍历`obligation.model_dump().items()`；L2445按`key in {"field", "entity"} or value is None`分支；L2449按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2451按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L2826的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.query_matches`（L2387–L2393）：接收`field`、`attribute`、`expected`。 控制顺序：L2389按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2390的`typed_queries[key]`；L2393的`getattr(field, attribute) is expected`。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1716–L2372。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1720–L2394。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29044`。本段原文以LF换行结束。
+本段原始字节数：`29656`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "d260c61dbb3d872826b482f9eec5e1f8f143013214e2de0eb88854d4d80c283b"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "5e5e128534ee089253dfdb0c4604dd8beb78f1a607f656b49ee489963a9f7f44"} -->
 ````python
 # workbench/requirement_coverage.py
     def consume(fragment, context="", inherited=False):
@@ -155,11 +155,15 @@
 
 
 def _negative_operation_pattern(fields):
-    negative = r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不)"
+    negative = (
+        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不|"
+        r"\b(?:no|without|never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+        r"(?:\s+(?:require|need|allow|support|provide|enable|use))?)\b)"
+    )
     operation = (
         r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
         r"|(?:日期区间|日期范围)(?:筛选|过滤|查询)?"
-        r"|search(?:able)?|filter(?:able)?|date.?range"
+        r"|(?:keyword\s+)?search(?:ing|able|es)?|(?:exact\s+)?filter(?:ing|s|able)?|date.?range"
     )
     names = {field.name for _, field in fields}
     names.update(name for aliases in ALIASES.values() for name in aliases)
@@ -169,7 +173,11 @@ def _negative_operation_pattern(fields):
     targets = "(?P<targets>" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
     return re.compile(
         negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
-        r"(?:\s*(?:以及|[、或和及与])\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        r"(?:\s*(?:以及|[、或和及与]|\band\b|\bor\b)\s*(?:"
+        + negative
+        + r")?\s*(?:"
+        + operation
+        + r"))*",
         re.I,
     )
 
@@ -183,15 +191,19 @@ def _legacy_boolean_text(text, fields):
 
     def replace(match):
         phrase = match.group()
-        if not re.match(r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与", phrase):
+        if not re.match(
+            r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与|"
+            r"\b(?:never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+            r"(?!\s+(?:require|need)\b))\b",
+            phrase,
+            re.I,
+        ):
             return ""
         attributes = []
         if re.search(r"搜索|检索|search", phrase, re.I):
             attributes.append("searchable=false")
         # A date-range operation is not a separate exact-filter toggle.
-        exact = re.sub(
-            r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|date.?range", "", phrase, flags=re.I
-        )
+        exact = _DATE_RANGE_QUERY.sub("", phrase)
         if re.search(r"筛选|过滤|filter", exact, re.I):
             attributes.append("filterable=false")
         if re.search(r"日期区间|日期范围|date.?range", phrase, re.I):
@@ -313,6 +325,12 @@ _DATE_TYPE = re.compile(
 )
 _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
 _DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|date.?range", re.I)
+_DATE_RANGE_QUERY = re.compile(
+    r"(?:\b(?:filter(?:ing)?|search(?:ing)?)\s+(?:by|using|on)\s+)?"
+    rf"(?:{_DATE_RANGE_OPERATOR.pattern})"
+    r"(?:\s*(?:筛选|过滤|查询)|\s+(?:filters?|filtering|search(?:ing)?|quer(?:y|ies))\b)?",
+    re.I,
+)
 _DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
 _DATE_NEGATIVE = re.compile(
     r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"

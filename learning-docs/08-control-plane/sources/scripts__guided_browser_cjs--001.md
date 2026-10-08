@@ -14,7 +14,7 @@
 
 本段原始字节数：`26347`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "99683e8d2a7776d27b6517498dc02ff566f3983fed542b93f701af14058e9237"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "d8e14aba2b9677d141f63346db4a046fc21e21921a5a5c04c401859d5a32af6e"} -->
 ````javascript
 // scripts/guided_browser.cjs
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
@@ -515,7 +515,7 @@ async function workbench(page, cfg, errors) {
   await waitStatus(page, "READY", 100000);
   assert(
     (await page.locator(".progress-rail").innerText()).includes(
-      "智能推荐已开启",
+      "智能委托已开启",
     ),
   );
   assert.equal(

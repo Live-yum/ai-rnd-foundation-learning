@@ -2,6 +2,34 @@
 
 import json
 
+from workbench.model_protocol import JSONGuardFailure, json_lengths
+
+JSON_SYNTAX_CATEGORIES = {
+    "Expecting value": "expected_value",
+    "Expecting property name enclosed in double quotes": "expected_property_name",
+    "Expecting ':' delimiter": "expected_colon",
+    "Expecting ',' delimiter": "expected_comma",
+    "Unterminated string starting at": "unterminated_string",
+    "Invalid \\escape": "invalid_escape",
+    "Invalid \\uXXXX escape": "invalid_unicode_escape",
+    "Invalid control character at": "invalid_control_character",
+    "Extra data": "extra_data",
+    "Unexpected UTF-8 BOM (decode using utf-8-sig)": "unexpected_bom",
+}
+JSON_GUARD_MESSAGES = {
+    "duplicate_json_key": "JSON 对象中不能出现重复字段名；保留需求并为每个字段返回唯一值。",
+    "non_finite_json_number": "JSON 数字必须有限；不能包含 NaN、Infinity 或溢出的数字。",
+    "json_nesting_limit": "JSON 嵌套超过本地解析器限制；按给定 Schema 返回对象。",
+    "json_integer_limit": "JSON 整数字面量超过本地解析器位数限制；按 Schema 返回数字。",
+    "response_must_be_json_object": "JSON 顶层必须是一个对象，不能是数组、字符串或空值。",
+    "langchain_structured_output_parsing_failed": "本地严格 JSON 与 Schema 校验已通过，但 LangChain 结构化解析未通过；不能据此认定 JSON 语法错误。",
+}
+JSON_DIAGNOSTIC_CATEGORIES = (
+    frozenset(JSON_SYNTAX_CATEGORIES.values())
+    | frozenset(JSON_GUARD_MESSAGES)
+    | {"json_syntax", "json_encoding", "invalid_json"}
+)
+
 
 def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     phase = "response_validation"
@@ -29,6 +57,10 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     elif code == "invalid_json":
         summary = "服务已响应，但返回内容不是可接受的完整 JSON 对象。"
         hint = "检查服务是否支持 JSON 对象输出；保留严格校验，调整模型或配置后重试当前运行。"
+    elif code == "structured_parser_disagreement":
+        phase = "model_execution"
+        summary = "本地严格 JSON 与 Schema 校验已通过，但 LangChain 结构化解析未通过。"
+        hint = "按追踪 ID 检查结构化适配器；保留两层校验，不将解析器差异当作 JSON 语法错误。"
     elif code in {
         "length",
         "truncated",
@@ -68,29 +100,40 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     }
 
 
-def json_diagnostics(exc):
+def json_diagnostics(exc, content=None):
     """Expose syntax locations and static guard names, never parser docs or snippets."""
+    source = exc.doc if isinstance(exc, json.JSONDecodeError) else content
+    lengths = exc.lengths if isinstance(exc, JSONGuardFailure) else json_lengths(source)
     if isinstance(exc, json.JSONDecodeError):
+        category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
         return [
             {
                 "type": "json_syntax",
+                "category": category,
                 "path": [],
-                "message": f"JSON 语法错误位于第 {exc.lineno} 行、第 {exc.colno} 列；"
+                "position": {"line": exc.lineno, "column": exc.colno, "offset": exc.pos},
+                "lengths": lengths,
+                "message": f"JSON 解析器报告 {category}，位于第 {exc.lineno} 行、第 {exc.colno} 列，"
+                f"字符偏移 {exc.pos}（从 0 开始），全文 {len(exc.doc)} 个字符；"
                 "返回一个完整对象，正确转义字符串并闭合括号，不要附加 Markdown 围栏或说明文字。",
             }
         ]
-    known = {
-        "duplicate_json_key": "JSON 对象中不能出现重复字段名；保留需求并为每个字段返回唯一值。",
-        "non_finite_json_number": "JSON 数字必须有限；不能包含 NaN、Infinity 或溢出的数字。",
-        "json_nesting_limit": "JSON 嵌套层数过多；按给定 Schema 返回对象。",
-        "response_must_be_json_object": "JSON 顶层必须是一个对象，不能是数组、字符串或空值。",
-    }
-    code = str(exc)
+    code = str(exc) if str(exc) in JSON_GUARD_MESSAGES else "invalid_json"
+    if isinstance(exc, UnicodeDecodeError):
+        code = "json_encoding"
+        lengths = {"bytes": len(exc.object)}
     return [
         {
-            "type": code if code in known else "invalid_json",
+            "type": code,
+            "category": code,
             "path": [],
-            "message": known.get(code, "只返回符合给定 Schema 的一个完整 JSON 对象。"),
+            "lengths": lengths,
+            "message": JSON_GUARD_MESSAGES.get(
+                code,
+                "响应编码无法解码为 JSON 文本。"
+                if code == "json_encoding"
+                else "只返回符合给定 Schema 的一个完整 JSON 对象。",
+            ),
         }
     ]
 

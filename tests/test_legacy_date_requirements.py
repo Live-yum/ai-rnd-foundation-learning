@@ -153,3 +153,153 @@ def test_fact_catalog_heading_retains_its_context(key):
     requirement, plan = case()
     requirement.facts = {key: "records.event_on 使用真实日期"}
     assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records.event_on 起止日期范围筛选",
+        "records.event_on 日期区间过滤",
+        "records.event_on 包含首尾的日期范围查询",
+        "records.event_on date range filter",
+        "records.event_on date-range filtering",
+        "records.event_on date_range queries",
+        "Filter by date range on records.event_on",
+        "records.event_on 需要日期范围筛选，无需精确筛选",
+        "records.event_on does not require exact filtering, but supports date range filtering",
+    ],
+)
+def test_range_queries_never_require_an_additional_exact_filter(text, section):
+    requirement, plan = case(text, section)
+    field = plan.entities[0].fields[1]
+    field.kind = "date"
+    field.date_range = True
+    assert field.filterable is False
+    before = requirement.model_dump(), plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert (requirement.model_dump(), plan.model_dump()) == before
+    field.date_range = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == "date_range" for row in diagnostics)
+    assert not any(row["attribute"] == "filterable" for row in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records.event_on 日期范围筛选和精确筛选",
+        "records.event_on 精确筛选与日期范围过滤",
+        "records.event_on date range filter and exact filter",
+        "records.event_on exact filtering and date-range filtering",
+    ],
+)
+def test_an_explicit_exact_filter_stays_independent_of_the_range_query(text):
+    requirement, plan = case(text)
+    field = plan.entities[0].fields[1]
+    field.kind, field.date_range, field.filterable = "date", True, True
+    assert coverage_gaps(requirement, plan) == []
+    for flag in ("date_range", "filterable"):
+        setattr(field, flag, False)
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(row["attribute"] == flag for row in diagnostics)
+        setattr(field, flag, True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records: event_on 日期范围筛选，name 精确筛选",
+        "records: name 精确筛选，event_on 日期范围过滤",
+        "records: event_on date range filtering, name exact filtering",
+    ],
+)
+def test_range_and_exact_queries_bind_to_their_own_named_fields(text):
+    requirement, plan = case(text)
+    exact, ranged = plan.entities[0].fields[:2]
+    exact.filterable = True
+    ranged.kind, ranged.date_range = "date", True
+    assert coverage_gaps(requirement, plan) == []
+    for field, flag in ((exact, "filterable"), (ranged, "date_range")):
+        setattr(field, flag, False)
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(
+            row["attribute"] == flag
+            and row["targets"] == [{"entity": "records", "field": field.name}]
+            for row in diagnostics
+        )
+        setattr(field, flag, True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records.event_on 禁止精确筛选，支持日期范围查询",
+        "records.event_on must not allow exact filtering, supports date range filtering",
+    ],
+)
+def test_range_queries_still_enforce_an_explicit_exact_filter_prohibition(text):
+    requirement, plan = case(text)
+    field = plan.entities[0].fields[1]
+    field.kind, field.date_range = "date", True
+    assert coverage_gaps(requirement, plan) == []
+    field.filterable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == "filterable" and row["expected"] is False for row in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records.event_on 禁止日期范围筛选，必须精确筛选",
+        "records.event_on must not support date range filtering, requires exact filtering",
+        "records.event_on date_range=false and filterable=true",
+    ],
+)
+def test_disabling_a_range_query_does_not_disable_its_explicit_exact_filter(text):
+    requirement, plan = case(text)
+    field = plan.entities[0].fields[1]
+    field.kind, field.filterable = "date", True
+    assert coverage_gaps(requirement, plan) == []
+    field.date_range = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == "date_range" and row["expected"] is False for row in diagnostics)
+    assert not any(row["attribute"] == "filterable" for row in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "records.event_on 不需要日期范围筛选，必须精确筛选",
+        "records.event_on does not require date range filtering, requires exact filtering",
+    ],
+)
+def test_an_unrequested_range_query_is_not_a_positive_or_negative_obligation(text):
+    requirement, plan = case(text)
+    field = plan.entities[0].fields[1]
+    field.kind, field.filterable = "date", True
+    for value in (False, True):
+        field.date_range = value
+        assert coverage_gaps(requirement, plan) == []
+
+
+def test_range_wording_cannot_override_an_explicit_typed_exact_filter_prohibition():
+    requirement, plan = case("records.event_on 日期范围筛选")
+    field = plan.entities[0].fields[1]
+    field.kind, field.date_range = "date", True
+    requirement.field_requirements = [
+        FieldRequirement(entity="records", field="event_on", filterable=False, date_range=True)
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    field.filterable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        row["source"]["section"] == "field_requirements" and row["attribute"] == "filterable"
+        for row in diagnostics
+    )

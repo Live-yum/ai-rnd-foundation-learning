@@ -159,6 +159,7 @@
 - [tests/test_handbook_order.py](sources/tests__test_handbook_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_source_spans.py](sources/tests__test_handbook_source_spans_py--001.md)：可重复的验收用例；1 段
+- [tests/test_json_diagnostics.py](sources/tests__test_json_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs.py](sources/tests__test_learning_docs_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_frontend.py](sources/tests__test_learning_docs_frontend_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_signup.py](sources/tests__test_learning_docs_signup_py--001.md)：可重复的验收用例；1 段

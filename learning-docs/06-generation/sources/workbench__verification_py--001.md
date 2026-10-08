@@ -20,22 +20,22 @@
 - `product_interpreter`（L21–L40）：接收`product`、`settings`。 控制顺序：L22按`not settings.install_products`分支；L25按`not uv`分支；L26抛异常，停止当前正常路径；L39抛异常，停止当前正常路径。 调用`shutil.which`、`PrerequisiteError`、`json.loads`、`(Path(product) / "selection.json").read_text`、`Path`、`run_command`、`str`。 返回路径：L23的`sys.executable`；L40的`str(product / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))`。
 - `run_probe`（L43–L75）：接收`product`、`python`、`report_path`、`settings`、`business_screenshots`。 调用`json.loads`、`(Path(product) / "selection.json").read_text`、`Path`、`database`、`nullcontext`、`run_command`、`str`、`os.environ.get`。 返回路径：L49的`run_command( [ sys.executable, str(ROOT / "templates/product/verify.py"), "--product", str…`。
 - `require_browser_evidence`（L78–L117）：接收`product`、`report`。 控制顺序：L81按`spec.get("business")`分支；L84按`selection["frontend"] != "simple-admin"`分支；L87按`not isinstance(browser, dict) or any(browser.get(key) is not True for key in ("passed…`分支；L92抛异常，停止当前正常路径；L94遍历`spec["entities"]`；L106遍历`entity["fields"]`；L107遍历`( ("searchable", "browser-search"), ("filterable", "browser-filte…`；L112按`field.get(flag)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(Path(product) / "selection.json").read_text`、`Path`、`(Path(product) / "approved-spec.json").read_text`、`spec.get`、`require_business_evidence`、`report.get`、`isinstance`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_business_proof`（L120–L489）：接收`spec`、`report`、`with_browser`。 源码说明：Bind detailed executed proof to this Plan; aggregate success markers alone fail closed.。 控制顺序：L144断言`type(proof["version"]) is int and proof["version"] == 1`；L145断言`set(proof) == { "version", "field_validation", "related_views", "relation_labels", "d…`；L174遍历`spec["entities"]`；L176遍历`contract["roles"]`；L177按`not read(role["name"], entity["name"])`分支；L179遍历`entity["fields"]`；L185遍历`kinds`；L191断言`set(queries) == set(expected_queries)`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`len`、`type`、`next`、`read`、`indexed`、`queries.items`、`any`、`resources.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_business_proof`（L120–L498）：接收`spec`、`report`、`with_browser`。 源码说明：Bind detailed executed proof to this Plan; aggregate success markers alone fail closed.。 控制顺序：L144断言`type(proof["version"]) is int and proof["version"] == 1`；L145断言`set(proof) == { "version", "field_validation", "related_views", "relation_labels", "d…`；L174遍历`spec["entities"]`；L176遍历`contract["roles"]`；L177按`not read(role["name"], entity["name"])`分支；L179遍历`entity["fields"]`；L185遍历`kinds`；L191断言`set(queries) == set(expected_queries)`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`len`、`type`、`next`、`read`、`indexed`、`queries.items`、`any`、`resources.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `require_business_proof.indexed`（L130–L135）：接收`values`、`keys`、`limit`。 控制顺序：L131断言`isinstance(values, list) and len(values) <= limit`；L132断言`all(isinstance(value, dict) for value in values)`；L134断言`len(result) == len(values)`。 调用`isinstance`、`len`、`all`、`tuple`。 返回路径：L135的`result`。
 - `require_business_proof.positive`（L137–L138）：接收`value`、`limit`。 控制顺序：L138断言`type(value) is int and 0 < value <= limit`。 调用`type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `require_business_proof.read`（L140–L141）：接收`role`、`entity`。 调用`permissions.get`、`set`。 返回路径：L141的`"read" in permissions.get((role, entity), set())`。
-- `require_business_evidence`（L492–L550）：接收`spec`、`report`、`with_browser`。 控制顺序：L513按`not isinstance(business, dict) or business.get("passed") is not True or business.get(…`分支；L521抛异常，停止当前正常路径；L523按`not with_browser`分支；L542按`not isinstance(browser, dict) or any(browser.get(key) is not True for key in ("passed…`分支；L550抛异常，停止当前正常路径。 调用`report.get`、`isinstance`、`business.get`、`digest`、`required.issubset`、`set`、`PrerequisiteError`、`require_business_proof`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_rule_examples`（L553–L563）：接收`plan`、`product`。 控制顺序：L555遍历`plan.custom_rules`；L556遍历`rule.accept_examples`；L558遍历`rule.reject_examples`；L563抛异常，停止当前正常路径。 调用`Rules`、`(product / "custom_rules.py").read_text`、`rules.validate`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_basic`（L566–L622）：接收`plan`、`product`、`settings`、`attempt`。 控制顺序：L571按`set(current) != set(original) or any( current[k] != v for k, v in original.items() if…`分支；L574抛异常，停止当前正常路径；L575按`receipt["spec_digest"] != digest(plan.model_dump())`分支；L576抛异常，停止当前正常路径；L578遍历`files(product)`；L579按`name.endswith(".py")`分支；L594按`not report_path.exists()`分支；L595抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`json.loads`、`(product.parent / "generation.json").read_text`、`manifest`、`set`、`any`、`original.items`、`PrerequisiteError`、`digest`等。 返回路径：L583的`{ "passed": False, "kind": "code", "error": str(exc)[:500], "attempt": attempt, }`；L601的`{ "passed": False, "kind": "code", "error": report.get("message", "运行验收失败"), "attempt": at…`；L622的`report`。
-- `package_basic`（L625–L668）：接收`plan`、`product`、`settings`、`report`。 控制顺序：L628按`report.get("passed") is not True or report.get("source_digest") != digest(listing)`分支；L629抛异常，停止当前正常路径；L635遍历`files(product)`；L643按`manifest(clean) != listing`分支；L644抛异常，停止当前正常路径；L649按`manifest(clean) != listing`分支；L650抛异常，停止当前正常路径；L652按`evidence.get("passed") is not True`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`report.get`、`digest`、`PrerequisiteError`、`require_browser_evidence`、`archive.with_suffix`、`zipfile.ZipFile`、`files`等。 返回路径：L668的`result`。
+- `require_business_evidence`（L501–L559）：接收`spec`、`report`、`with_browser`。 控制顺序：L522按`not isinstance(business, dict) or business.get("passed") is not True or business.get(…`分支；L530抛异常，停止当前正常路径；L532按`not with_browser`分支；L551按`not isinstance(browser, dict) or any(browser.get(key) is not True for key in ("passed…`分支；L559抛异常，停止当前正常路径。 调用`report.get`、`isinstance`、`business.get`、`digest`、`required.issubset`、`set`、`PrerequisiteError`、`require_business_proof`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_rule_examples`（L562–L572）：接收`plan`、`product`。 控制顺序：L564遍历`plan.custom_rules`；L565遍历`rule.accept_examples`；L567遍历`rule.reject_examples`；L572抛异常，停止当前正常路径。 调用`Rules`、`(product / "custom_rules.py").read_text`、`rules.validate`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_basic`（L575–L631）：接收`plan`、`product`、`settings`、`attempt`。 控制顺序：L580按`set(current) != set(original) or any( current[k] != v for k, v in original.items() if…`分支；L583抛异常，停止当前正常路径；L584按`receipt["spec_digest"] != digest(plan.model_dump())`分支；L585抛异常，停止当前正常路径；L587遍历`files(product)`；L588按`name.endswith(".py")`分支；L603按`not report_path.exists()`分支；L604抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`json.loads`、`(product.parent / "generation.json").read_text`、`manifest`、`set`、`any`、`original.items`、`PrerequisiteError`、`digest`等。 返回路径：L592的`{ "passed": False, "kind": "code", "error": str(exc)[:500], "attempt": attempt, }`；L610的`{ "passed": False, "kind": "code", "error": report.get("message", "运行验收失败"), "attempt": at…`；L631的`report`。
+- `package_basic`（L634–L677）：接收`plan`、`product`、`settings`、`report`。 控制顺序：L637按`report.get("passed") is not True or report.get("source_digest") != digest(listing)`分支；L638抛异常，停止当前正常路径；L644遍历`files(product)`；L652按`manifest(clean) != listing`分支；L653抛异常，停止当前正常路径；L658按`manifest(clean) != listing`分支；L659抛异常，停止当前正常路径；L661按`evidence.get("passed") is not True`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`report.get`、`digest`、`PrerequisiteError`、`require_browser_evidence`、`archive.with_suffix`、`zipfile.ZipFile`、`files`等。 返回路径：L677的`result`。
 
 </details>
 
-**创建路径：** `workbench/verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L668。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L677。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29976`。本段原文以LF换行结束。
+本段原始字节数：`30507`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7003537acdadcec1c20a1909be45f33898503651794455ad319b62c3bf84ccaa"} -->
+<!-- learning-source: {"path": "workbench/verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fbf7bd6b94fc356c54c460b40c32b8c5e8f953551f082c0d5d8d3caa37b41b16"} -->
 ````python
 # workbench/verification.py
 """Independent runtime checks, reproducible packaging, and clean-room verification."""
@@ -333,6 +333,14 @@ def require_business_proof(spec, report, with_browser):
                     assert item["invalid_enum_rejected"] is True
                 if field["kind"] == "datetime":
                     assert item["invalid_timestamp_rejected"] is True
+                if field["kind"] == "integer":
+                    from templates.product.fields import integer_bounds
+
+                    low, high = integer_bounds(field)
+                    assert type(item["minimum"]) is int and item["minimum"] == low
+                    assert type(item["maximum"]) is int and item["maximum"] == high
+                    assert item["below_minimum_rejected"] is True
+                    assert item["above_maximum_rejected"] is True
                 invalid_count = (
                     int(field["required"])
                     + int(field["required"] and field["kind"] in {"text", "enum"})
@@ -340,6 +348,7 @@ def require_business_proof(spec, report, with_browser):
                     + int(field["kind"] == "text" and bool(field.get("min_length")))
                     + int(field["kind"] == "enum")
                     + int(field["kind"] == "datetime")
+                    + 2 * int(field["kind"] == "integer")
                 )
                 if update and invalid_count:
                     assert (

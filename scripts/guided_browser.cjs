@@ -496,7 +496,7 @@ async function workbench(page, cfg, errors) {
   await waitStatus(page, "READY", 100000);
   assert(
     (await page.locator(".progress-rail").innerText()).includes(
-      "智能推荐已开启",
+      "智能委托已开启",
     ),
   );
   assert.equal(

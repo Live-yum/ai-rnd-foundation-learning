@@ -15,29 +15,30 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `trusted_event`（L51–L80）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L59按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L74的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
-- `acceptance_settings`（L83–L135）：接收`env`、`directory`。 控制顺序：L84遍历`("BASE_URL", "MODE", "API_KEY")`；L133遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L135的`settings`。
-- `BoundedTransport`（L138–L229）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedTransport.__init__`（L141–L146）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.handle_request`（L148–L223）：接收`request`。 控制顺序：L152按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L169抛异常，停止当前正常路径；L177遍历`response.iter_bytes()`；L179按`len(payload) > 2_000_000`分支；L180抛异常，停止当前正常路径；L203按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L223的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
-- `BoundedTransport.close`（L225–L226）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.shutdown`（L228–L229）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway`（L232–L254）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ObservedGateway.__init__`（L233–L235）：接收`settings`、`store`、`transport`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway.complete`（L237–L254）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`self.traces.append`、`super().complete`、`super`。 返回路径：L254的`result`。
-- `failure_events`（L257–L289）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L260遍历`range(4)`；L262按`not events`分支；L265遍历`events`；L266按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L271遍历`("stage", "code", "request_id", "response_id", "attempt")`；L273按`isinstance(value, str)`分支；L275按`type(value) is int`分支；L282按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`len`、`json.dumps`等。 返回路径：L286的`failures`；L289的`failures`。
-- `verify_delivery`（L292–L340）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L322的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
-- `aggregate`（L343–L368）：接收`cases`、`results`。 控制顺序：L344按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L348遍历`cases`；L350按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L347的`False`；L367的`False`；L368的`True`。
-- `run_suite`（L371–L491）：接收`settings`、`directory`、`binding`。 控制顺序：L426遍历`cases`；L428遍历`assignments.items()`；L430按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L464按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L482的`summary`。
-- `main`（L494–L552）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L502按`args.validate_fixtures`分支；L529按`binding and (REPORTS / "summary.json").is_file()`分支；L531按`saved.get("run_identity") == binding`分支；L552抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `trusted_event`（L56–L85）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L64按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L79的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
+- `acceptance_settings`（L88–L140）：接收`env`、`directory`。 控制顺序：L89遍历`("BASE_URL", "MODE", "API_KEY")`；L138遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L140的`settings`。
+- `BoundedTransport`（L143–L236）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedTransport.__init__`（L146–L151）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.handle_request`（L153–L230）：接收`request`。 控制顺序：L157按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L174抛异常，停止当前正常路径；L182遍历`response.iter_bytes()`；L184按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L185抛异常，停止当前正常路径；L208按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L230的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
+- `BoundedTransport.close`（L232–L233）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.shutdown`（L235–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway`（L239–L261）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ObservedGateway.__init__`（L240–L242）：接收`settings`、`store`、`transport`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway.complete`（L244–L261）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`self.traces.append`、`super().complete`、`super`。 返回路径：L261的`result`。
+- `diagnostic_facts`（L264–L291）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L267遍历`details[:8]`；L268按`not isinstance(detail, dict)`分支；L272按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L274遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L279按`isinstance(values, dict)`分支；L288按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L291的`retained`。
+- `failure_events`（L294–L322）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L297遍历`range(4)`；L299按`not events`分支；L302遍历`events`；L303按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L308遍历`("stage", "code", "request_id", "response_id", "attempt")`；L310按`isinstance(value, str)`分支；L312按`type(value) is int`分支；L315按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L319的`failures`；L322的`failures`。
+- `verify_delivery`（L325–L373）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L355的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
+- `aggregate`（L376–L401）：接收`cases`、`results`。 控制顺序：L377按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L381遍历`cases`；L383按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L380的`False`；L400的`False`；L401的`True`。
+- `run_suite`（L404–L524）：接收`settings`、`directory`、`binding`。 控制顺序：L459遍历`cases`；L461遍历`assignments.items()`；L463按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L497按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L515的`summary`。
+- `main`（L527–L585）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L535按`args.validate_fixtures`分支；L562按`binding and (REPORTS / "summary.json").is_file()`分支；L564按`saved.get("run_identity") == binding`分支；L585抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L556。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L589。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23179`。本段原文以LF换行结束。
+本段原始字节数：`24418`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4aa0f0ce86779f1d86f6ce410236191ab8cf06be7583a3f17e0207d909dcba8e"} -->
+<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f874c30c15508a83f52ca7e7b1fe14ad8101fdc236267ee6a12a499eda2550e2"} -->
 ````python
 # scripts/ci_template_projects.py
 """Bounded real-model batch acceptance for three independent project scenarios.
@@ -71,8 +72,13 @@ from scripts.template_acceptance_runtime import run_scenario
 from workbench.domain import digest
 from workbench.filesystem import manifest, sha, unpack, write_json
 from workbench.llm import ModelGateway
-from workbench.model_diagnostics import schema_diagnostics
+from workbench.model_diagnostics import (
+    JSON_DIAGNOSTIC_CATEGORIES,
+    json_diagnostics,
+    schema_diagnostics,
+)
 from workbench.model_protocol import (
+    MAX_MODEL_CONTENT_BYTES,
     OutputFailure,
     completion_content,
     output_contract,
@@ -218,7 +224,7 @@ class BoundedTransport(httpx.BaseTransport):
         try:
             for chunk in response.iter_bytes():
                 payload.extend(chunk)
-                if len(payload) > 2_000_000:
+                if len(payload) > MAX_MODEL_CONTENT_BYTES:
                     raise OutputFailure("acceptance_response_limit", "模型响应超过验收字节上限")
         finally:
             response.close()
@@ -244,6 +250,7 @@ class BoundedTransport(httpx.BaseTransport):
             )
             if self.schema is not None and response.status_code == 200:
                 contract = output_contract(profile, self.schema)
+                content = None
                 try:
                     content, _, _ = completion_content(envelope, contract)
                     validate_content(content, self.schema, mode=contract.mode)
@@ -253,8 +260,9 @@ class BoundedTransport(httpx.BaseTransport):
                     receipt["schema_diagnostics"] = schema_diagnostics(error, self.schema)[:8]
                 except OutputFailure as error:
                     receipt.update(schema_valid=False, validation_code=error.code)
-                except ValueError, KeyError, IndexError, AttributeError, TypeError:
+                except (ValueError, KeyError, IndexError, AttributeError, TypeError) as error:
                     receipt.update(schema_valid=False, validation_code="invalid_json")
+                    receipt["json_diagnostics"] = diagnostic_facts(json_diagnostics(error, content))
         except ValueError, KeyError, IndexError, AttributeError, TypeError:
             receipt["envelope_valid"] = False
         headers = {
@@ -296,6 +304,36 @@ class ObservedGateway(ModelGateway):
         return result
 
 
+def diagnostic_facts(details):
+    """Keep existing schema facts and allowlisted numeric JSON diagnostics, not text."""
+    retained = []
+    for detail in details[:8]:
+        if not isinstance(detail, dict):
+            continue
+        item = {key: detail[key] for key in ("type", "path", "constraints") if key in detail}
+        category = detail.get("category")
+        if isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES:
+            item["category"] = category
+        for group, names in (
+            ("position", ("line", "column", "offset")),
+            ("lengths", ("characters", "bytes")),
+        ):
+            values = detail.get(group)
+            if isinstance(values, dict):
+                numbers = {
+                    name: values[name]
+                    for name in names
+                    if type(values.get(name)) is int
+                    and (1 if name in {"line", "column"} else 0)
+                    <= values[name]
+                    <= MAX_MODEL_CONTENT_BYTES
+                }
+                if numbers:
+                    item[group] = numbers
+        retained.append(item)
+    return retained
+
+
 def failure_events(store, run_id, settings):
     """Keep bounded diagnostics already authored by the platform, never response text."""
     failures, after, used = [], 0, 0
@@ -316,11 +354,7 @@ def failure_events(store, run_id, settings):
                     item[key] = value[:100]
                 elif type(value) is int:
                     item[key] = value
-            details = [
-                {key: detail[key] for key in ("type", "path", "constraints") if key in detail}
-                for detail in diagnostic.get("details", [])[:8]
-                if isinstance(detail, dict)
-            ]
+            details = diagnostic_facts(diagnostic.get("details", []))
             if len(json.dumps(details, ensure_ascii=False)) <= 3000:
                 item["details"] = details
             size = len(json.dumps(item, ensure_ascii=False))
