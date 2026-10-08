@@ -234,6 +234,112 @@ def test_range_and_exact_queries_bind_to_their_own_named_fields(text):
         setattr(field, flag, True)
 
 
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name 和含边界日期区间筛选",
+        "name 与 event_on 起止日期范围过滤",
+        "records: name、recorded_at 和 event_on 日期范围筛选",
+        "records: name and inclusive date range filtering",
+        "records: name, recorded_at and event_on date-range filtering",
+        "name and inclusive date range filtering on records.event_on",
+    ],
+)
+def test_a_shared_range_filter_verb_still_binds_coordinated_non_date_fields(text, section):
+    requirement, plan = case(text, section)
+    name, event_on, recorded_at = plan.entities[0].fields
+    name.filterable = recorded_at.filterable = True
+    event_on.kind, event_on.date_range = "date", True
+    before = requirement.model_dump(), plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert event_on.filterable is False
+    assert (requirement.model_dump(), plan.model_dump()) == before
+    targets = [(name, "filterable"), (event_on, "date_range")]
+    if "recorded_at" in text:
+        targets.append((recorded_at, "filterable"))
+    for field, flag in targets:
+        setattr(field, flag, False)
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(
+            row["attribute"] == flag
+            and row["targets"] == [{"entity": "records", "field": field.name}]
+            for row in diagnostics
+        )
+        setattr(field, flag, True)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "event_on 和 recorded_at 日期范围筛选",
+        "records: event_on and recorded_at date-range filtering",
+        "event_on、name 和 recorded_at 含边界日期区间过滤",
+        "event_on, name and recorded_at inclusive date range filtering",
+    ],
+)
+def test_coordinated_date_fields_share_only_the_range_operation(text):
+    requirement, plan = case(text)
+    name, event_on, recorded_at = plan.entities[0].fields
+    name.filterable = True
+    for field in (event_on, recorded_at):
+        field.kind, field.date_range = "date", True
+    assert coverage_gaps(requirement, plan) == []
+    assert not event_on.filterable and not recorded_at.filterable
+    for field in (event_on, recorded_at):
+        field.date_range = False
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(row["attribute"] == "date_range" for row in diagnostics)
+        assert not any(row["attribute"] == "filterable" for row in diagnostics)
+        field.date_range = True
+    if "name" in text:
+        name.filterable = False
+        assert coverage_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name（必填）和 event_on 日期范围筛选",
+        "name is required and event_on date range filtering",
+        "name，event_on 日期范围筛选",
+        "name; event_on date range filtering",
+        "name 和日期范围筛选结果展示",
+        "name and date range filter results are displayed",
+        "name 和 event_on 不需要日期范围筛选",
+        "name and event_on does not require date range filtering",
+    ],
+)
+def test_context_or_completed_field_descriptions_do_not_share_a_range_filter_verb(text):
+    requirement, plan = case(text)
+    plan.entities[0].fields[1].kind = "date"
+    plan.entities[0].fields[1].date_range = True
+    assert all(not field.filterable for field in plan.entities[0].fields)
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_shared_filter_projection_keeps_the_original_entity_scope():
+    requirement, plan = case("records: name 和 event_on 日期范围筛选")
+    name, event_on = plan.entities[0].fields[:2]
+    name.filterable, event_on.kind, event_on.date_range = True, "date", True
+    archive = plan.entities[0].model_copy(deep=True, update={"name": "archive"})
+    for field in archive.fields:
+        field.filterable = field.date_range = False
+    plan.entities.append(archive)
+    assert coverage_gaps(requirement, plan) == []
+    name.filterable = False
+    archive.fields[0].filterable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        row["attribute"] == "filterable"
+        and row["targets"] == [{"entity": "records", "field": "name"}]
+        for row in diagnostics
+    )
+
+
 @pytest.mark.parametrize(
     "text",
     [

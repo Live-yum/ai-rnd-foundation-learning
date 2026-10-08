@@ -19,14 +19,15 @@
 - `test_local_resource_failures_keep_static_codes_and_size_only`（L48–L65）：接收`monkeypatch`。 控制顺序：L57断言`json_diagnostics(caught.value)[0]["lengths"]["characters"] == 2`；L58断言`"private-" not in json.dumps(json_diagnostics(caught.value))`；L60按`digit_limit`分支；L64断言`json_diagnostics(caught.value)[0]["category"] == "json_integer_limit"`；L65断言`json_diagnostics(caught.value)[0]["lengths"]["characters"] == len(integer)`。 调用`monkeypatch.context`、`patch.setattr`、`pytest.raises`、`load_json`、`json_diagnostics`、`json.dumps`、`sys.get_int_max_str_digits`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_local_resource_failures_keep_static_codes_and_size_only.exhausted_parser`（L49–L50）：接收`*args`、`**kwargs`。 控制顺序：L50抛异常，停止当前正常路径。 调用`RecursionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unknown_parser_messages_are_never_exposed`（L68–L72）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71断言`detail["category"] == "json_syntax"`；L72断言`"private-" not in json.dumps(detail)`。 调用`json.JSONDecodeError`、`json_diagnostics`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extra_data_feedback_rebuilds_one_object_without_guessing_tail_contents`（L79–L94）：接收`tail`。 控制顺序：L84断言`detail["category"] == "extra_data"`；L85断言`detail["position"]["offset"] == len('{"summary":"first value"}') + ( len(tail) - len(…`；L88断言`detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}`；L89断言`"第一个 JSON 值" in detail["message"]`；L90断言`"若根对象提前闭合" in detail["message"]`；L91断言`"同一根对象的最后一个 } 之前" in detail["message"]`；L92断言`"保留全部业务字段" in detail["message"]`；L93断言`"不能只返回尾部补丁或截掉内容" in detail["message"]`。后续分支沿下方源码相同行号继续阅读。 调用`pytest.raises`、`load_json`、`json_diagnostics`、`len`、`tail.lstrip`、`content.encode`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_json_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L72。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_json_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L94。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3161`。本段原文以LF换行结束。
+本段原始字节数：`4210`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_json_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "cf22354d7e2fe688ea962d83e238fc8eafe4dd1e562478d07a3e1e6365858980"} -->
+<!-- learning-source: {"path": "tests/test_json_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0d0f94f5909ef7086d4d1f5a57f52d90f98476828588007eea7e16256a9be46f"} -->
 ````python
 # tests/test_json_diagnostics.py
 """Strict JSON rejection emits facts, never response excerpts or duplicate key names."""
@@ -101,4 +102,26 @@ def test_unknown_parser_messages_are_never_exposed():
     detail = json_diagnostics(error)[0]
     assert detail["category"] == "json_syntax"
     assert "private-" not in json.dumps(detail)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [',"private-tail-canary":false}', ' {"private-tail-canary":true}', " private-tail-canary"],
+)
+def test_extra_data_feedback_rebuilds_one_object_without_guessing_tail_contents(tail):
+    content = '{"summary":"first value"}' + tail
+    with pytest.raises(json.JSONDecodeError) as caught:
+        load_json(content)
+    detail = json_diagnostics(caught.value)[0]
+    assert detail["category"] == "extra_data"
+    assert detail["position"]["offset"] == len('{"summary":"first value"}') + (
+        len(tail) - len(tail.lstrip())
+    )
+    assert detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}
+    assert "第一个 JSON 值" in detail["message"]
+    assert "若根对象提前闭合" in detail["message"]
+    assert "同一根对象的最后一个 } 之前" in detail["message"]
+    assert "保留全部业务字段" in detail["message"]
+    assert "不能只返回尾部补丁或截掉内容" in detail["message"]
+    assert "private-tail-canary" not in json.dumps(detail)
 ````

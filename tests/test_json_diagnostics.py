@@ -70,3 +70,25 @@ def test_unknown_parser_messages_are_never_exposed():
     detail = json_diagnostics(error)[0]
     assert detail["category"] == "json_syntax"
     assert "private-" not in json.dumps(detail)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [',"private-tail-canary":false}', ' {"private-tail-canary":true}', " private-tail-canary"],
+)
+def test_extra_data_feedback_rebuilds_one_object_without_guessing_tail_contents(tail):
+    content = '{"summary":"first value"}' + tail
+    with pytest.raises(json.JSONDecodeError) as caught:
+        load_json(content)
+    detail = json_diagnostics(caught.value)[0]
+    assert detail["category"] == "extra_data"
+    assert detail["position"]["offset"] == len('{"summary":"first value"}') + (
+        len(tail) - len(tail.lstrip())
+    )
+    assert detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}
+    assert "第一个 JSON 值" in detail["message"]
+    assert "若根对象提前闭合" in detail["message"]
+    assert "同一根对象的最后一个 } 之前" in detail["message"]
+    assert "保留全部业务字段" in detail["message"]
+    assert "不能只返回尾部补丁或截掉内容" in detail["message"]
+    assert "private-tail-canary" not in json.dumps(detail)

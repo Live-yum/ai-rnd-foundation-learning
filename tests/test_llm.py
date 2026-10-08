@@ -182,6 +182,78 @@ def test_large_valid_plan_does_not_trigger_a_local_json_size_or_node_threshold(s
     assert not [event for event in store.events(run) if event["kind"] == "model_failure"]
 
 
+@pytest.mark.parametrize("repair_succeeds", [True, False])
+def test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts(
+    store, repair_succeeds
+):
+    compact = {
+        "title": "Protocol repair fixture",
+        "data_scope": "per_user",
+        "entities": [
+            {
+                "name": "record",
+                "description": "Keep all requested fields and constraints",
+                "fields": [
+                    {"name": "note", "kind": "text", "required": False, "max_length": 80},
+                    {"name": "quantity", "kind": "integer", "minimum": 0, "maximum": 12},
+                ],
+            }
+        ],
+        "acceptance": ["Owner isolation, optional notes up to 80 characters, quantity 0 to 12"],
+    }
+    expected = Plan.model_validate(compact, strict=True)
+    valid = json.dumps(compact)
+    invalid = valid + ',"private-tail-canary":false}'
+    original_schema = Plan.model_json_schema()
+    payload = {"confirmed_plan_scope": compact}
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": valid if repair_succeeds and len(requests) == 2 else invalid,
+                        },
+                    }
+                ]
+            },
+        )
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    if repair_succeeds:
+        assert model.complete(
+            run, "plan:extra-data", "Preserve confirmed scope", payload, Plan
+        ) == (expected)
+    else:
+        with pytest.raises(ModelFailure, match="两次尝试"):
+            model.complete(run, "plan:extra-data", "Preserve confirmed scope", payload, Plan)
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert Plan.model_json_schema() == original_schema
+    assert requests[0]["messages"][0] == requests[1]["messages"][0]
+    instruction = requests[0]["messages"][0]["content"]
+    assert instruction.endswith(json.dumps(original_schema, ensure_ascii=False))
+    assert "同一对象内的字段名只能出现一次" in instruction
+    assert "required 的字段" in instruction
+    assert "仅可省略已有 Schema 默认值且本轮需求无需指定的可选字段" in instruction
+    assert "即使等于默认值也要保留" in instruction
+    assert all(json.loads(request["messages"][1]["content"]) == payload for request in requests)
+    assert all(request["response_format"] == {"type": "json_object"} for request in requests)
+    feedback = requests[1]["messages"][-1]["content"]
+    assert "extra_data" in feedback and "同一根对象的最后一个 } 之前" in feedback
+    assert "保留全部业务字段" in feedback and "private-tail-canary" not in feedback
+    failures = [event for event in store.events(run) if event["kind"] == "model_failure"]
+    assert len(failures) == (1 if repair_succeeds else 2)
+    assert all(event["data"]["code"] == "invalid_json" for event in failures)
+    assert "private-tail-canary" not in json.dumps(failures)
+
+
 @pytest.mark.parametrize("raises", [False, True])
 def test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code(
     store, monkeypatch, raises

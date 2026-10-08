@@ -16,21 +16,21 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `failure_diagnostic`（L34–L100）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L38按`code.startswith("http_") or code == "transport_error"`分支；L42按`code in {"http_401", "http_403"}`分支；L44按`code == "http_429"`分支；L46按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L50按`code in {"refusal", "content_filter"}`分支；L53按`code == "unexpected_model_error"`分支；L57按`code == "invalid_json"`分支；L60按`code == "structured_parser_disagreement"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L92的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
-- `json_diagnostics`（L103–L138）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L107按`isinstance(exc, json.JSONDecodeError)`分支；L122按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`JSON_SYNTAX_CATEGORIES.get`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L109的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L125的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
-- `_schema_nodes`（L141–L172）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L161遍历`path`；L163遍历`nodes`；L164遍历`expand(node)`；L165按`isinstance(part, int)`分支；L169按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L172的`[candidate for node in nodes for candidate in expand(node)]`。
-- `_schema_nodes.expand`（L144–L158）：接收`node`、`seen`。 控制顺序：L145按`not isinstance(node, dict)`分支；L149按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L151遍历`ref[2:].split("/")`；L152按`not isinstance(target, dict)`分支；L156遍历`("anyOf", "oneOf", "allOf")`；L157遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_constraint_hint`（L175–L205）：接收`document`、`error`。 控制顺序：L183按`error["type"] not in rules or len(error["loc"]) > 20`分支；L187按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L190按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L196按`isinstance(node.get("description"), str)`分支；L203按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L184的`None`；L188的`None`；L194的`None`。
-- `schema_diagnostics`（L208–L272）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 调用`set`、`schema.model_json_schema`、`collect`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`、`isinstance`、`_constraint_hint`、`exc.errors`。 返回路径：L261的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
-- `schema_diagnostics.collect`（L216–L223）：接收`node`。 控制顺序：L217按`isinstance(node, dict)`分支；L219遍历`node.values()`；L221按`isinstance(node, list)`分支；L222遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `schema_diagnostics.safe_message`（L257–L259）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L259的`value if value in safe_messages else "字段结构或类型不符合约定"`。
+- `json_diagnostics`（L103–L145）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L107按`isinstance(exc, json.JSONDecodeError)`分支；L129按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`JSON_SYNTAX_CATEGORIES.get`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L117的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L132的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
+- `_schema_nodes`（L148–L179）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L168遍历`path`；L170遍历`nodes`；L171遍历`expand(node)`；L172按`isinstance(part, int)`分支；L176按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L179的`[candidate for node in nodes for candidate in expand(node)]`。
+- `_schema_nodes.expand`（L151–L165）：接收`node`、`seen`。 控制顺序：L152按`not isinstance(node, dict)`分支；L156按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L158遍历`ref[2:].split("/")`；L159按`not isinstance(target, dict)`分支；L163遍历`("anyOf", "oneOf", "allOf")`；L164遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_constraint_hint`（L182–L212）：接收`document`、`error`。 控制顺序：L190按`error["type"] not in rules or len(error["loc"]) > 20`分支；L194按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L197按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L203按`isinstance(node.get("description"), str)`分支；L210按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L191的`None`；L195的`None`；L201的`None`。
+- `schema_diagnostics`（L215–L279）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 调用`set`、`schema.model_json_schema`、`collect`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`、`isinstance`、`_constraint_hint`、`exc.errors`。 返回路径：L268的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
+- `schema_diagnostics.collect`（L223–L230）：接收`node`。 控制顺序：L224按`isinstance(node, dict)`分支；L226遍历`node.values()`；L228按`isinstance(node, list)`分支；L229遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `schema_diagnostics.safe_message`（L264–L266）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L266的`value if value in safe_messages else "字段结构或类型不符合约定"`。
 
 </details>
 
-**创建路径：** `workbench/model_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L272。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L279。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12629`。本段原文以LF换行结束。
+本段原始字节数：`13123`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8c4d874d2450d45595593d9a7570bad84b134023b67be49d15fd59e81e77c4ad"} -->
+<!-- learning-source: {"path": "workbench/model_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c78ca3fa657cfcd1dfe5bb66e54d128cd34eb8b30217ef7f600cd7293217dcde"} -->
 ````python
 # workbench/model_diagnostics.py
 """Safe actionable provider failures. Never persist provider bodies or input values."""
@@ -141,6 +141,14 @@ def json_diagnostics(exc, content=None):
     lengths = exc.lengths if isinstance(exc, JSONGuardFailure) else json_lengths(source)
     if isinstance(exc, json.JSONDecodeError):
         category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+        correction = (
+            "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
+            "若根对象提前闭合，剩余字段必须放回同一根对象的最后一个 } 之前；"
+            "不要在对象外追加字段、第二个对象或说明。"
+            "根据原始需求和 Schema 重写整个对象，保留全部业务字段，不能只返回尾部补丁或截掉内容。"
+            if category == "extra_data"
+            else "返回一个完整对象，正确转义字符串并闭合括号，不要附加 Markdown 围栏或说明文字。"
+        )
         return [
             {
                 "type": "json_syntax",
@@ -149,8 +157,7 @@ def json_diagnostics(exc, content=None):
                 "position": {"line": exc.lineno, "column": exc.colno, "offset": exc.pos},
                 "lengths": lengths,
                 "message": f"JSON 解析器报告 {category}，位于第 {exc.lineno} 行、第 {exc.colno} 列，"
-                f"字符偏移 {exc.pos}（从 0 开始），全文 {len(exc.doc)} 个字符；"
-                "返回一个完整对象，正确转义字符串并闭合括号，不要附加 Markdown 围栏或说明文字。",
+                f"字符偏移 {exc.pos}（从 0 开始），全文 {len(exc.doc)} 个字符；" + correction,
             }
         ]
     code = str(exc) if str(exc) in JSON_GUARD_MESSAGES else "invalid_json"

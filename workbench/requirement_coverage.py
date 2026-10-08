@@ -1061,11 +1061,43 @@ def _query_predicate_text(text, fields):
         # subject, predicate or field alias from the noun phrase.
         return " " * len(match.group())
 
+    text = nouns.sub(replace, text)
+    # In "priority and inclusive date range filtering", the trailing verb
+    # also predicates the preceding bare fields. Project that shared verb
+    # before folding the compound; completed descriptors are not bare targets.
+    shared_targets = rf"{subject}(?:\s*(?:[、/,，]|和|与|\band\b)\s*{subject})*"
+    shared_range = re.compile(
+        rf"(?P<targets>{shared_targets})\s*(?:[、/]|和|与|及|\band\b)\s*"
+        rf"(?P<ranged>(?:{subject}\s*)?"
+        r"(?:(?:含边界|包含(?:首尾|两端|边界)(?:的)?|起止|inclusive)\s*)?)"
+        rf"(?P<range>{_DATE_RANGE_QUERY.pattern})",
+        re.I,
+    )
+
+    shared_predicates = []
+
+    def shared_predicate(match):
+        operation = re.search(r"筛选|过滤|filters?|filtering\b", match["range"], re.I)
+        before = re.split(r"[，,；;。\n]", text[: match.start()])[-1]
+        if operation is None or _DATE_NEGATIVE.search(before):
+            return match.group()
+        for reference in re.finditer(subject, match["targets"], re.I):
+            scope = _fact_entity(reference.group(), fields) or _fact_entity(
+                text[: match.start()], fields
+            )
+            bound = f"{scope}::{reference.group()}" if scope else reference.group()
+            candidates = _legacy_targets(bound, fields)
+            for owner, field in fields:
+                if field.kind != "date" and any(field is target for target in candidates):
+                    shared_predicates.append(f"{owner}.{field.name} {operation.group()}")
+        return match.group()
+
+    text = shared_range.sub(shared_predicate, text)
     # A compound range query is one capability. Lower it before the legacy
     # field/operation splitter can treat its search/filter suffix independently.
     # Keep noun handling first: "date range filter results" is still output,
     # while "date range filter and exact filter" keeps both real predicates.
-    return _DATE_RANGE_QUERY.sub("date_range", nouns.sub(replace, text))
+    return "; ".join([_DATE_RANGE_QUERY.sub("date_range", text), *shared_predicates])
 
 
 def _section_entity(text, fields):

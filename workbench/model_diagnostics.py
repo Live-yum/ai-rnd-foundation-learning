@@ -106,6 +106,14 @@ def json_diagnostics(exc, content=None):
     lengths = exc.lengths if isinstance(exc, JSONGuardFailure) else json_lengths(source)
     if isinstance(exc, json.JSONDecodeError):
         category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+        correction = (
+            "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
+            "若根对象提前闭合，剩余字段必须放回同一根对象的最后一个 } 之前；"
+            "不要在对象外追加字段、第二个对象或说明。"
+            "根据原始需求和 Schema 重写整个对象，保留全部业务字段，不能只返回尾部补丁或截掉内容。"
+            if category == "extra_data"
+            else "返回一个完整对象，正确转义字符串并闭合括号，不要附加 Markdown 围栏或说明文字。"
+        )
         return [
             {
                 "type": "json_syntax",
@@ -114,8 +122,7 @@ def json_diagnostics(exc, content=None):
                 "position": {"line": exc.lineno, "column": exc.colno, "offset": exc.pos},
                 "lengths": lengths,
                 "message": f"JSON 解析器报告 {category}，位于第 {exc.lineno} 行、第 {exc.colno} 列，"
-                f"字符偏移 {exc.pos}（从 0 开始），全文 {len(exc.doc)} 个字符；"
-                "返回一个完整对象，正确转义字符串并闭合括号，不要附加 Markdown 围栏或说明文字。",
+                f"字符偏移 {exc.pos}（从 0 开始），全文 {len(exc.doc)} 个字符；" + correction,
             }
         ]
     code = str(exc) if str(exc) in JSON_GUARD_MESSAGES else "invalid_json"

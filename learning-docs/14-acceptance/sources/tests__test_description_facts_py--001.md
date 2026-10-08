@@ -24,23 +24,25 @@
 - `test_metadata_does_not_override_typed_required_obligation`（L88–L97）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L95断言`any( "required" in gap for gap in coverage_gaps(requirement, Plan.model_validate(news…`。 调用`news_requirement`、`raw["facts"].update`、`Requirement.model_validate`、`FieldRequirement`、`any`、`coverage_gaps`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `original_requirement`（L128–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`。 返回路径：L131的`Requirement.model_validate(raw)`。
 - `test_exact_original_requirement_matches_news_plan_without_mutation`（L134–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L137断言`coverage_gaps(requirement, Plan.model_validate(news_spec())) == []`；L138断言`requirement.model_dump() == before`。 调用`original_requirement`、`requirement.model_dump`、`coverage_gaps`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_original_requirement_still_blocks_missing_query_obligations`（L151–L154）：接收`field`、`flag`。 控制顺序：L154断言`any(flag in gap for gap in coverage_gaps(original_requirement(), plan))`。 调用`Plan.model_validate`、`news_spec`、`setattr`、`next`、`any`、`coverage_gaps`、`original_requirement`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_combined_query_clause_retains_shared_search_targets`（L157–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`coverage_gaps(requirement, plan) == []`；L163遍历`["title", "body"]`；L166断言`coverage_gaps(requirement, changed)`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`plan.model_copy`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts`（L169–L230）：接收`tmp_path`、`monkeypatch`。 控制顺序：L220断言`store.get_run(run)["status"] == "BLOCKED"`；L221断言`store.get_run(run)["pending"]["data"]["requirement"]["facts"] == FACTS`；L226断言`final["status"] == "READY"`；L227断言`final["result"]["cleanroom"]["passed"]`；L228断言`len(store.messages(run)) == 1`。 调用`Settings`、`Store`、`store.migrate`、`store.create_project`、`store.create_run`、`monkeypatch.context`、`patch.setattr`、`Runtime`、`Stale`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.old_requirements`（L175–L187）：接收`state`。 控制顺序：L185按`outcome["decision"] in {"answer", "revise", "recommend"}`分支。 调用`dict`、`raw.pop`、`self.gate`。 返回路径：L187的`outcome`。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale`（L189–L196）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale.complete`（L190–L196）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L191断言`schema is Requirement`。 调用`original_requirement`。 返回路径：L196的`value`。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed`（L198–L206）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed.complete`（L199–L206）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L200按`schema is Requirement`分支；L204断言`schema is Plan`；L205断言`payload["approved_requirement"]["facts"] == FACTS`。 调用`original_requirement`、`Plan.model_validate`、`news_spec`。 返回路径：L203的`value`；L206的`Plan.model_validate(news_spec())`。
-- `test_operation_only_continuation_keeps_previous_field_target`（L233–L241）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L238断言`plan.entities[0].fields[-1].filterable`；L239断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`；L241断言`coverage_gaps(requirement, plan) == []`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`any`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_requirement_still_blocks_missing_query_obligations`（L150–L153）：接收`field`、`flag`。 控制顺序：L153断言`any(flag in gap for gap in coverage_gaps(original_requirement(), plan))`。 调用`Plan.model_validate`、`news_spec`、`setattr`、`next`、`any`、`coverage_gaps`、`original_requirement`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_date_range_requirement_does_not_invent_an_exact_date_filter`（L156–L169）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L158断言`requirement.field_requirements == []`；L163断言`coverage_gaps(requirement, plan) == []`；L164断言`(requirement.model_dump(), plan.model_dump()) == before`；L167断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L168断言`any(row["attribute"] == "date_range" for row in diagnostics)`；L169断言`not any(row["attribute"] == "filterable" for row in diagnostics)`。 调用`original_requirement`、`Plan.model_validate`、`news_spec`、`next`、`requirement.model_dump`、`plan.model_dump`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_an_explicit_exact_and_range_date_requirement_keeps_both_obligations`（L180–L189）：接收`obligation`、`flag`。 控制顺序：L184断言`coverage_gaps(requirement, plan) == []`；L188断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L189断言`any(row["attribute"] == flag for row in diagnostics)`。 调用`original_requirement`、`requirement.features.append`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`next`、`setattr`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_combined_query_clause_retains_shared_search_targets`（L192–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L197断言`coverage_gaps(requirement, plan) == []`；L198遍历`["title", "body"]`；L201断言`coverage_gaps(requirement, changed)`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`plan.model_copy`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts`（L204–L265）：接收`tmp_path`、`monkeypatch`。 控制顺序：L255断言`store.get_run(run)["status"] == "BLOCKED"`；L256断言`store.get_run(run)["pending"]["data"]["requirement"]["facts"] == FACTS`；L261断言`final["status"] == "READY"`；L262断言`final["result"]["cleanroom"]["passed"]`；L263断言`len(store.messages(run)) == 1`。 调用`Settings`、`Store`、`store.migrate`、`store.create_project`、`store.create_run`、`monkeypatch.context`、`patch.setattr`、`Runtime`、`Stale`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.old_requirements`（L210–L222）：接收`state`。 控制顺序：L220按`outcome["decision"] in {"answer", "revise", "recommend"}`分支。 调用`dict`、`raw.pop`、`self.gate`。 返回路径：L222的`outcome`。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale`（L224–L231）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale.complete`（L225–L231）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L226断言`schema is Requirement`。 调用`original_requirement`。 返回路径：L231的`value`。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed`（L233–L241）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed.complete`（L234–L241）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L235按`schema is Requirement`分支；L239断言`schema is Plan`；L240断言`payload["approved_requirement"]["facts"] == FACTS`。 调用`original_requirement`、`Plan.model_validate`、`news_spec`。 返回路径：L238的`value`；L241的`Plan.model_validate(news_spec())`。
+- `test_operation_only_continuation_keeps_previous_field_target`（L268–L276）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L273断言`plan.entities[0].fields[-1].filterable`；L274断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`；L276断言`coverage_gaps(requirement, plan) == []`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`any`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_description_facts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L241。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_description_facts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L276。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10330`。本段原文以LF换行结束。
+本段原始字节数：`11885`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_description_facts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e0b96b15183e61fff1974951c42ada3fe1a5c17133d412f25c13be89761b1fd1"} -->
+<!-- learning-source: {"path": "tests/test_description_facts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fcc88882b6fa574fb4d1208de2f449879dcf0588a0139f8f228c06e98b19208a"} -->
 ````python
 # tests/test_description_facts.py
 import pytest
@@ -189,7 +191,6 @@ def test_exact_original_requirement_matches_news_plan_without_mutation():
         ("title", "searchable"),
         ("body", "searchable"),
         ("category", "filterable"),
-        ("published_on", "filterable"),
         ("published_on", "date_range"),
     ],
 )
@@ -197,6 +198,42 @@ def test_original_requirement_still_blocks_missing_query_obligations(field, flag
     plan = Plan.model_validate(news_spec())
     setattr(next(f for f in plan.entities[0].fields if f.name == field), flag, False)
     assert any(flag in gap for gap in coverage_gaps(original_requirement(), plan))
+
+
+def test_original_date_range_requirement_does_not_invent_an_exact_date_filter():
+    requirement = original_requirement()
+    assert requirement.field_requirements == []
+    plan = Plan.model_validate(news_spec())
+    date = next(field for field in plan.entities[0].fields if field.name == "published_on")
+    date.filterable = False
+    before = requirement.model_dump(), plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert (requirement.model_dump(), plan.model_dump()) == before
+    date.date_range = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == "date_range" for row in diagnostics)
+    assert not any(row["attribute"] == "filterable" for row in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "obligation",
+    [
+        "发布日期必须支持精确筛选和日期范围筛选",
+        "published_on requires exact filtering and date range filtering",
+    ],
+)
+@pytest.mark.parametrize("flag", ["filterable", "date_range"])
+def test_an_explicit_exact_and_range_date_requirement_keeps_both_obligations(obligation, flag):
+    requirement = original_requirement()
+    requirement.features.append(obligation)
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    date = next(field for field in plan.entities[0].fields if field.name == "published_on")
+    setattr(date, flag, False)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == flag for row in diagnostics)
 
 
 def test_combined_query_clause_retains_shared_search_targets():

@@ -391,8 +391,8 @@
     },
     {
       "path": "tests/test_llm.py",
-      "bytes": 10041,
-      "sha256": "0bb1157817085f8acbd3e3cfabd25228e2047eb0e8bc85bc639e4d7cf5a97579",
+      "bytes": 13311,
+      "sha256": "968632b12b5bb89c6fa2b2b481517663ecf1d4a115cc3085dddb78ce3ed32ec0",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_llm_py--001.md"
@@ -437,8 +437,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 13424,
-      "sha256": "ef198dc354998f721c55ffc110bc7aebdba6b7a8578de7ba80ef9954a105aa92",
+      "bytes": 13924,
+      "sha256": "3611a52d2c639562c6f76a40687c78aaf510bfb92d6d3b07200a921378156ab1",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -455,8 +455,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 12629,
-      "sha256": "8c4d874d2450d45595593d9a7570bad84b134023b67be49d15fd59e81e77c4ad",
+      "bytes": 13123,
+      "sha256": "c78ca3fa657cfcd1dfe5bb66e54d128cd34eb8b30217ef7f600cd7293217dcde",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -482,8 +482,8 @@
     },
     {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 121904,
-      "sha256": "b15109b62777e73efc66367d206ea2730af4113eb68e007bdf3c4c94fb8d78e6",
+      "bytes": 123550,
+      "sha256": "8d35fa5ef75ebfc23c6cc7f14791e3c325b385cc1ba4a9c9347ee2db02adc978",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
@@ -999,8 +999,8 @@
     },
     {
       "path": "workbench/verification.py",
-      "bytes": 30507,
-      "sha256": "fbf7bd6b94fc356c54c460b40c32b8c5e8f953551f082c0d5d8d3caa37b41b16",
+      "bytes": 32469,
+      "sha256": "093d409221a10b0fc28e334a0a82d78bc1b043aa7893910ba5c2fb0f1b5dba59",
       "stage": "06-generation",
       "parts": [
         "06-generation/sources/workbench__verification_py--001.md"
@@ -2623,8 +2623,8 @@
     },
     {
       "path": "tests/test_business_browser_evidence.py",
-      "bytes": 10837,
-      "sha256": "c96a046aeba65cce42194b5b22c0155a1daaba9d58e4d554809a7cd27215d944",
+      "bytes": 12102,
+      "sha256": "d576cc69b5f894b09f2c81e9f199a54a4a91cf6bfc4e5be5368604e431a7fac4",
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_business_browser_evidence_py--001.md"
@@ -2749,8 +2749,8 @@
     },
     {
       "path": "tests/test_business_receipt.py",
-      "bytes": 1846,
-      "sha256": "d1bed8321adac00a4cac069eea129b2080c3324d573e3bcbd7fd3e00622abeda",
+      "bytes": 6638,
+      "sha256": "9e7fac3572f7114be7b1bdcdd667eb8c0b577f52bf300ebef95477768b06979a",
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_business_receipt_py--001.md"
@@ -5223,8 +5223,8 @@
     },
     {
       "path": "tests/test_description_facts.py",
-      "bytes": 10330,
-      "sha256": "e0b96b15183e61fff1974951c42ada3fe1a5c17133d412f25c13be89761b1fd1",
+      "bytes": 11885,
+      "sha256": "fcc88882b6fa574fb4d1208de2f449879dcf0588a0139f8f228c06e98b19208a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_description_facts_py--001.md"
@@ -5340,8 +5340,8 @@
     },
     {
       "path": "tests/test_json_diagnostics.py",
-      "bytes": 3161,
-      "sha256": "cf22354d7e2fe688ea962d83e238fc8eafe4dd1e562478d07a3e1e6365858980",
+      "bytes": 4210,
+      "sha256": "0d0f94f5909ef7086d4d1f5a57f52d90f98476828588007eea7e16256a9be46f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_json_diagnostics_py--001.md"
@@ -5385,8 +5385,8 @@
     },
     {
       "path": "tests/test_legacy_date_requirements.py",
-      "bytes": 12227,
-      "sha256": "ed6b502890312a04abc1f9f1b554cf2ee607eef0224c0a1ad326e259c658502c",
+      "bytes": 16649,
+      "sha256": "f065902f19c107ca6351ad037cfaa7c4a19da9167cc5dce2d3658b3af09ee247",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md"

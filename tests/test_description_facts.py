@@ -144,7 +144,6 @@ def test_exact_original_requirement_matches_news_plan_without_mutation():
         ("title", "searchable"),
         ("body", "searchable"),
         ("category", "filterable"),
-        ("published_on", "filterable"),
         ("published_on", "date_range"),
     ],
 )
@@ -152,6 +151,42 @@ def test_original_requirement_still_blocks_missing_query_obligations(field, flag
     plan = Plan.model_validate(news_spec())
     setattr(next(f for f in plan.entities[0].fields if f.name == field), flag, False)
     assert any(flag in gap for gap in coverage_gaps(original_requirement(), plan))
+
+
+def test_original_date_range_requirement_does_not_invent_an_exact_date_filter():
+    requirement = original_requirement()
+    assert requirement.field_requirements == []
+    plan = Plan.model_validate(news_spec())
+    date = next(field for field in plan.entities[0].fields if field.name == "published_on")
+    date.filterable = False
+    before = requirement.model_dump(), plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert (requirement.model_dump(), plan.model_dump()) == before
+    date.date_range = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == "date_range" for row in diagnostics)
+    assert not any(row["attribute"] == "filterable" for row in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "obligation",
+    [
+        "发布日期必须支持精确筛选和日期范围筛选",
+        "published_on requires exact filtering and date range filtering",
+    ],
+)
+@pytest.mark.parametrize("flag", ["filterable", "date_range"])
+def test_an_explicit_exact_and_range_date_requirement_keeps_both_obligations(obligation, flag):
+    requirement = original_requirement()
+    requirement.features.append(obligation)
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    date = next(field for field in plan.entities[0].fields if field.name == "published_on")
+    setattr(date, flag, False)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(row["attribute"] == flag for row in diagnostics)
 
 
 def test_combined_query_clause_retains_shared_search_targets():

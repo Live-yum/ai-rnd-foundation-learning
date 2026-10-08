@@ -16,6 +16,7 @@ import pytest
 from workbench.domain import Plan
 from workbench.generator import generate_basic
 from workbench.tools import clean_env
+from workbench.verification import require_business_evidence
 
 ROOT = Path(__file__).parents[1]
 
@@ -260,3 +261,28 @@ def test_minimal_schema_mobile_sticky_actions_remain_inside_table(tmp_path):
     assert result.returncode == 0 and report["passed"] is True, report
     assert "business-browser-responsive-actions" in report["browser"]["checks"]
     assert_bounded_evidence(plan, report)
+
+
+def test_stock_browser_receipt_reaches_platform_gate_without_undeclared_assignment(tmp_path):
+    # This contract-derived offline Plan exercises the actual generated HTTP,
+    # Chromium and restart checks. It never substitutes for the live model Plan.
+    from test_template_project_acceptance import fixture_plan
+
+    from scripts.template_acceptance_cases import load_case
+
+    plan = fixture_plan(load_case("stock-purchasing"))
+    assert len(plan.entities) == 3 and len(plan.business.roles) == 3
+    assert any(field.kind == "integer" for entity in plan.entities for field in entity.fields)
+    assert all(resource.assignee_field is None for resource in plan.business.resources)
+    result, report = run_browser_gate(tmp_path, plan)
+    assert result.returncode == 0 and report["passed"] is True, report
+    checks = set(report["browser"]["checks"])
+    assert "business-browser-assignment" not in checks
+    assert {
+        "business-browser-transitions",
+        "business-browser-notes-history",
+        "business-browser-reminders",
+        "business-browser-metrics",
+        "business-browser-relation-labels",
+    } <= checks
+    require_business_evidence(plan.model_dump(), report, True)
