@@ -37,16 +37,16 @@
 - `failure_events`（L545–L573）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L548遍历`range(4)`；L550按`not events`分支；L553遍历`events`；L554按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L559遍历`("stage", "code", "request_id", "response_id", "attempt")`；L561按`isinstance(value, str)`分支；L563按`type(value) is int`分支；L566按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L570的`failures`；L573的`failures`。
 - `verify_delivery`（L576–L624）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L606的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
 - `aggregate`（L627–L652）：接收`cases`、`results`。 控制顺序：L628按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L632遍历`cases`；L634按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L631的`False`；L651的`False`；L652的`True`。
-- `run_suite`（L655–L779）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L770的`summary`。
-- `main`（L782–L840）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L790按`args.validate_fixtures`分支；L817按`binding and (REPORTS / "summary.json").is_file()`分支；L819按`saved.get("run_identity") == binding`分支；L840抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_suite`（L655–L781）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L750按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L772的`summary`。
+- `main`（L784–L842）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L792按`args.validate_fixtures`分支；L819按`binding and (REPORTS / "summary.json").is_file()`分支；L821按`saved.get("run_identity") == binding`分支；L842抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L844。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L846。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35586`。本段原文以LF换行结束。
+本段原始字节数：`35779`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "13983d4af930d5038798dc8633d25716269f7c792448f431c03ac01b8fe80f6d"} -->
+<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b554c0382b99d0e353a72551540eb4cd1260dd2d735de191b8c7184c8a003001"} -->
 ````python
 # scripts/ci_template_projects.py
 """Bounded real-model batch acceptance for three independent project scenarios.
@@ -796,6 +796,8 @@ def run_suite(settings, directory, binding):
                             "path": error.path if isinstance(error, AcceptanceFailure) else "",
                             "error_type": type(error).__name__,
                         }
+                        if isinstance(error, AcceptanceFailure) and error.contract_difference:
+                            receipt["failure"]["contract_difference"] = error.contract_difference
                         if run.get("error"):
                             receipt["failure"]["workflow_error"] = {
                                 "code": receipt["failure"]["code"],

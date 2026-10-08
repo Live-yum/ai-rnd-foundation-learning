@@ -38,16 +38,15 @@
 - `_legacy_clauses`（L1411–L1663）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1433遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1434按`sentence in {"但是", "但", "不过"}`分支；L1437按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1442按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1455在`True`成立时循环；L1458按`heading`分支；L1461按`syntax.endswith((":", "："))`分支；L1463按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_operation_parts`（L1666–L1680）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1669遍历`text`；L1671按`char in "（([【"`分支；L1673按`char in "）)]】"`分支；L1676遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1677按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_query_operation_groups`（L1683–L1735）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1692遍历`_operation_parts(text)`；L1694按`marker is None`分支；L1695按`prefix`分支；L1697按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1698按`pending`分支；L1724按`prefix`分支；L1727按`is_prefix`分支；L1728按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_top_level_parts`（L1764–L1783）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1767遍历`enumerate(text)`；L1769按`quote`分支；L1770按`char == quote and (not index or text[index - 1] != "\\")`分支；L1772按`char in "\"'"`分支；L1774按`char in "（([【"`分支；L1776按`char in "）)]】"`分支；L1779遍历`re.finditer(separators, text, re.I)`；L1780按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_entity`（L1786–L1793）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1791按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1793的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
+- `_legacy_query_parts`（L1745–L1773）：接收`text`、`fields`。 源码说明：Share field/operator binding without reading candidate query flags.。 控制顺序：L1748按`re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search( _QUERY_OPERATIO…`分支；L1753遍历`parts`；L1756按`part != text and _fact_entity(part, fields) is None`分支；L1757按`entity_scope`分支；L1759按`_ALL_ENTITIES.search(text)`分支；L1762按`not targets and _fact_candidates(bound, fields)`分支；L1766按`not targets and previous_targets and not re.search(r"关键词\|关键字\|keyword", part, re.I)`分支；L1768按`targets`分支。 调用`re.search`、`list`、`_query_operation_groups`、`_fact_entity`、`_ALL_ENTITIES.search`、`_legacy_targets`、`_fact_candidates`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L901–L1795。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L901–L1775。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`38870`。本段原文以LF换行结束。
+本段原始字节数：`38145`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 2, "parts": 4, "encoding": "utf-8", "sha256": "849c6815d3cb69b4a391b88efecd9626f084b53a2604d89ce86ea37566e6f169"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 2, "parts": 4, "encoding": "utf-8", "sha256": "f45a8f7484f5ee71b45a65e2ece6cfd0c2b7869e6d720e7513fe6c627fce3909"} -->
 ````python
 # workbench/requirement_coverage.py
 def _fact_entity(key, fields):
@@ -887,62 +886,42 @@ def _query_operation_groups(text, fields, operations):
         yield " ".join([*prefix, *pending])
 
 
-_METRIC_CONTEXT = re.compile(
-    r"(?<![a-z_])(?:count|group_count|time_count|average_duration|metrics?)(?![a-z_])"
-    r"|指标|统计|计数|已解决数|总数|平均.*时长|趋势|分组",
-    re.I,
-)
-_METRIC_KIND = re.compile(
-    r"(?<![a-z_])(?:group_count|time_count|average_duration|count)(?![a-z_])"
-    r"|已解决数|总数|平均.*?时长|趋势|分组",
-    re.I,
-)
-_QUERY_SURFACE = re.compile(
-    r"列表|表格|页面|界面|筛选器|搜索框|查询条件|查询参数|filterable|searchable|date_range"
-    r"|(?<![a-z_])(?:list|table|form|ui|search)(?![a-z_])",
-    re.I,
-)
-_METRIC_SCOPE = re.compile(r"权限|可见|角色|本人|负责范围|assigned|read_metrics", re.I)
-_METRIC_FILTER = re.compile(r"筛选|过滤|(?<![a-z_])filters?(?![a-z_])", re.I)
-_METRIC_PREDICATE = re.compile(
-    r"(?<![a-z0-9_])(?:(?P<entity>[a-z][a-z0-9_]*)[.:])?"
-    r"(?P<field>[a-z][a-z0-9_]*)\s*(?P<op>!=|>=|<=|==|=)\s*"
-    r"(?P<value>\"[^\"]*\"|'[^']*'|[a-zA-Z0-9_.:+-]+|"
-    r"[\u4e00-\u9fff]+?(?=\s|[，,；;、（）()]|筛选|过滤|$))",
-    re.I,
-)
+_QUERY_OPERATIONS = {
+    "searchable": r"搜索|检索|search",
+    "filterable": r"筛选|过滤|filter",
+    "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
+}
 
 
-def _top_level_parts(text, separators):
-    """Keep operand lists, descriptors and quoted values inside their own group."""
-    depth, quote, protected = 0, None, []
-    for index, char in enumerate(text):
-        protected.append(bool(depth or quote))
-        if quote:
-            if char == quote and (not index or text[index - 1] != "\\"):
-                quote = None
-        elif char in "\"'":
-            quote = char
-        elif char in "（([【":
-            depth += 1
-        elif char in "）)]】":
-            depth = max(0, depth - 1)
-    start = 0
-    for match in re.finditer(separators, text, re.I):
-        if not protected[match.start()]:
-            yield text[start : match.start()], match.group()
-            start = match.end()
-    yield text[start:], ""
-
-
-def _metric_entity(text, fields):
-    """An entity named in a metric clause scopes it, including plain prose names."""
-    text = _METRIC_PREDICATE.sub(lambda match: match["entity"] or "", text)
-    owners = {entity for entity, _ in fields if _field_mentions(text, [entity])}
-    explicit = _fact_entity(text, fields)
-    if explicit:
-        owners.add(explicit)
-    return next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None
+def _legacy_query_parts(text, fields):
+    """Share field/operator binding without reading candidate query flags."""
+    parts = [text]
+    if re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search(
+        _QUERY_OPERATIONS["filterable"], text, re.I
+    ):
+        parts = list(_query_operation_groups(text, fields, _QUERY_OPERATIONS))
+    previous_targets = []
+    for part in parts:
+        entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
+        bound = part
+        if part != text and _fact_entity(part, fields) is None:
+            if entity_scope:
+                bound = f"{entity_scope}::{part}"
+            elif _ALL_ENTITIES.search(text):
+                bound = f"所有实体 {part}"
+        targets = _legacy_targets(bound, fields)
+        if not targets and _fact_candidates(bound, fields):
+            continue
+        # A field-free continuation inherits the preceding subject. A generic
+        # keyword operation remains independent of an earlier exact filter.
+        if not targets and previous_targets and not re.search(r"关键词|关键字|keyword", part, re.I):
+            targets = previous_targets
+        if targets:
+            previous_targets = targets
+        available = [
+            field for owner, field in fields if entity_scope is None or owner == entity_scope
+        ]
+        yield part, targets, available
 
 
 ````

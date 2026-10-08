@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -112,6 +113,61 @@ def test_model_plan_cannot_drop_or_change_obligations(mutation):
         plan["business"]["metrics"].pop()
     with pytest.raises(AcceptanceFailure, match="contract_mismatch"):
         require_contract(case, plan)
+
+
+@pytest.mark.parametrize(
+    "field,attribute,actual,expected",
+    [
+        ("started_on", "filterable", True, False),
+        ("started_on", "date_range", False, True),
+        ("started_on", "required", False, True),
+        ("pages", "minimum", 2, 1),
+        ("title", "max_length", 199, 200),
+        ("author", "searchable", False, True),
+        ("note", "kind", "boolean", "text"),
+    ],
+)
+def test_contract_failure_identifies_the_exact_declared_field_attribute(
+    field, attribute, actual, expected
+):
+    case = suite_cases()[0]
+    plan = fixture_plan(case)
+    next(item for item in plan.entities[0].fields if item.name == field).__setattr__(
+        attribute, actual
+    )
+    with pytest.raises(AcceptanceFailure) as caught:
+        require_contract(case, plan.model_dump())
+    assert caught.value.code == "contract_mismatch"
+    assert caught.value.path == f"books.{field}.{attribute}"
+    assert caught.value.contract_difference == {
+        "attribute": attribute,
+        "expected": expected,
+        "actual": actual,
+    }
+
+
+def test_contract_comparison_still_ignores_display_labels_and_enum_order():
+    case = suite_cases()[0]
+    plan = fixture_plan(case)
+    plan.entities[0].description = "A model-authored display description"
+    for field in plan.entities[0].fields:
+        field.label = "A model-authored display label"
+        field.choices.reverse()
+    assert require_contract(case, plan.model_dump())
+
+
+def test_contract_comparison_does_not_treat_missing_attributes_as_explicit_null():
+    case = suite_cases()[0]
+    contract = copy.deepcopy(case.contract)
+    contract["entities"]["books"]["title"]["pattern"] = None
+    with pytest.raises(AcceptanceFailure) as caught:
+        require_contract(replace(case, contract=contract), fixture_plan(case).model_dump())
+    assert caught.value.path == "books.title.pattern"
+    assert caught.value.contract_difference == {
+        "attribute": "pattern",
+        "expected": None,
+        "actual": {"type": "missing"},
+    }
 
 
 def test_json_assertions_preserve_numbers_booleans_counts_and_row_identity():
@@ -804,8 +860,9 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         transport.shutdown()
 
 
+@pytest.mark.parametrize("failure_kind", ["workflow", "contract"])
 def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, failure_kind
 ):
     from scripts import ci_template_projects as suite
 
@@ -829,25 +886,60 @@ def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
             job = self.store.claim()
             if job is None:
                 return False
-            self.store.finish(job, "BLOCKED", error=error)
+            if failure_kind == "workflow":
+                self.store.finish(job, "BLOCKED", error=error)
+            else:
+                self.store.finish(job, "READY", result={})
             internal_errors.append(self.store.get_run(job["run_id"])["error"])
             return True
 
     reports = tmp_path / "reports"
     monkeypatch.setattr(suite, "Runtime", FailedWorker)
     monkeypatch.setattr(suite, "REPORTS", reports)
+    if failure_kind == "contract":
+
+        def reject_offline_candidate(case, *args):
+            """Exercise the real oracle, without generating or accepting a product."""
+            plan = fixture_plan(case)
+            plan.title, plan.acceptance = error, [error]
+            field = plan.entities[0].fields[0]
+            field.label = error
+            if case.identity == "reading-shelf":
+                category = next(item for item in plan.entities[0].fields if item.name == "category")
+                category.choices = [f"{error} {index} {'x' * 100}" for index in range(50)]
+            else:
+                field.max_length += 1
+            return require_contract(case, plan.model_dump())
+
+        monkeypatch.setattr(suite, "verify_delivery", reject_offline_candidate)
     report = suite.run_suite(settings, tmp_path, {"offline_guard": True})
-    assert internal_errors == [error] * 3  # Product details remain available internally.
+    assert internal_errors == [error if failure_kind == "workflow" else None] * 3
     assert report["passed"] is False and report["real_model"] is False
     assert report["actual_model_calls"] == 0 and len(report["cases"]) == 3
     for receipt in report["cases"]:
-        assert receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"
-        assert receipt["failure"]["workflow_error"] == {
-            "code": "workflow_not_ready",
-            "status": "BLOCKED",
-            "sha256": hashlib.sha256(error.encode()).hexdigest(),
-            "characters": len(error),
-        }
+        assert receipt["passed"] is False
+        if failure_kind == "workflow":
+            assert receipt["workflow_status"] == "BLOCKED"
+            assert receipt["failure"]["workflow_error"] == {
+                "code": "workflow_not_ready",
+                "status": "BLOCKED",
+                "sha256": hashlib.sha256(error.encode()).hexdigest(),
+                "characters": len(error),
+            }
+        else:
+            assert receipt["workflow_status"] == "READY"
+            assert receipt["failure"]["code"] == "contract_mismatch"
+            difference = receipt["failure"]["contract_difference"]
+            assert len(json.dumps(difference).encode()) < 500
+            if receipt["case"] == "reading-shelf":
+                assert receipt["failure"]["path"] == "books.category.choices"
+                assert difference["attribute"] == "choices"
+                assert difference["expected"]["items"] == 3
+                assert difference["actual"]["items"] == 50
+                assert set(difference["actual"]) == {"type", "items", "sha256"}
+            else:
+                assert difference["attribute"] == "max_length"
+                assert difference["actual"] == difference["expected"] + 1
     output = capsys.readouterr().out
     emitted = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     assert emitted == report["cases"]

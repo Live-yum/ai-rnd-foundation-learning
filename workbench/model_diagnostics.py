@@ -27,8 +27,17 @@ JSON_GUARD_MESSAGES = {
 JSON_DIAGNOSTIC_CATEGORIES = (
     frozenset(JSON_SYNTAX_CATEGORIES.values())
     | frozenset(JSON_GUARD_MESSAGES)
-    | {"json_syntax", "json_encoding", "invalid_json"}
+    | {"json_syntax", "json_encoding", "invalid_json", "extra_closing_delimiters"}
 )
+
+
+def json_syntax_category(exc):
+    category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+    if category == "extra_data":
+        tail = exc.doc[exc.pos :]
+        if tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n"):
+            return "extra_closing_delimiters"
+    return category
 
 
 def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
@@ -105,9 +114,13 @@ def json_diagnostics(exc, content=None):
     source = exc.doc if isinstance(exc, json.JSONDecodeError) else content
     lengths = exc.lengths if isinstance(exc, JSONGuardFailure) else json_lengths(source)
     if isinstance(exc, json.JSONDecodeError):
-        category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+        category = json_syntax_category(exc)
         correction = (
-            "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
+            "第一个 JSON 值之后只剩多余的闭合括号和 JSON 空白。"
+            "逐层核对括号，根对象只闭合一次；用缩进和换行标明层级。"
+            "若提供未批准的修复候选，仍须核对原始需求、全部业务字段与 Schema，重新返回完整合法对象。"
+            if category == "extra_closing_delimiters"
+            else "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
             "若根对象提前闭合，剩余字段必须放回同一根对象的最后一个 } 之前；"
             "不要在对象外追加字段、第二个对象或说明。"
             "根据原始需求和 Schema 重写整个对象，保留全部业务字段，不能只返回尾部补丁或截掉内容。"

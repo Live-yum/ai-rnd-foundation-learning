@@ -17,21 +17,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_records`（L21–L35）：接收`requirement`。 控制顺序：L22遍历`enumerate(requirement.field_requirements)`；L24遍历`value.items()`；L25按`attribute in {"entity", "field"}`分支。 调用`enumerate`、`field.model_dump`、`value.items`、`json.dumps`、`explicit_legacy_field_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_identity`（L38–L42）：接收`record`。 调用`{"exclusive_minimum": "minimum", "exclusive_maximum": "maximum"}.…`。 返回路径：L42的`record["entity"], record["field"], attribute`。
-- `_value`（L45–L52）：接收`record`。 控制顺序：L47按`type(value) is int`分支；L49按`record["attribute"] == "choices"`分支。 调用`type`、`{"exclusive_minimum": 1, "exclusive_maximum": -1}.get`、`sorted`、`set`、`json.dumps`。 返回路径：L52的`type(value).__name__, json.dumps(value, ensure_ascii=False, sort_keys=True)`。
-- `_signature`（L55–L56）：接收`record`。 调用`_identity`、`_value`。 返回路径：L56的`_identity(record), _value(record)`。
-- `_initial_user_sources`（L59–L106）：接收`parsed`、`human`、`cursor`。 源码说明：Use explicit current input, never infer a historical winner by recency.。 控制顺序：L63遍历`enumerate(parsed)`；L64按`index != 0 and index < cursor`分支；L66遍历`records`；L81遍历`fresh.items()`；L98按`correction and len({_value(item) for item in prior}) <= 1 and len({_value(item) for i…`分支。 调用`defaultdict`、`enumerate`、`digest`、`(original if index == 0 else fresh)[_identity(record)].append`、`_identity`、`fresh.items`、`original.get`、`any`、`_authorized`等。 返回路径：L106的`[record for group in original.values() for record in group]`。
-- `analysis_source_conflicts`（L109–L206）：接收`previous`、`candidate`、`human`、`changes`、`cursor`。 源码说明：Return exact contradictory source pairs; never rewrite or approve intent. Source indices refer to the reconciled candidate, with previous-source and original user-message indices retained separately. 。 控制顺序：L119遍历`old_records`；L126遍历`enumerate(human)`；L132遍历`parsed`；L138按`evidence not in source_by_signature[_signature(record)]`分支；L142遍历`records`；L165按`retained`分支；L182按`not previous`分支；L183遍历`_initial_user_sources(parsed_human, human, cursor)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_records`、`Requirement.model_validate`、`defaultdict`、`old_by_signature[_signature(record)].append`、`_signature`、`enumerate`、`candidate.model_copy`、`explicit_legacy_field_constraints`等。 返回路径：L206的`diagnostics`。
-- `analysis_feedback`（L209–L257）：接收`diagnostics`、`max_chars`。 源码说明：Bound prompt feedback; full source texts remain in the durable ledger. Human-message references point to the existing immutable message history. The selected excerpt is presentation only; indices and 。 控制顺序：L217遍历`diagnostics`；L219遍历`diagnostic["sources"]`；L221按`len(str(source.get("path", ""))) > 200`分支；L247按`len(json.dumps([*result, compact], ensure_ascii=False)) > max_chars - 256`分支。 调用`dict`、`len`、`str`、`source.get`、`digest`、`sources.append`、`json.dumps`、`result.append`。 返回路径：L257的`result`。
+- `_records`（L23–L37）：接收`requirement`。 控制顺序：L24遍历`enumerate(requirement.field_requirements)`；L26遍历`value.items()`；L27按`attribute in {"entity", "field"}`分支。 调用`enumerate`、`field.model_dump`、`value.items`、`json.dumps`、`explicit_legacy_field_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_identity`（L40–L44）：接收`record`。 调用`{"exclusive_minimum": "minimum", "exclusive_maximum": "maximum"}.…`。 返回路径：L44的`record["entity"], record["field"], attribute`。
+- `_value`（L47–L54）：接收`record`。 控制顺序：L49按`type(value) is int`分支；L51按`record["attribute"] == "choices"`分支。 调用`type`、`{"exclusive_minimum": 1, "exclusive_maximum": -1}.get`、`sorted`、`set`、`json.dumps`。 返回路径：L54的`type(value).__name__, json.dumps(value, ensure_ascii=False, sort_keys=True)`。
+- `_signature`（L57–L58）：接收`record`。 调用`_identity`、`_value`。 返回路径：L58的`_identity(record), _value(record)`。
+- `_initial_user_sources`（L61–L108）：接收`parsed`、`human`、`cursor`。 源码说明：Use explicit current input, never infer a historical winner by recency.。 控制顺序：L65遍历`enumerate(parsed)`；L66按`index != 0 and index < cursor`分支；L68遍历`records`；L83遍历`fresh.items()`；L100按`correction and len({_value(item) for item in prior}) <= 1 and len({_value(item) for i…`分支。 调用`defaultdict`、`enumerate`、`digest`、`(original if index == 0 else fresh)[_identity(record)].append`、`_identity`、`fresh.items`、`original.get`、`any`、`_authorized`等。 返回路径：L108的`[record for group in original.values() for record in group]`。
+- `analysis_source_conflicts`（L111–L208）：接收`previous`、`candidate`、`human`、`changes`、`cursor`。 源码说明：Return exact contradictory source pairs; never rewrite or approve intent. Source indices refer to the reconciled candidate, with previous-source and original user-message indices retained separately. 。 控制顺序：L121遍历`old_records`；L128遍历`enumerate(human)`；L134遍历`parsed`；L140按`evidence not in source_by_signature[_signature(record)]`分支；L144遍历`records`；L167按`retained`分支；L184按`not previous`分支；L185遍历`_initial_user_sources(parsed_human, human, cursor)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_records`、`Requirement.model_validate`、`defaultdict`、`old_by_signature[_signature(record)].append`、`_signature`、`enumerate`、`candidate.model_copy`、`explicit_legacy_field_constraints`等。 返回路径：L208的`diagnostics`。
+- `analysis_feedback`（L211–L259）：接收`diagnostics`、`max_chars`。 源码说明：Bound prompt feedback; full source texts remain in the durable ledger. Human-message references point to the existing immutable message history. The selected excerpt is presentation only; indices and 。 控制顺序：L219遍历`diagnostics`；L221遍历`diagnostic["sources"]`；L223按`len(str(source.get("path", ""))) > 200`分支；L249按`len(json.dumps([*result, compact], ensure_ascii=False)) > max_chars - 256`分支。 调用`dict`、`len`、`str`、`source.get`、`digest`、`sources.append`、`json.dumps`、`result.append`。 返回路径：L259的`result`。
 
 </details>
 
-**创建路径：** `workbench/requirement_sources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L257。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_sources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10873`。本段原文以LF换行结束。
+本段原始字节数：`10997`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_sources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a22fc4697d4e43125b62759d72823914557303ae74fdcfb0fc7135bad886b88a"} -->
+<!-- learning-source: {"path": "workbench/requirement_sources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b39b09edd027194762deb0226ed2f349232d1a38ec5fbeb05b442d28b24324e6"} -->
 ````python
 # workbench/requirement_sources.py
 """Reject contradictory analysis output without choosing between requirement sources.
@@ -44,7 +44,9 @@ It detects contradictions within a reconciled candidate, including retained prio
 requirements. On first analysis it also compares corresponding explicit scalar
 obligations in the original/current user input. This is not complete semantic
 grounding: prose normalization covers required, length and explicit integer bounds, using
-typed, entity-qualified field vocabulary. Unknown prose remains untouched.
+typed, entity-qualified field vocabulary, plus named queries and explicit query closure.
+Candidate query flags never authorize extra queries in original source text.
+Unknown prose remains untouched.
 """
 
 import json

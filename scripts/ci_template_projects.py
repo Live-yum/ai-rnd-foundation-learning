@@ -745,6 +745,8 @@ def run_suite(settings, directory, binding):
                             "path": error.path if isinstance(error, AcceptanceFailure) else "",
                             "error_type": type(error).__name__,
                         }
+                        if isinstance(error, AcceptanceFailure) and error.contract_difference:
+                            receipt["failure"]["contract_difference"] = error.contract_difference
                         if run.get("error"):
                             receipt["failure"]["workflow_error"] = {
                                 "code": receipt["failure"]["code"],

@@ -4,18 +4,49 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from workbench.domain import Plan, digest
+from workbench.domain import FieldRequirement, Plan, digest
 from workbench.settings import ROOT
 
 CASE_IDS = ("reading-shelf", "stock-purchasing", "facilities-ops")
 CASE_ROOT = ROOT / "examples/acceptance"
+FIELD_OBLIGATION_KEYS = frozenset(FieldRequirement.model_fields) - {"entity", "field"}
+MISSING = object()
+
+
+def obligation_value(attribute, value):
+    """Describe one source-authored field mismatch without exporting arbitrary text."""
+    if value is MISSING:
+        return {"type": "missing"}
+    if value is None or type(value) is bool:
+        return value
+    if type(value) is int and -(2**31) <= value <= 2**31 - 1:
+        return value
+    if (
+        attribute == "kind"
+        and isinstance(value, str)
+        and value in {"text", "integer", "boolean", "date", "datetime", "enum"}
+    ):
+        return value
+    result = {"type": type(value).__name__, "sha256": digest(value)}
+    if isinstance(value, (str, list, dict)):
+        result["characters" if isinstance(value, str) else "items"] = len(value)
+    return result
 
 
 class AcceptanceFailure(RuntimeError):
     """Static controller codes, with an optional local obligation path."""
 
-    def __init__(self, code, path=""):
+    def __init__(self, code, path="", *, attribute=None, expected=None, actual=None):
         self.code, self.path = code, path
+        self.contract_difference = (
+            {
+                "attribute": attribute,
+                "expected": obligation_value(attribute, expected),
+                "actual": obligation_value(attribute, actual),
+            }
+            if code == "contract_mismatch" and attribute in FIELD_OBLIGATION_KEYS
+            else None
+        )
         super().__init__(code + (":" + path if path else ""))
 
 
@@ -108,19 +139,25 @@ def require_contract(case, value):
         found = {field["name"]: field for field in entities[name]["fields"]}
         require(set(found) == set(fields), "contract_mismatch", name + ".fields")
         for field, obligation in fields.items():
-            require(
-                same_obligation(
-                    found[field],
-                    {
-                        "searchable": False,
-                        "filterable": False,
-                        "date_range": False,
-                        **obligation,
-                    },
-                ),
-                "contract_mismatch",
-                name + "." + field,
-            )
+            attributes = {
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+                **obligation,
+            }
+            for attribute, expected_value in attributes.items():
+                actual_value = found[field].get(attribute, MISSING)
+                if actual_value is MISSING or not same_obligation(actual_value, expected_value):
+                    raise AcceptanceFailure(
+                        "contract_mismatch",
+                        name
+                        + "."
+                        + field
+                        + ("." + attribute if attribute in FIELD_OBLIGATION_KEYS else ""),
+                        attribute=attribute,
+                        expected=expected_value,
+                        actual=actual_value,
+                    )
     if "business" not in expected:
         require(plan.business is None, "contract_mismatch", "business")
     else:

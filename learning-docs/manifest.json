@@ -437,8 +437,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 14236,
-      "sha256": "63441e1a60b26c7ca18c8cc8f0ff42a54cc07f4d13eecd359507fb6ee46beaaf",
+      "bytes": 15854,
+      "sha256": "bc2a9b6057bab25cf11cbc4e2fe26295284927a66a95a444e0bbbe518faa2880",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -455,8 +455,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 13123,
-      "sha256": "c78ca3fa657cfcd1dfe5bb66e54d128cd34eb8b30217ef7f600cd7293217dcde",
+      "bytes": 13815,
+      "sha256": "9b01d1133b647aa03ae2f213eaf309cc17b58c468da49bc74ab777e674e1bdf8",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -482,8 +482,8 @@
     },
     {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 126413,
-      "sha256": "c2603d439ae8da9a57b4a42f4d763ab9b99bcae3b6485215f98495adc1a88d20",
+      "bytes": 132554,
+      "sha256": "a04b371b110800942798ed94d5e66309429d3f50d4c0368122842966d821f114",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
@@ -503,8 +503,8 @@
     },
     {
       "path": "workbench/requirement_sources.py",
-      "bytes": 10873,
-      "sha256": "a22fc4697d4e43125b62759d72823914557303ae74fdcfb0fc7135bad886b88a",
+      "bytes": 10997,
+      "sha256": "b39b09edd027194762deb0226ed2f349232d1a38ec5fbeb05b442d28b24324e6",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_sources_py--001.md"
@@ -4309,8 +4309,8 @@
     },
     {
       "path": "docs/template-platform.md",
-      "bytes": 13445,
-      "sha256": "82225007cdac783d827c5e00baa39505584942dc8cf77a6e5fcda5dd3e7d289c",
+      "bytes": 14136,
+      "sha256": "22d1dc4d20d3afeac4c8cb7411425a0ad01d816bf0bbf3471e7559c000e8cab9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-platform_md--001.md"
@@ -4644,8 +4644,8 @@
     },
     {
       "path": "scripts/ci_template_projects.py",
-      "bytes": 35586,
-      "sha256": "13983d4af930d5038798dc8633d25716269f7c792448f431c03ac01b8fe80f6d",
+      "bytes": 35779,
+      "sha256": "b554c0382b99d0e353a72551540eb4cd1260dd2d735de191b8c7184c8a003001",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_template_projects_py--001.md"
@@ -4708,8 +4708,8 @@
     },
     {
       "path": "scripts/template_acceptance_cases.py",
-      "bytes": 5555,
-      "sha256": "98990eb88c56812228896bec4d81d6ceb779a071205b650cea354ecb2d061a01",
+      "bytes": 7240,
+      "sha256": "e4df03229fdad5b3941e6f779eae3058e5585cf50d8c2e0763281c74a7c65a73",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__template_acceptance_cases_py--001.md"
@@ -5213,6 +5213,15 @@
       ]
     },
     {
+      "path": "tests/test_closed_query_requirements.py",
+      "bytes": 11379,
+      "sha256": "2d6c006b4326afba57ec434c5b7fe2a549fca88b8511f2d066c34410e66d5357",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_closed_query_requirements_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_container_diagnostic_review.py",
       "bytes": 2903,
       "sha256": "c20cbc5b319faaecc4e8dd2074be18a9522898dfea1b228418c929baf38ef90b",
@@ -5366,6 +5375,15 @@
       ]
     },
     {
+      "path": "tests/test_json_repair_reference.py",
+      "bytes": 9250,
+      "sha256": "fe9d94ef99686c694b451e25a141891498ffc45a74570114fad4e63d8e449112",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_json_repair_reference_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_keyword_query_binding.py",
       "bytes": 5004,
       "sha256": "1758529fff8c03229690fd6cdb53c4047ee3b12e1ed83867299a19f9d5434512",
@@ -5471,6 +5489,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_news_delivery_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_nullable_field_constraints.py",
+      "bytes": 2095,
+      "sha256": "028d07b7c16bd1b42ff5c868e5dec52b954b6b624afca9bb8920ceea56d49d4b",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_nullable_field_constraints_py--001.md"
       ]
     },
     {
@@ -5710,11 +5737,12 @@
     },
     {
       "path": "tests/test_template_project_acceptance.py",
-      "bytes": 37522,
-      "sha256": "8eb29733669a0200f21b4a85283b08bd75b0bde3ec464c8f0c09bfca3144a7af",
+      "bytes": 41443,
+      "sha256": "24b3f221449e7abf15954c82ccc1ba0084bad83d3baf18d827a94e92fb637909",
       "stage": "14-acceptance",
       "parts": [
-        "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md"
+        "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md",
+        "14-acceptance/sources/tests__test_template_project_acceptance_py--002.md"
       ]
     },
     {

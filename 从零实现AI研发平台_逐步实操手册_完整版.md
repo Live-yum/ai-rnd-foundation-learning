@@ -139,6 +139,8 @@ curl -X POST http://127.0.0.1:8000/batches \
 
 验收至少包括：模型契约与需求匹配、正常生成与独立验证、真实产品浏览器检查、最终交付包哈希、解压到新目录和新库启动、独立场景行为验证、重启后数据持久化。三个案例全部通过才允许汇总为成功。缺少案例、浏览器失败、模型调用失败或预算用尽都会留下失败结果，不把固定 Plan 或历史截图当作本次实测。
 
+失败回执会把字段差异定位到具体属性，例如 `books.started_on.filterable`，并给出受控的期望值和实际值；可能包含任意文本的值只保留长度、数量或摘要，不导出完整 Plan 或原始文本。每个模型任务的 JSON 格式校验仍最多尝试两次（首次请求与一次重试）。如果响应仅在一个符合 schema 的完整 JSON 对象后多出闭合括号，该对象只作为未批准的候选，供下一次模型调用参考；原响应仍记为失败，必须由模型重新返回一个完整且通过校验的响应，才能继续正常验收。格式修复不会默认通过，也不授权删除或改写已确认需求。
+
 在 GitHub 的 `rnd` Environment 中配置：
 
 | 类型 | 名称 | 用途 |
@@ -20935,14 +20937,15 @@ def design_pack(plan, destination, template="python-basic", selection=None):
 
 **逐个入口与控制逻辑：**
 
-- `ModelFailure`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway`（L27–L289）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway.__init__`（L28–L30）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L32–L289）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L274抛异常，停止当前正常路径；L276按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L289的`value`。
-- `ModelGateway.complete.call`（L74–L269）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100按`len(body) > self.settings.max_context_chars`分支；L101抛异常，停止当前正常路径；L113遍历`range(2)`；L115按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L116抛异常，停止当前正常路径；L145按`audited.error is not None`分支；L146抛异常，停止当前正常路径；L147按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L159的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
-- `ModelGateway.complete.call.failed`（L77–L97）：接收`attempt`、`code`、`details`。 控制顺序：L78按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelFailure`（L30–L31）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `_json_repair_reference`（L34–L56）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L41按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L50按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L47的`None`；L51的`None`；L54的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
+- `ModelGateway`（L59–L327）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway.__init__`（L60–L62）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L64–L327）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L76抛异常，停止当前正常路径；L312抛异常，停止当前正常路径；L314按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L327的`value`。
+- `ModelGateway.complete.call`（L107–L307）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133按`len(body) > self.settings.max_context_chars`分支；L134抛异常，停止当前正常路径；L146遍历`range(2)`；L148按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L149抛异常，停止当前正常路径；L178按`audited.error is not None`分支；L179抛异常，停止当前正常路径；L180按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L192的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.failed`（L110–L130）：接收`attempt`、`code`、`details`。 控制顺序：L111按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/llm.py sha256: 63441e1a60b26c7ca18c8cc8f0ff42a54cc07f4d13eecd359507fb6ee46beaaf -->
+<!-- source-file: workbench/llm.py sha256: bc2a9b6057bab25cf11cbc4e2fe26295284927a66a95a444e0bbbe518faa2880 -->
 ````python
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
 
@@ -20954,10 +20957,17 @@ from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
-from workbench.model_diagnostics import failure_diagnostic, json_diagnostics, schema_diagnostics
+from workbench.model_diagnostics import (
+    failure_diagnostic,
+    json_diagnostics,
+    json_syntax_category,
+    schema_diagnostics,
+)
 from workbench.model_protocol import (
+    MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
     OutputFailure,
+    load_json,
     output_contract,
     structured_model,
     validate_content,
@@ -20968,6 +20978,31 @@ from workbench.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
 
 class ModelFailure(RuntimeError):
     pass
+
+
+def _json_repair_reference(exc, content, schema):
+    """Return only an unapproved model input, never a successful completion.
+
+    A schema-valid object followed only by redundant closing delimiters contains
+    no trailing business data. Re-encode that object for the next provider call;
+    arbitrary tails, invalid prefixes and encoding failures get no reference.
+    """
+    if not (
+        isinstance(exc, json.JSONDecodeError)
+        and isinstance(content, str)
+        and exc.doc == content
+        and json_syntax_category(exc) == "extra_closing_delimiters"
+    ):
+        return None
+    try:
+        value = load_json(content[: exc.pos])
+        if not isinstance(value, dict):
+            return None
+        reference = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
+        schema.model_validate(value, strict=True)
+        return reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None
+    except ValueError, TypeError, OverflowError, RecursionError:
+        return None
 
 
 class ModelGateway:
@@ -21006,6 +21041,7 @@ class ModelGateway:
             "仅可省略已有 Schema 默认值且本轮需求无需指定的可选字段；"
             "有需求含义的字段及其值即使等于默认值也要保留，不能为缩短输出而删减需求。"
             "不要附加 Markdown 围栏、说明文字、注释或省略号；正确转义字符串并闭合全部括号。\n"
+            "使用两空格缩进并按对象层级换行，使每一级闭合括号与其起始层级对应。\n"
             + json.dumps(schema_document, ensure_ascii=False)
         )
         # A repaired prompt/schema or a changed gate's feedback must not reuse a
@@ -21167,25 +21203,30 @@ class ModelGateway:
                                 strict=True,
                             )
                         ]
-                    # Field repair can use a strict JSON candidate. Replaying malformed
-                    # JSON as an assistant answer gives the next attempt a broken example.
-                    if (
-                        isinstance(exc, ValidationError)
-                        and isinstance(content, str)
-                        and len(content) <= self.settings.max_context_chars
-                    ):
-                        messages.append(
-                            {"role": "assistant", "content": self.settings.redact(content)}
-                        )
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
-                            + json.dumps(diagnostics, ensure_ascii=False)
-                            + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
-                            "不要删除需求、降级功能或声称人工已批准。",
-                        }
+                    repair = {
+                        "role": "user",
+                        "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
+                        + json.dumps(diagnostics, ensure_ascii=False)
+                        + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
+                        "若附有修复候选，它尚未批准，仍须核对原始需求和设计反馈；"
+                        "不要删除需求、降级功能或声称人工已批准。",
+                    }
+                    # Never accept or replay malformed JSON. An optional reference must
+                    # fit alongside the original request and the complete repair feedback.
+                    reference = (
+                        content
+                        if isinstance(exc, ValidationError)
+                        else _json_repair_reference(exc, content, schema)
                     )
+                    if isinstance(reference, str):
+                        reference = self.settings.redact(reference)
+                        size = sum(len(m["content"]) for m in messages)
+                        if (
+                            size + len(reference) + len(repair["content"])
+                            <= self.settings.max_context_chars
+                        ):
+                            messages.append({"role": "assistant", "content": reference})
+                    messages.append(repair)
                 except (httpx.HTTPError, APIError) as exc:
                     status = getattr(exc, "status_code", None) or getattr(
                         getattr(exc, "response", None), "status_code", None
@@ -21682,16 +21723,17 @@ class ModelConnectionTester:
 
 **逐个入口与控制逻辑：**
 
-- `failure_diagnostic`（L34–L100）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L38按`code.startswith("http_") or code == "transport_error"`分支；L42按`code in {"http_401", "http_403"}`分支；L44按`code == "http_429"`分支；L46按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L50按`code in {"refusal", "content_filter"}`分支；L53按`code == "unexpected_model_error"`分支；L57按`code == "invalid_json"`分支；L60按`code == "structured_parser_disagreement"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L92的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
-- `json_diagnostics`（L103–L145）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L107按`isinstance(exc, json.JSONDecodeError)`分支；L129按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`JSON_SYNTAX_CATEGORIES.get`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L117的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L132的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
-- `_schema_nodes`（L148–L179）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L168遍历`path`；L170遍历`nodes`；L171遍历`expand(node)`；L172按`isinstance(part, int)`分支；L176按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L179的`[candidate for node in nodes for candidate in expand(node)]`。
-- `_schema_nodes.expand`（L151–L165）：接收`node`、`seen`。 控制顺序：L152按`not isinstance(node, dict)`分支；L156按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L158遍历`ref[2:].split("/")`；L159按`not isinstance(target, dict)`分支；L163遍历`("anyOf", "oneOf", "allOf")`；L164遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_constraint_hint`（L182–L212）：接收`document`、`error`。 控制顺序：L190按`error["type"] not in rules or len(error["loc"]) > 20`分支；L194按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L197按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L203按`isinstance(node.get("description"), str)`分支；L210按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L191的`None`；L195的`None`；L201的`None`。
-- `schema_diagnostics`（L215–L279）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 调用`set`、`schema.model_json_schema`、`collect`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`、`isinstance`、`_constraint_hint`、`exc.errors`。 返回路径：L268的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
-- `schema_diagnostics.collect`（L223–L230）：接收`node`。 控制顺序：L224按`isinstance(node, dict)`分支；L226遍历`node.values()`；L228按`isinstance(node, list)`分支；L229遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `schema_diagnostics.safe_message`（L264–L266）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L266的`value if value in safe_messages else "字段结构或类型不符合约定"`。
+- `json_syntax_category`（L34–L40）：接收`exc`。 控制顺序：L36按`category == "extra_data"`分支；L38按`tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n")`分支。 调用`JSON_SYNTAX_CATEGORIES.get`、`tail.strip`、`set(tail).difference`、`set`。 返回路径：L39的`"extra_closing_delimiters"`；L40的`category`。
+- `failure_diagnostic`（L43–L109）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L47按`code.startswith("http_") or code == "transport_error"`分支；L51按`code in {"http_401", "http_403"}`分支；L53按`code == "http_429"`分支；L55按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L59按`code in {"refusal", "content_filter"}`分支；L62按`code == "unexpected_model_error"`分支；L66按`code == "invalid_json"`分支；L69按`code == "structured_parser_disagreement"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L101的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
+- `json_diagnostics`（L112–L158）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L116按`isinstance(exc, json.JSONDecodeError)`分支；L142按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`json_syntax_category`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L130的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L145的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
+- `_schema_nodes`（L161–L192）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L181遍历`path`；L183遍历`nodes`；L184遍历`expand(node)`；L185按`isinstance(part, int)`分支；L189按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L192的`[candidate for node in nodes for candidate in expand(node)]`。
+- `_schema_nodes.expand`（L164–L178）：接收`node`、`seen`。 控制顺序：L165按`not isinstance(node, dict)`分支；L169按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L171遍历`ref[2:].split("/")`；L172按`not isinstance(target, dict)`分支；L176遍历`("anyOf", "oneOf", "allOf")`；L177遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_constraint_hint`（L195–L225）：接收`document`、`error`。 控制顺序：L203按`error["type"] not in rules or len(error["loc"]) > 20`分支；L207按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L210按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L216按`isinstance(node.get("description"), str)`分支；L223按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L204的`None`；L208的`None`；L214的`None`。
+- `schema_diagnostics`（L228–L292）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 调用`set`、`schema.model_json_schema`、`collect`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`、`isinstance`、`_constraint_hint`、`exc.errors`。 返回路径：L281的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
+- `schema_diagnostics.collect`（L236–L243）：接收`node`。 控制顺序：L237按`isinstance(node, dict)`分支；L239遍历`node.values()`；L241按`isinstance(node, list)`分支；L242遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `schema_diagnostics.safe_message`（L277–L279）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L279的`value if value in safe_messages else "字段结构或类型不符合约定"`。
 
-<!-- source-file: workbench/model_diagnostics.py sha256: c78ca3fa657cfcd1dfe5bb66e54d128cd34eb8b30217ef7f600cd7293217dcde -->
+<!-- source-file: workbench/model_diagnostics.py sha256: 9b01d1133b647aa03ae2f213eaf309cc17b58c468da49bc74ab777e674e1bdf8 -->
 ````python
 """Safe actionable provider failures. Never persist provider bodies or input values."""
 
@@ -21722,8 +21764,17 @@ JSON_GUARD_MESSAGES = {
 JSON_DIAGNOSTIC_CATEGORIES = (
     frozenset(JSON_SYNTAX_CATEGORIES.values())
     | frozenset(JSON_GUARD_MESSAGES)
-    | {"json_syntax", "json_encoding", "invalid_json"}
+    | {"json_syntax", "json_encoding", "invalid_json", "extra_closing_delimiters"}
 )
+
+
+def json_syntax_category(exc):
+    category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+    if category == "extra_data":
+        tail = exc.doc[exc.pos :]
+        if tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n"):
+            return "extra_closing_delimiters"
+    return category
 
 
 def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
@@ -21800,9 +21851,13 @@ def json_diagnostics(exc, content=None):
     source = exc.doc if isinstance(exc, json.JSONDecodeError) else content
     lengths = exc.lengths if isinstance(exc, JSONGuardFailure) else json_lengths(source)
     if isinstance(exc, json.JSONDecodeError):
-        category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
+        category = json_syntax_category(exc)
         correction = (
-            "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
+            "第一个 JSON 值之后只剩多余的闭合括号和 JSON 空白。"
+            "逐层核对括号，根对象只闭合一次；用缩进和换行标明层级。"
+            "若提供未批准的修复候选，仍须核对原始需求、全部业务字段与 Schema，重新返回完整合法对象。"
+            if category == "extra_closing_delimiters"
+            else "解析器已读完第一个 JSON 值，此位置起仍有额外内容。"
             "若根对象提前闭合，剩余字段必须放回同一根对象的最后一个 } 之前；"
             "不要在对象外追加字段、第二个对象或说明。"
             "根据原始需求和 Schema 重写整个对象，保留全部业务字段，不能只返回尾部补丁或截掉内容。"
@@ -31917,30 +31972,34 @@ def canonicalize_requirement(data, audit=None):
 - `_legacy_clauses`（L1411–L1663）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1433遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1434按`sentence in {"但是", "但", "不过"}`分支；L1437按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1442按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1455在`True`成立时循环；L1458按`heading`分支；L1461按`syntax.endswith((":", "："))`分支；L1463按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_operation_parts`（L1666–L1680）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1669遍历`text`；L1671按`char in "（([【"`分支；L1673按`char in "）)]】"`分支；L1676遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1677按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_query_operation_groups`（L1683–L1735）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1692遍历`_operation_parts(text)`；L1694按`marker is None`分支；L1695按`prefix`分支；L1697按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1698按`pending`分支；L1724按`prefix`分支；L1727按`is_prefix`分支；L1728按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_top_level_parts`（L1764–L1783）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1767遍历`enumerate(text)`；L1769按`quote`分支；L1770按`char == quote and (not index or text[index - 1] != "\\")`分支；L1772按`char in "\"'"`分支；L1774按`char in "（([【"`分支；L1776按`char in "）)]】"`分支；L1779遍历`re.finditer(separators, text, re.I)`；L1780按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_entity`（L1786–L1793）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1791按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1793的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
-- `_metric_clauses`（L1796–L1912）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1901遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1902按`_METRIC_CONTEXT.search(part)`分支；L1909按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L1912的`"".join(result), obligations`。
-- `_metric_clauses.consume`（L1806–L1885）：接收`fragment`、`context`、`inherited`。 控制顺序：L1809按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1814遍历`matches`；L1816按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1829按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1847按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1854按`inherited and not predicates and not scope_only`分支；L1861按`not targets and not predicates and not scope_only`分支；L1863按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1810的`fragment`；L1850的`fragment`；L1855的`fragment`。
-- `_metric_clauses.parenthesis`（L1889–L1896）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1896的`match.group() if filtered == body else ""`。
-- `_negative_operation_pattern`（L1915–L1940）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1932的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
-- `_legacy_boolean_text`（L1943–L1971）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1971的`_negative_operation_pattern(fields).sub(replace, text)`。
-- `_legacy_boolean_text.replace`（L1950–L1969）：接收`match`。 控制顺序：L1952按`not re.match( r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与\|" r"\b(?:never\|cannot\…`分支；L1961按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L1965按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L1967按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`_DATE_RANGE_QUERY.sub`、`" ".join`。 返回路径：L1959的`""`；L1969的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
-- `_legacy_operation_text`（L1974–L1986）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1986的`_negative_operation_pattern(fields).sub("（）", text)`。
-- `_legacy_field_exclusions`（L1989–L2075）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L2036遍历`sentences`；L2038按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L2075的`"".join(output), obligations`。
-- `_legacy_field_exclusions.replace`（L2041–L2070）：接收`match`。 控制顺序：L2050按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L2058遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L2055的`match.group()`；L2070的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
-- `_legacy_date_obligations`（L2110–L2191）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2120遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2121按`not sentence.strip()`分支；L2129遍历`_legacy_clauses(sentence, fields)`；L2132按`not markers and not formats`分支；L2149遍历`[*markers, *formats]`；L2153按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2159按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2161按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_normalized_constraint_value`（L2194–L2214）：接收`attribute`、`expected`。 控制顺序：L2195按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2196按`isinstance(expected, str)`分支；L2198按`word in {"true", "是", "必填"}`分支；L2200按`word in {"false", "否", "可选", "非必填"}`分支；L2202按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2210按`isinstance(expected, str)`分支；L2212按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2214的`expected`。
-- `_matches_constraint`（L2217–L2236）：接收`attribute`、`expected`、`actual`。 控制顺序：L2219按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2221按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2230按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2220的`type(expected) is bool and actual is expected`；L2229的`type(expected) is int and actual == expected`；L2231的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `_field_constraint_matches`（L2239–L2252）：接收`field`、`attribute`、`expected`。 控制顺序：L2240按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2243按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2244的`False`；L2246的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2252的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
-- `_legacy_scalar_constraints`（L2255–L2278）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2266按`not validation`分支；L2267按`re.search(r"必填\|required", text, re.I) and not optional`分支；L2269按`optional or re.search(r"可选", text)`分支；L2271遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2276按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_integer_constraints`（L2281–L2298）：接收`text`。 控制顺序：L2282按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2288按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2291遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2297遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `explicit_legacy_field_constraints`（L2301–L2379）：接收`requirement`。 源码说明：Reliably bound scalar constraints using Requirement vocabulary only. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported tex。 控制顺序：L2315按`not fields`分支；L2327遍历`texts`；L2331遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2334遍历`_legacy_targets(clause, fields)`；L2336遍历`_legacy_scalar_constraints(clause)`；L2347遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2350按`subject not in vocabulary`分支；L2352遍历`( "required", "min_length", "max_length", "minimum", "maximum", "…`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_field_exclusions`、`_metric_clauses`、`_query_predicate_text`等。 返回路径：L2316的`[]`；L2379的`result`。
-- `_legacy_declared_fields`（L2382–L2452）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2392按`heading`分支；L2394按`owner`分支；L2397按`match`分支；L2416按`declaration`分支；L2418按`body[:1] in "（([【"`分支；L2427按`not descriptor`分支；L2431遍历`_top_level_parts(body, separators)`；L2433按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2428的`[]`；L2452的`result`。
-- `coverage_gaps`（L2455–L2915）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2463按`native_normalization`分支；L2511按`plan.data_scope != requirement.data_scope`分支；L2518遍历`enumerate(requirement.field_requirements)`；L2526按`len(matches) != 1`分支；L2530遍历`obligation.model_dump().items()`；L2531按`key in {"field", "entity"} or value is None`分支；L2535按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2537按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L2915的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.query_matches`（L2473–L2479）：接收`field`、`attribute`、`expected`。 控制顺序：L2475按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2476的`typed_queries[key]`；L2479的`getattr(field, attribute) is expected`。
-- `coverage_gaps.gap`（L2481–L2509）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2483按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_legacy_query_parts`（L1745–L1773）：接收`text`、`fields`。 源码说明：Share field/operator binding without reading candidate query flags.。 控制顺序：L1748按`re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search( _QUERY_OPERATIO…`分支；L1753遍历`parts`；L1756按`part != text and _fact_entity(part, fields) is None`分支；L1757按`entity_scope`分支；L1759按`_ALL_ENTITIES.search(text)`分支；L1762按`not targets and _fact_candidates(bound, fields)`分支；L1766按`not targets and previous_targets and not re.search(r"关键词\|关键字\|keyword", part, re.I)`分支；L1768按`targets`分支。 调用`re.search`、`list`、`_query_operation_groups`、`_fact_entity`、`_ALL_ENTITIES.search`、`_legacy_targets`、`_fact_candidates`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_query_pairs`（L1776–L1781）：接收`text`、`fields`。 源码说明：Only named positive predicates establish a field's query capability.。 控制顺序：L1778遍历`_legacy_query_parts(text, fields)`；L1779遍历`_QUERY_OPERATIONS.items()`；L1780按`re.search(pattern, part, re.I)`分支。 调用`_legacy_query_parts`、`_QUERY_OPERATIONS.items`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_top_level_parts`（L1810–L1829）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1813遍历`enumerate(text)`；L1815按`quote`分支；L1816按`char == quote and (not index or text[index - 1] != "\\")`分支；L1818按`char in "\"'"`分支；L1820按`char in "（([【"`分支；L1822按`char in "）)]】"`分支；L1825遍历`re.finditer(separators, text, re.I)`；L1826按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_entity`（L1832–L1839）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1837按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1839的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
+- `_metric_clauses`（L1842–L1958）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1947遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1948按`_METRIC_CONTEXT.search(part)`分支；L1955按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L1958的`"".join(result), obligations`。
+- `_metric_clauses.consume`（L1852–L1931）：接收`fragment`、`context`、`inherited`。 控制顺序：L1855按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1860遍历`matches`；L1862按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1875按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1893按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1900按`inherited and not predicates and not scope_only`分支；L1907按`not targets and not predicates and not scope_only`分支；L1909按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1856的`fragment`；L1896的`fragment`；L1901的`fragment`。
+- `_metric_clauses.parenthesis`（L1935–L1942）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1942的`match.group() if filtered == body else ""`。
+- `_negative_operation_pattern`（L1961–L1986）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1978的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
+- `_legacy_boolean_text`（L1989–L2017）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2017的`_negative_operation_pattern(fields).sub(replace, text)`。
+- `_legacy_boolean_text.replace`（L1996–L2015）：接收`match`。 控制顺序：L1998按`not re.match( r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与\|" r"\b(?:never\|cannot\…`分支；L2007按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L2011按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L2013按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`_DATE_RANGE_QUERY.sub`、`" ".join`。 返回路径：L2005的`""`；L2015的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
+- `_legacy_operation_text`（L2020–L2032）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2032的`_negative_operation_pattern(fields).sub("（）", text)`。
+- `_legacy_field_exclusions`（L2035–L2121）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L2082遍历`sentences`；L2084按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L2121的`"".join(output), obligations`。
+- `_legacy_field_exclusions.replace`（L2087–L2116）：接收`match`。 控制顺序：L2096按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L2104遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L2101的`match.group()`；L2116的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
+- `_legacy_date_obligations`（L2156–L2237）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2166遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2167按`not sentence.strip()`分支；L2175遍历`_legacy_clauses(sentence, fields)`；L2178按`not markers and not formats`分支；L2195遍历`[*markers, *formats]`；L2199按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2205按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2207按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_normalized_constraint_value`（L2240–L2260）：接收`attribute`、`expected`。 控制顺序：L2241按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2242按`isinstance(expected, str)`分支；L2244按`word in {"true", "是", "必填"}`分支；L2246按`word in {"false", "否", "可选", "非必填"}`分支；L2248按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2256按`isinstance(expected, str)`分支；L2258按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2260的`expected`。
+- `_matches_constraint`（L2263–L2282）：接收`attribute`、`expected`、`actual`。 控制顺序：L2265按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2267按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2276按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2266的`type(expected) is bool and actual is expected`；L2275的`type(expected) is int and actual == expected`；L2277的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `_field_constraint_matches`（L2285–L2298）：接收`field`、`attribute`、`expected`。 控制顺序：L2286按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2289按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2290的`False`；L2292的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2298的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
+- `_legacy_scalar_constraints`（L2301–L2326）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2312按`not validation`分支；L2313按`(re.search(r"必填\|required", text, re.I) and not optional) or re.search( r"不可空\|不得为空",…`分支；L2317按`optional or re.search(r"可选", text)`分支；L2319遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2324按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_integer_constraints`（L2329–L2346）：接收`text`。 控制顺序：L2330按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2336按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2339遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2345遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_query_closure`（L2367–L2447）：接收`texts`、`fields`。 源码说明：Close only explicitly exhaustive query declarations in source prose. Allowed pairs come from the existing field/operator binder, never a candidate's true flags. A date range does not authorize an exac。 控制顺序：L2375遍历`texts`；L2376按`_QUERY_CLOSURE.search(original)`分支；L2377遍历`enumerate(_legacy_clauses(original, fields))`；L2378遍历`_QUERY_CLOSURE.finditer(clause)`；L2379按`_DATE_CONTEXT.search(clause[: match.start()])`分支；L2395按`not closed`分支；L2420遍历`cleaned`；L2424遍历`_legacy_clauses(_legacy_operation_text(text, fields), fields)`。后续分支沿下方源码相同行号继续阅读。 调用`_QUERY_CLOSURE.search`、`enumerate`、`_legacy_clauses`、`_QUERY_CLOSURE.finditer`、`_DATE_CONTEXT.search`、`match.start`、`re.findall`、`list`、`closed.append`等。 返回路径：L2396的`texts, []`；L2447的`cleaned, obligations`。
+- `_legacy_query_closure.descriptor_row`（L2398–L2405）：接收`match`。 控制顺序：L2400按`not any(entity == owner and field.name == name for entity, field in fields)`分支。 调用`value.strip`、`match.groups`、`any`、`match.group`、`re.sub`。 返回路径：L2401的`match.group()`；L2405的`f"{owner}::{name}（{description}）"`。
+- `explicit_legacy_field_constraints`（L2450–L2541）：接收`requirement`。 源码说明：Reliably bound scalar/query constraints using Requirement vocabulary. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported te。 控制顺序：L2464按`not fields`分支；L2478遍历`texts`；L2482遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2485遍历`_legacy_query_pairs(clause, fields)`；L2496遍历`_legacy_targets(clause, fields)`；L2498遍历`_legacy_scalar_constraints(clause)`；L2509遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2512按`subject not in vocabulary`分支。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_query_closure`、`result.extend`、`_legacy_field_exclusions`等。 返回路径：L2465的`[]`；L2541的`result`。
+- `_legacy_declared_fields`（L2544–L2614）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2554按`heading`分支；L2556按`owner`分支；L2559按`match`分支；L2578按`declaration`分支；L2580按`body[:1] in "（([【"`分支；L2589按`not descriptor`分支；L2593遍历`_top_level_parts(body, separators)`；L2595按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2590的`[]`；L2614的`result`。
+- `coverage_gaps`（L2617–L3057）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2625按`native_normalization`分支；L2673按`plan.data_scope != requirement.data_scope`分支；L2680遍历`enumerate(requirement.field_requirements)`；L2688按`len(matches) != 1`分支；L2692遍历`obligation.model_dump().items()`；L2693按`key in {"field", "entity"} or value is None`分支；L2697按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2699按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L3057的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.query_matches`（L2635–L2641）：接收`field`、`attribute`、`expected`。 控制顺序：L2637按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2638的`typed_queries[key]`；L2641的`getattr(field, attribute) is expected`。
+- `coverage_gaps.gap`（L2643–L2671）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2645按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: c2603d439ae8da9a57b4a42f4d763ab9b99bcae3b6485215f98495adc1a88d20 -->
+<!-- source-file: workbench/requirement_coverage.py sha256: a04b371b110800942798ed94d5e66309429d3f50d4c0368122842966d821f114 -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -33679,6 +33738,52 @@ def _query_operation_groups(text, fields, operations):
         yield " ".join([*prefix, *pending])
 
 
+_QUERY_OPERATIONS = {
+    "searchable": r"搜索|检索|search",
+    "filterable": r"筛选|过滤|filter",
+    "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
+}
+
+
+def _legacy_query_parts(text, fields):
+    """Share field/operator binding without reading candidate query flags."""
+    parts = [text]
+    if re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search(
+        _QUERY_OPERATIONS["filterable"], text, re.I
+    ):
+        parts = list(_query_operation_groups(text, fields, _QUERY_OPERATIONS))
+    previous_targets = []
+    for part in parts:
+        entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
+        bound = part
+        if part != text and _fact_entity(part, fields) is None:
+            if entity_scope:
+                bound = f"{entity_scope}::{part}"
+            elif _ALL_ENTITIES.search(text):
+                bound = f"所有实体 {part}"
+        targets = _legacy_targets(bound, fields)
+        if not targets and _fact_candidates(bound, fields):
+            continue
+        # A field-free continuation inherits the preceding subject. A generic
+        # keyword operation remains independent of an earlier exact filter.
+        if not targets and previous_targets and not re.search(r"关键词|关键字|keyword", part, re.I):
+            targets = previous_targets
+        if targets:
+            previous_targets = targets
+        available = [
+            field for owner, field in fields if entity_scope is None or owner == entity_scope
+        ]
+        yield part, targets, available
+
+
+def _legacy_query_pairs(text, fields):
+    """Only named positive predicates establish a field's query capability."""
+    for part, targets, _ in _legacy_query_parts(text, fields):
+        for attribute, pattern in _QUERY_OPERATIONS.items():
+            if re.search(pattern, part, re.I):
+                yield from ((field, attribute) for field in targets)
+
+
 _METRIC_CONTEXT = re.compile(
     r"(?<![a-z_])(?:count|group_count|time_count|average_duration|metrics?)(?![a-z_])"
     r"|指标|统计|计数|已解决数|总数|平均.*时长|趋势|分组",
@@ -34026,7 +34131,7 @@ _DATE_TYPE = re.compile(
     re.I,
 )
 _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
-_DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|date.?range", re.I)
+_DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|起止日期(?:区间|范围)?|date.?range", re.I)
 _DATE_RANGE_QUERY = re.compile(
     r"(?:\b(?:filter(?:ing)?|search(?:ing)?)\s+(?:by|using|on)\s+)?"
     rf"(?:{_DATE_RANGE_OPERATOR.pattern})"
@@ -34203,12 +34308,14 @@ def _legacy_scalar_constraints(text):
     )
     optional = re.search(
         r"非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
-        r"required\s*[:=]\s*(?:false|否)",
+        r"required\s*[:=]\s*(?:false|否)|(?<!不)可空",
         text,
         re.I,
     )
     if not validation:
-        if re.search(r"必填|required", text, re.I) and not optional:
+        if (re.search(r"必填|required", text, re.I) and not optional) or re.search(
+            r"不可空|不得为空", text
+        ):
             yield "required", True
         if optional or re.search(r"可选", text):
             yield "required", False
@@ -34242,8 +34349,109 @@ def _legacy_integer_constraints(text):
                 yield attribute, int(match.group(1))
 
 
+_QUERY_CLOSURE = re.compile(
+    r"(?:未(?:声明|指定|列出)(?:的)?|\b(?:undeclared|unspecified|unlisted)\s+)\s*"
+    r"(?P<flags>(?:searchable|filterable|date_range)(?:\s*(?:[、,，/]|和|与|\band\b)\s*"
+    r"(?:searchable|filterable|date_range))*)\s*"
+    r"(?:(?:均|全部)?(?:为|是)|[:=]|(?:are|must\s+be)\s+)\s*(?:false|否)(?![a-z])|"
+    r"(?:其他|其余)?未(?:声明|指定|列出)(?:的)?字段\s*"
+    r"(?:不(?:增加|添加)|不得(?:增加|添加)|禁止(?:新增|增加|添加))\s*"
+    r"(?:任何|额外的?)?(?:查询条件|查询参数|查询能力)|"
+    r"\b(?:do|must|shall|should)\s+not\s+(?:add|enable)\s+(?:any\s+)?"
+    r"query\s+(?:conditions?|parameters?|controls?|capabilities)\s+(?:for|on)\s+"
+    r"(?:any\s+)?(?:other\s+)?(?:undeclared|unlisted|unspecified)\s+fields\b|"
+    r"\b(?:other\s+)?(?:undeclared|unlisted|unspecified)\s+fields\s+"
+    r"(?:must|shall|should)\s+not\s+(?:have|gain|use)\s+"
+    r"query\s+(?:conditions?|parameters?|controls?|capabilities)\b",
+    re.I,
+)
+
+
+def _legacy_query_closure(texts, fields):
+    """Close only explicitly exhaustive query declarations in source prose.
+
+    Allowed pairs come from the existing field/operator binder, never a
+    candidate's true flags. A date range does not authorize an exact filter.
+    The same false obligations feed analysis provenance and design coverage.
+    """
+    closed, cleaned = [], []
+    for origin, original in texts:
+        if _QUERY_CLOSURE.search(original):
+            for index, clause in enumerate(_legacy_clauses(original, fields)):
+                for match in _QUERY_CLOSURE.finditer(clause):
+                    if _DATE_CONTEXT.search(clause[: match.start()]):
+                        continue
+                    attributes = (
+                        re.findall(r"searchable|filterable|date_range", match["flags"], re.I)
+                        if match["flags"]
+                        else list(_QUERY_OPERATIONS)
+                    )
+                    closed.append(
+                        (
+                            {**origin, "clause": index},
+                            _fact_entity(clause, fields),
+                            attributes,
+                            original,
+                        )
+                    )
+        cleaned.append((origin, _QUERY_CLOSURE.sub(" ", original)))
+    if not closed:
+        return texts, []
+
+    def descriptor_row(match):
+        owner, name, description = (value.strip() for value in match.groups())
+        if not any(entity == owner and field.name == name for entity, field in fields):
+            return match.group()
+        # A known three-column field row is the same descriptor syntax already
+        # handled by the binder; semicolons inside its cell do not end its owner.
+        description = re.sub(r"[；;]", "，", description)
+        return f"{owner}::{name}（{description}）"
+
+    cleaned = [
+        (
+            origin,
+            re.sub(
+                r"(?m)^[ \t]*\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|[ \t]*$",
+                descriptor_row,
+                original,
+            ),
+        )
+        for origin, original in cleaned
+    ]
+    allowed = set()
+    owners = {id(field): owner for owner, field in fields}
+    for _, original in cleaned:
+        text, _ = _legacy_field_exclusions(original, fields)
+        text, _ = _metric_clauses(text, fields)
+        text = _query_predicate_text(text, fields)
+        for clause in _legacy_clauses(_legacy_operation_text(text, fields), fields):
+            allowed.update(
+                (owners[id(field)], field.name, attribute)
+                for field, attribute in _legacy_query_pairs(clause, fields)
+            )
+    obligations = []
+    for source, scope, attributes, original in closed:
+        for owner, field in fields:
+            if scope is not None and owner != scope:
+                continue
+            for attribute in attributes:
+                attribute = attribute.lower()
+                if (owner, field.name, attribute) not in allowed:
+                    obligations.append(
+                        {
+                            "source": source,
+                            "entity": owner,
+                            "field": field.name,
+                            "attribute": attribute,
+                            "expected": False,
+                            "text": original,
+                        }
+                    )
+    return cleaned, obligations
+
+
 def explicit_legacy_field_constraints(requirement: Requirement):
-    """Reliably bound scalar constraints using Requirement vocabulary only.
+    """Reliably bound scalar/query constraints using Requirement vocabulary.
 
     This is a read-only projection for source-conflict detection, not a new
     requirements ledger or an excuse to discard unsupported text. It never
@@ -34268,6 +34476,8 @@ def explicit_legacy_field_constraints(requirement: Requirement):
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
         for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
     )
+    texts, query_closure = _legacy_query_closure(texts, fields)
+    result.extend(query_closure)
     for origin, original in texts:
         text, _ = _legacy_field_exclusions(original, fields)
         text, _ = _metric_clauses(text, fields)
@@ -34275,6 +34485,17 @@ def explicit_legacy_field_constraints(requirement: Requirement):
         for index, clause in enumerate(
             _legacy_clauses(_legacy_operation_text(text, fields), fields)
         ):
+            for target, attribute in _legacy_query_pairs(clause, fields):
+                result.append(
+                    {
+                        "source": {**origin, "clause": index},
+                        "entity": next(owner for owner, field in fields if field is target),
+                        "field": target.name,
+                        "attribute": attribute,
+                        "expected": True,
+                        "text": original,
+                    }
+                )
             for target in _legacy_targets(clause, fields):
                 entity = next(owner for owner, field in fields if field is target)
                 for attribute, expected in _legacy_scalar_constraints(clause):
@@ -34537,6 +34758,23 @@ def coverage_gaps(
             _fact_texts(requirement.facts, fields, entity_names=entity_names)
         )
     )
+    texts, query_closure = _legacy_query_closure(texts, fields)
+    for obligation in query_closure:
+        source = obligation["source"]
+        source_text = obligation["text"]
+        for owner, field in fields:
+            if owner != obligation["entity"] or field.name != obligation["field"]:
+                continue
+            attribute = obligation["attribute"]
+            if not query_matches(field, attribute, False):
+                gap(
+                    f"已确认不增加未声明查询条件：{owner}.{field.name}.{attribute}=False",
+                    "constraint_mismatch",
+                    targets=[field],
+                    attribute=attribute,
+                    expected=False,
+                    actual=getattr(field, attribute),
+                )
     affirmative_texts = []
     for origin, text in texts:
         affirmative, exclusions = _legacy_field_exclusions(text, fields)
@@ -34588,11 +34826,7 @@ def coverage_gaps(
                     attribute="kind",
                     expected="date",
                 )
-    operations = {
-        "searchable": r"搜索|检索|search",
-        "filterable": r"筛选|过滤|filter",
-        "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
-    }
+    operations = _QUERY_OPERATIONS
     query_texts = []
     for origin, text in texts:
         query_text, metric_obligations = _metric_clauses(text, fields)
@@ -34771,42 +35005,9 @@ def coverage_gaps(
                     and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
                 ):
                     gap(f"已确认条件缺少对应字段 {canonical}: {text}", "legacy_missing_field")
-        operation_parts = [text]
-        if re.search(operations["searchable"], text, re.I) and re.search(
-            operations["filterable"], text, re.I
-        ):
-            operation_parts = list(_query_operation_groups(text, fields, operations))
-        previous_targets = []
-        for part in operation_parts:
-            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
-            bound = part
-            if part != text and _fact_entity(part, fields) is None:
-                if entity_scope:
-                    bound = f"{entity_scope}::{part}"
-                elif _ALL_ENTITIES.search(text):
-                    bound = f"所有实体 {part}"
-            targets = _legacy_targets(bound, fields) if part != text else mentioned
-            ambiguous_subject = not targets and bool(_fact_candidates(bound, fields))
-            # An operation-only continuation (标题搜索和精确筛选) inherits
-            # the previous named subject; another field cannot satisfy it.
-            if (
-                not targets
-                and not ambiguous_subject
-                and previous_targets
-                # A named generic keyword search is its own capability, not
-                # a search obligation on the preceding exact-filter field.
-                and not re.search(r"关键词|关键字|keyword", part, re.I)
-            ):
-                targets = previous_targets
-            if targets:
-                previous_targets = targets
-            available = [
-                f for entity, f in fields if entity_scope is None or entity == entity_scope
-            ]
+        for part, targets, available in _legacy_query_parts(text, fields):
             for flag, pattern in operations.items():
                 if not re.search(pattern, part, re.I):
-                    continue
-                if ambiguous_subject:
                     continue
                 candidates = targets
                 if flag == "date_range":
@@ -35324,15 +35525,15 @@ def registration_plan_gaps(plan, human, capabilities):
 
 **逐个入口与控制逻辑：**
 
-- `_records`（L21–L35）：接收`requirement`。 控制顺序：L22遍历`enumerate(requirement.field_requirements)`；L24遍历`value.items()`；L25按`attribute in {"entity", "field"}`分支。 调用`enumerate`、`field.model_dump`、`value.items`、`json.dumps`、`explicit_legacy_field_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_identity`（L38–L42）：接收`record`。 调用`{"exclusive_minimum": "minimum", "exclusive_maximum": "maximum"}.…`。 返回路径：L42的`record["entity"], record["field"], attribute`。
-- `_value`（L45–L52）：接收`record`。 控制顺序：L47按`type(value) is int`分支；L49按`record["attribute"] == "choices"`分支。 调用`type`、`{"exclusive_minimum": 1, "exclusive_maximum": -1}.get`、`sorted`、`set`、`json.dumps`。 返回路径：L52的`type(value).__name__, json.dumps(value, ensure_ascii=False, sort_keys=True)`。
-- `_signature`（L55–L56）：接收`record`。 调用`_identity`、`_value`。 返回路径：L56的`_identity(record), _value(record)`。
-- `_initial_user_sources`（L59–L106）：接收`parsed`、`human`、`cursor`。 源码说明：Use explicit current input, never infer a historical winner by recency.。 控制顺序：L63遍历`enumerate(parsed)`；L64按`index != 0 and index < cursor`分支；L66遍历`records`；L81遍历`fresh.items()`；L98按`correction and len({_value(item) for item in prior}) <= 1 and len({_value(item) for i…`分支。 调用`defaultdict`、`enumerate`、`digest`、`(original if index == 0 else fresh)[_identity(record)].append`、`_identity`、`fresh.items`、`original.get`、`any`、`_authorized`等。 返回路径：L106的`[record for group in original.values() for record in group]`。
-- `analysis_source_conflicts`（L109–L206）：接收`previous`、`candidate`、`human`、`changes`、`cursor`。 源码说明：Return exact contradictory source pairs; never rewrite or approve intent. Source indices refer to the reconciled candidate, with previous-source and original user-message indices retained separately. 。 控制顺序：L119遍历`old_records`；L126遍历`enumerate(human)`；L132遍历`parsed`；L138按`evidence not in source_by_signature[_signature(record)]`分支；L142遍历`records`；L165按`retained`分支；L182按`not previous`分支；L183遍历`_initial_user_sources(parsed_human, human, cursor)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_records`、`Requirement.model_validate`、`defaultdict`、`old_by_signature[_signature(record)].append`、`_signature`、`enumerate`、`candidate.model_copy`、`explicit_legacy_field_constraints`等。 返回路径：L206的`diagnostics`。
-- `analysis_feedback`（L209–L257）：接收`diagnostics`、`max_chars`。 源码说明：Bound prompt feedback; full source texts remain in the durable ledger. Human-message references point to the existing immutable message history. The selected excerpt is presentation only; indices and 。 控制顺序：L217遍历`diagnostics`；L219遍历`diagnostic["sources"]`；L221按`len(str(source.get("path", ""))) > 200`分支；L247按`len(json.dumps([*result, compact], ensure_ascii=False)) > max_chars - 256`分支。 调用`dict`、`len`、`str`、`source.get`、`digest`、`sources.append`、`json.dumps`、`result.append`。 返回路径：L257的`result`。
+- `_records`（L23–L37）：接收`requirement`。 控制顺序：L24遍历`enumerate(requirement.field_requirements)`；L26遍历`value.items()`；L27按`attribute in {"entity", "field"}`分支。 调用`enumerate`、`field.model_dump`、`value.items`、`json.dumps`、`explicit_legacy_field_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_identity`（L40–L44）：接收`record`。 调用`{"exclusive_minimum": "minimum", "exclusive_maximum": "maximum"}.…`。 返回路径：L44的`record["entity"], record["field"], attribute`。
+- `_value`（L47–L54）：接收`record`。 控制顺序：L49按`type(value) is int`分支；L51按`record["attribute"] == "choices"`分支。 调用`type`、`{"exclusive_minimum": 1, "exclusive_maximum": -1}.get`、`sorted`、`set`、`json.dumps`。 返回路径：L54的`type(value).__name__, json.dumps(value, ensure_ascii=False, sort_keys=True)`。
+- `_signature`（L57–L58）：接收`record`。 调用`_identity`、`_value`。 返回路径：L58的`_identity(record), _value(record)`。
+- `_initial_user_sources`（L61–L108）：接收`parsed`、`human`、`cursor`。 源码说明：Use explicit current input, never infer a historical winner by recency.。 控制顺序：L65遍历`enumerate(parsed)`；L66按`index != 0 and index < cursor`分支；L68遍历`records`；L83遍历`fresh.items()`；L100按`correction and len({_value(item) for item in prior}) <= 1 and len({_value(item) for i…`分支。 调用`defaultdict`、`enumerate`、`digest`、`(original if index == 0 else fresh)[_identity(record)].append`、`_identity`、`fresh.items`、`original.get`、`any`、`_authorized`等。 返回路径：L108的`[record for group in original.values() for record in group]`。
+- `analysis_source_conflicts`（L111–L208）：接收`previous`、`candidate`、`human`、`changes`、`cursor`。 源码说明：Return exact contradictory source pairs; never rewrite or approve intent. Source indices refer to the reconciled candidate, with previous-source and original user-message indices retained separately. 。 控制顺序：L121遍历`old_records`；L128遍历`enumerate(human)`；L134遍历`parsed`；L140按`evidence not in source_by_signature[_signature(record)]`分支；L144遍历`records`；L167按`retained`分支；L184按`not previous`分支；L185遍历`_initial_user_sources(parsed_human, human, cursor)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_records`、`Requirement.model_validate`、`defaultdict`、`old_by_signature[_signature(record)].append`、`_signature`、`enumerate`、`candidate.model_copy`、`explicit_legacy_field_constraints`等。 返回路径：L208的`diagnostics`。
+- `analysis_feedback`（L211–L259）：接收`diagnostics`、`max_chars`。 源码说明：Bound prompt feedback; full source texts remain in the durable ledger. Human-message references point to the existing immutable message history. The selected excerpt is presentation only; indices and 。 控制顺序：L219遍历`diagnostics`；L221遍历`diagnostic["sources"]`；L223按`len(str(source.get("path", ""))) > 200`分支；L249按`len(json.dumps([*result, compact], ensure_ascii=False)) > max_chars - 256`分支。 调用`dict`、`len`、`str`、`source.get`、`digest`、`sources.append`、`json.dumps`、`result.append`。 返回路径：L259的`result`。
 
-<!-- source-file: workbench/requirement_sources.py sha256: a22fc4697d4e43125b62759d72823914557303ae74fdcfb0fc7135bad886b88a -->
+<!-- source-file: workbench/requirement_sources.py sha256: b39b09edd027194762deb0226ed2f349232d1a38ec5fbeb05b442d28b24324e6 -->
 ````python
 """Reject contradictory analysis output without choosing between requirement sources.
 
@@ -35344,7 +35545,9 @@ It detects contradictions within a reconciled candidate, including retained prio
 requirements. On first analysis it also compares corresponding explicit scalar
 obligations in the original/current user input. This is not complete semantic
 grounding: prose normalization covers required, length and explicit integer bounds, using
-typed, entity-qualified field vocabulary. Unknown prose remains untouched.
+typed, entity-qualified field vocabulary, plus named queries and explicit query closure.
+Candidate query flags never authorize extra queries in original source text.
+Unknown prose remains untouched.
 """
 
 import json
@@ -143994,6 +144197,310 @@ def test_cli_checks_health_and_handles_later_disconnect(monkeypatch, settings, d
     assert ("uv run rnd start" if disconnect else "READY") in result.output
 ````
 
+### `tests/test_closed_query_requirements.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.requirement_coverage`、`workbench.requirement_sources`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `query_case`（L23–L66）：接收`closure`、`declarations`。 调用`Requirement`、`FieldRequirement`、`Plan`。 返回路径：L66的`requirement, plan`。
+- `test_closed_queries_reject_each_extra_capability_without_typed_false`（L79–L98）：接收`closure`、`name`、`attribute`。 控制顺序：L82断言`coverage_gaps(requirement, plan) == []`；L83断言`(requirement.model_dump(), plan.model_dump()) == before`；L84断言`all(getattr(field, attribute) is None for field in requirement.field_requirements)`；L88断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L89断言`any( item["code"] == "constraint_mismatch" and item["source"]["section"] == "features…`。 调用`query_case`、`requirement.model_dump`、`plan.model_dump`、`coverage_gaps`、`all`、`getattr`、`next`、`setattr`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_open_requests_do_not_invent_false_query_obligations`（L105–L115）：接收`closure`。 控制顺序：L110断言`coverage_gaps(requirement, plan) == []`；L111断言`not any( item["attribute"] in {"searchable", "filterable", "date_range"} and item["ex…`。 调用`query_case`、`coverage_gaps`、`any`、`explicit_legacy_field_constraints`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_range_and_exact_filter_remain_independent`（L126–L134）：接收`declaration`、`missing`。 控制顺序：L130断言`coverage_gaps(requirement, plan) == []`；L133断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L134断言`any(item["attribute"] == missing and item["expected"] is True for item in diagnostics…`。 调用`query_case`、`coverage_gaps`、`setattr`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_candidate_true_cannot_authorize_itself_against_original_query_closure`（L138–L155）：接收`retain_closure`。 控制顺序：L142按`not retain_closure`分支；L147断言`any( item["code"] == "requirement_source_conflict" and item["target"] == {"entity": "…`；L155断言`candidate.model_dump() == before`。 调用`query_case`、`"\n".join`、`requirement.model_copy`、`candidate.features.pop`、`candidate.model_dump`、`analysis_source_conflicts`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_explicit_exact_and_range_authorizes_both_candidate_flags`（L158–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`analysis_source_conflicts(None, requirement, ["\n".join(requirement.features)], curso…`。 调用`query_case`、`analysis_source_conflicts`、`"\n".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_candidate_prose_cannot_authorize_a_query_while_its_typed_flag_is_none`（L168–L187）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173断言`candidate.field_requirements[3].filterable is None`；L177断言`coverage_gaps(candidate, plan) == []`；L180断言`any( item["target"] == {"entity": "documents", "field": "event_on"} and item["attribu…`；L187断言`candidate.model_dump() == before`。 调用`query_case`、`"\n".join`、`requirement.model_copy`、`candidate.features.append`、`coverage_gaps`、`candidate.model_dump`、`analysis_source_conflicts`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_closure_stays_on_its_entity_when_field_names_repeat`（L190–L216）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L203断言`coverage_gaps(requirement, plan) == []`；L204遍历`requirement.field_requirements`；L205按`field.entity == "archive" and field.field == "event_on"`分支；L207断言`analysis_source_conflicts(None, requirement, ["\n".join(requirement.features)], curso…`；L213断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L214断言`[(item["targets"], item["attribute"]) for item in diagnostics] == [ ([{"entity": "doc…`。 调用`query_case`、`requirement.field_requirements.extend`、`field.model_copy`、`list`、`plan.entities.append`、`plan.entities[0].model_copy`、`coverage_gaps`、`analysis_source_conflicts`、`"\n".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_closing_one_named_query_flag_does_not_close_other_capabilities`（L219–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L223断言`coverage_gaps(requirement, plan) == []`；L225断言`coverage_gaps(requirement, plan)`。 调用`query_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_markdown_field_rows_use_the_existing_descriptor_binding`（L228–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242断言`coverage_gaps(requirement, plan) == []`；L248断言`analysis_source_conflicts(None, requirement, [original], cursor=1) == []`；L250断言`any( item["attribute"] == "filterable" for item in analysis_source_conflicts(None, re…`。 调用`query_case`、`"\n".join`、`coverage_gaps`、`analysis_source_conflicts`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_analysis_projection_and_coverage_share_closed_query_provenance`（L257–L276）：接收`section`。 控制顺序：L260按`section == "facts"`分支；L272断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L273断言`any( item["source"] == obligation["source"] and item["expected"] is obligation["expec…`。 调用`query_case`、`requirement.features.pop`、`getattr(requirement, section).append`、`getattr`、`explicit_legacy_field_constraints`、`next`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_closed_query_requirements.py sha256: 2d6c006b4326afba57ec434c5b7fe2a549fca88b8511f2d066c34410e66d5357 -->
+````python
+"""Explicit query closure constrains source intent, never planner defaults."""
+
+import pytest
+
+from workbench.domain import FieldRequirement, Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps, explicit_legacy_field_constraints
+from workbench.requirement_sources import analysis_source_conflicts
+
+CLOSURES = (
+    "其他未声明的字段不增加查询条件。",
+    "未列出的字段不得添加查询参数。",
+    "未声明的 searchable、filterable、date_range 均为 false。",
+    "Do not add query conditions for other undeclared fields.",
+    "Unlisted fields must not have query controls.",
+    "Unspecified searchable, filterable and date_range are false.",
+)
+DECLARATIONS = (
+    "documents: headline/writer 关键词搜索；documents.category 精确筛选；"
+    "documents.event_on 起止日期均包含边界。"
+)
+
+
+def query_case(closure=CLOSURES[0], *, declarations=DECLARATIONS):
+    requirement = Requirement(
+        summary="Document catalogue",
+        users=["editor"],
+        data_scope="per_user",
+        features=[declarations, closure] if closure else [declarations],
+        acceptance=[],
+        field_requirements=[
+            FieldRequirement(entity="documents", field=name, kind=kind)
+            for name, kind in (
+                ("headline", "text"),
+                ("writer", "text"),
+                ("category", "enum"),
+                ("event_on", "date"),
+                ("archived_on", "date"),
+                ("note", "text"),
+            )
+        ],
+    )
+    plan = Plan(
+        title="Document catalogue",
+        data_scope="per_user",
+        acceptance=["Manage documents"],
+        entities=[
+            {
+                "name": "documents",
+                "description": "Documents",
+                "fields": [
+                    {"name": "headline", "kind": "text", "searchable": True},
+                    {"name": "writer", "kind": "text", "searchable": True},
+                    {
+                        "name": "category",
+                        "kind": "enum",
+                        "choices": ["a", "b"],
+                        "filterable": True,
+                    },
+                    {"name": "event_on", "kind": "date", "date_range": True},
+                    {"name": "archived_on", "kind": "date"},
+                    {"name": "note", "kind": "text"},
+                ],
+            }
+        ],
+    )
+    return requirement, plan
+
+
+@pytest.mark.parametrize("closure", CLOSURES)
+@pytest.mark.parametrize(
+    "name,attribute",
+    [
+        ("writer", "filterable"),
+        ("event_on", "filterable"),
+        ("note", "searchable"),
+        ("archived_on", "date_range"),
+    ],
+)
+def test_closed_queries_reject_each_extra_capability_without_typed_false(closure, name, attribute):
+    requirement, plan = query_case(closure)
+    before = requirement.model_dump(), plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert (requirement.model_dump(), plan.model_dump()) == before
+    assert all(getattr(field, attribute) is None for field in requirement.field_requirements)
+    field = next(field for field in plan.entities[0].fields if field.name == name)
+    setattr(field, attribute, True)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["code"] == "constraint_mismatch"
+        and item["source"]["section"] == "features"
+        and item["source"]["index"] == 1
+        and item["targets"] == [{"entity": "documents", "field": name}]
+        and item["attribute"] == attribute
+        and item["expected"] is False
+        and item["actual"] is True
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "closure",
+    ["", "其他未声明的字段可以增加查询条件。", "其他未声明的字段无需增加查询条件。"],
+)
+def test_open_requests_do_not_invent_false_query_obligations(closure):
+    requirement, plan = query_case(closure)
+    plan.entities[0].fields[1].filterable = True
+    plan.entities[0].fields[3].filterable = True
+    plan.entities[0].fields[-1].searchable = True
+    assert coverage_gaps(requirement, plan) == []
+    assert not any(
+        item["attribute"] in {"searchable", "filterable", "date_range"}
+        and item["expected"] is False
+        for item in explicit_legacy_field_constraints(requirement)
+    )
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "documents.event_on 日期范围筛选和精确筛选",
+        "documents.event_on date range filter and exact filter",
+    ],
+)
+@pytest.mark.parametrize("missing", ["filterable", "date_range"])
+def test_explicit_range_and_exact_filter_remain_independent(declaration, missing):
+    requirement, plan = query_case(declarations=DECLARATIONS + declaration)
+    field = plan.entities[0].fields[3]
+    field.filterable = True
+    assert coverage_gaps(requirement, plan) == []
+    setattr(field, missing, False)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(item["attribute"] == missing and item["expected"] is True for item in diagnostics)
+
+
+@pytest.mark.parametrize("retain_closure", [True, False])
+def test_candidate_true_cannot_authorize_itself_against_original_query_closure(retain_closure):
+    requirement, _ = query_case()
+    original = "\n".join(requirement.features)
+    candidate = requirement.model_copy(deep=True)
+    if not retain_closure:
+        candidate.features.pop()
+    candidate.field_requirements[3].filterable = True
+    before = candidate.model_dump()
+    diagnostics = analysis_source_conflicts(None, candidate, [original], cursor=1)
+    assert any(
+        item["code"] == "requirement_source_conflict"
+        and item["target"] == {"entity": "documents", "field": "event_on"}
+        and item["attribute"] == "filterable"
+        and {source["expected"] for source in item["sources"]} == {False, True}
+        and any(source["origin"] == "user_input" for source in item["sources"])
+        for item in diagnostics
+    )
+    assert candidate.model_dump() == before
+
+
+def test_original_explicit_exact_and_range_authorizes_both_candidate_flags():
+    requirement, _ = query_case(declarations=DECLARATIONS + "documents.event_on 精确筛选。")
+    requirement.field_requirements[3].filterable = True
+    requirement.field_requirements[3].date_range = True
+    assert (
+        analysis_source_conflicts(None, requirement, ["\n".join(requirement.features)], cursor=1)
+        == []
+    )
+
+
+def test_candidate_prose_cannot_authorize_a_query_while_its_typed_flag_is_none():
+    requirement, plan = query_case()
+    original = "\n".join(requirement.features)
+    candidate = requirement.model_copy(deep=True)
+    candidate.features.append("documents.event_on 精确筛选。")
+    assert candidate.field_requirements[3].filterable is None
+    plan.entities[0].fields[3].filterable = True
+    # The added sentence describes this candidate Plan, but cannot establish
+    # authority to change the original closed source before design approval.
+    assert coverage_gaps(candidate, plan) == []
+    before = candidate.model_dump()
+    diagnostics = analysis_source_conflicts(None, candidate, [original], cursor=1)
+    assert any(
+        item["target"] == {"entity": "documents", "field": "event_on"}
+        and item["attribute"] == "filterable"
+        and {source["expected"] for source in item["sources"]} == {False, True}
+        and any(source["origin"] == "user_input" for source in item["sources"])
+        for item in diagnostics
+    )
+    assert candidate.model_dump() == before
+
+
+def test_query_closure_stays_on_its_entity_when_field_names_repeat():
+    requirement, plan = query_case()
+    requirement.field_requirements.extend(
+        field.model_copy(update={"entity": "archive"})
+        for field in list(requirement.field_requirements)
+    )
+    plan.entities.append(plan.entities[0].model_copy(deep=True, update={"name": "archive"}))
+    requirement.features = [
+        DECLARATIONS + "documents: " + CLOSURES[0],
+        "archive.event_on 精确筛选；archive.writer 精确筛选。",
+    ]
+    plan.entities[1].fields[1].filterable = True
+    plan.entities[1].fields[3].filterable = True
+    assert coverage_gaps(requirement, plan) == []
+    for field in requirement.field_requirements:
+        if field.entity == "archive" and field.field == "event_on":
+            field.filterable = True
+    assert (
+        analysis_source_conflicts(None, requirement, ["\n".join(requirement.features)], cursor=1)
+        == []
+    )
+    plan.entities[0].fields[3].filterable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert [(item["targets"], item["attribute"]) for item in diagnostics] == [
+        ([{"entity": "documents", "field": "event_on"}], "filterable")
+    ]
+
+
+def test_closing_one_named_query_flag_does_not_close_other_capabilities():
+    requirement, plan = query_case("未声明的 filterable 均为 false。")
+    plan.entities[0].fields[-1].searchable = True
+    plan.entities[0].fields[4].date_range = True
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].filterable = True
+    assert coverage_gaps(requirement, plan)
+
+
+def test_original_markdown_field_rows_use_the_existing_descriptor_binding():
+    requirement, plan = query_case(
+        CLOSURES[2],
+        declarations="\n".join(
+            [
+                "| Entity | Field | Constraints |",
+                "| --- | --- | --- |",
+                "| documents | headline | text；必填；关键词搜索 |",
+                "| documents | writer | text；必填；关键词搜索 |",
+                "| documents | category | enum；必填；精确筛选 |",
+                "| documents | event_on | date；必填；包含首尾的日期范围 |",
+            ]
+        ),
+    )
+    assert coverage_gaps(requirement, plan) == []
+    requirement.field_requirements[0].searchable = True
+    requirement.field_requirements[1].searchable = True
+    requirement.field_requirements[2].filterable = True
+    requirement.field_requirements[3].date_range = True
+    original = "\n".join(requirement.features)
+    assert analysis_source_conflicts(None, requirement, [original], cursor=1) == []
+    requirement.field_requirements[3].filterable = True
+    assert any(
+        item["attribute"] == "filterable"
+        for item in analysis_source_conflicts(None, requirement, [original], cursor=1)
+    )
+
+
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+def test_analysis_projection_and_coverage_share_closed_query_provenance(section):
+    requirement, plan = query_case()
+    closure = requirement.features.pop()
+    if section == "facts":
+        requirement.facts = {"query_policy": closure}
+    else:
+        getattr(requirement, section).append(closure)
+    projected = explicit_legacy_field_constraints(requirement)
+    obligation = next(
+        item
+        for item in projected
+        if item["field"] == "event_on" and item["attribute"] == "filterable"
+    )
+    plan.entities[0].fields[3].filterable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["source"] == obligation["source"] and item["expected"] is obligation["expected"]
+        for item in diagnostics
+    )
+````
+
 ### `tests/test_container_diagnostic_review.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -157486,6 +157993,285 @@ def test_extra_data_feedback_rebuilds_one_object_without_guessing_tail_contents(
     assert "保留全部业务字段" in detail["message"]
     assert "不能只返回尾部补丁或截掉内容" in detail["message"]
     assert "private-tail-canary" not in json.dumps(detail)
+````
+
+### `tests/test_json_repair_reference.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.llm`、`workbench.model_diagnostics`、`workbench.model_protocol`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `plan_object`（L16–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L17的`{ "title": "Strict format repair", "data_scope": "per_user", "entities": [ { "name": "reco…`。
+- `response`（L34–L74）：接收`content`、`streaming`。 控制顺序：L35按`not streaming`分支；L45遍历`enumerate( ((content[:-1], None), (content[-1:], None), ("", "sto…`。 调用`httpx.Response`、`enumerate`、`chunks.append`、`json.dumps`、`"".join`。 返回路径：L36的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`；L70的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content="".join(chunks…`。
+- `gateway`（L77–L81）：接收`store`、`handler`、`streaming`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L81的`ModelGateway(store.settings, store, httpx.MockTransport(handler), streaming=streaming)`。
+- `test_redundant_closers_require_another_validated_provider_response`（L86–L136）：接收`store`、`streaming`、`succeeds`。 控制顺序：L104按`succeeds`分支；L105断言`model.complete( run, "plan:repair", "Keep the original requirements", payload, Plan )…`；L108断言`model.complete( run, "plan:repair", "Keep the original requirements", payload, Plan )…`；L114断言`all(item["status"] == "failed" for item in store.model_records(run))`；L115断言`not any(event["kind"] == "assistant_completed" for event in store.events(run))`；L116断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L117断言`all(json.loads(item["messages"][1]["content"]) == payload for item in requests)`；L118断言`all(item["response_format"] == {"type": "json_object"} for item in requests)`。后续分支沿下方源码相同行号继续阅读。 调用`plan_object`、`json.dumps`、`new_run`、`gateway`、`model.complete`、`Plan.model_validate`、`pytest.raises`、`all`、`store.model_records`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_redundant_closers_require_another_validated_provider_response.handler`（L97–L101）：接收`request`。 控制顺序：L99断言`all(item["status"] == "failed" for item in store.model_records(run))`；L100断言`not any(event["kind"] == "assistant_completed" for event in store.events(run))`。 调用`requests.append`、`json.loads`、`all`、`store.model_records`、`any`、`store.events`、`response`、`len`。 返回路径：L101的`response(valid if succeeds and len(requests) == 2 else invalid, streaming)`。
+- `test_data_or_non_json_whitespace_never_becomes_a_reference`（L153–L160）：接收`tail`。 控制顺序：L157断言`_json_repair_reference(error.value, content, Plan) is None`；L159断言`details[0]["category"] == "extra_data"`；L160断言`"private-tail-canary" not in json.dumps(details)`。 调用`json.dumps`、`plan_object`、`pytest.raises`、`validate_content`、`_json_repair_reference`、`json_diagnostics`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_prefix_never_becomes_a_reference`（L175–L180）：接收`prefix`。 控制顺序：L179断言`_json_repair_reference(error.value, content, Plan) is None`；L180断言`"private-" not in json.dumps(json_diagnostics(error.value, content))`。 调用`pytest.raises`、`validate_content`、`_json_repair_reference`、`json.dumps`、`json_diagnostics`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reference_keeps_source_values_when_a_validator_mutates_its_input`（L183–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L197断言`json.loads(reference) == {"value": "original"}`；L198断言`error.value.doc == content`。 调用`pytest.raises`、`validate_content`、`_json_repair_reference`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reference_keeps_source_values_when_a_validator_mutates_its_input.MutatingSchema`（L184–L191）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
+- `test_reference_keeps_source_values_when_a_validator_mutates_its_input.MutatingSchema.normalizes`（L189–L191）：接收`data`。 调用`model_validator`。 返回路径：L191的`data`。
+- `test_reference_encoding_respects_the_response_byte_bound`（L201–L208）：接收`monkeypatch`。 控制顺序：L208断言`_json_repair_reference(error.value, content, Plan) is None`。 调用`json.dumps`、`plan_object`、`pytest.raises`、`validate_content`、`monkeypatch.setattr`、`_json_repair_reference`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_optional_reference_is_omitted_when_full_retry_context_would_not_fit`（L211–L249）：接收`store`。 控制顺序：L222断言`len(json.dumps(source, indent=2)) > 4000`；L240断言`model.complete( run, "plan:bounded-reference", "Keep the original scope", payload, Pl…`；L243断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L244断言`[item["role"] for item in requests[1]["messages"]] == ["system", "user", "user"]`；L245断言`json.loads(requests[1]["messages"][1]["content"]) == payload`；L246断言`sum(len(item["content"]) for item in requests[1]["messages"]) <= store.settings.max_c…`。 调用`plan_object`、`range`、`json.dumps`、`len`、`gateway`、`new_run`、`model.complete`、`Plan.model_validate`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_optional_reference_is_omitted_when_full_retry_context_would_not_fit.handler`（L225–L232）：接收`request`。 控制顺序：L228按`len(requests) == 1`分支。 调用`json.loads`、`requests.append`、`len`、`sum`、`response`。 返回路径：L232的`response(valid + "}" if len(requests) == 1 else valid, False)`。
+
+<!-- source-file: tests/test_json_repair_reference.py sha256: fe9d94ef99686c694b451e25a141891498ffc45a74570114fad4e63d8e449112 -->
+````python
+"""A malformed response remains failed even when its object can guide one retry."""
+
+import json
+
+import httpx
+import pytest
+from conftest import new_run
+from pydantic import BaseModel, SecretStr, model_validator
+
+from workbench.domain import Plan
+from workbench.llm import ModelFailure, ModelGateway, _json_repair_reference
+from workbench.model_diagnostics import json_diagnostics
+from workbench.model_protocol import validate_content
+
+
+def plan_object():
+    return {
+        "title": "Strict format repair",
+        "data_scope": "per_user",
+        "entities": [
+            {
+                "name": "records",
+                "description": "Preserve every requested constraint",
+                "fields": [
+                    {"name": "note", "kind": "text", "required": False, "max_length": 80},
+                    {"name": "quantity", "kind": "integer", "minimum": 0, "maximum": 12},
+                ],
+            }
+        ],
+        "acceptance": ["Keep optional notes, numeric bounds and owner isolation"],
+    }
+
+
+def response(content, streaming):
+    if not streaming:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"finish_reason": "stop", "message": {"role": "assistant", "content": content}}
+                ]
+            },
+        )
+    chunks = []
+    for index, (fragment, finish) in enumerate(
+        ((content[:-1], None), (content[-1:], None), ("", "stop"))
+    ):
+        chunks.append(
+            "data: "
+            + json.dumps(
+                {
+                    "id": "offline-format-repair",
+                    "object": "chat.completion.chunk",
+                    "created": 0,
+                    "model": "offline-model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "content": fragment,
+                                **({"role": "assistant"} if index == 0 else {}),
+                            },
+                            "finish_reason": finish,
+                        }
+                    ],
+                }
+            )
+            + "\n\n"
+        )
+    return httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content="".join(chunks) + "data: [DONE]\n\n",
+    )
+
+
+def gateway(store, handler, streaming=False):
+    store.settings.base_url = "https://example.test/v1"
+    store.settings.model = "offline-model"
+    store.settings.api_key = SecretStr("private-api-key-canary")
+    return ModelGateway(store.settings, store, httpx.MockTransport(handler), streaming=streaming)
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("succeeds", [False, True])
+def test_redundant_closers_require_another_validated_provider_response(store, streaming, succeeds):
+    source = plan_object()
+    valid = json.dumps(source)
+    invalid = valid + "\n } ]\t} \r\n"
+    payload = {
+        "original_scope": source,
+        "resolution_feedback": {"round": 2, "blocked": ["Keep all fields"]},
+    }
+    requests = []
+    run = new_run(store)
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        assert all(item["status"] == "failed" for item in store.model_records(run))
+        assert not any(event["kind"] == "assistant_completed" for event in store.events(run))
+        return response(valid if succeeds and len(requests) == 2 else invalid, streaming)
+
+    model = gateway(store, handler, streaming)
+    if succeeds:
+        assert model.complete(
+            run, "plan:repair", "Keep the original requirements", payload, Plan
+        ) == Plan.model_validate(source)
+        assert model.complete(
+            run, "plan:repair", "Keep the original requirements", payload, Plan
+        ) == Plan.model_validate(source)
+    else:
+        with pytest.raises(ModelFailure, match="两次尝试"):
+            model.complete(run, "plan:repair", "Keep the original requirements", payload, Plan)
+        assert all(item["status"] == "failed" for item in store.model_records(run))
+        assert not any(event["kind"] == "assistant_completed" for event in store.events(run))
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert all(json.loads(item["messages"][1]["content"]) == payload for item in requests)
+    assert all(item["response_format"] == {"type": "json_object"} for item in requests)
+    references = [
+        item["content"] for item in requests[1]["messages"] if item["role"] == "assistant"
+    ]
+    assert len(references) == 1
+    assert json.loads(references[0]) == source
+    assert "\n  " in references[0]
+    assert "searchable" not in json.loads(references[0])["entities"][0]["fields"][0]
+    assert invalid not in references
+    assert "尚未批准" in requests[1]["messages"][-1]["content"]
+    failures = [event for event in store.events(run) if event["kind"] == "model_failure"]
+    assert len(failures) == (1 if succeeds else 2)
+    assert {event["data"]["code"] for event in failures} == {"invalid_json"}
+    assert all(
+        event["data"]["diagnostic"]["details"][0]["category"] == "extra_closing_delimiters"
+        for event in failures
+    )
+    assert "Preserve every requested constraint" not in json.dumps(failures)
+    assert "private-api-key-canary" not in json.dumps(failures)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        " private-tail-canary",
+        ',"private-tail-canary":false}',
+        " {}",
+        " []",
+        " null",
+        " 1",
+        '"private-tail-canary"',
+        "\u00a0}",
+        "\v}",
+    ],
+)
+def test_data_or_non_json_whitespace_never_becomes_a_reference(tail):
+    content = json.dumps(plan_object()) + tail
+    with pytest.raises(ValueError) as error:
+        validate_content(content, Plan, mode="json_object")
+    assert _json_repair_reference(error.value, content, Plan) is None
+    details = json_diagnostics(error.value, content)
+    assert details[0]["category"] == "extra_data"
+    assert "private-tail-canary" not in json.dumps(details)
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        '{"title":"first","title":"second"}',
+        '{"quantity":NaN}',
+        '{"quantity":1e9999}',
+        '"private-scalar-canary"',
+        "[]",
+        "{}",
+        '{"entities":"private-schema-canary"}',
+    ],
+)
+def test_invalid_prefix_never_becomes_a_reference(prefix):
+    content = prefix + "}"
+    with pytest.raises(ValueError) as error:
+        validate_content(content, Plan, mode="json_object")
+    assert _json_repair_reference(error.value, content, Plan) is None
+    assert "private-" not in json.dumps(json_diagnostics(error.value, content))
+
+
+def test_reference_keeps_source_values_when_a_validator_mutates_its_input():
+    class MutatingSchema(BaseModel):
+        value: str
+
+        @model_validator(mode="before")
+        @classmethod
+        def normalizes(cls, data):
+            data["value"] = "normalized"
+            return data
+
+    content = '{"value":"original"}}'
+    with pytest.raises(ValueError) as error:
+        validate_content(content, MutatingSchema, mode="json_object")
+    reference = _json_repair_reference(error.value, content, MutatingSchema)
+    assert json.loads(reference) == {"value": "original"}
+    assert error.value.doc == content
+
+
+def test_reference_encoding_respects_the_response_byte_bound(monkeypatch):
+    from workbench import llm
+
+    content = json.dumps(plan_object()) + "}"
+    with pytest.raises(ValueError) as error:
+        validate_content(content, Plan, mode="json_object")
+    monkeypatch.setattr(llm, "MAX_MODEL_CONTENT_BYTES", 10)
+    assert _json_repair_reference(error.value, content, Plan) is None
+
+
+def test_optional_reference_is_omitted_when_full_retry_context_would_not_fit(store):
+    source = plan_object()
+    source["entities"] = [
+        {
+            "name": f"records_{index}",
+            "description": "Keep all source fields",
+            "fields": [{"name": f"value_{field}", "kind": "text"} for field in range(8)],
+        }
+        for index in range(8)
+    ]
+    valid = json.dumps(source)
+    assert len(json.dumps(source, indent=2)) > 4000
+    requests = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        if len(requests) == 1:
+            store.settings.max_context_chars = (
+                sum(len(item["content"]) for item in body["messages"]) + 2000
+            )
+        return response(valid + "}" if len(requests) == 1 else valid, False)
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    payload = {
+        "scope": "Keep all eight entities and their fields",
+        "resolution_feedback": {"round": 1},
+    }
+    assert model.complete(
+        run, "plan:bounded-reference", "Keep the original scope", payload, Plan
+    ) == Plan.model_validate(source)
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert [item["role"] for item in requests[1]["messages"]] == ["system", "user", "user"]
+    assert json.loads(requests[1]["messages"][1]["content"]) == payload
+    assert (
+        sum(len(item["content"]) for item in requests[1]["messages"])
+        <= store.settings.max_context_chars
+    )
 ````
 
 ### `tests/test_keyword_query_binding.py`
@@ -171175,6 +171961,76 @@ def test_date_and_enum_are_real_validations_not_prompt_assumptions(settings):
             module.validate_options(entity, model.model_validate({**good, **bad}).model_dump())
 ````
 
+### `tests/test_nullable_field_constraints.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.requirement_coverage`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_nullable_and_nonnullable_field_prose_stays_strict`（L13–L52）：接收`phrase`、`required`。 控制顺序：L38断言`coverage_gaps(requirement, plan) == []`；L40断言`[ (item["entity"], item["field"], item["expected"]) for item in source_constraints if…`；L47断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L49断言`len(mismatches) == 1`；L50断言`mismatches[0]["targets"] == [{"entity": "documents", "field": "comment"}]`；L51断言`mismatches[0]["expected"] is required`；L52断言`mismatches[0]["actual"] is not required`。 调用`Requirement`、`FieldRequirement`、`Plan`、`coverage_gaps`、`explicit_legacy_field_constraints`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_nullable_field_constraints.py sha256: 028d07b7c16bd1b42ff5c868e5dec52b954b6b624afca9bb8920ceea56d49d4b -->
+````python
+"""Nullable prose preserves required flags without reversing non-null prohibitions."""
+
+import pytest
+
+from workbench.domain import FieldRequirement, Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps, explicit_legacy_field_constraints
+
+
+@pytest.mark.parametrize(
+    "phrase,required",
+    [("可空", False), ("不可空", True), ("不得为空", True), ("可选", False), ("必填", True)],
+)
+def test_nullable_and_nonnullable_field_prose_stays_strict(phrase, required):
+    text = f"documents 的 comment {phrase}；最大长度600"
+    requirement = Requirement(
+        summary="文档备注",
+        users=["reader"],
+        data_scope="per_user",
+        features=[text],
+        acceptance=[],
+        field_requirements=[FieldRequirement(entity="documents", field="comment", kind="text")],
+    )
+    plan = Plan(
+        title="文档备注",
+        data_scope="per_user",
+        acceptance=["Offline source constraint check"],
+        entities=[
+            {
+                "name": "documents",
+                "description": "文档",
+                "fields": [
+                    {"name": "comment", "kind": "text", "required": required, "max_length": 600},
+                    {"name": "headline", "kind": "text", "required": True},
+                ],
+            }
+        ],
+    )
+    assert coverage_gaps(requirement, plan) == []
+    source_constraints = explicit_legacy_field_constraints(requirement)
+    assert [
+        (item["entity"], item["field"], item["expected"])
+        for item in source_constraints
+        if item["attribute"] == "required"
+    ] == [("documents", "comment", required)]
+    plan.entities[0].fields[0].required = not required
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    mismatches = [item for item in diagnostics if item["attribute"] == "required"]
+    assert len(mismatches) == 1
+    assert mismatches[0]["targets"] == [{"entity": "documents", "field": "comment"}]
+    assert mismatches[0]["expected"] is required
+    assert mismatches[0]["actual"] is not required
+````
+
 ### `tests/test_owned_lifecycle.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -181434,40 +182290,44 @@ def test_legacy_whitespace_canonical_flags_keep_polarity(key, field, attribute, 
 
 **逐个入口与控制逻辑：**
 
-- `fixture_plan`（L48–L63）：接收`case`。 源码说明：Test-only metadata for exercising the harness; the live controller cannot import it.。 控制顺序：L60按`data.get("business")`分支；L61遍历`[*data["business"]["roles"], *data["business"]["metrics"]]`。 调用`copy.deepcopy`、`data.update`、`fields.items`、`data["entities"].items`、`data.get`、`Plan.model_validate`。 返回路径：L63的`Plan.model_validate(data)`。
-- `test_three_explicit_scales_and_independent_contracts`（L66–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68断言`[len(case.contract["entities"]) for case in cases] == [1, 3, 6]`；L69断言`[len(case.contract.get("business", {}).get("workflows", [])) for case in cases] == [ …`；L74断言`[len(case.contract.get("business", {}).get("roles", [])) for case in cases] == [0, 3,…`；L75遍历`cases`；L76断言`require_contract(case, fixture_plan(case).model_dump())`；L77断言`set(case.expected_checks) == {block["id"] for block in case.scenario}`；L78遍历`case.contract["entities"].items()`；L79断言`name in case.requirement`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`len`、`case.contract.get("business", {}).get`、`case.contract.get`、`require_contract`、`fixture_plan(case).model_dump`、`fixture_plan`、`set`、`case.contract["entities"].items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_each_scenario_over_real_generated_http_and_restart`（L85–L95）：接收`tmp_path`、`index`。 控制顺序：L92断言`report["passed"] is True and report["restart"] is True`；L93断言`report["browser"]["real_browser"] is False`；L94断言`report["http_requests"] >= sum(len(block["requests"]) for block in case.scenario)`。 调用`suite_cases`、`generate_basic`、`fixture_plan`、`run_scenario`、`sum`、`len`、`require_scenario_checks`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_model_plan_cannot_drop_or_change_obligations`（L99–L114）：接收`mutation`。 控制顺序：L102按`mutation == "field"`分支；L104按`mutation == "entity"`分支；L106按`mutation == "permission"`分支；L109按`mutation == "query"`分支。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`plan["entities"][0]["fields"].append`、`next`、`policy["actions"].append`、`plan["business"]["metrics"].pop`、`pytest.raises`、`require_contract`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_assertions_preserve_numbers_booleans_counts_and_row_identity`（L117–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L119断言`resolve({"count": "${row.quantity}", "enabled": "${row.enabled}"}, refs) == { "count"…`；L123断言`resolve("/api/orders/${row.id}", refs) == "/api/orders/x"`；L130遍历`[ (True, {"equals": 1}), ([], {"contains": {"id": "x"}}), ([{"id"…`。 调用`resolve`、`check_json`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `github_env`（L140–L148）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L141的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": REPOSITORY, "GITHUB_EVENT_NAME": "pull_re…`。
-- `github_event`（L151–L159）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L152的`{ "action": "labeled", "label": {"name": "run-live-acceptance"}, "pull_request": { "head":…`。
-- `test_explicit_label_and_manual_dispatch_bind_exact_head_and_allow_rerun`（L162–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164断言`trusted_event(env, event)["head_sha"] == "a" * 40`；L166断言`trusted_event(env, {})["event"] == "workflow_dispatch"`。 调用`github_env`、`github_event`、`trusted_event`、`env.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secret_scope_rejects_implicit_or_untrusted_events`（L172–L187）：接收`reason`。 控制顺序：L174按`reason == "fork"`分支；L176按`reason == "wrong_label"`分支；L178按`reason == "new_head"`分支；L180按`reason == "synchronize"`分支；L182按`reason == "pull_request_target"`分支。 调用`github_env`、`github_event`、`pytest.raises`、`trusted_event`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configured_settings`（L190–L198）：接收`tmp_path`。 调用`acceptance_settings`。 返回路径：L191的`acceptance_settings( { "BASE_URL": "https://model.invalid/v1", "MODE": "unit-only-model", …`。
-- `test_live_suite_disables_optional_review_profile_as_well_as_flag`（L201–L205）：接收`tmp_path`。 控制顺序：L203断言`settings.model_review is False`；L204断言`settings.review_enabled is False`；L205断言`settings.max_model_calls == MAX_MODEL_CALLS`。 调用`configured_settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failure_events_keep_safe_structure_and_redact_before_bounding`（L208–L238）：接收`tmp_path`。 控制顺序：L235断言`retained[0]["attempt"] == 2`；L236断言`retained[0]["details"][0]["type"] == "enum"`；L237断言`"unit-only-key" not in json.dumps(retained)`；L238断言`"raw response" not in json.dumps(retained)`。 调用`configured_settings`、`SimpleNamespace`、`failure_events`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_diagnostics_survive_failed_provider_responses_without_their_values`（L241–L278）：接收`tmp_path`。 控制顺序：L270断言`response.status_code == 200`；L271断言`transport.receipts[0]["schema_valid"] is False`；L272断言`transport.receipts[0]["validation_code"] == "schema_validation"`；L273断言`"unit-only-key" not in json.dumps(transport.receipts)`；L274断言`any( item["path"] == ["entities"] for item in transport.receipts[0]["schema_diagnosti…`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`json.dumps`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_provider_receipts_keep_only_static_categories_and_numbers`（L288–L323）：接收`tmp_path`、`content`、`category`。 控制顺序：L315断言`receipt["schema_valid"] is False`；L316断言`receipt["validation_code"] == "invalid_json"`；L318断言`detail["category"] == category`；L319断言`detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}`；L320断言`"message" not in detail`；L321断言`"unit-only-key" not in json.dumps(receipt)`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`len`、`content.encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_receipt_metadata_rejects_text_booleans_and_unbounded_numbers`（L326–L339）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L338断言`details == [{"type": "json_syntax", "lengths": {"bytes": 37}}]`；L339断言`"private-" not in json.dumps(details)`。 调用`diagnostic_facts`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_receipt`（L342–L365）：接收`tmp_path`、`monkeypatch`。 控制顺序：L352断言`transport.stage == "recommend"`；L353断言`gateway.traces == [ { "run_id": "unit-only", "stage": "requirement", "logical_key": "…`。 调用`configured_settings`、`BoundedTransport`、`ObservedGateway`、`monkeypatch.setattr`、`object`、`gateway.complete`、`digest`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure`（L368–L483）：接收`tmp_path`。 控制顺序：L400断言`coverage and business`；L438断言`gateway.complete(run_id, "plan:1", "private-instruction-canary", payload, Plan) == ca…`；L443断言`gateway.complete(run_id, "plan:2", "private-instruction-canary", payload, Plan) == ca…`；L451断言`trace["omitted"] == 0`；L452断言`[item["logical_key"] for item in trace["items"]] == ["plan:1", "plan:2", "plan:3"]`；L453断言`[item["validated"] for item in trace["items"]] == [True, True, False]`；L455断言`last["payload_sha256"] == digest(payload)`；L456断言`last["previous_plan_sha256"] == digest(candidate.model_dump())`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`next`、`Requirement`、`copy.deepcopy`、`approved_grant["actions"].remove`、`Plan.model_validate`、`coverage_gaps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure.provider`（L417–L427）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`candidate.model_dump_json`、`httpx.Response`。 返回路径：L420的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
-- `test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bounding`（L486–L600）：接收`tmp_path`。 控制顺序：L579断言`feedback == original`；L580断言`shown["business_diagnostics"][0]["source"]["path"] == "business.<key>.permissions.0"`；L581断言`shown["business_diagnostics"][0]["expected"] == diagnostic["expected"]`；L582断言`shown["business_diagnostics"][0]["actual"][0]["scope"] == "all"`；L583断言`shown["business_diagnostics"][1]["expected"] == {"enabled": True}`；L584断言`shown["business_diagnostics"][1]["actual"]["enabled"] is False`；L585断言`shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")`；L587断言`[record["origin"] for record in sources] == [ "previous_requirement", "user_input", "…`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`copy.deepcopy`、`feedback_snapshot`、`feedback_vocabulary`、`suite_cases`、`len`、`json.dumps`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails`（L610–L709）：接收`tmp_path`、`action`、`code`。 控制顺序：L635断言`len(issues) == 1 and issues[0]["code"] == code`；L672断言`[r["logical_key"] for r in trace["items"]] == ["recommend:1", "recommend:2"]`；L674断言`last["validated"] is False`；L675断言`last["feedback_sha256"] == digest(feedback)`；L676断言`last["payload_sha256"] == digest(payload)`；L678断言`shown["stage"] == "clarification" and shown["round"] == 1`；L679断言`shown["analysis_diagnostics_count"] == 1`；L680断言`shown["analysis_diagnostics_omitted"] == 0`。后续分支沿下方源码相同行号继续阅读。 调用`Requirement`、`business_analysis_conflicts`、`len`、`analysis_feedback`、`configured_settings`、`Store`、`store.migrate`、`BoundedTransport`、`transport.inner.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails.provider`（L649–L659）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`analysis.model_dump_json`、`httpx.Response`。 返回路径：L652的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
-- `test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds`（L712–L804）：接收`tmp_path`、`monkeypatch`。 控制顺序：L745断言`len(json.dumps(bounded, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L746断言`bounded["business_diagnostics_count"] == 13`；L747断言`bounded["business_diagnostics_omitted"] > 0`；L748断言`bounded["blocked_count"] == 100 and bounded["block_sources"] == { "business_coverage"…`；L751断言`"private" not in json.dumps(bounded)`；L779断言`len(json.dumps(analysis, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L780断言`analysis["analysis_diagnostics_count"] == 13`；L781断言`analysis["analysis_diagnostics_omitted"] > 0`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`feedback_vocabulary`、`suite_cases`、`range`、`".".join`、`feedback_snapshot`、`len`、`json.dumps(bounded, ensure_ascii=False).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text`（L807–L862）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L840断言`internal_errors == [error] * 3`；L841断言`report["passed"] is False and report["real_model"] is False`；L842断言`report["actual_model_calls"] == 0 and len(report["cases"]) == 3`；L843遍历`report["cases"]`；L844断言`receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"`；L845断言`receipt["failure"]["workflow_error"] == { "code": "workflow_not_ready", "status": "BL…`；L853断言`emitted == report["cases"]`；L854遍历`[ output, json.dumps(report), *(path.read_text() for path in repo…`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`monkeypatch.setattr`、`suite.run_suite`、`len`、`hashlib.sha256(error.encode()).hexdigest`、`hashlib.sha256`、`error.encode`、`capsys.readouterr`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker`（L816–L834）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__init__`（L819–L820）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__enter__`（L822–L823）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L823的`self`。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__exit__`（L825–L826）：接收`*args`。 返回路径：L826的`False`。
-- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.tick`（L828–L834）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L830按`job is None`分支。 调用`self.store.claim`、`self.store.finish`、`internal_errors.append`、`self.store.get_run`。 返回路径：L831的`False`；L834的`True`。
-- `test_transport_bounds_actual_requests_before_dispatch`（L868–L900）：接收`tmp_path`、`case`。 控制顺序：L883按`case == "destination"`分支；L885按`case == "model"`分支；L887按`case == "token_budget"`分支；L889按`case == "call_budget"`分支；L891按`case == "authorization"`分支；L899断言`not calls`。 调用`BoundedTransport`、`configured_settings`、`transport.inner.close`、`httpx.MockTransport`、`calls.append`、`httpx.Response`、`pytest.raises`、`transport.handle_request`、`httpx.Request`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `success_receipts`（L903–L924）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Fabricated metadata for negative aggregate tests only; never written as evidence.。 调用`list`、`suite_cases`。 返回路径：L905的`[ { "case": case.identity, "source_digest": case.source_digest, "passed": True, "ready": T…`。
-- `test_all_three_must_pass_with_real_calls_and_complete_evidence`（L941–L962）：接收`reason`。 控制顺序：L943断言`aggregate(suite_cases(), results)`；L944按`reason == "missing"`分支；L946按`reason == "duplicate"`分支；L948按`reason == "failure"`分支；L950按`reason == "wrong_source"`分支；L952按`reason == "no_browser"`分支；L954按`reason == "missing_check"`分支；L956按`reason == "no_model_plan"`分支。后续分支沿下方源码相同行号继续阅读。 调用`success_receipts`、`aggregate`、`suite_cases`、`results.pop`、`copy.deepcopy`、`results[2]["scenario"]["checks"].pop`、`results[2].update`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_uses_rnd_key_without_automatic_cost_trigger`（L965–L979）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L970断言`set(events) == {"workflow_dispatch", "pull_request"}`；L971断言`events["pull_request"]["types"] == ["labeled"]`；L973断言`job["environment"] == "rnd"`；L974断言`"run-live-acceptance" in job["if"]`；L975断言`"head.repo.full_name == github.repository" in job["if"]`；L977断言`len(secret_steps) == 1`；L978断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L979断言`secret_steps[0]["run"] == "uv run python -m scripts.ci_template_projects"`。 调用`Path(__file__).resolve`、`Path`、`(root / ".github/workflows/template-project-acceptance.yml").read…`、`yaml.safe_load`、`workflow.get`、`set`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture_plan`（L49–L64）：接收`case`。 源码说明：Test-only metadata for exercising the harness; the live controller cannot import it.。 控制顺序：L61按`data.get("business")`分支；L62遍历`[*data["business"]["roles"], *data["business"]["metrics"]]`。 调用`copy.deepcopy`、`data.update`、`fields.items`、`data["entities"].items`、`data.get`、`Plan.model_validate`。 返回路径：L64的`Plan.model_validate(data)`。
+- `test_three_explicit_scales_and_independent_contracts`（L67–L82）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L69断言`[len(case.contract["entities"]) for case in cases] == [1, 3, 6]`；L70断言`[len(case.contract.get("business", {}).get("workflows", [])) for case in cases] == [ …`；L75断言`[len(case.contract.get("business", {}).get("roles", [])) for case in cases] == [0, 3,…`；L76遍历`cases`；L77断言`require_contract(case, fixture_plan(case).model_dump())`；L78断言`set(case.expected_checks) == {block["id"] for block in case.scenario}`；L79遍历`case.contract["entities"].items()`；L80断言`name in case.requirement`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`len`、`case.contract.get("business", {}).get`、`case.contract.get`、`require_contract`、`fixture_plan(case).model_dump`、`fixture_plan`、`set`、`case.contract["entities"].items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_each_scenario_over_real_generated_http_and_restart`（L86–L96）：接收`tmp_path`、`index`。 控制顺序：L93断言`report["passed"] is True and report["restart"] is True`；L94断言`report["browser"]["real_browser"] is False`；L95断言`report["http_requests"] >= sum(len(block["requests"]) for block in case.scenario)`。 调用`suite_cases`、`generate_basic`、`fixture_plan`、`run_scenario`、`sum`、`len`、`require_scenario_checks`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_plan_cannot_drop_or_change_obligations`（L100–L115）：接收`mutation`。 控制顺序：L103按`mutation == "field"`分支；L105按`mutation == "entity"`分支；L107按`mutation == "permission"`分支；L110按`mutation == "query"`分支。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`plan["entities"][0]["fields"].append`、`next`、`policy["actions"].append`、`plan["business"]["metrics"].pop`、`pytest.raises`、`require_contract`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contract_failure_identifies_the_exact_declared_field_attribute`（L130–L146）：接收`field`、`attribute`、`actual`、`expected`。 控制顺序：L140断言`caught.value.code == "contract_mismatch"`；L141断言`caught.value.path == f"books.{field}.{attribute}"`；L142断言`caught.value.contract_difference == { "attribute": attribute, "expected": expected, "…`。 调用`suite_cases`、`fixture_plan`、`next(item for item in plan.entities[0].fields if item.name == fie…`、`next`、`pytest.raises`、`require_contract`、`plan.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contract_comparison_still_ignores_display_labels_and_enum_order`（L149–L156）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L153遍历`plan.entities[0].fields`；L156断言`require_contract(case, plan.model_dump())`。 调用`suite_cases`、`fixture_plan`、`field.choices.reverse`、`require_contract`、`plan.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contract_comparison_does_not_treat_missing_attributes_as_explicit_null`（L159–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165断言`caught.value.path == "books.title.pattern"`；L166断言`caught.value.contract_difference == { "attribute": "pattern", "expected": None, "actu…`。 调用`suite_cases`、`copy.deepcopy`、`pytest.raises`、`require_contract`、`replace`、`fixture_plan(case).model_dump`、`fixture_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_assertions_preserve_numbers_booleans_counts_and_row_identity`（L173–L193）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L175断言`resolve({"count": "${row.quantity}", "enabled": "${row.enabled}"}, refs) == { "count"…`；L179断言`resolve("/api/orders/${row.id}", refs) == "/api/orders/x"`；L186遍历`[ (True, {"equals": 1}), ([], {"contains": {"id": "x"}}), ([{"id"…`。 调用`resolve`、`check_json`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `github_env`（L196–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L197的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": REPOSITORY, "GITHUB_EVENT_NAME": "pull_re…`。
+- `github_event`（L207–L215）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L208的`{ "action": "labeled", "label": {"name": "run-live-acceptance"}, "pull_request": { "head":…`。
+- `test_explicit_label_and_manual_dispatch_bind_exact_head_and_allow_rerun`（L218–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L220断言`trusted_event(env, event)["head_sha"] == "a" * 40`；L222断言`trusted_event(env, {})["event"] == "workflow_dispatch"`。 调用`github_env`、`github_event`、`trusted_event`、`env.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secret_scope_rejects_implicit_or_untrusted_events`（L228–L243）：接收`reason`。 控制顺序：L230按`reason == "fork"`分支；L232按`reason == "wrong_label"`分支；L234按`reason == "new_head"`分支；L236按`reason == "synchronize"`分支；L238按`reason == "pull_request_target"`分支。 调用`github_env`、`github_event`、`pytest.raises`、`trusted_event`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configured_settings`（L246–L254）：接收`tmp_path`。 调用`acceptance_settings`。 返回路径：L247的`acceptance_settings( { "BASE_URL": "https://model.invalid/v1", "MODE": "unit-only-model", …`。
+- `test_live_suite_disables_optional_review_profile_as_well_as_flag`（L257–L261）：接收`tmp_path`。 控制顺序：L259断言`settings.model_review is False`；L260断言`settings.review_enabled is False`；L261断言`settings.max_model_calls == MAX_MODEL_CALLS`。 调用`configured_settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_events_keep_safe_structure_and_redact_before_bounding`（L264–L294）：接收`tmp_path`。 控制顺序：L291断言`retained[0]["attempt"] == 2`；L292断言`retained[0]["details"][0]["type"] == "enum"`；L293断言`"unit-only-key" not in json.dumps(retained)`；L294断言`"raw response" not in json.dumps(retained)`。 调用`configured_settings`、`SimpleNamespace`、`failure_events`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_diagnostics_survive_failed_provider_responses_without_their_values`（L297–L334）：接收`tmp_path`。 控制顺序：L326断言`response.status_code == 200`；L327断言`transport.receipts[0]["schema_valid"] is False`；L328断言`transport.receipts[0]["validation_code"] == "schema_validation"`；L329断言`"unit-only-key" not in json.dumps(transport.receipts)`；L330断言`any( item["path"] == ["entities"] for item in transport.receipts[0]["schema_diagnosti…`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`json.dumps`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_provider_receipts_keep_only_static_categories_and_numbers`（L344–L379）：接收`tmp_path`、`content`、`category`。 控制顺序：L371断言`receipt["schema_valid"] is False`；L372断言`receipt["validation_code"] == "invalid_json"`；L374断言`detail["category"] == category`；L375断言`detail["lengths"] == {"characters": len(content), "bytes": len(content.encode())}`；L376断言`"message" not in detail`；L377断言`"unit-only-key" not in json.dumps(receipt)`。 调用`configured_settings`、`BoundedTransport`、`transport.inner.close`、`httpx.MockTransport`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`len`、`content.encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_receipt_metadata_rejects_text_booleans_and_unbounded_numbers`（L382–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L394断言`details == [{"type": "json_syntax", "lengths": {"bytes": 37}}]`；L395断言`"private-" not in json.dumps(details)`。 调用`diagnostic_facts`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_receipt`（L398–L421）：接收`tmp_path`、`monkeypatch`。 控制顺序：L408断言`transport.stage == "recommend"`；L409断言`gateway.traces == [ { "run_id": "unit-only", "stage": "requirement", "logical_key": "…`。 调用`configured_settings`、`BoundedTransport`、`ObservedGateway`、`monkeypatch.setattr`、`object`、`gateway.complete`、`digest`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure`（L424–L539）：接收`tmp_path`。 控制顺序：L456断言`coverage and business`；L494断言`gateway.complete(run_id, "plan:1", "private-instruction-canary", payload, Plan) == ca…`；L499断言`gateway.complete(run_id, "plan:2", "private-instruction-canary", payload, Plan) == ca…`；L507断言`trace["omitted"] == 0`；L508断言`[item["logical_key"] for item in trace["items"]] == ["plan:1", "plan:2", "plan:3"]`；L509断言`[item["validated"] for item in trace["items"]] == [True, True, False]`；L511断言`last["payload_sha256"] == digest(payload)`；L512断言`last["previous_plan_sha256"] == digest(candidate.model_dump())`。后续分支沿下方源码相同行号继续阅读。 调用`suite_cases`、`fixture_plan(case).model_dump`、`fixture_plan`、`next`、`Requirement`、`copy.deepcopy`、`approved_grant["actions"].remove`、`Plan.model_validate`、`coverage_gaps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_preserves_design_feedback_before_terminal_json_failure.provider`（L473–L483）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`candidate.model_dump_json`、`httpx.Response`。 返回路径：L476的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
+- `test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bounding`（L542–L656）：接收`tmp_path`。 控制顺序：L635断言`feedback == original`；L636断言`shown["business_diagnostics"][0]["source"]["path"] == "business.<key>.permissions.0"`；L637断言`shown["business_diagnostics"][0]["expected"] == diagnostic["expected"]`；L638断言`shown["business_diagnostics"][0]["actual"][0]["scope"] == "all"`；L639断言`shown["business_diagnostics"][1]["expected"] == {"enabled": True}`；L640断言`shown["business_diagnostics"][1]["actual"]["enabled"] is False`；L641断言`shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")`；L643断言`[record["origin"] for record in sources] == [ "previous_requirement", "user_input", "…`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`copy.deepcopy`、`feedback_snapshot`、`feedback_vocabulary`、`suite_cases`、`len`、`json.dumps`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails`（L666–L765）：接收`tmp_path`、`action`、`code`。 控制顺序：L691断言`len(issues) == 1 and issues[0]["code"] == code`；L728断言`[r["logical_key"] for r in trace["items"]] == ["recommend:1", "recommend:2"]`；L730断言`last["validated"] is False`；L731断言`last["feedback_sha256"] == digest(feedback)`；L732断言`last["payload_sha256"] == digest(payload)`；L734断言`shown["stage"] == "clarification" and shown["round"] == 1`；L735断言`shown["analysis_diagnostics_count"] == 1`；L736断言`shown["analysis_diagnostics_omitted"] == 0`。后续分支沿下方源码相同行号继续阅读。 调用`Requirement`、`business_analysis_conflicts`、`len`、`analysis_feedback`、`configured_settings`、`Store`、`store.migrate`、`BoundedTransport`、`transport.inner.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_retains_safe_analysis_feedback_when_recommendation_retry_fails.provider`（L705–L715）：接收`request`。 调用`sent.append`、`json.loads`、`len`、`analysis.model_dump_json`、`httpx.Response`。 返回路径：L708的`httpx.Response( 200, json={ "choices": [ {"finish_reason": "stop", "message": {"role": "as…`。
+- `test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds`（L768–L860）：接收`tmp_path`、`monkeypatch`。 控制顺序：L801断言`len(json.dumps(bounded, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L802断言`bounded["business_diagnostics_count"] == 13`；L803断言`bounded["business_diagnostics_omitted"] > 0`；L804断言`bounded["blocked_count"] == 100 and bounded["block_sources"] == { "business_coverage"…`；L807断言`"private" not in json.dumps(bounded)`；L835断言`len(json.dumps(analysis, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES`；L836断言`analysis["analysis_diagnostics_count"] == 13`；L837断言`analysis["analysis_diagnostics_omitted"] > 0`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`feedback_vocabulary`、`suite_cases`、`range`、`".".join`、`feedback_snapshot`、`len`、`json.dumps(bounded, ensure_ascii=False).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text`（L864–L954）：接收`tmp_path`、`monkeypatch`、`capsys`、`failure_kind`。 控制顺序：L899按`failure_kind == "contract"`分支；L916断言`internal_errors == [error if failure_kind == "workflow" else None] * 3`；L917断言`report["passed"] is False and report["real_model"] is False`；L918断言`report["actual_model_calls"] == 0 and len(report["cases"]) == 3`；L919遍历`report["cases"]`；L920断言`receipt["passed"] is False`；L921按`failure_kind == "workflow"`分支；L922断言`receipt["workflow_status"] == "BLOCKED"`。后续分支沿下方源码相同行号继续阅读。 调用`configured_settings`、`monkeypatch.setattr`、`suite.run_suite`、`len`、`hashlib.sha256(error.encode()).hexdigest`、`hashlib.sha256`、`error.encode`、`json.dumps(difference).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker`（L873–L894）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__init__`（L876–L877）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__enter__`（L879–L880）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L880的`self`。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.__exit__`（L882–L883）：接收`*args`。 返回路径：L883的`False`。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.FailedWorker.tick`（L885–L894）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L887按`job is None`分支；L889按`failure_kind == "workflow"`分支。 调用`self.store.claim`、`self.store.finish`、`internal_errors.append`、`self.store.get_run`。 返回路径：L888的`False`；L894的`True`。
+- `test_complete_offline_terminal_receipts_never_export_workflow_error_text.reject_offline_candidate`（L901–L912）：接收`case`、`*args`。 源码说明：Exercise the real oracle, without generating or accepting a product.。 控制顺序：L907按`case.identity == "reading-shelf"`分支。 调用`fixture_plan`、`next`、`range`、`require_contract`、`plan.model_dump`。 返回路径：L912的`require_contract(case, plan.model_dump())`。
+- `test_transport_bounds_actual_requests_before_dispatch`（L960–L992）：接收`tmp_path`、`case`。 控制顺序：L975按`case == "destination"`分支；L977按`case == "model"`分支；L979按`case == "token_budget"`分支；L981按`case == "call_budget"`分支；L983按`case == "authorization"`分支；L991断言`not calls`。 调用`BoundedTransport`、`configured_settings`、`transport.inner.close`、`httpx.MockTransport`、`calls.append`、`httpx.Response`、`pytest.raises`、`transport.handle_request`、`httpx.Request`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `success_receipts`（L995–L1016）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Fabricated metadata for negative aggregate tests only; never written as evidence.。 调用`list`、`suite_cases`。 返回路径：L997的`[ { "case": case.identity, "source_digest": case.source_digest, "passed": True, "ready": T…`。
+- `test_all_three_must_pass_with_real_calls_and_complete_evidence`（L1033–L1054）：接收`reason`。 控制顺序：L1035断言`aggregate(suite_cases(), results)`；L1036按`reason == "missing"`分支；L1038按`reason == "duplicate"`分支；L1040按`reason == "failure"`分支；L1042按`reason == "wrong_source"`分支；L1044按`reason == "no_browser"`分支；L1046按`reason == "missing_check"`分支；L1048按`reason == "no_model_plan"`分支。后续分支沿下方源码相同行号继续阅读。 调用`success_receipts`、`aggregate`、`suite_cases`、`results.pop`、`copy.deepcopy`、`results[2]["scenario"]["checks"].pop`、`results[2].update`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_uses_rnd_key_without_automatic_cost_trigger`（L1057–L1071）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1062断言`set(events) == {"workflow_dispatch", "pull_request"}`；L1063断言`events["pull_request"]["types"] == ["labeled"]`；L1065断言`job["environment"] == "rnd"`；L1066断言`"run-live-acceptance" in job["if"]`；L1067断言`"head.repo.full_name == github.repository" in job["if"]`；L1069断言`len(secret_steps) == 1`；L1070断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L1071断言`secret_steps[0]["run"] == "uv run python -m scripts.ci_template_projects"`。 调用`Path(__file__).resolve`、`Path`、`(root / ".github/workflows/template-project-acceptance.yml").read…`、`yaml.safe_load`、`workflow.get`、`set`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_template_project_acceptance.py sha256: 8eb29733669a0200f21b4a85283b08bd75b0bde3ec464c8f0c09bfca3144a7af -->
+<!-- source-file: tests/test_template_project_acceptance.py sha256: 24b3f221449e7abf15954c82ccc1ba0084bad83d3baf18d827a94e92fb637909 -->
 ````python
 """Harness integrity and synthetic HTTP checks. None of these are live-model evidence."""
 
@@ -181475,6 +182335,7 @@ import copy
 import hashlib
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -181583,6 +182444,61 @@ def test_model_plan_cannot_drop_or_change_obligations(mutation):
         plan["business"]["metrics"].pop()
     with pytest.raises(AcceptanceFailure, match="contract_mismatch"):
         require_contract(case, plan)
+
+
+@pytest.mark.parametrize(
+    "field,attribute,actual,expected",
+    [
+        ("started_on", "filterable", True, False),
+        ("started_on", "date_range", False, True),
+        ("started_on", "required", False, True),
+        ("pages", "minimum", 2, 1),
+        ("title", "max_length", 199, 200),
+        ("author", "searchable", False, True),
+        ("note", "kind", "boolean", "text"),
+    ],
+)
+def test_contract_failure_identifies_the_exact_declared_field_attribute(
+    field, attribute, actual, expected
+):
+    case = suite_cases()[0]
+    plan = fixture_plan(case)
+    next(item for item in plan.entities[0].fields if item.name == field).__setattr__(
+        attribute, actual
+    )
+    with pytest.raises(AcceptanceFailure) as caught:
+        require_contract(case, plan.model_dump())
+    assert caught.value.code == "contract_mismatch"
+    assert caught.value.path == f"books.{field}.{attribute}"
+    assert caught.value.contract_difference == {
+        "attribute": attribute,
+        "expected": expected,
+        "actual": actual,
+    }
+
+
+def test_contract_comparison_still_ignores_display_labels_and_enum_order():
+    case = suite_cases()[0]
+    plan = fixture_plan(case)
+    plan.entities[0].description = "A model-authored display description"
+    for field in plan.entities[0].fields:
+        field.label = "A model-authored display label"
+        field.choices.reverse()
+    assert require_contract(case, plan.model_dump())
+
+
+def test_contract_comparison_does_not_treat_missing_attributes_as_explicit_null():
+    case = suite_cases()[0]
+    contract = copy.deepcopy(case.contract)
+    contract["entities"]["books"]["title"]["pattern"] = None
+    with pytest.raises(AcceptanceFailure) as caught:
+        require_contract(replace(case, contract=contract), fixture_plan(case).model_dump())
+    assert caught.value.path == "books.title.pattern"
+    assert caught.value.contract_difference == {
+        "attribute": "pattern",
+        "expected": None,
+        "actual": {"type": "missing"},
+    }
 
 
 def test_json_assertions_preserve_numbers_booleans_counts_and_row_identity():
@@ -182275,8 +183191,9 @@ def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bo
         transport.shutdown()
 
 
+@pytest.mark.parametrize("failure_kind", ["workflow", "contract"])
 def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch, capsys, failure_kind
 ):
     from scripts import ci_template_projects as suite
 
@@ -182300,25 +183217,60 @@ def test_complete_offline_terminal_receipts_never_export_workflow_error_text(
             job = self.store.claim()
             if job is None:
                 return False
-            self.store.finish(job, "BLOCKED", error=error)
+            if failure_kind == "workflow":
+                self.store.finish(job, "BLOCKED", error=error)
+            else:
+                self.store.finish(job, "READY", result={})
             internal_errors.append(self.store.get_run(job["run_id"])["error"])
             return True
 
     reports = tmp_path / "reports"
     monkeypatch.setattr(suite, "Runtime", FailedWorker)
     monkeypatch.setattr(suite, "REPORTS", reports)
+    if failure_kind == "contract":
+
+        def reject_offline_candidate(case, *args):
+            """Exercise the real oracle, without generating or accepting a product."""
+            plan = fixture_plan(case)
+            plan.title, plan.acceptance = error, [error]
+            field = plan.entities[0].fields[0]
+            field.label = error
+            if case.identity == "reading-shelf":
+                category = next(item for item in plan.entities[0].fields if item.name == "category")
+                category.choices = [f"{error} {index} {'x' * 100}" for index in range(50)]
+            else:
+                field.max_length += 1
+            return require_contract(case, plan.model_dump())
+
+        monkeypatch.setattr(suite, "verify_delivery", reject_offline_candidate)
     report = suite.run_suite(settings, tmp_path, {"offline_guard": True})
-    assert internal_errors == [error] * 3  # Product details remain available internally.
+    assert internal_errors == [error if failure_kind == "workflow" else None] * 3
     assert report["passed"] is False and report["real_model"] is False
     assert report["actual_model_calls"] == 0 and len(report["cases"]) == 3
     for receipt in report["cases"]:
-        assert receipt["passed"] is False and receipt["workflow_status"] == "BLOCKED"
-        assert receipt["failure"]["workflow_error"] == {
-            "code": "workflow_not_ready",
-            "status": "BLOCKED",
-            "sha256": hashlib.sha256(error.encode()).hexdigest(),
-            "characters": len(error),
-        }
+        assert receipt["passed"] is False
+        if failure_kind == "workflow":
+            assert receipt["workflow_status"] == "BLOCKED"
+            assert receipt["failure"]["workflow_error"] == {
+                "code": "workflow_not_ready",
+                "status": "BLOCKED",
+                "sha256": hashlib.sha256(error.encode()).hexdigest(),
+                "characters": len(error),
+            }
+        else:
+            assert receipt["workflow_status"] == "READY"
+            assert receipt["failure"]["code"] == "contract_mismatch"
+            difference = receipt["failure"]["contract_difference"]
+            assert len(json.dumps(difference).encode()) < 500
+            if receipt["case"] == "reading-shelf":
+                assert receipt["failure"]["path"] == "books.category.choices"
+                assert difference["attribute"] == "choices"
+                assert difference["expected"]["items"] == 3
+                assert difference["actual"]["items"] == 50
+                assert set(difference["actual"]) == {"type", "items", "sha256"}
+            else:
+                assert difference["attribute"] == "max_length"
+                assert difference["actual"] == difference["expected"] + 1
     output = capsys.readouterr().out
     emitted = [json.loads(line) for line in output.splitlines() if line.startswith("{")]
     assert emitted == report["cases"]
@@ -199421,10 +200373,10 @@ if __name__ == "__main__":
 - `failure_events`（L545–L573）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L548遍历`range(4)`；L550按`not events`分支；L553遍历`events`；L554按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L559遍历`("stage", "code", "request_id", "response_id", "attempt")`；L561按`isinstance(value, str)`分支；L563按`type(value) is int`分支；L566按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L570的`failures`；L573的`failures`。
 - `verify_delivery`（L576–L624）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L606的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
 - `aggregate`（L627–L652）：接收`cases`、`results`。 控制顺序：L628按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L632遍历`cases`；L634按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L631的`False`；L651的`False`；L652的`True`。
-- `run_suite`（L655–L779）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L770的`summary`。
-- `main`（L782–L840）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L790按`args.validate_fixtures`分支；L817按`binding and (REPORTS / "summary.json").is_file()`分支；L819按`saved.get("run_identity") == binding`分支；L840抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_suite`（L655–L781）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L750按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L772的`summary`。
+- `main`（L784–L842）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L792按`args.validate_fixtures`分支；L819按`binding and (REPORTS / "summary.json").is_file()`分支；L821按`saved.get("run_identity") == binding`分支；L842抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_template_projects.py sha256: 13983d4af930d5038798dc8633d25716269f7c792448f431c03ac01b8fe80f6d -->
+<!-- source-file: scripts/ci_template_projects.py sha256: b554c0382b99d0e353a72551540eb4cd1260dd2d735de191b8c7184c8a003001 -->
 ````python
 """Bounded real-model batch acceptance for three independent project scenarios.
 
@@ -200173,6 +201125,8 @@ def run_suite(settings, directory, binding):
                             "path": error.path if isinstance(error, AcceptanceFailure) else "",
                             "error_type": type(error).__name__,
                         }
+                        if isinstance(error, AcceptanceFailure) and error.contract_difference:
+                            receipt["failure"]["contract_difference"] = error.contract_difference
                         if run.get("error"):
                             receipt["failure"]["workflow_error"] = {
                                 "code": receipt["failure"]["code"],
@@ -210540,17 +211494,18 @@ const cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
 **逐个入口与控制逻辑：**
 
-- `AcceptanceFailure`（L14–L19）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AcceptanceFailure.__init__`（L17–L19）：接收`code`、`path`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require`（L22–L24）：接收`condition`、`code`、`path`。 控制顺序：L23按`not condition`分支；L24抛异常，停止当前正常路径。 调用`AcceptanceFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ProjectCase`（L28–L39）：继承`object`。声明的数据项为`identity`、`size`、`title`、`requirement`、`contract`、`actors`、`fixtures`、`expected_checks`、`scenario`、`browser`、`source_digest`；类型约束/数据库列参数以完整定义为准。
-- `load_case`（L42–L73）：接收`identity`、`root`。 调用`require`、`Path`、`json.loads`、`(folder / "contract.json").read_text`、`(folder / "requirement.md").read_text`、`len`、`set`、`any`、`block.get`等。 返回路径：L61的`ProjectCase( identity=identity, size=document["size"], title=document["title"], requiremen…`。
-- `same_obligation`（L76–L95）：接收`actual`、`expected`。 源码说明：Compare declared values without prescribing model-authored display labels/order.。 控制顺序：L78按`isinstance(expected, dict)`分支；L82按`isinstance(expected, list)`分支；L83按`not isinstance(actual, list) or len(actual) != len(expected)`分支；L86遍历`expected`；L91按`found is None`分支。 调用`isinstance`、`all`、`same_obligation`、`expected.items`、`len`、`list`、`next`、`enumerate`、`remaining.pop`等。 返回路径：L79的`isinstance(actual, dict) and all( key in actual and same_obligation(actual[key], value) fo…`；L84的`False`；L92的`False`。
-- `require_contract`（L98–L134）：接收`case`、`value`。 源码说明：Check the delivered model contract against source-authored obligations.。 控制顺序：L107遍历`expected["entities"].items()`；L110遍历`fields.items()`；L124按`"business" not in expected`分支；L128遍历`expected["business"].items()`。 调用`Plan.model_validate`、`plan.model_dump`、`require`、`set`、`expected["entities"].items`、`fields.items`、`same_obligation`、`expected["business"].items`、`actual["business"].get`。 返回路径：L134的`plan`。
-- `require_scenario_checks`（L137–L141）：接收`case`、`checks`。 调用`require`、`len`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `suite_cases`（L144–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`load_case`、`require`、`len`。 返回路径：L151的`cases`。
+- `obligation_value`（L16–L33）：接收`attribute`、`value`。 源码说明：Describe one source-authored field mismatch without exporting arbitrary text.。 控制顺序：L18按`value is MISSING`分支；L20按`value is None or type(value) is bool`分支；L22按`type(value) is int and -(2**31) <= value <= 2**31 - 1`分支；L24按`attribute == "kind" and isinstance(value, str) and value in {"text", "integer", "bool…`分支；L31按`isinstance(value, (str, list, dict))`分支。 调用`type`、`isinstance`、`digest`、`len`。 返回路径：L19的`{"type": "missing"}`；L21的`value`；L23的`value`。
+- `AcceptanceFailure`（L36–L50）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AcceptanceFailure.__init__`（L39–L50）：接收`code`、`path`、`attribute`、`expected`、`actual`。 调用`obligation_value`、`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require`（L53–L55）：接收`condition`、`code`、`path`。 控制顺序：L54按`not condition`分支；L55抛异常，停止当前正常路径。 调用`AcceptanceFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ProjectCase`（L59–L70）：继承`object`。声明的数据项为`identity`、`size`、`title`、`requirement`、`contract`、`actors`、`fixtures`、`expected_checks`、`scenario`、`browser`、`source_digest`；类型约束/数据库列参数以完整定义为准。
+- `load_case`（L73–L104）：接收`identity`、`root`。 调用`require`、`Path`、`json.loads`、`(folder / "contract.json").read_text`、`(folder / "requirement.md").read_text`、`len`、`set`、`any`、`block.get`等。 返回路径：L92的`ProjectCase( identity=identity, size=document["size"], title=document["title"], requiremen…`。
+- `same_obligation`（L107–L126）：接收`actual`、`expected`。 源码说明：Compare declared values without prescribing model-authored display labels/order.。 控制顺序：L109按`isinstance(expected, dict)`分支；L113按`isinstance(expected, list)`分支；L114按`not isinstance(actual, list) or len(actual) != len(expected)`分支；L117遍历`expected`；L122按`found is None`分支。 调用`isinstance`、`all`、`same_obligation`、`expected.items`、`len`、`list`、`next`、`enumerate`、`remaining.pop`等。 返回路径：L110的`isinstance(actual, dict) and all( key in actual and same_obligation(actual[key], value) fo…`；L115的`False`；L123的`False`。
+- `require_contract`（L129–L171）：接收`case`、`value`。 源码说明：Check the delivered model contract against source-authored obligations.。 控制顺序：L138遍历`expected["entities"].items()`；L141遍历`fields.items()`；L148遍历`attributes.items()`；L150按`actual_value is MISSING or not same_obligation(actual_value, expected_value)`分支；L151抛异常，停止当前正常路径；L161按`"business" not in expected`分支；L165遍历`expected["business"].items()`。 调用`Plan.model_validate`、`plan.model_dump`、`require`、`set`、`expected["entities"].items`、`fields.items`、`attributes.items`、`found[field].get`、`same_obligation`等。 返回路径：L171的`plan`。
+- `require_scenario_checks`（L174–L178）：接收`case`、`checks`。 调用`require`、`len`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `suite_cases`（L181–L188）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`load_case`、`require`、`len`。 返回路径：L188的`cases`。
 
-<!-- source-file: scripts/template_acceptance_cases.py sha256: 98990eb88c56812228896bec4d81d6ceb779a071205b650cea354ecb2d061a01 -->
+<!-- source-file: scripts/template_acceptance_cases.py sha256: e4df03229fdad5b3941e6f779eae3058e5585cf50d8c2e0763281c74a7c65a73 -->
 ````python
 """Independent project obligations; never a replacement for a model-generated Plan."""
 
@@ -210558,18 +211513,49 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from workbench.domain import Plan, digest
+from workbench.domain import FieldRequirement, Plan, digest
 from workbench.settings import ROOT
 
 CASE_IDS = ("reading-shelf", "stock-purchasing", "facilities-ops")
 CASE_ROOT = ROOT / "examples/acceptance"
+FIELD_OBLIGATION_KEYS = frozenset(FieldRequirement.model_fields) - {"entity", "field"}
+MISSING = object()
+
+
+def obligation_value(attribute, value):
+    """Describe one source-authored field mismatch without exporting arbitrary text."""
+    if value is MISSING:
+        return {"type": "missing"}
+    if value is None or type(value) is bool:
+        return value
+    if type(value) is int and -(2**31) <= value <= 2**31 - 1:
+        return value
+    if (
+        attribute == "kind"
+        and isinstance(value, str)
+        and value in {"text", "integer", "boolean", "date", "datetime", "enum"}
+    ):
+        return value
+    result = {"type": type(value).__name__, "sha256": digest(value)}
+    if isinstance(value, (str, list, dict)):
+        result["characters" if isinstance(value, str) else "items"] = len(value)
+    return result
 
 
 class AcceptanceFailure(RuntimeError):
     """Static controller codes, with an optional local obligation path."""
 
-    def __init__(self, code, path=""):
+    def __init__(self, code, path="", *, attribute=None, expected=None, actual=None):
         self.code, self.path = code, path
+        self.contract_difference = (
+            {
+                "attribute": attribute,
+                "expected": obligation_value(attribute, expected),
+                "actual": obligation_value(attribute, actual),
+            }
+            if code == "contract_mismatch" and attribute in FIELD_OBLIGATION_KEYS
+            else None
+        )
         super().__init__(code + (":" + path if path else ""))
 
 
@@ -210662,19 +211648,25 @@ def require_contract(case, value):
         found = {field["name"]: field for field in entities[name]["fields"]}
         require(set(found) == set(fields), "contract_mismatch", name + ".fields")
         for field, obligation in fields.items():
-            require(
-                same_obligation(
-                    found[field],
-                    {
-                        "searchable": False,
-                        "filterable": False,
-                        "date_range": False,
-                        **obligation,
-                    },
-                ),
-                "contract_mismatch",
-                name + "." + field,
-            )
+            attributes = {
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+                **obligation,
+            }
+            for attribute, expected_value in attributes.items():
+                actual_value = found[field].get(attribute, MISSING)
+                if actual_value is MISSING or not same_obligation(actual_value, expected_value):
+                    raise AcceptanceFailure(
+                        "contract_mismatch",
+                        name
+                        + "."
+                        + field
+                        + ("." + attribute if attribute in FIELD_OBLIGATION_KEYS else ""),
+                        attribute=attribute,
+                        expected=expected_value,
+                        actual=actual_value,
+                    )
     if "business" not in expected:
         require(plan.business is None, "contract_mismatch", "business")
     else:
@@ -227609,7 +228601,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/template-platform.md sha256: 82225007cdac783d827c5e00baa39505584942dc8cf77a6e5fcda5dd3e7d289c -->
+<!-- source-file: docs/template-platform.md sha256: 22d1dc4d20d3afeac4c8cb7411425a0ad01d816bf0bbf3471e7559c000e8cab9 -->
 ````markdown
 # 从零实现可批量定制的模板研发平台
 
@@ -227751,6 +228743,8 @@ curl -X POST http://127.0.0.1:8000/batches \
 每案的 `requirement.md` 是模型可见的原始需求，`contract.json` 是独立测试的义务与数据，不能当作规划失败时的答案。三案通过 `Store.create_batch` 一次入队，再经普通 LangChain／LangGraph 路径生成。每案最多 12 次模型请求，总上限 36 次；模型格式修复也计入预算。
 
 验收至少包括：模型契约与需求匹配、正常生成与独立验证、真实产品浏览器检查、最终交付包哈希、解压到新目录和新库启动、独立场景行为验证、重启后数据持久化。三个案例全部通过才允许汇总为成功。缺少案例、浏览器失败、模型调用失败或预算用尽都会留下失败结果，不把固定 Plan 或历史截图当作本次实测。
+
+失败回执会把字段差异定位到具体属性，例如 `books.started_on.filterable`，并给出受控的期望值和实际值；可能包含任意文本的值只保留长度、数量或摘要，不导出完整 Plan 或原始文本。每个模型任务的 JSON 格式校验仍最多尝试两次（首次请求与一次重试）。如果响应仅在一个符合 schema 的完整 JSON 对象后多出闭合括号，该对象只作为未批准的候选，供下一次模型调用参考；原响应仍记为失败，必须由模型重新返回一个完整且通过校验的响应，才能继续正常验收。格式修复不会默认通过，也不授权删除或改写已确认需求。
 
 在 GitHub 的 `rnd` Environment 中配置：
 

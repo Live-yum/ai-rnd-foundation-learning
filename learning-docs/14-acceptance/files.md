@@ -144,6 +144,7 @@
 - [tests/test_ci_pytest_shards.py](sources/tests__test_ci_pytest_shards_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_restored_acceptance.py](sources/tests__test_ci_restored_acceptance_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_source_artifact.py](sources/tests__test_ci_source_artifact_py--001.md)：可重复的验收用例；1 段
+- [tests/test_closed_query_requirements.py](sources/tests__test_closed_query_requirements_py--001.md)：可重复的验收用例；1 段
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_declarative_fields.py](sources/tests__test_declarative_fields_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
@@ -161,6 +162,7 @@
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_source_spans.py](sources/tests__test_handbook_source_spans_py--001.md)：可重复的验收用例；1 段
 - [tests/test_json_diagnostics.py](sources/tests__test_json_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_json_repair_reference.py](sources/tests__test_json_repair_reference_py--001.md)：可重复的验收用例；1 段
 - [tests/test_keyword_query_binding.py](sources/tests__test_keyword_query_binding_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs.py](sources/tests__test_learning_docs_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_frontend.py](sources/tests__test_learning_docs_frontend_py--001.md)：可重复的验收用例；1 段
@@ -173,6 +175,7 @@
 - [tests/test_model_feedback_history.py](sources/tests__test_model_feedback_history_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_http_opt_in.py](sources/tests__test_model_http_opt_in_py--001.md)：可重复的验收用例；1 段
 - [tests/test_news_delivery.py](sources/tests__test_news_delivery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_nullable_field_constraints.py](sources/tests__test_nullable_field_constraints_py--001.md)：可重复的验收用例；1 段
 - [tests/test_owned_lifecycle.py](sources/tests__test_owned_lifecycle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_analysis_contract.py](sources/tests__test_permission_analysis_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_contract_equivalence.py](sources/tests__test_permission_contract_equivalence_py--001.md)：可重复的验收用例；1 段
@@ -199,7 +202,7 @@
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
 - [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
-- [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；1 段
+- [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；2 段
 - [tests/test_template_standards.py](sources/tests__test_template_standards_py--001.md)：可重复的验收用例；1 段
 - [tests/test_unapproved_design_replay.py](sources/tests__test_unapproved_design_replay_py--001.md)：可重复的验收用例；1 段
 - [tests/test_workbench_browser_fixture.py](sources/tests__test_workbench_browser_fixture_py--001.md)：可重复的验收用例；1 段

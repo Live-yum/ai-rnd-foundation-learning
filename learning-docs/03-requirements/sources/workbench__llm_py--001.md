@@ -17,20 +17,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ModelFailure`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway`（L27–L289）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway.__init__`（L28–L30）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L32–L289）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L274抛异常，停止当前正常路径；L276按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L289的`value`。
-- `ModelGateway.complete.call`（L74–L269）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100按`len(body) > self.settings.max_context_chars`分支；L101抛异常，停止当前正常路径；L113遍历`range(2)`；L115按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L116抛异常，停止当前正常路径；L145按`audited.error is not None`分支；L146抛异常，停止当前正常路径；L147按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L159的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
-- `ModelGateway.complete.call.failed`（L77–L97）：接收`attempt`、`code`、`details`。 控制顺序：L78按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelFailure`（L30–L31）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `_json_repair_reference`（L34–L56）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L41按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L50按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L47的`None`；L51的`None`；L54的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
+- `ModelGateway`（L59–L327）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway.__init__`（L60–L62）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L64–L327）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L76抛异常，停止当前正常路径；L312抛异常，停止当前正常路径；L314按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L327的`value`。
+- `ModelGateway.complete.call`（L107–L307）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133按`len(body) > self.settings.max_context_chars`分支；L134抛异常，停止当前正常路径；L146遍历`range(2)`；L148按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L149抛异常，停止当前正常路径；L178按`audited.error is not None`分支；L179抛异常，停止当前正常路径；L180按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L192的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.failed`（L110–L130）：接收`attempt`、`code`、`details`。 控制顺序：L111按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L289。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L327。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14236`。本段原文以LF换行结束。
+本段原始字节数：`15854`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "63441e1a60b26c7ca18c8cc8f0ff42a54cc07f4d13eecd359507fb6ee46beaaf"} -->
+<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bc2a9b6057bab25cf11cbc4e2fe26295284927a66a95a444e0bbbe518faa2880"} -->
 ````python
 # workbench/llm.py
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
@@ -43,10 +44,17 @@ from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
-from workbench.model_diagnostics import failure_diagnostic, json_diagnostics, schema_diagnostics
+from workbench.model_diagnostics import (
+    failure_diagnostic,
+    json_diagnostics,
+    json_syntax_category,
+    schema_diagnostics,
+)
 from workbench.model_protocol import (
+    MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
     OutputFailure,
+    load_json,
     output_contract,
     structured_model,
     validate_content,
@@ -57,6 +65,31 @@ from workbench.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
 
 class ModelFailure(RuntimeError):
     pass
+
+
+def _json_repair_reference(exc, content, schema):
+    """Return only an unapproved model input, never a successful completion.
+
+    A schema-valid object followed only by redundant closing delimiters contains
+    no trailing business data. Re-encode that object for the next provider call;
+    arbitrary tails, invalid prefixes and encoding failures get no reference.
+    """
+    if not (
+        isinstance(exc, json.JSONDecodeError)
+        and isinstance(content, str)
+        and exc.doc == content
+        and json_syntax_category(exc) == "extra_closing_delimiters"
+    ):
+        return None
+    try:
+        value = load_json(content[: exc.pos])
+        if not isinstance(value, dict):
+            return None
+        reference = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
+        schema.model_validate(value, strict=True)
+        return reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None
+    except ValueError, TypeError, OverflowError, RecursionError:
+        return None
 
 
 class ModelGateway:
@@ -95,6 +128,7 @@ class ModelGateway:
             "仅可省略已有 Schema 默认值且本轮需求无需指定的可选字段；"
             "有需求含义的字段及其值即使等于默认值也要保留，不能为缩短输出而删减需求。"
             "不要附加 Markdown 围栏、说明文字、注释或省略号；正确转义字符串并闭合全部括号。\n"
+            "使用两空格缩进并按对象层级换行，使每一级闭合括号与其起始层级对应。\n"
             + json.dumps(schema_document, ensure_ascii=False)
         )
         # A repaired prompt/schema or a changed gate's feedback must not reuse a
@@ -256,25 +290,30 @@ class ModelGateway:
                                 strict=True,
                             )
                         ]
-                    # Field repair can use a strict JSON candidate. Replaying malformed
-                    # JSON as an assistant answer gives the next attempt a broken example.
-                    if (
-                        isinstance(exc, ValidationError)
-                        and isinstance(content, str)
-                        and len(content) <= self.settings.max_context_chars
-                    ):
-                        messages.append(
-                            {"role": "assistant", "content": self.settings.redact(content)}
-                        )
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
-                            + json.dumps(diagnostics, ensure_ascii=False)
-                            + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
-                            "不要删除需求、降级功能或声称人工已批准。",
-                        }
+                    repair = {
+                        "role": "user",
+                        "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
+                        + json.dumps(diagnostics, ensure_ascii=False)
+                        + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
+                        "若附有修复候选，它尚未批准，仍须核对原始需求和设计反馈；"
+                        "不要删除需求、降级功能或声称人工已批准。",
+                    }
+                    # Never accept or replay malformed JSON. An optional reference must
+                    # fit alongside the original request and the complete repair feedback.
+                    reference = (
+                        content
+                        if isinstance(exc, ValidationError)
+                        else _json_repair_reference(exc, content, schema)
                     )
+                    if isinstance(reference, str):
+                        reference = self.settings.redact(reference)
+                        size = sum(len(m["content"]) for m in messages)
+                        if (
+                            size + len(reference) + len(repair["content"])
+                            <= self.settings.max_context_chars
+                        ):
+                            messages.append({"role": "assistant", "content": reference})
+                    messages.append(repair)
                 except (httpx.HTTPError, APIError) as exc:
                     status = getattr(exc, "status_code", None) or getattr(
                         getattr(exc, "response", None), "status_code", None

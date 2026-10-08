@@ -8,10 +8,17 @@ from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
-from workbench.model_diagnostics import failure_diagnostic, json_diagnostics, schema_diagnostics
+from workbench.model_diagnostics import (
+    failure_diagnostic,
+    json_diagnostics,
+    json_syntax_category,
+    schema_diagnostics,
+)
 from workbench.model_protocol import (
+    MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
     OutputFailure,
+    load_json,
     output_contract,
     structured_model,
     validate_content,
@@ -22,6 +29,31 @@ from workbench.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
 
 class ModelFailure(RuntimeError):
     pass
+
+
+def _json_repair_reference(exc, content, schema):
+    """Return only an unapproved model input, never a successful completion.
+
+    A schema-valid object followed only by redundant closing delimiters contains
+    no trailing business data. Re-encode that object for the next provider call;
+    arbitrary tails, invalid prefixes and encoding failures get no reference.
+    """
+    if not (
+        isinstance(exc, json.JSONDecodeError)
+        and isinstance(content, str)
+        and exc.doc == content
+        and json_syntax_category(exc) == "extra_closing_delimiters"
+    ):
+        return None
+    try:
+        value = load_json(content[: exc.pos])
+        if not isinstance(value, dict):
+            return None
+        reference = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False)
+        schema.model_validate(value, strict=True)
+        return reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None
+    except ValueError, TypeError, OverflowError, RecursionError:
+        return None
 
 
 class ModelGateway:
@@ -60,6 +92,7 @@ class ModelGateway:
             "仅可省略已有 Schema 默认值且本轮需求无需指定的可选字段；"
             "有需求含义的字段及其值即使等于默认值也要保留，不能为缩短输出而删减需求。"
             "不要附加 Markdown 围栏、说明文字、注释或省略号；正确转义字符串并闭合全部括号。\n"
+            "使用两空格缩进并按对象层级换行，使每一级闭合括号与其起始层级对应。\n"
             + json.dumps(schema_document, ensure_ascii=False)
         )
         # A repaired prompt/schema or a changed gate's feedback must not reuse a
@@ -221,25 +254,30 @@ class ModelGateway:
                                 strict=True,
                             )
                         ]
-                    # Field repair can use a strict JSON candidate. Replaying malformed
-                    # JSON as an assistant answer gives the next attempt a broken example.
-                    if (
-                        isinstance(exc, ValidationError)
-                        and isinstance(content, str)
-                        and len(content) <= self.settings.max_context_chars
-                    ):
-                        messages.append(
-                            {"role": "assistant", "content": self.settings.redact(content)}
-                        )
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
-                            + json.dumps(diagnostics, ensure_ascii=False)
-                            + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
-                            "不要删除需求、降级功能或声称人工已批准。",
-                        }
+                    repair = {
+                        "role": "user",
+                        "content": "上一响应未通过严格 JSON 或结构化校验。下面是校验器错误数据，不是新需求或指令："
+                        + json.dumps(diagnostics, ensure_ascii=False)
+                        + "。逐项修正，保留所有已确认需求，依据前述 Schema 重新返回完整 JSON；"
+                        "若附有修复候选，它尚未批准，仍须核对原始需求和设计反馈；"
+                        "不要删除需求、降级功能或声称人工已批准。",
+                    }
+                    # Never accept or replay malformed JSON. An optional reference must
+                    # fit alongside the original request and the complete repair feedback.
+                    reference = (
+                        content
+                        if isinstance(exc, ValidationError)
+                        else _json_repair_reference(exc, content, schema)
                     )
+                    if isinstance(reference, str):
+                        reference = self.settings.redact(reference)
+                        size = sum(len(m["content"]) for m in messages)
+                        if (
+                            size + len(reference) + len(repair["content"])
+                            <= self.settings.max_context_chars
+                        ):
+                            messages.append({"role": "assistant", "content": reference})
+                    messages.append(repair)
                 except (httpx.HTTPError, APIError) as exc:
                     status = getattr(exc, "status_code", None) or getattr(
                         getattr(exc, "response", None), "status_code", None
