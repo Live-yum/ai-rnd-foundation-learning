@@ -1,4 +1,4 @@
-name: Review source snapshot
+name: Review tooling snapshot
 on:
   push:
     branches: [refactor/template-platform-workbench]
@@ -9,15 +9,30 @@ permissions:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Export tracked public source for review
-        run: git archive --format=tar.gz HEAD > "$RUNNER_TEMP/review-source.tar.gz"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - run: npm ci --prefix ui --no-audit --no-fund
+      - name: Export dependency-only tooling (no environment, git config or credentials)
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/review-tooling"
+          cp -a "$(dirname "$(dirname "$(uv python find 3.14)")")" "$RUNNER_TEMP/review-tooling/python"
+          cp -a .venv/lib/python3.14/site-packages "$RUNNER_TEMP/review-tooling/site-packages"
+          cp -a ui/node_modules "$RUNNER_TEMP/review-tooling/node_modules"
+          cp "$(command -v uv)" "$RUNNER_TEMP/review-tooling/uv"
+          tar -C "$RUNNER_TEMP/review-tooling" -czf "$RUNNER_TEMP/review-tooling.tar.gz" .
       - uses: actions/upload-artifact@v4
         with:
-          name: review-source
-          path: ${{ runner.temp }}/review-source.tar.gz
+          name: review-tooling
+          path: ${{ runner.temp }}/review-tooling.tar.gz
           retention-days: 1
