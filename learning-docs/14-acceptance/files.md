@@ -78,7 +78,7 @@
 - [scripts/ci_native_sources.py](sources/scripts__ci_native_sources_py--001.md)：固定原生模板源码完整性检查；1 段
 - [scripts/ci_process_supervisor.py](sources/scripts__ci_process_supervisor_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_pytest.py](sources/scripts__ci_pytest_py--001.md)：本机维护、构建或集成验收入口；1 段
-- [scripts/ci_real_model.py](sources/scripts__ci_real_model_py--001.md)：显式授权的真实模型完整验收；3 段
+- [scripts/ci_real_model.py](sources/scripts__ci_real_model_py--001.md)：显式授权的DeepSeek专用客服验收；3 段
 - [scripts/ci_restored.py](sources/scripts__ci_restored_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_signup_scope_browser.py](sources/scripts__ci_signup_scope_browser_py--001.md)：历史FAILED报名运行的真实浏览器恢复协调；1 段
 - [scripts/ci_template_projects.py](sources/scripts__ci_template_projects_py--001.md)：本机维护、构建或集成验收入口；1 段

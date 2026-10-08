@@ -9,6 +9,7 @@ mode, fixed-Plan fallback, automatic rerun, or success inferred from model prose
 import argparse
 import hmac
 import json
+import math
 import os
 import re
 import subprocess
@@ -26,7 +27,7 @@ from scripts.template_acceptance_cases import (
     suite_cases,
 )
 from scripts.template_acceptance_runtime import run_scenario
-from workbench.domain import digest
+from workbench.domain import Plan, digest
 from workbench.filesystem import manifest, sha, unpack, write_json
 from workbench.llm import ModelGateway
 from workbench.model_diagnostics import (
@@ -51,6 +52,190 @@ MAX_MODEL_CALLS = 12
 MAX_OUTPUT_TOKENS = 16384
 REPORTS = ROOT / "reports/template-project-acceptance"
 MODEL_STAGES = {"requirement", "recommend", "plan", "coding", "review"}
+MAX_FEEDBACK_BYTES = 5000
+MAX_TRACE_BYTES = 20000
+DIAGNOSTIC_KEYS = set(
+    "entity field name kind required min_length max_length searchable filterable date_range "
+    "choices minimum maximum exclusive_minimum exclusive_maximum pattern present metric_filter "
+    "entities fields missing extra additional_fields role roles action actions scope only_actions "
+    "denied_actions forbidden_actions read_only any_of assignee_field archive notes audit "
+    "assignment audit_history initial_state state_transitions features capabilities field_queries "
+    "target_entity on_delete status_field initial transitions from_states to_state set_timestamp "
+    "protected_fields event recipient transition due_field channel triggers recipients persistent "
+    "condition overdue_rule group_by start_field end_field time_field filters op value unit bucket "
+    "timezone role_scope scope_aware enabled registration bootstrap_role registration_default_role "
+    "default_registration_role default_role role_admin_roles".split()
+)
+DIAGNOSTIC_CODES = set(
+    "entity_set missing_entity entity_field_set data_scope missing_or_ambiguous constraint_mismatch "
+    "structured_missing_field legacy_missing_field forbidden_field date_kind missing_metric_predicate "
+    "uncovered_operation business_constraint_mismatch business_missing_record business_scope_mismatch "
+    "business_unapproved_grant business_unapproved_role business_unsupported_shape "
+    "business_missing_history_grant".split()
+)
+BLOCK_SOURCES = set(
+    "planner_unsupported feature_routing template_field_kind requirement_coverage business_coverage "
+    "registration_entrypoint business_contract coding_disabled native_coding_engine "
+    "native_validation_or_runtime sandbox_configuration".split()
+)
+
+
+def feedback_vocabulary(cases):
+    """Public identifiers come from source contracts and static schema enums, never a Plan."""
+    known = (
+        DIAGNOSTIC_KEYS
+        | DIAGNOSTIC_CODES
+        | BLOCK_SOURCES
+        | set(
+            "summary facts features acceptance users business policy resources relations permissions "
+            "notifications workflows metrics field_requirements entity_requirements structured legacy "
+            "search filter metric capability_catalog negation explicit_entity_inventory "
+            "explicit_field_inventory assignment handling_note comment_added state_change state_changed "
+            "overdue assignee_id created_by request_submitter".split()
+        )
+    )
+    roles = set()
+
+    def collect(value):
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z$][A-Za-z0-9_$-]{0,63}", value):
+            known.add(value)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                collect(key)
+                if key != "pattern":
+                    collect(item)
+
+    def enums(node):
+        if isinstance(node, dict):
+            collect(node.get("enum", []))
+            collect(node.get("const"))
+            for child in node.values():
+                enums(child)
+        elif isinstance(node, list):
+            for child in node:
+                enums(child)
+
+    for case in cases:
+        collect(case.contract)
+        roles.update(role["name"] for role in case.contract.get("business", {}).get("roles", []))
+    enums(Plan.model_json_schema())
+    return known, roles
+
+
+def feedback_snapshot(feedback, settings, vocabulary):
+    """Bounded semantic differences only; arbitrary facts keys and strings stay private."""
+    if not isinstance(feedback, dict):
+        return {"invalid_feedback": True}
+    feedback = settings.redact_data(feedback)
+    if not feedback:
+        return {}
+    known, roles = vocabulary
+
+    def value(item, depth=0):
+        if item is None or type(item) is bool:
+            return item
+        if type(item) in {int, float}:
+            return item if abs(item) <= 2**63 - 1 and math.isfinite(item) else {"type": "number"}
+        if isinstance(item, str):
+            return item if item in known else {"type": "string", "characters": len(item)}
+        if depth >= 4:
+            return {"type": "array" if isinstance(item, list) else "object", "truncated": True}
+        if isinstance(item, list):
+            selected = [value(part, depth + 1) for part in item[:12]]
+            return selected if len(item) <= 12 else {"items": selected, "omitted": len(item) - 12}
+        if isinstance(item, dict):
+            selected = {
+                key: value(part, depth + 1)
+                for key, part in list(item.items())[:20]
+                if key in DIAGNOSTIC_KEYS or key in roles
+            }
+            if len(selected) < len(item):
+                selected["omitted_keys"] = len(item) - len(selected)
+            return selected
+        return {"type": "unknown"}
+
+    def diagnostic(item):
+        code = item.get("code")
+        result = {"code": code if isinstance(code, str) and code in DIAGNOSTIC_CODES else "unknown"}
+        source = item.get("source", {})
+        if isinstance(source, dict):
+            result["source"] = {
+                key: source[key]
+                for key in ("section", "domain", "encoding")
+                if isinstance(source.get(key), str) and source[key] in known
+            }
+            for key in (
+                "index",
+                "clause",
+                "declaration",
+                "exclusion_clause",
+                "date_clause",
+                "metric_clause",
+            ):
+                if type(source.get(key)) is int and 0 <= source[key] <= 100000:
+                    result["source"][key] = source[key]
+            if isinstance(source.get("path"), str):
+                parts = re.split(r"[.\[\]/]+", source["path"])
+                result["source"]["path"] = ".".join(
+                    part if part in known or re.fullmatch(r"\d{1,6}", part) else "<key>"
+                    for part in parts[:20]
+                )
+        for key in (
+            "targets",
+            "attribute",
+            "expected",
+            "actual",
+            "missing",
+            "extra",
+            "additional_fields",
+            "source_markers",
+        ):
+            if key in item:
+                result[key] = value(item[key])
+        return result
+
+    sources = feedback.get("block_sources", [])
+    stage = feedback.get("stage")
+    result = {
+        "stage": stage
+        if isinstance(stage, str) and stage in {"design", "clarification"}
+        else "unknown",
+        "blocked_count": len(feedback["blocked"])
+        if isinstance(feedback.get("blocked"), list)
+        else 0,
+        "block_sources": dict(
+            Counter(
+                source if isinstance(source, str) and source in BLOCK_SOURCES else "unknown"
+                for source in sources
+            )
+        )
+        if isinstance(sources, list)
+        else {},
+    }
+    if type(feedback.get("round")) is int and 0 <= feedback["round"] <= 100000:
+        result["round"] = feedback["round"]
+    for kind in ("coverage_diagnostics", "business_diagnostics"):
+        items = feedback.get(kind, [])
+        items = items if isinstance(items, list) else []
+        result[kind] = []
+        result[kind + "_count"] = len(items)
+        result[kind + "_omitted"] = len(items)
+        for item in items[:12]:
+            if not isinstance(item, dict):
+                continue
+            projected = diagnostic(item)
+            if (
+                len(json.dumps(result, ensure_ascii=False).encode())
+                + len(json.dumps(projected, ensure_ascii=False).encode())
+                > MAX_FEEDBACK_BYTES - 300
+            ):
+                break
+            result[kind].append(projected)
+            result[kind + "_omitted"] -= 1
+    return result
 
 
 def trusted_event(env, event):
@@ -147,6 +332,7 @@ class BoundedTransport(httpx.BaseTransport):
         self.settings = settings
         self.inner = httpx.HTTPTransport(retries=0, trust_env=False)
         self.run_id, self.stage, self.schema = None, None, None
+        self.logical_key = None
         self.calls = Counter()
         self.receipts = []
 
@@ -173,7 +359,12 @@ class BoundedTransport(httpx.BaseTransport):
         ):
             raise OutputFailure("acceptance_request_scope", "验收模型请求超出明确配置或预算")
         self.calls[self.run_id] += 1
-        receipt = {"run_id": self.run_id, "stage": self.stage, "http_status": None}
+        receipt = {
+            "run_id": self.run_id,
+            "stage": self.stage,
+            "logical_key": self.logical_key,
+            "http_status": None,
+        }
         self.receipts.append(receipt)
         response = self.inner.handle_request(request)
         receipt["http_status"] = response.status_code
@@ -237,15 +428,24 @@ class BoundedTransport(httpx.BaseTransport):
 
 
 class ObservedGateway(ModelGateway):
-    def __init__(self, settings, store, transport):
+    def __init__(self, settings, store, transport, cases=None):
         super().__init__(settings, store, transport)
         self.traces = []
+        self.vocabulary = feedback_vocabulary(suite_cases() if cases is None else cases)
 
     def complete(self, run_id, key, instruction, payload, schema):
         stage = key.split(":", 1)[0]
         self.transport.run_id, self.transport.stage, self.transport.schema = run_id, stage, schema
+        logical_key = (
+            key
+            if re.fullmatch(r"(?:requirement|recommend|plan|coding|review):\d{1,6}", key)
+            else "unknown"
+        )
+        self.transport.logical_key = logical_key
         trace = {
             "run_id": run_id,
+            "logical_key": logical_key,
+            "payload_sha256": digest(payload),
             # Autonomous requirement analysis uses the real recommend:N request key.
             # Keep that wire-stage in transport receipts, and normalize the logical gate.
             "stage": "requirement"
@@ -255,10 +455,30 @@ class ObservedGateway(ModelGateway):
             else "unknown",
             "validated": False,
         }
+        if stage == "plan":
+            feedback = payload.get("resolution_feedback", {})
+            trace.update(
+                previous_plan_sha256=digest(payload.get("previous_plan", {})),
+                feedback_sha256=digest(feedback),
+                resolution_feedback=feedback_snapshot(feedback, self.settings, self.vocabulary),
+            )
         self.traces.append(trace)
         result = super().complete(run_id, key, instruction, payload, schema)
         trace["validated"] = True
         return result
+
+    def receipt_trace(self, run_id):
+        records = [item for item in self.traces if item["run_id"] == run_id]
+        retained, used = [], 0
+        # Keep the terminal failed call and its preceding gate feedback first.
+        for record in reversed(records[-(MAX_MODEL_CALLS + 1) :]):
+            item = {key: value for key, value in record.items() if key != "run_id"}
+            size = len(json.dumps(item, ensure_ascii=False).encode())
+            if used + size > MAX_TRACE_BYTES - 100:
+                break
+            retained.append(item)
+            used += size
+        return {"items": list(reversed(retained)), "omitted": len(records) - len(retained)}
 
 
 def diagnostic_facts(details):
@@ -453,7 +673,7 @@ def run_suite(settings, directory, binding):
             "distinct_runs": len(assignments),
             "idempotent_replay": True,
         }
-        gateway = ObservedGateway(settings, store, transport)
+        gateway = ObservedGateway(settings, store, transport, cases)
         processed = set()
         with Runtime(settings, store, gateway) as worker:
             for _ in cases:
@@ -504,6 +724,7 @@ def run_suite(settings, directory, binding):
                         if item["run_id"] == run_id
                     ]
                     receipt["model_failures"] = failure_events(store, run_id, settings)
+                    receipt["model_trace"] = gateway.receipt_trace(run_id)
                     receipt = settings.redact_data(receipt)
                     print(json.dumps(receipt, ensure_ascii=False), flush=True)
                     summary["cases"].append(receipt)

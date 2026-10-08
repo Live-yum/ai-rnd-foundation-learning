@@ -391,8 +391,8 @@
     },
     {
       "path": "tests/test_llm.py",
-      "bytes": 13311,
-      "sha256": "968632b12b5bb89c6fa2b2b481517663ecf1d4a115cc3085dddb78ce3ed32ec0",
+      "bytes": 14753,
+      "sha256": "0f593e8ea7555a31f770e289dc44ccdd3d10c4727efb1e7c786babf74b0d716a",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_llm_py--001.md"
@@ -437,8 +437,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 13924,
-      "sha256": "3611a52d2c639562c6f76a40687c78aaf510bfb92d6d3b07200a921378156ab1",
+      "bytes": 14236,
+      "sha256": "63441e1a60b26c7ca18c8cc8f0ff42a54cc07f4d13eecd359507fb6ee46beaaf",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -4057,8 +4057,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 25718,
-      "sha256": "9b47ec764cea73e1f8ada6ae2478e5cf851c2b1c91aebaa36e277f9f55ca0e0e",
+      "bytes": 26088,
+      "sha256": "367b1106c191c33018cb44a76f5be0f5f91f0316ee8119a75ab2bb0bb9c5bfc4",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -4246,8 +4246,8 @@
     },
     {
       "path": "docs/native-baseline.md",
-      "bytes": 22733,
-      "sha256": "fd86229cac7577c22ac05079d19f7ae104ffb25647e7909eff7b4d420468b6ee",
+      "bytes": 22770,
+      "sha256": "78414ca93b2b864915b61f89065e4e82322f0827a30667147616b380926fc16f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__native-baseline_md--001.md"
@@ -4273,8 +4273,8 @@
     },
     {
       "path": "docs/real-model-acceptance.md",
-      "bytes": 23779,
-      "sha256": "61c3bd7bccd96e6fbe5bca64e02400859a718bdcd08faf54b54121228f9f96d7",
+      "bytes": 24347,
+      "sha256": "6c106a3a5f3affce75b1d5a3dc3f2ae2f5a7b5aeab0194e4a664290518a5a9be",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__real-model-acceptance_md--001.md"
@@ -4300,8 +4300,8 @@
     },
     {
       "path": "docs/template-platform.md",
-      "bytes": 12726,
-      "sha256": "dc778d33fc7a2e1f348b40d2f32ea1849768efca354c249a946cc8163aa82ca0",
+      "bytes": 12890,
+      "sha256": "060ac7ac45972e4ffc814c2224989d8f455f13a651f3b7784e7baef067ecff58",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-platform_md--001.md"
@@ -4635,8 +4635,8 @@
     },
     {
       "path": "scripts/ci_template_projects.py",
-      "bytes": 24418,
-      "sha256": "f874c30c15508a83f52ca7e7b1fe14ad8101fdc236267ee6a12a499eda2550e2",
+      "bytes": 33924,
+      "sha256": "fd3c0a9374f7a08463185fab2ffb5a5e1a6e41307eb5eb2060185d94728f6cb7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_template_projects_py--001.md"
@@ -4644,8 +4644,8 @@
     },
     {
       "path": "scripts/handbook_notes.py",
-      "bytes": 90355,
-      "sha256": "49823eb8cd7944c6f6b921d6c6d69567e04e7a015b6a1277d66b69892de721d0",
+      "bytes": 90426,
+      "sha256": "2f7de5ed296e64d289abf34b64fb737480ad9c4bb6140182c6b5cba305c835a4",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",
@@ -5296,7 +5296,7 @@
     {
       "path": "tests/test_handbook_customer.py",
       "bytes": 8034,
-      "sha256": "bf2d9ec323cd6ae11c3860e3421eb458e0af871ebc0c8e1285ea2cc1b0aa88b3",
+      "sha256": "eca42e2f96cb5186d99fe32c26b1dfe1c1f786c3c03252f039ef77d8f5a417ab",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_handbook_customer_py--001.md"
@@ -5475,8 +5475,8 @@
     },
     {
       "path": "tests/test_planning_model_contracts.py",
-      "bytes": 16153,
-      "sha256": "bf5650b43f70a505d5d726ee3cf43a84d6ef04a81e9538b3db063fbae1f6c415",
+      "bytes": 16454,
+      "sha256": "8ffd91d0164ba012c37047f62544fc8082aab739df6ac74ccd0159d4ec690e75",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_planning_model_contracts_py--001.md"
@@ -5683,8 +5683,8 @@
     },
     {
       "path": "tests/test_template_project_acceptance.py",
-      "bytes": 17072,
-      "sha256": "087b557835526f0ec8cc31d6d30ab2ed9d9456cbc6aa9795c711ea857cb43e0a",
+      "bytes": 28005,
+      "sha256": "1232fee66cc70a63667949620863cd063b4e4f13ada91466f507076df073ef0f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md"

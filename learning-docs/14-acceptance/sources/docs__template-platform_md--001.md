@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L185。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12726`。本段原文以LF换行结束。
+本段原始字节数：`12890`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dc778d33fc7a2e1f348b40d2f32ea1849768efca354c249a946cc8163aa82ca0"} -->
+<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "060ac7ac45972e4ffc814c2224989d8f455f13a651f3b7784e7baef067ecff58"} -->
 ````markdown
 <!-- docs/template-platform.md -->
 # 从零实现可批量定制的模板研发平台
@@ -150,7 +150,7 @@ curl -X POST http://127.0.0.1:8000/batches \
 | 中 | 库存采购协作 `stock-purchasing` | 3 实体、3 业务角色、采购流程 | 关联、角色权限、审批与收货、非法状态转换 |
 | 大 | 设施维护运营 `facilities-ops` | 6 实体、4 业务角色、4 流程 | 跨实体关系、分派、处理历史、受限供料确认、提醒、指标和完整浏览器证据 |
 
-这里的“大”指当前模板所支持的业务复杂度，相对前两个案例递增；它没有声称验证高并发、大数据量、多租户 SaaS、线上运维或所有技术栈。
+三个案例固定使用 `python-basic` / `simple-admin` / SQLite，验证同一技术模板对不同业务场景的复用。这里的“大”指当前模板所支持的业务复杂度，相对前两个案例递增；该套件不代表原生多技术栈覆盖，也不代表高并发、大数据量、多租户 SaaS、线上运维或生产压测验收。
 
 每案的 `requirement.md` 是模型可见的原始需求，`contract.json` 是独立测试的义务与数据，不能当作规划失败时的答案。三案通过 `Store.create_batch` 一次入队，再经普通 LangChain／LangGraph 路径生成。每案最多 12 次模型请求，总上限 36 次；模型格式修复也计入预算。
 

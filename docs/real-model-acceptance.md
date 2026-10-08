@@ -1,5 +1,7 @@
 ## 显式授权的真实模型客服端到端验收
 
+本章说明保留的 DeepSeek 专用客服验收链路（`scripts/ci_real_model.py`），用于分别验证三个技术模板。当前跨场景三项目验收使用[模板平台实现指南](template-platform.md)中的 **Three-project live acceptance**（`.github/workflows/template-project-acceptance.yml`），读取操作者在 `rnd` 配置的模型；两条链路分别保留自己的目标、预算和执行证据。
+
 常规Actions用明确模型响应夹具验证编排，同时真实运行数据库、浏览器和本机工具。真实服务商测试是有调用成本的另一项验收，不随普通PR自动调用。它必须在可信指定分支、获准的GitHub Environment中运行；测试脚本再次核对仓库、分支、事件与目标，不允许切换服务商或模型来绕过失败。本章说明如何执行及判断结果，不预先声称任何模板已经通过。
 
 ### 先使用框架，再补业务验证
@@ -107,13 +109,13 @@ Vben 源码还包含商城、CRM 等其他模块的菜单与页面。产品构�
 
 ### 环境变量与锁定服务商
 
-专用验收使用GitHub Environment `rnd`。环境Secret名称是`APK_KEY`，只在模型测试步骤中映射成平台读取的`API_KEY`；两个变量名各有用途，不为拼写一致复制或打印密钥。环境Variables提供`BASE_URL`和`MODE`，当前授权目标分别为`https://api.deepseek.com`和`deepseek-flash`。关键接线如下，表达式由GitHub解释，不能替换为密钥正文提交：
+这条保留的专用链路使用GitHub Environment `rnd`。环境Secret名称是`API_KEY`，仅注入模型测试步骤；环境Variables提供`BASE_URL`和`MODE`。`ci_real_model.py`固定核对目标为`https://api.deepseek.com`和`deepseek-flash`，这是该专用脚本的准入条件，不是当前通用三案的模型配置要求。使用其他已配置服务时应走前述三案入口，不能修改专用脚本的目标后沿用原验收证据。关键接线如下，表达式由GitHub解释，不能替换为密钥正文提交：
 
 ```yaml
 environment: rnd
 # 仅实际调用模型的步骤声明以下env；安装依赖的步骤不注入密钥
 env:
-  API_KEY: ${{ secrets.APK_KEY }}
+  API_KEY: ${{ secrets.API_KEY }}
   BASE_URL: ${{ vars.BASE_URL }}
   MODE: ${{ vars.MODE }}
 ```
@@ -122,7 +124,7 @@ env:
 
 ### 在客服分支手动触发，先核对精确提交
 
-当前客服开发分支为`feat/customer-service-acceptance`。在仓库的Actions中选择`.github/workflows/native-probe.yml`对应的工作流，打开Run workflow：
+该专用链路保留的客服开发分支为`feat/customer-service-acceptance`。在仓库的Actions中选择`.github/workflows/native-probe.yml`对应的工作流，打开Run workflow：
 
 1. 在分支选择器选`feat/customer-service-acceptance`，不要使用默认分支代码代替待测客服代码。
 2. 明确勾选`real_model=true`；默认false不调用付费模型。

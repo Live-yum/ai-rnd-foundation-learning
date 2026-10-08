@@ -221,7 +221,13 @@ class ModelGateway:
                                 strict=True,
                             )
                         ]
-                    if isinstance(content, str) and len(content) <= self.settings.max_context_chars:
+                    # Field repair can use a strict JSON candidate. Replaying malformed
+                    # JSON as an assistant answer gives the next attempt a broken example.
+                    if (
+                        isinstance(exc, ValidationError)
+                        and isinstance(content, str)
+                        and len(content) <= self.settings.max_context_chars
+                    ):
                         messages.append(
                             {"role": "assistant", "content": self.settings.redact(content)}
                         )

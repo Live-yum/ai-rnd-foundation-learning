@@ -9,10 +9,13 @@ from types import SimpleNamespace
 import httpx
 import pytest
 import yaml
+from conftest import new_run
 
 from scripts.ci_template_projects import (
+    MAX_FEEDBACK_BYTES,
     MAX_MODEL_CALLS,
     MAX_OUTPUT_TOKENS,
+    MAX_TRACE_BYTES,
     REPOSITORY,
     BoundedTransport,
     ObservedGateway,
@@ -20,6 +23,8 @@ from scripts.ci_template_projects import (
     aggregate,
     diagnostic_facts,
     failure_events,
+    feedback_snapshot,
+    feedback_vocabulary,
     trusted_event,
 )
 from scripts.template_acceptance_cases import (
@@ -29,10 +34,13 @@ from scripts.template_acceptance_cases import (
     suite_cases,
 )
 from scripts.template_acceptance_runtime import check_json, resolve, run_scenario
-from workbench.domain import Plan
+from workbench.business_capabilities import business_gaps
+from workbench.domain import Plan, Requirement, digest
 from workbench.generator import generate_basic
-from workbench.llm import ModelGateway
+from workbench.llm import ModelFailure, ModelGateway
 from workbench.model_protocol import OutputFailure
+from workbench.requirement_coverage import coverage_gaps
+from workbench.store import Store
 
 
 def fixture_plan(case):
@@ -341,8 +349,272 @@ def test_autonomous_analysis_counts_as_requirement_without_relabeling_wire_recei
         gateway.complete("unit-only", "recommend:1", "", {}, object)
         assert transport.stage == "recommend"
         assert gateway.traces == [
-            {"run_id": "unit-only", "stage": "requirement", "validated": True}
+            {
+                "run_id": "unit-only",
+                "stage": "requirement",
+                "logical_key": "recommend:1",
+                "payload_sha256": digest({}),
+                "validated": True,
+            }
         ]
+    finally:
+        transport.shutdown()
+
+
+def test_real_gateway_preserves_design_feedback_before_terminal_json_failure(tmp_path):
+    # Actual LangChain/ModelGateway/guard stack over an explicit mock HTTP provider;
+    # these local receipts are never used as live-project acceptance evidence.
+    case = suite_cases()[1]
+    data = fixture_plan(case).model_dump()
+    approved_grant = next(
+        p
+        for p in data["business"]["permissions"]
+        if (p["role"], p["entity"]) == ("warehouse", "purchase_orders")
+    )
+    approved = Requirement(
+        summary="Synthetic gateway diagnostic regression",
+        users=["warehouse"],
+        data_scope="shared",
+        features=["Inventory"],
+        acceptance=["Checks"],
+        field_requirements=[{"entity": "items", "field": "stock", "minimum": 0}],
+        facts={"business": {"permissions": [copy.deepcopy(approved_grant)]}},
+    )
+    approved_grant["actions"].remove("read_history")
+    stock = next(
+        f
+        for e in data["entities"]
+        if e["name"] == "items"
+        for f in e["fields"]
+        if f["name"] == "stock"
+    )
+    stock["minimum"] = -1
+    candidate = Plan.model_validate(data)
+    coverage, business = [], []
+    reasons = coverage_gaps(approved, candidate, diagnostics=coverage)
+    business_reasons = business_gaps(approved, candidate, diagnostics=business)
+    assert coverage and business
+    feedback = {
+        "stage": "design",
+        "round": 1,
+        "blocked": reasons + business_reasons,
+        "block_sources": ["requirement_coverage"] * len(reasons)
+        + ["business_coverage"] * len(business_reasons),
+        "coverage_diagnostics": coverage,
+        "business_diagnostics": business,
+    }
+    settings = configured_settings(tmp_path)
+    store = Store(settings)
+    store.migrate()
+    transport = BoundedTransport(settings)
+    transport.inner.close()
+    sent = []
+
+    def provider(request):
+        sent.append(json.loads(request.content))
+        content = candidate.model_dump_json() if len(sent) <= 2 else '{"private-response-canary":]}'
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"finish_reason": "stop", "message": {"role": "assistant", "content": content}}
+                ]
+            },
+        )
+
+    transport.inner = httpx.MockTransport(provider)
+    gateway = ObservedGateway(settings, store, transport, [case])
+    run_id = new_run(store)
+    payload = {
+        "approved_requirement": approved.model_dump(),
+        "resolution_feedback": {},
+        "previous_plan": {},
+    }
+    try:
+        assert (
+            gateway.complete(run_id, "plan:1", "private-instruction-canary", payload, Plan)
+            == candidate
+        )
+        payload.update(previous_plan=candidate.model_dump(), resolution_feedback=feedback)
+        assert (
+            gateway.complete(run_id, "plan:2", "private-instruction-canary", payload, Plan)
+            == candidate
+        )
+        payload["resolution_feedback"] = {**feedback, "round": 2}
+        with pytest.raises(ModelFailure):
+            gateway.complete(run_id, "plan:3", "private-instruction-canary", payload, Plan)
+        trace = gateway.receipt_trace(run_id)
+        assert trace["omitted"] == 0
+        assert [item["logical_key"] for item in trace["items"]] == ["plan:1", "plan:2", "plan:3"]
+        assert [item["validated"] for item in trace["items"]] == [True, True, False]
+        last = trace["items"][-1]
+        assert last["payload_sha256"] == digest(payload)
+        assert last["previous_plan_sha256"] == digest(candidate.model_dump())
+        assert last["feedback_sha256"] == digest(payload["resolution_feedback"])
+        assert trace["items"][1]["feedback_sha256"] != last["feedback_sha256"]
+        shown = last["resolution_feedback"]
+        assert shown["stage"] == "design" and shown["round"] == 2
+        assert shown["block_sources"]["business_coverage"] == len(business_reasons)
+        assert any(
+            item.get("attribute") == "minimum" and item["expected"] == 0 and item["actual"] == -1
+            for item in shown["coverage_diagnostics"]
+        )
+        assert any(
+            item["source"]["domain"] == "permissions" for item in shown["business_diagnostics"]
+        )
+        assert [r["logical_key"] for r in transport.receipts] == [
+            "plan:1",
+            "plan:2",
+            "plan:3",
+            "plan:3",
+        ]
+        assert [r["schema_valid"] for r in transport.receipts] == [True, True, False, False]
+        assert len(sent) == store.get_run(run_id)["model_calls"] == transport.calls[run_id] == 4
+        assert json.loads(sent[2]["messages"][1]["content"]) == payload
+        encoded = json.dumps(trace)
+        assert "private-" not in encoded and "unit-only-key" not in encoded
+        assert "blocked" not in shown and "previous_plan" not in last
+    finally:
+        transport.shutdown()
+        store.engine.dispose()
+
+
+def test_planning_diagnostic_projection_hides_unknown_keys_and_values_before_bounding(tmp_path):
+    settings = configured_settings(tmp_path)
+    secret = "unit-only-key"
+    diagnostic = {
+        "code": "business_scope_mismatch",
+        "source": {
+            "section": "facts",
+            "domain": "permissions",
+            "path": "business.private_identifier.permissions.0",
+        },
+        "expected": {
+            "any_of": [
+                [
+                    {
+                        "role": "technician",
+                        "entity": "work_orders",
+                        "action": "read_metrics",
+                        "scope": "assigned",
+                    }
+                ]
+            ]
+        },
+        "actual": [
+            {
+                "role": "technician",
+                "entity": "work_orders",
+                "actions": ["read", "read_metrics"],
+                "scope": "all",
+                "label": "private-label-canary",
+                "api_key": secret,
+                "content": "private-body-canary",
+            }
+        ],
+    }
+    feedback = {
+        "stage": "design",
+        "round": 2,
+        "blocked": ["private-block-canary " + secret],
+        "block_sources": ["business_coverage"],
+        "business_diagnostics": [
+            diagnostic,
+            {
+                "code": "business_unsupported_shape",
+                "source": {
+                    "section": "facts",
+                    "domain": "policy",
+                    "path": "business.registration.enabled",
+                },
+                "expected": {"enabled": True},
+                "actual": {"enabled": False, "value": "private_identifier"},
+            },
+        ],
+        "coverage_diagnostics": [
+            {
+                "code": "constraint_mismatch",
+                "source": {"section": "field_requirements", "index": 0},
+                "targets": [{"entity": "items", "field": "stock"}],
+                "attribute": "pattern",
+                "expected": "private-regex-canary",
+                "actual": secret,
+            }
+        ],
+        "prompt": "private-prompt-canary",
+        "previous_plan": {"title": "private-plan-canary"},
+    }
+    original = copy.deepcopy(feedback)
+    shown = feedback_snapshot(feedback, settings, feedback_vocabulary(suite_cases()))
+    assert feedback == original
+    assert shown["business_diagnostics"][0]["source"]["path"] == "business.<key>.permissions.0"
+    assert shown["business_diagnostics"][0]["expected"] == diagnostic["expected"]
+    assert shown["business_diagnostics"][0]["actual"][0]["scope"] == "all"
+    assert shown["business_diagnostics"][1]["expected"] == {"enabled": True}
+    assert shown["business_diagnostics"][1]["actual"]["enabled"] is False
+    assert shown["coverage_diagnostics"][0]["actual"]["characters"] == len("[redacted]")
+    encoded = json.dumps(shown)
+    assert "private" not in encoded and secret not in encoded
+    assert all(name not in encoded for name in ("api_key", "previous_plan", "prompt", "label"))
+
+
+def test_planning_diagnostics_and_terminal_trace_have_explicit_byte_and_count_bounds(
+    tmp_path, monkeypatch
+):
+    settings = configured_settings(tmp_path)
+    vocabulary = feedback_vocabulary(suite_cases())
+    large = {
+        "stage": "design",
+        "round": 2,
+        "blocked": ["private-free-text" for _ in range(100)],
+        "block_sources": ["business_coverage"] * 100,
+        "business_diagnostics": [
+            {
+                "code": "business_unsupported_shape",
+                "source": {
+                    "section": "facts",
+                    "domain": "permissions",
+                    "path": ".".join(["private_identifier"] * 100),
+                },
+                "expected": [
+                    {
+                        "role": "technician",
+                        "entity": "work_orders",
+                        "actions": ["read_metrics"] * 13,
+                        "scope": "assigned",
+                    }
+                ]
+                * 13,
+                "actual": None,
+            }
+        ]
+        * 13,
+    }
+    bounded = feedback_snapshot(large, settings, vocabulary)
+    assert len(json.dumps(bounded, ensure_ascii=False).encode()) <= MAX_FEEDBACK_BYTES
+    assert bounded["business_diagnostics_count"] == 13
+    assert bounded["business_diagnostics_omitted"] > 0
+    assert bounded["blocked_count"] == 100 and bounded["block_sources"] == {
+        "business_coverage": 100
+    }
+    assert "private" not in json.dumps(bounded)
+    transport = BoundedTransport(settings)
+    gateway = ObservedGateway(settings, None, transport)
+    monkeypatch.setattr(ModelGateway, "complete", lambda *args, **kwargs: object())
+    try:
+        trace_feedback = {**large, "business_diagnostics": large["business_diagnostics"][:1]}
+        for index in range(30):
+            gateway.complete(
+                "unit-only", f"plan:{index}", "", {"resolution_feedback": trace_feedback}, object
+            )
+        gateway.traces[-1]["validated"] = False
+        trace = gateway.receipt_trace("unit-only")
+        assert len(json.dumps(trace, ensure_ascii=False).encode()) <= MAX_TRACE_BYTES
+        assert 0 < len(trace["items"]) < MAX_MODEL_CALLS + 1
+        assert trace["omitted"] == 30 - len(trace["items"])
+        assert trace["items"][-1]["logical_key"] == "plan:29"
+        assert trace["items"][-1]["validated"] is False
+        assert not transport.receipts
     finally:
         transport.shutdown()
 

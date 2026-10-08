@@ -28,7 +28,7 @@
 
 本段原始字节数：`8034`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_handbook_customer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bf2d9ec323cd6ae11c3860e3421eb458e0af871ebc0c8e1285ea2cc1b0aa88b3"} -->
+<!-- learning-source: {"path": "tests/test_handbook_customer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eca42e2f96cb5186d99fe32c26b1dfe1c1f786c3c03252f039ef77d8f5a417ab"} -->
 ````python
 # tests/test_handbook_customer.py
 """The single from-zero sourcebook teaches and reconstructs the complete customer path."""
@@ -137,7 +137,7 @@ def test_real_model_lesson_has_exact_commit_gate_and_separate_template_evidence(
         "expected_sha",
         "GITHUB_SHA",
         "environment: rnd",
-        "API_KEY: ${{ secrets.APK_KEY }}",
+        "API_KEY: ${{ secrets.API_KEY }}",
         "--template python-basic",
         "fastapiadmin",
         "yudao-vben",

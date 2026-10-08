@@ -4,7 +4,7 @@
 
 [上一段](scripts__ci_real_model_py--002.md)
 
-**作用：显式授权的真实模型完整验收。** 可信客服分支的手动任务在rnd中将APK_KEY映射为API_KEY，三个模板各自先Hello再校验同提交同attempt回执。完整需求由原文、默认决策和命名约定构成；真实网页只一次初始智能推荐，随后必须READY、实际下载、新库HTTP/浏览器/重启；公开白名单状态及经过校验的合成页面截图，不输出密钥或模型原文。
+**作用：显式授权的DeepSeek专用客服验收。** 保留的DeepSeek专用客服链路在可信分支手动运行，从rnd注入API_KEY；三个模板各自先Hello再校验同提交同attempt回执。完整需求由原文、默认决策和命名约定构成；真实网页只一次初始智能推荐，随后必须READY、实际下载、新库HTTP/浏览器/重启；公开白名单状态及经过校验的合成页面截图，不输出密钥或模型原文。当前跨场景三案使用ci_template_projects.py。
 
 **对应关系：** native-probe手动real_model=true+expected_sha，或real-model手动矩阵 → rnd job → ModelGateway真实请求 → 当前模板独立产品 → summary.json与合成PNG；工具矩阵和BLOCKED恢复另验。
 

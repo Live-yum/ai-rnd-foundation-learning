@@ -18,19 +18,19 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `ModelFailure`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway`（L27–L283）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway`（L27–L289）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `ModelGateway.__init__`（L28–L30）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L32–L283）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L268抛异常，停止当前正常路径；L270按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L283的`value`。
-- `ModelGateway.complete.call`（L74–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100按`len(body) > self.settings.max_context_chars`分支；L101抛异常，停止当前正常路径；L113遍历`range(2)`；L115按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L116抛异常，停止当前正常路径；L145按`audited.error is not None`分支；L146抛异常，停止当前正常路径；L147按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L159的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete`（L32–L289）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L274抛异常，停止当前正常路径；L276按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L289的`value`。
+- `ModelGateway.complete.call`（L74–L269）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100按`len(body) > self.settings.max_context_chars`分支；L101抛异常，停止当前正常路径；L113遍历`range(2)`；L115按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L116抛异常，停止当前正常路径；L145按`audited.error is not None`分支；L146抛异常，停止当前正常路径；L147按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L159的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
 - `ModelGateway.complete.call.failed`（L77–L97）：接收`attempt`、`code`、`details`。 控制顺序：L78按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L283。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L289。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13924`。本段原文以LF换行结束。
+本段原始字节数：`14236`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3611a52d2c639562c6f76a40687c78aaf510bfb92d6d3b07200a921378156ab1"} -->
+<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "63441e1a60b26c7ca18c8cc8f0ff42a54cc07f4d13eecd359507fb6ee46beaaf"} -->
 ````python
 # workbench/llm.py
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
@@ -256,7 +256,13 @@ class ModelGateway:
                                 strict=True,
                             )
                         ]
-                    if isinstance(content, str) and len(content) <= self.settings.max_context_chars:
+                    # Field repair can use a strict JSON candidate. Replaying malformed
+                    # JSON as an assistant answer gives the next attempt a broken example.
+                    if (
+                        isinstance(exc, ValidationError)
+                        and isinstance(content, str)
+                        and len(content) <= self.settings.max_context_chars
+                    ):
                         messages.append(
                             {"role": "assistant", "content": self.settings.redact(content)}
                         )
