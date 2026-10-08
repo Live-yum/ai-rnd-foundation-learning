@@ -132,9 +132,13 @@ def test_actual_plop_native_mount_and_no_overwrite(tmp_path, template):
         scaffold_native_rules(template, rule_plan(), product, tmp_path / "other-reports")
 
 
-def test_native_failure_with_missing_editor_is_not_crud_success(tmp_path):
+def test_native_failure_with_missing_editor_is_not_crud_success(tmp_path, monkeypatch):
     from workbench.native_lab import run_acceptance
 
+    monkeypatch.setattr(
+        "workbench.native_lab.backend_port_lease",
+        lambda *_: pytest.fail("Invalid input must fail before leasing host resources"),
+    )
     with pytest.raises(ValueError, match="Aider"):
         run_acceptance(
             "yudao-vben", tmp_path, tmp_path / "out", tmp_path, "", tmp_path, rule_plan()

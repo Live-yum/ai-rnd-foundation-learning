@@ -389,7 +389,7 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     assert REPOSITORY in job["if"]
     secret_steps = [step for step in job["steps"] if "API_KEY" in step.get("env", {})]
     assert len(secret_steps) == 2
-    assert secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+    assert secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
     assert secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"
     assert secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"
     uploads = [
@@ -435,7 +435,7 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     paid_secret_steps = [step for step in paid["steps"] if "API_KEY" in step.get("env", {})]
     assert len(paid_secret_steps) == 2
     for step in paid_secret_steps:
-        assert step["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+        assert step["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
         assert step["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"
         assert step["env"]["MODE"] == "${{ vars.MODE }}"
     assert [step["run"] for step in paid_secret_steps] == [

@@ -119,6 +119,14 @@ uv run python -m scripts.ci_signup_scope_browser
 
 `ci_learning_docs` 在教材独立还原后也执行该driver，并把本次证据单独复制到 `reports/learning-docs-signup-scope-browser/本次唯一编号`。它必须先检查 `browser.json` 的真实浏览器、范围及恢复断言和进程内夹具模式，并核对ui_bundle_sha256与还原后的资产、screenshot_sha256与保留的PNG字节一致，才可进入最终全套通过；任何缺字段、假布尔值、失败或遗留summary都不能冒充成功。流式页面证据和报名范围证据分别保存，各自的失败日志/截图仍应保留。
 
+## 用三种业务验收批量模板平台
+
+新的通用入口是 `scripts/ci_template_projects.py`，配合 `examples/acceptance` 中个人阅读书架、库存采购协作与设施维护运营三套需求。它们用同一 python-basic/simple-admin/SQLite 模板，分别覆盖 1、3、6 个实体以及递增的权限和流程复杂度。三条真实需求通过 create_batch 一次入队，由正常 LangChain 与 LangGraph 路径处理；任何一个失败都不能汇总为成功。
+
+每案 requirement.md 提供给模型；contract.json 是独立验收义务与合成测试数据，不是失败时的固定 Plan 回退。预算最多12次模型请求/案、总计36次；格式修复计入预算。普通独立验证之后还要检查最终ZIP、新目录新数据库、场景API与浏览器、重启持久化。这里的规模是模板内业务复杂度，不等于吞吐和线上生产验收。
+
+工作流使用 rnd 环境的 secrets.API_KEY、vars.BASE_URL 和 vars.MODE，在同仓库PR显式添加 run-live-acceptance 标签时执行，或进入默认分支后手动运行。它按被审阅的当前head校验身份，并遵循已有环境保护；普通代码同步不自动消耗模型预算。旧 real-model 工作流保留历史固定供应商约束。详见 `docs/template-platform.md`；看本次报告中的提交与每案状态，不把本地单元测试记成真实模型通过。
+
 ## 本阶段源码和后续依赖
 
-本阶段首次创建 186 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。
+本阶段首次创建 197 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

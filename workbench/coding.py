@@ -8,8 +8,10 @@ from workbench.domain import Patches
 from workbench.filesystem import atomic_text, sha, write_json
 from workbench.knowledge import build_index, context_for
 from workbench.rules import Rules
+from workbench.template_standards import coding_standard
 
 INSTRUCTION = """你只实现已批准的逐实体字段验证规则，不生成 CRUD 或测试代码。
+遵循 coding_standard 中当前模板的编码规范；规范不扩大本任务允许编辑的文件和语法。
 只修改 custom_rules.py，必须返回 patches JSON，before_sha256 必须等于上下文文件的哈希。
 文件只能包含一个无注解、无装饰器、无默认参数的 def validate(entity, data): 函数。
 只允许 if/elif/else、and/or/not、比较、in/not in、整数/字符串/布尔/None、列表/元组、
@@ -51,19 +53,29 @@ def apply_patch(product, patch):
     }
 
 
-def code_rules(run_id, plan, product, gateway, attempt, error=""):
+def rule_context(plan, product, error=""):
+    """Both structured-patch and Aider paths receive the same approved context."""
     knowledge = Path(product).parent / "knowledge"
     build_index(product, knowledge, source_version="generated-product")
     context = context_for(product, knowledge, ["custom_rules.py", "approved-spec.json"])
+    return {
+        "plan": plan.model_dump(),
+        "context": context,
+        "coding_standard": coding_standard("python-basic"),
+        "previous_error": error,
+    }
+
+
+def code_rules(run_id, plan, product, gateway, attempt, error=""):
     result = gateway.complete(
         run_id,
         f"coding:{attempt}",
         INSTRUCTION,
-        {"plan": plan.model_dump(), "context": context, "previous_error": error},
+        rule_context(plan, product, error),
         Patches,
     )
     receipt = apply_patch(product, result.patches[0])
     receipt.update(attempt=attempt, explanation=result.explanation)
     write_json(Path(product).parent / f"coding-{attempt}.json", receipt)
-    build_index(product, knowledge, source_version="generated-product")
+    build_index(product, Path(product).parent / "knowledge", source_version="generated-product")
     return receipt

@@ -10,29 +10,29 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.aider_tool`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.native_business_checks`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_recovery`、`workbench.rules`、`workbench.scaffolding`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.aider_tool`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.native_acceptance`、`workbench.native_business_checks`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_recovery`、`workbench.rules`、`workbench.scaffolding`、`workbench.template_standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `NativeFileEdit`（L51–L54）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`blocks`；类型约束/数据库列参数以完整定义为准。
-- `NativeEdits`（L57–L59）：继承`Contract`。声明的数据项为`files`、`explanation`；类型约束/数据库列参数以完整定义为准。
-- `region`（L62–L67）：接收`source`。 控制顺序：L64按`len(matches) != 1`分支；L65抛异常，停止当前正常路径。 调用`list`、`REGION.finditer`、`len`、`ValueError`、`match.start`、`match[1].strip`、`match.end`。 返回路径：L67的`source[: match.start(1)], match[1].strip(), source[match.end(1) :]`。
-- `validate_expression`（L70–L129）：接收`expression`、`suffix`、`fields`。 控制顺序：L71按`not expression or len(expression) > 4000 or set(fields) & RESERVED`分支；L72抛异常，停止当前正常路径；L73按`suffix == ".py"`分支；L80遍历`ast.walk(ast.parse(expression, mode="eval"))`；L82按`isinstance(node, ast.Subscript)`分支；L84按`isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.att…`分支；L90按`key is None`分支；L91抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`set`、`ValueError`、`Rules`、`ast.walk`、`ast.parse`、`isinstance`、`re.compile`、`literals.sub`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `preview`（L132–L156）：接收`path`、`source`、`blocks`、`fields`。 控制顺序：L137按`not 1 <= len(matches) <= 8 or pattern.sub("", blocks).strip()`分支；L138抛异常，停止当前正常路径；L140遍历`matches`；L142按`not old or result.count(old) != 1`分支；L143抛异常，停止当前正常路径；L146按`(position and result[position - 1] != "\n") or ( end < len(result) and result[end] !=…`分支；L149抛异常，停止当前正常路径；L153按`(prefix, suffix) != (before, tail)`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`re.escape`、`list`、`pattern.finditer`、`len`、`pattern.sub("", blocks).strip`、`pattern.sub`、`ValueError`、`match.groups`等。 返回路径：L156的`result`。
-- `apply_native_edits`（L159–L232）：接收`product`、`value`、`registered`、`fields`、`settings`、`reports`、`attempt`。 控制顺序：L161按`len({item.path for item in value.files}) != len(value.files) or set( item.path for it…`分支；L164抛异常，停止当前正常路径；L167遍历`value.files`；L169按`sha(path) != item.before_sha256`分支；L170抛异常，停止当前正常路径；L180遍历`before.items()`；L189按`set(manifest(work)) != set(expected) or any( inside(work, name).read_text(encoding="u…`分支；L193抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`len`、`set`、`ValueError`、`manifest`、`inside`、`sha`、`path.read_text`、`preview`等。 返回路径：L232的`receipt, before`。
-- `rollback`（L235–L242）：接收`product`、`receipt`、`originals`。 控制顺序：L236遍历`receipt["after"].items()`；L237按`sha(inside(product, name)) != expected`分支；L238抛异常，停止当前正常路径；L241遍历`originals.items()`。 调用`receipt["after"].items`、`sha`、`inside`、`NativeIntegrityError`、`originals.items`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verified_native_customization`（L255–L275）：接收`plan`、`product`、`reports`。 控制顺序：L257按`not path.is_file()`分支；L261按`receipt.get("passed") is not True or receipt.get("plop", {}).get("spec_digest") != di…`分支；L270抛异常，停止当前正常路径；L273按`any(sha(inside(product, name)) != expected for name, expected in edit["after"].items(…`分支；L274抛异常，停止当前正常路径。 调用`path.is_file`、`json.loads`、`path.read_text`、`receipt.get`、`receipt.get("plop", {}).get`、`digest`、`plan.model_dump`、`edit.get`、`any`等。 返回路径：L258的`False`；L275的`True`。
-- `native_rule_customizer`（L278–L405）：接收`settings`、`gateway`、`run_id`。 控制顺序：L279按`not settings.enable_coding or settings.coding_engine != "aider"`分支；L280抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L405的`customize`。
-- `native_rule_customizer.customize`（L282–L403）：接收`template`、`plan`、`product`、`backend`、`frontend`、`env`、`targets`、`reports`。 控制顺序：L286遍历`registered`；L300按`template == "yudao-vben" and not (reports / "native-front-prepared.json").is_file()`分支；L312遍历`range(first_attempt, first_attempt + settings.max_repair_attempts…`；L347遍历`zip(targets, plan.entities, strict=True)`；L352按`rule`分支；L389按`isinstance(exc, NativeIntegrityError)`分支；L390抛异常，停止当前正常路径；L392按`edit`分支。后续分支沿下方源码相同行号继续阅读。 调用`scaffold_native_rules`、`next`、`rule.entity.replace`、`f.name.split`、`"".join`、`p.title`、`(reports / "native-front-prepared.json").is_file`、`prepare_vben_source`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NativeFileEdit`（L53–L56）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`blocks`；类型约束/数据库列参数以完整定义为准。
+- `NativeEdits`（L59–L61）：继承`Contract`。声明的数据项为`files`、`explanation`；类型约束/数据库列参数以完整定义为准。
+- `region`（L64–L69）：接收`source`。 控制顺序：L66按`len(matches) != 1`分支；L67抛异常，停止当前正常路径。 调用`list`、`REGION.finditer`、`len`、`ValueError`、`match.start`、`match[1].strip`、`match.end`。 返回路径：L69的`source[: match.start(1)], match[1].strip(), source[match.end(1) :]`。
+- `validate_expression`（L72–L131）：接收`expression`、`suffix`、`fields`。 控制顺序：L73按`not expression or len(expression) > 4000 or set(fields) & RESERVED`分支；L74抛异常，停止当前正常路径；L75按`suffix == ".py"`分支；L82遍历`ast.walk(ast.parse(expression, mode="eval"))`；L84按`isinstance(node, ast.Subscript)`分支；L86按`isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.att…`分支；L92按`key is None`分支；L93抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`set`、`ValueError`、`Rules`、`ast.walk`、`ast.parse`、`isinstance`、`re.compile`、`literals.sub`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `preview`（L134–L158）：接收`path`、`source`、`blocks`、`fields`。 控制顺序：L139按`not 1 <= len(matches) <= 8 or pattern.sub("", blocks).strip()`分支；L140抛异常，停止当前正常路径；L142遍历`matches`；L144按`not old or result.count(old) != 1`分支；L145抛异常，停止当前正常路径；L148按`(position and result[position - 1] != "\n") or ( end < len(result) and result[end] !=…`分支；L151抛异常，停止当前正常路径；L155按`(prefix, suffix) != (before, tail)`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`re.escape`、`list`、`pattern.finditer`、`len`、`pattern.sub("", blocks).strip`、`pattern.sub`、`ValueError`、`match.groups`等。 返回路径：L158的`result`。
+- `apply_native_edits`（L161–L234）：接收`product`、`value`、`registered`、`fields`、`settings`、`reports`、`attempt`。 控制顺序：L163按`len({item.path for item in value.files}) != len(value.files) or set( item.path for it…`分支；L166抛异常，停止当前正常路径；L169遍历`value.files`；L171按`sha(path) != item.before_sha256`分支；L172抛异常，停止当前正常路径；L182遍历`before.items()`；L191按`set(manifest(work)) != set(expected) or any( inside(work, name).read_text(encoding="u…`分支；L195抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`len`、`set`、`ValueError`、`manifest`、`inside`、`sha`、`path.read_text`、`preview`等。 返回路径：L234的`receipt, before`。
+- `rollback`（L237–L244）：接收`product`、`receipt`、`originals`。 控制顺序：L238遍历`receipt["after"].items()`；L239按`sha(inside(product, name)) != expected`分支；L240抛异常，停止当前正常路径；L243遍历`originals.items()`。 调用`receipt["after"].items`、`sha`、`inside`、`NativeIntegrityError`、`originals.items`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verified_native_customization`（L258–L278）：接收`plan`、`product`、`reports`。 控制顺序：L260按`not path.is_file()`分支；L264按`receipt.get("passed") is not True or receipt.get("plop", {}).get("spec_digest") != di…`分支；L273抛异常，停止当前正常路径；L276按`any(sha(inside(product, name)) != expected for name, expected in edit["after"].items(…`分支；L277抛异常，停止当前正常路径。 调用`path.is_file`、`json.loads`、`path.read_text`、`receipt.get`、`receipt.get("plop", {}).get`、`digest`、`plan.model_dump`、`edit.get`、`any`等。 返回路径：L261的`False`；L278的`True`。
+- `native_rule_customizer`（L281–L404）：接收`settings`、`gateway`、`run_id`。 控制顺序：L282按`not settings.enable_coding or settings.coding_engine != "aider"`分支；L283抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L404的`customize`。
+- `native_rule_customizer.customize`（L285–L402）：接收`template`、`plan`、`product`、`backend`、`frontend`、`env`、`targets`、`reports`。 控制顺序：L289遍历`registered`；L298按`template == "yudao-vben" and not (reports / "native-front-prepared.json").is_file()`分支；L310遍历`range(first_attempt, first_attempt + settings.max_repair_attempts…`；L346遍历`zip(targets, plan.entities, strict=True)`；L351按`rule`分支；L388按`isinstance(exc, NativeIntegrityError)`分支；L389抛异常，停止当前正常路径；L391按`edit`分支。后续分支沿下方源码相同行号继续阅读。 调用`scaffold_native_rules`、`next`、`rule.entity.replace`、`wire_name`、`(reports / "native-front-prepared.json").is_file`、`prepare_vben_source`、`write_json`、`int`、`p.stem.split`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L405。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L404。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18161`。本段原文以LF换行结束。
+本段原始字节数：`18294`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ff03a21c2084c2644ae86348cdfd8689c3947cee2ee7bbb8b4336291518bd92"} -->
+<!-- learning-source: {"path": "workbench/native_coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c48dc3f53b33f88c5c9e61e6ea06d0758dc80af2c324d3d6036dac29b7a60cf5"} -->
 ````python
 # workbench/native_coding.py
 """Real Aider edits native Java/Python/Vue business guards, with transactional rollback.
@@ -56,12 +56,14 @@ from workbench.aider_tool import command, git
 from workbench.domain import Contract, digest
 from workbench.filesystem import atomic_text, inside, manifest, sha, write_json
 from workbench.generator import PrerequisiteError
+from workbench.native_acceptance import wire_name
 from workbench.native_business_checks import check_business_examples
 from workbench.native_environment import install_backend, login, running_backend
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_recovery import NativeIntegrityError
 from workbench.rules import Rules
 from workbench.scaffolding import scaffold_native_rules
+from workbench.template_standards import coding_standard
 
 REGION = re.compile(r"(?m)^[ \t]*(?://|#) RND_RULE_BEGIN\n(.*?)^[ \t]*(?://|#) RND_RULE_END$", re.S)
 RESERVED = {
@@ -280,6 +282,7 @@ def rollback(product, receipt, originals):
 
 
 INSTRUCTION = """你是原生业务规则编码器。CRUD、鉴权和挂载已经由原生生成器和Plop完成。
+遵循 coding_standard 中当前模板的后端和前端规范；规范不扩大当前注册表达式区的权限。
 只修改registered_files中的RND_RULE_BEGIN/END之间的布尔表达式，返回NativeEdits JSON。
 每个文件都要提供path、before_sha256、blocks，blocks使用该文件路径和严格SEARCH/REPLACE块，不加Markdown围栏。
 Java参数是原生字段名（驼峰），Vue参数data是记录，Python参数data是字典。Java/Vue不能执行语句、新建对象、网络、反射、进程或修改状态。
@@ -328,12 +331,7 @@ def native_rule_customizer(settings, gateway, run_id):
                 or ("/wb" + rule.entity.replace("_", "") + "/") in path
             )
             entity = next(e for e in plan.entities if e.name == rule.entity)
-            fields[path] = [
-                f.name
-                if template == "fastapiadmin"
-                else f.name.split("_")[0] + "".join(p.title() for p in f.name.split("_")[1:])
-                for f in entity.fields
-            ]
+            fields[path] = [wire_name(template, field.name) for field in entity.fields]
         if template == "yudao-vben" and not (reports / "native-front-prepared.json").is_file():
             from workbench.native_vben import prepare_vben_source
 
@@ -360,6 +358,7 @@ def native_rule_customizer(settings, gateway, run_id):
                 INSTRUCTION,
                 {
                     "template": template,
+                    "coding_standard": coding_standard(template),
                     "approved_plan": plan.model_dump(),
                     "registered_files": context,
                     "previous_error": error,

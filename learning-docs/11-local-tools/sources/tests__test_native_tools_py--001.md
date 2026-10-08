@@ -22,17 +22,17 @@
 - `test_native_file_edit_cannot_change_envelope`（L89–L101）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`(ROOT / "tools/node/templates/rule.vue.hbs").read_text`、`source.rstrip`、`source.replace("export function", "export async function").rstrip`、`source.replace`、`pytest.raises`、`preview`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_rollback_preserves_external_changes`（L104–L111）：接收`tmp_path`。 控制顺序：L111断言`path.read_text() == "external edit"`。 调用`path.write_text`、`pytest.raises`、`rollback`、`path.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_actual_plop_native_mount_and_no_overwrite`（L116–L132）：接收`tmp_path`、`template`。 控制顺序：L117按`not (ROOT / "tools/node/node_modules/node-plop").is_dir()`分支；L120按`os.getenv("RND_REQUIRE_NODE_TESTS") == "1"`分支；L125断言`report["engine"] == "node-plop" and report["network"] == "disabled"`；L126断言`len(report["editable"]) == 2`；L127遍历`report["editable"]`；L128断言`region((product / name).read_text())[1] in {"true", "True"}`；L129断言`scaffold_native_rules(template, rule_plan(), product, tmp_path / "reports") == report`；L130断言`json.loads(report["log"])["actions"] >= 5`。 调用`(ROOT / "tools/node/node_modules/node-plop").is_dir`、`os.getenv`、`pytest.fail`、`pytest.skip`、`native_product`、`scaffold_native_rules`、`rule_plan`、`len`、`region`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_failure_with_missing_editor_is_not_crud_success`（L135–L141）：接收`tmp_path`。 调用`pytest.raises`、`run_acceptance`、`rule_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_partial_patch_missing_frontend_is_rejected`（L144–L157）：接收`tmp_path`、`settings`。 控制顺序：L157断言`(tmp_path / path).read_text() == "untouched"`。 调用`atomic_text`、`NativeEdits`、`sha`、`pytest.raises`、`apply_native_edits`、`(tmp_path / path).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_java_unicode_escape_cannot_bypass_expression_lexer`（L160–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`validate_expression`、`chr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_failure_with_missing_editor_is_not_crud_success`（L135–L145）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`run_acceptance`、`rule_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_partial_patch_missing_frontend_is_rejected`（L148–L161）：接收`tmp_path`、`settings`。 控制顺序：L161断言`(tmp_path / path).read_text() == "untouched"`。 调用`atomic_text`、`NativeEdits`、`sha`、`pytest.raises`、`apply_native_edits`、`(tmp_path / path).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_java_unicode_escape_cannot_bypass_expression_lexer`（L164–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`validate_expression`、`chr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L166。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L170。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6680`。本段原文以LF换行结束。
+本段原始字节数：`6864`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "feaf93c97bb4e2abaed0b652766fccb6806d9dd84b79f390c5cdbf3a2345310a"} -->
+<!-- learning-source: {"path": "tests/test_native_tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b46bc8d46f89a716b62a97586fbcc8427e5a855090570c59f2f0ae049d4d13da"} -->
 ````python
 # tests/test_native_tools.py
 """Native Plop/Aider safety contracts; real Java/Vue services run in native CI."""
@@ -169,9 +169,13 @@ def test_actual_plop_native_mount_and_no_overwrite(tmp_path, template):
         scaffold_native_rules(template, rule_plan(), product, tmp_path / "other-reports")
 
 
-def test_native_failure_with_missing_editor_is_not_crud_success(tmp_path):
+def test_native_failure_with_missing_editor_is_not_crud_success(tmp_path, monkeypatch):
     from workbench.native_lab import run_acceptance
 
+    monkeypatch.setattr(
+        "workbench.native_lab.backend_port_lease",
+        lambda *_: pytest.fail("Invalid input must fail before leasing host resources"),
+    )
     with pytest.raises(ValueError, match="Aider"):
         run_acceptance(
             "yudao-vben", tmp_path, tmp_path / "out", tmp_path, "", tmp_path, rule_plan()

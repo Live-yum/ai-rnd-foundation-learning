@@ -4,7 +4,7 @@
 
 [上一段](workbench__store_py--001.md)
 
-**作用：持久化项目、会话、任务、版本、审批和证据。** SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run建立运行和首条消息；任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。
+**作用：持久化项目、会话、任务、版本、审批和证据。** SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run和create_batch共享入队逻辑；批量先整批校验再在同一幂等事务建立项目、运行和消息，失败全部回滚。任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。
 
 **对应关系：** api写入Store → Runtime认领Job → Workflow记录Revision/Approval/Step/Event；test_store。
 
@@ -17,23 +17,36 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Store._recover_assistants`（L884–L965）：接收`session`、`run_id`。 源码说明：Resolve every abandoned attempt, even after a model/profile change.。 控制顺序：L887遍历`session.scalars( select(Event) .where( Event.run_id == run_id, Ev…`；L908按`not unfinished`分支；L913遍历`session.scalars( select(Step.data["assistant"]).where( Step.run_i…`；L920按`isinstance(data, dict) and data.get("validation") == "validated" and data.get("status…`分支；L927遍历`unfinished.items()`；L928按`message_id in committed`分支。 调用`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( { "…`、`select(Event) .where`、`select`、`Event.kind.in_`、`latest.items`、`select(Step.data["assistant"]).where`、`Step.name.like`、`Step.data["contract_version"].as_integer`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.finish`（L967–L976）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L972按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.events`（L978–L990）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L987的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
-- `Store.list_projects`（L992–L999）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L994的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
-- `Store.list_runs`（L1001–L1022）：接收`project_id`、`limit`、`offset`、`statuses`。 控制顺序：L1004按`project_id is not None`分支；L1005按`not session.get(Project, project_id)`分支；L1006抛异常，停止当前正常路径；L1008按`statuses`分支。 调用`self.tx`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`Run.id.desc`、`session.get`、`Missing`、`statement.where`、`Run.status.in_`等。 返回路径：L1011的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
-- `Store.latest_revision`（L1024–L1032）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L1032的`row.data if row else None`。
-- `_cursor`（L1036–L1041）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `Store.recover`（L892–L902）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L900遍历`runs`。 调用`FileLock`、`str`、`self.tx`、`list`、`session.scalars`、`select(Job.run_id).where(Job.status == "RUNNING").distinct`、`select(Job.run_id).where`、`select`、`self._recover_assistants`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store._recover_assistants`（L904–L985）：接收`session`、`run_id`。 源码说明：Resolve every abandoned attempt, even after a model/profile change.。 控制顺序：L907遍历`session.scalars( select(Event) .where( Event.run_id == run_id, Ev…`；L928按`not unfinished`分支；L933遍历`session.scalars( select(Step.data["assistant"]).where( Step.run_i…`；L940按`isinstance(data, dict) and data.get("validation") == "validated" and data.get("status…`分支；L947遍历`unfinished.items()`；L948按`message_id in committed`分支。 调用`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( { "…`、`select(Event) .where`、`select`、`Event.kind.in_`、`latest.items`、`select(Step.data["assistant"]).where`、`Step.name.like`、`Step.data["contract_version"].as_integer`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.finish`（L987–L996）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L992按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.events`（L998–L1010）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L1007的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
+- `Store.list_projects`（L1012–L1019）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L1014的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
+- `Store.list_runs`（L1021–L1042）：接收`project_id`、`limit`、`offset`、`statuses`。 控制顺序：L1024按`project_id is not None`分支；L1025按`not session.get(Project, project_id)`分支；L1026抛异常，停止当前正常路径；L1028按`statuses`分支。 调用`self.tx`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`Run.id.desc`、`session.get`、`Missing`、`statement.where`、`Run.status.in_`等。 返回路径：L1031的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
+- `Store.latest_revision`（L1044–L1052）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L1052的`row.data if row else None`。
+- `_cursor`（L1056–L1061）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L884–L1041。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L892–L1061。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5935`。本段原文以LF换行结束。
+本段原始字节数：`6592`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/store.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "857947ef695706cf177bdf2a49faa5c3d4473540c130add4d45023b69d0ad8f3"} -->
+<!-- learning-source: {"path": "workbench/store.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "6a742e72d5dcdbcb08fabdda0544e7ef73be40b28ddcc10ff572ddab84219851"} -->
 ````python
 # workbench/store.py
+    def recover(self):
+        # Runtime holds the single-worker lock before recovery. Serialize with
+        # assistant appenders as well, and commit transcript repair with requeue.
+        with FileLock(str(self.settings.data_dir / "assistant-events.lock"), timeout=30):
+            with self.tx() as session:
+                runs = list(
+                    session.scalars(select(Job.run_id).where(Job.status == "RUNNING").distinct())
+                )
+                for run_id in runs:
+                    self._recover_assistants(session, run_id)
+                session.execute(update(Job).where(Job.status == "RUNNING").values(status="QUEUED"))
+
     def _recover_assistants(self, session, run_id):
         """Resolve every abandoned attempt, even after a model/profile change."""
         latest = {}

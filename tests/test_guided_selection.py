@@ -37,8 +37,10 @@ def test_actual_control_page_has_template_first_and_smart_button(settings):
         entry = c.get("/ui/app.js")
         assert entry.status_code == 200
         assert "智能推荐" in entry.text and "数据库" in entry.text
-        assert "确认本次研发的技术选型" in entry.text
-        assert "确认选型并开始" in entry.text
+        assert "1. 选择模板" in entry.text
+        assert "技术选型与模板编码规范" in entry.text
+        assert "创建并开始" in entry.text
+        assert "批量项目" in entry.text
         assert c.get("/ui/not-allowed.txt").status_code == 404
         assert c.get("/models").status_code == 401
         c.headers["Authorization"] = "Bearer " + c.app.state.token
@@ -78,18 +80,17 @@ def test_catalog_publishes_business_scope_without_losing_stack_choices(settings)
     assert basic["databases"] == ["sqlite", "postgresql"]
 
 
-def test_workbench_hints_use_customer_case_without_replacing_user_input(settings):
+def test_workbench_examples_and_scopes_preserve_user_intent(settings):
     with TestClient(create_app(settings, start_worker=False)) as client:
         html = client.get("/").text
         javascript = client.get("/ui/app.js").text
-    assert "内部客户服务管理平台" in javascript
-    for name in (
-        "customer-service.md",
-        "customer-service-decisions.md",
-        "customer-service-contract.md",
-    ):
-        assert name in javascript
+    for example in ("做一个客服管理系统", "做一个比赛报名系统", "做一个阅读书架"):
+        assert example in javascript
+    # Examples are explicit editable starters; interaction tests in ui/tests/workflow.test.ts
+    # also verify that choosing one does not submit or prevent subsequent user edits.
+    assert "填入后可自由修改" in javascript
     # Vue compiles the selected capability expression, retaining its actual scopes key.
     assert ".scopes" in javascript
-    assert "声明式业务合同" in javascript
+    assert "模板已有的登录、数据管理和权限功能无需启用扩展" in javascript
+    assert "模板外功能设置" in javascript
     assert "新闻" not in html + javascript and "资讯" not in html + javascript

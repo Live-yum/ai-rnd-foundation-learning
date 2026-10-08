@@ -25,7 +25,7 @@ Provider = Literal["auto", "openai", "deepseek", "compatible"]
 OutputMode = Literal["auto", "json_object"]
 
 
-def validate_model_url(value: str) -> str:
+def validate_model_url(value: str, *, allow_insecure_http: bool = False) -> str:
     """Only API roots; validate before any model credential can reach a transport."""
     message = "BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址"
     try:
@@ -42,7 +42,11 @@ def validate_model_url(value: str) -> str:
             or parsed.port == 0
         ):
             raise ValueError(message)
-        if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        if (
+            parsed.scheme == "http"
+            and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            and not allow_insecure_http
+        ):
             raise ValueError("远程模型必须使用 HTTPS")
         path = parsed.path
         for _ in range(3):
@@ -76,10 +80,12 @@ class ModelProfile(BaseModel):
     provider: Provider = "auto"
     output_mode: OutputMode = "auto"
     max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    # Supplied only by the operator's process configuration, never by a model or API patch.
+    allow_insecure_http: bool = Field(default=False, exclude=True)
 
     def validate_endpoint(self):
         try:
-            validate_model_url(self.base_url)
+            validate_model_url(self.base_url, allow_insecure_http=self.allow_insecure_http)
         except ValueError as exc:
             raise ValueError(f"{self.stage}: {exc}") from None
         if not self.model.strip() or not self.api_key.get_secret_value().strip():
@@ -108,6 +114,7 @@ class Settings(BaseSettings):
     provider: Provider = "auto"
     output_mode: OutputMode = "auto"
     max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    allow_insecure_model_http: bool = False
     requirements_provider: Provider | None = None
     requirements_output_mode: OutputMode | None = None
     requirements_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)

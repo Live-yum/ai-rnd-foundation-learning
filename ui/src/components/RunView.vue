@@ -8,12 +8,10 @@ import {
   ArrowUpOutlined,
   ArrowRightOutlined,
   CheckOutlined,
-  ClockCircleOutlined,
   ReloadOutlined,
   DownloadOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
-  ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
 import {
   state,
@@ -36,9 +34,12 @@ import {
   statusColor,
   statusLabel,
   terminal,
+  milestoneStatus,
+  runNextAction,
 } from '../presentation'
 import DataDocument from './DataDocument.vue'
 import Questionnaire from './Questionnaire.vue'
+import StageTimeline from './StageTimeline.vue'
 const props = defineProps<{ view: string; runId: string }>()
 const emit = defineEmits<{ navigate: [path: string] }>()
 let mounted = true
@@ -67,6 +68,12 @@ const answer = ref(''),
   reviewed = ref(false),
   tab = ref('overview'),
   showDetails = ref(false),
+  detailTab = ref('report'),
+  activeReports = ref<string[]>([]),
+  eventStage = ref('all'),
+  eventKind = ref('all'),
+  eventLimit = ref(30),
+  expandedEvents = ref(new Set<number>()),
   chatEnd = ref<HTMLElement>(),
   autoScroll = ref(true)
 const run = computed(() => state.run),
@@ -83,7 +90,7 @@ const capabilityAlternatives = computed(() => [
 ])
 const hasScopeChoices = computed(() =>
   gate.value?.data?.requirement?.question_items?.some(
-    (item: any) => item.id === 'registration_scope',
+    (item: any) => Array.isArray(item.options) && item.options.length > 0,
   ),
 )
 const canSubmit = computed(
@@ -94,16 +101,9 @@ const modelFreeApproval = computed(() => gate.value?.needs_model?.approve === fa
 const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
 const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
 const isQuestions = computed(() => gate.value?.actions.includes('answer'))
-const stepEvents = computed(() =>
-  state.events.filter((e) => e.kind === 'stage' || e.kind === 'step'),
-)
 const completeCount = computed(
   () =>
-    new Set(
-      stepEvents.value
-        .filter((e) => e.kind === 'step' || e.data.phase === 'completed')
-        .map((e) => e.data.name),
-    ).size,
+    stages.filter((_, index) => milestoneStatus(index, run.value, state.events) === 'done').length,
 )
 const gateTitle = computed(() =>
   gate.value?.stage === 'requirements'
@@ -167,8 +167,37 @@ const extensionCoverageNotice = computed(() => {
   return ''
 })
 const eventsReversed = computed(() =>
-  [...state.events].filter((e) => !e.kind.startsWith('assistant_delta')).reverse(),
+  [...state.events]
+    .filter((event) => {
+      if (event.kind === 'assistant_delta') return false
+      const kind = ['stage', 'step'].includes(event.kind)
+        ? 'stage'
+        : event.kind.startsWith('assistant_')
+          ? 'model'
+          : 'status'
+      if (eventKind.value !== 'all' && eventKind.value !== kind) return false
+      if (eventStage.value === 'all') return true
+      const name = event.data.name || event.data.stage || ''
+      return stages
+        .find((stage) => stage.key === eventStage.value)
+        ?.steps.some((step) => name === step || name.startsWith(step + ':'))
+    })
+    .reverse(),
 )
+const visibleEvents = computed(() => eventsReversed.value.slice(0, eventLimit.value))
+watch([eventStage, eventKind], () => {
+  eventLimit.value = 30
+  expandedEvents.value.clear()
+})
+function openReport(name: string) {
+  detailTab.value = 'report'
+  activeReports.value = [name]
+  showDetails.value = true
+}
+function toggleEvent(id: number, event: Event) {
+  if ((event.target as HTMLDetailsElement).open) expandedEvents.value.add(id)
+  else expandedEvents.value.delete(id)
+}
 watch(
   () => gateIdentity(gate.value),
   () => {
@@ -185,21 +214,6 @@ watch(
   },
 )
 const route = (view: string) => emit('navigate', `run/${props.runId}/${view}`)
-function milestone(index: number) {
-  // A restored earlier gate invalidates later-stage completion for this revision.
-  // Historical events remain inspectable, but aren't this scope's progress.
-  if (gate.value && index === stageIndex.value) return 'waiting'
-  if (index > stageIndex.value) return 'pending'
-  const relevant = stepEvents.value.filter((e) =>
-      stages[index].steps.some((s) => e.data.name === s || e.data.name?.startsWith(s + ':')),
-    ),
-    last = relevant.at(-1)
-  if (!last) return 'pending'
-  if (last.kind === 'step' || last.data.phase === 'completed') return 'done'
-  if (last.data.phase === 'failed') return 'failed'
-  if (last.data.phase === 'waiting') return 'waiting'
-  return 'running'
-}
 function phaseLabel(phase: string) {
   return (
     ({ started: '开始执行', waiting: '等待确认', completed: '已完成', failed: '失败' } as any)[
@@ -394,15 +408,56 @@ function reread() {
         </p>
       </div>
       <div class="header-actions">
-        <a-button @click="route(view === 'progress' ? 'conversation' : 'progress')"
-          ><ApartmentOutlined aria-hidden="true" />{{
-            view === 'progress' ? '返回对话' : '查看进度'
-          }}</a-button
-        ><a-button @click="showDetails = true"
+        <a-button @click="showDetails = true"
           ><FileTextOutlined aria-hidden="true" />项目资料</a-button
+        >
+        <a-button
+          type="text"
+          :disabled="
+            terminal(run) ||
+            submitting ||
+            !state.online ||
+            (!run.auto_mode && (!modelReady || capabilityConflicts.length > 0))
+          "
+          @click="automation"
+          >{{ run.auto_mode ? '恢复人工确认' : '了解并开启智能推荐' }}</a-button
         >
       </div>
     </header>
+    <nav class="run-tabs" aria-label="当前运行视图">
+      <button
+        v-for="item in [
+          { key: 'conversation', label: '对话与审批' },
+          { key: 'progress', label: '执行过程' },
+          { key: 'delivery', label: '产物与验收' },
+        ]"
+        :key="item.key"
+        type="button"
+        :class="{ active: view === item.key || (view === 'review' && item.key === 'conversation') }"
+        :aria-current="
+          view === item.key || (view === 'review' && item.key === 'conversation')
+            ? 'page'
+            : undefined
+        "
+        @click="route(item.key)"
+      >
+        {{ item.label }}
+      </button>
+    </nav>
+    <div class="run-context" role="status">
+      <span
+        ><strong>{{ stages[stageIndex].label }}</strong> · {{ runNextAction(run) }}</span
+      ><span class="stream-status"
+        ><span class="status-dot" :class="state.stream === 'connected' ? 'online' : 'warning'" />{{
+          state.stream === 'connected'
+            ? '实时更新'
+            : state.stream === 'connecting'
+              ? '连接中'
+              : '等待重连'
+        }}
+        · {{ formatDate(state.lastSync) }}</span
+      >
+    </div>
     <div v-if="state.stream === 'reconnecting' || state.stream === 'offline'" class="run-notice">
       <a-alert
         type="warning"
@@ -445,7 +500,7 @@ function reread() {
           }}
         </h2>
         <p v-if="capabilityConflicts.length">
-          当前运行与原始目标已保留。请在下方明确报名入口，已有审批不会自动批准新的范围。
+          当前运行与原始目标已保留。请在下方明确实现范围，已有审批不会自动批准新的范围。
         </p>
         <p v-else>{{ run.error || '请查看当前关卡与执行证据，确认问题后继续。' }}</p>
         <details v-if="capabilityConflicts.length && run.error" class="field-hint">
@@ -540,10 +595,10 @@ function reread() {
         <div v-if="gate" class="conversation-gate">
           <section v-if="capabilityConflicts.length" class="panel gate-preview">
             <div class="section-top">
-              <h2>先确认参与者入口与报名范围</h2>
+              <h2>先确认模板能力与本次范围</h2>
               <a-tag color="orange">不能自动缩减目标</a-tag>
             </div>
-            <p>你的原始目标已保留。智能推荐不会替你把参与者自行报名改成管理员录入。</p>
+            <p>你的原始目标已保留。请明确选择可用的实现方式，或确认需要扩展的范围。</p>
             <p v-for="(item, index) in capabilityConflicts" :key="index">
               {{ item.message }}
             </p>
@@ -681,24 +736,7 @@ function reread() {
           <h3>研发进度</h3>
           <ApartmentOutlined aria-hidden="true" />
         </div>
-        <ol class="rail-steps">
-          <li
-            v-for="(stage, index) in stages"
-            :key="stage.key"
-            :class="{ current: stageIndex === index, done: milestone(index) === 'done' }"
-          >
-            <span class="step-dot"
-              ><CheckOutlined aria-hidden="true" v-if="milestone(index) === 'done'" /><template
-                v-else
-                >{{ index + 1 }}</template
-              ></span
-            >
-            <div>
-              <strong>{{ stage.label }}</strong>
-              <p>{{ milestone(index) === 'pending' ? '等待前置阶段' : stage.description }}</p>
-            </div>
-          </li>
-        </ol>
+        <StageTimeline :run="run" :events="state.events" compact />
         <div class="rail-callout">
           <span>当前需要你</span
           ><strong>{{
@@ -714,26 +752,13 @@ function reread() {
           }}</strong>
           <p>{{ gate ? '收到回应后，流程才继续' : '进度依据真实事件更新' }}</p>
         </div>
-        <div class="rail-callout compact">
-          <strong>{{ run.auto_mode ? '智能推荐已开启' : '人工确认模式' }}</strong
-          ><a-button
-            type="link"
-            :disabled="
-              terminal(run) ||
-              submitting ||
-              !state.online ||
-              (!run.auto_mode && (!modelReady || capabilityConflicts.length > 0))
-            "
-            @click="automation"
-            >{{ run.auto_mode ? '恢复人工确认' : '了解并开启智能推荐' }}</a-button
-          >
-          <p v-if="capabilityConflicts.length">先明确答复范围，重复推荐不会改变模板能力。</p>
-        </div>
-        <div class="stream-status">
-          <span class="status-dot" :class="state.stream === 'connected' ? 'online' : 'warning'" />{{
-            state.stream === 'connected' ? '实时事件已连接' : '实时事件重连中'
-          }}<small>最近更新 {{ formatDate(state.lastSync) }}</small>
-        </div>
+        <p class="field-hint">
+          {{
+            run.auto_mode
+              ? '智能委托已开启，人工复核关卡仍会暂停。'
+              : '人工确认模式：需要你回应时会暂停等待。'
+          }}
+        </p>
       </aside>
     </div>
     <div v-else-if="view === 'review'" class="page review-page">
@@ -933,101 +958,108 @@ function reread() {
     <div v-else-if="view === 'progress'" class="page progress-page">
       <header class="page-heading">
         <div>
-          <div class="eyebrow">EXECUTION WORKSPACE</div>
-          <h1>每个阶段，都有可追溯的结果</h1>
-          <p>单个持久 Worker 串行执行 · 仅展示动作、结果与证据</p>
+          <div class="eyebrow">EXECUTION & EVIDENCE</div>
+          <h1>执行过程</h1>
+          <p>点击阶段查看相关事件；实际动作、输出与证据会持续保存。</p>
         </div>
       </header>
       <div class="stat-grid">
         <div class="panel stat">
-          <span>当前状态</span><strong>{{ run.status }}</strong>
+          <span>当前状态</span><strong>{{ statusLabel(run.status) }}</strong>
           <p>{{ stages[stageIndex].label }}</p>
         </div>
         <div class="panel stat">
-          <span>已完成真实步骤</span><strong>{{ completeCount }} 个</strong>
-          <p>依据已保存的执行事件</p>
+          <span>已有完成记录的阶段</span><strong>{{ completeCount }} / {{ stages.length }}</strong>
+          <p>按当前版本的真实事件统计</p>
         </div>
         <div class="panel stat">
           <span>当前审核</span><strong>{{ gate ? 'v' + gate.version : '无等待项' }}</strong>
-          <p>{{ gate?.stage || '继续后台执行或查看结果' }}</p>
+          <p>{{ gate ? '需要阅读并回应当前版本' : runNextAction(run) }}</p>
         </div>
         <div class="panel stat">
-          <span>执行方式</span><strong>串行</strong>
-          <p>不估算完成百分比或剩余时间</p>
+          <span>已保存报告</span><strong>{{ Object.keys(state.report).length }} 份</strong>
+          <p>点击报告查看对应执行证据</p>
         </div>
       </div>
       <div class="progress-columns">
         <section class="panel">
           <div class="panel-heading">
             <h2>阶段时间线</h2>
-            <a-tag color="blue">串行工作流</a-tag>
+            <a-button v-if="eventStage !== 'all'" type="link" @click="eventStage = 'all'"
+              >查看全部阶段</a-button
+            >
           </div>
-          <div class="milestones">
-            <div v-for="(stage, index) in stages" :key="stage.key" class="milestone">
-              <CheckOutlined
-                aria-hidden="true"
-                v-if="milestone(index) === 'done'"
-                class="success-icon"
-              /><ExclamationCircleOutlined
-                aria-hidden="true"
-                v-else-if="milestone(index) === 'failed'"
-                class="error-icon"
-              /><ClockCircleOutlined aria-hidden="true" v-else /><strong>{{ stage.label }}</strong
-              ><span>{{ stage.steps.join(' / ') }}</span
-              ><a-tag
-                :color="
-                  milestone(index) === 'done'
-                    ? 'green'
-                    : milestone(index) === 'failed'
-                      ? 'red'
-                      : milestone(index) === 'pending'
-                        ? 'default'
-                        : 'blue'
-                "
-                >{{
-                  {
-                    done: '已有完成记录',
-                    failed: '失败',
-                    pending: '待执行',
-                    waiting: '等待确认',
-                    running: '进行中',
-                  }[milestone(index)]
-                }}</a-tag
-              >
-            </div>
-          </div>
+          <StageTimeline
+            :run="run"
+            :events="state.events"
+            :selected="eventStage"
+            @select="(key) => (eventStage = key)"
+          />
         </section>
         <section class="panel phase-details">
-          <h2>当前阶段详情</h2>
-          <h3>{{ stages[stageIndex].label }}</h3>
-          <p>{{ stages[stageIndex].description }}</p>
-          <p class="muted">可查看的执行证据</p>
+          <h2>执行证据</h2>
+          <p>阶段完成后，相关报告会出现在这里。</p>
           <a-button
             v-for="name in Object.keys(state.report)"
             :key="name"
             type="link"
-            @click="showDetails = true"
+            @click="openReport(name)"
             ><FileTextOutlined aria-hidden="true" />{{ name }}</a-button
-          >
-          <p v-if="!Object.keys(state.report).length">尚未产生报告，完成步骤后会更新。</p>
+          ><a-empty v-if="!Object.keys(state.report).length" description="尚未产生报告" />
         </section>
       </div>
       <section class="panel event-panel">
         <div class="panel-heading">
-          <h2>事件记录</h2>
-          <span class="muted">SSE 实时 · 游标 {{ state.cursor }}</span>
+          <div>
+            <h2>
+              事件记录{{
+                eventStage !== 'all'
+                  ? ' · ' + stages.find((stage) => stage.key === eventStage)?.label
+                  : ''
+              }}
+            </h2>
+            <p>最新事件在前 · {{ eventsReversed.length }} 条记录</p>
+          </div>
+          <a-select
+            v-model:value="eventKind"
+            aria-label="筛选事件类型"
+            :options="[
+              { value: 'all', label: '全部事件' },
+              { value: 'stage', label: '阶段执行' },
+              { value: 'model', label: '模型响应' },
+              { value: 'status', label: '状态与决策' },
+            ]"
+          />
         </div>
-        <div v-if="eventsReversed.length" class="event-list">
-          <div v-for="event in eventsReversed" :key="event.id" class="event-row">
+        <div v-if="visibleEvents.length" class="event-list">
+          <article v-for="event in visibleEvents" :key="event.id" class="event-row">
             <time>{{ formatDate(event.created_at) }}</time
             ><span class="event-kind">{{ event.kind }}</span>
-            <p>{{ eventSummary(event) }}</p>
-          </div>
+            <div>
+              <p>{{ eventSummary(event) }}</p>
+              <details @toggle="(toggle) => toggleEvent(event.id, toggle)">
+                <summary>查看事件数据</summary>
+                <DataDocument v-if="expandedEvents.has(event.id)" :data="event.data" />
+              </details>
+            </div>
+          </article>
         </div>
-        <a-empty v-else description="正在等待第一个执行事件" />
+        <a-empty
+          v-else
+          :description="
+            state.events.length
+              ? '当前筛选下没有事件'
+              : '尚未收到执行事件，排队中的任务会在开始后更新'
+          "
+          class="list-empty"
+        />
+        <div v-if="eventsReversed.length > visibleEvents.length" class="panel-footer">
+          <span>已展示 {{ visibleEvents.length }} / {{ eventsReversed.length }} 条</span
+          ><a-button @click="eventLimit += 30">加载更多事件</a-button>
+        </div>
       </section>
       <p class="page-footnote">
-        事件可用于回放实际步骤，不展示模型内部思维。失败或尚未执行的步骤不会计入完成记录。
+        阶段统计与验证通过情况分别呈现。历史失败、返工与未执行项都保留在事件和报告中。
       </p>
     </div>
     <div v-else-if="view === 'delivery'" class="page delivery-page">
@@ -1151,9 +1183,9 @@ function reread() {
       </section>
     </div>
     <a-drawer v-model:open="showDetails" title="项目资料与执行证据" width="min(760px, 100vw)"
-      ><a-tabs
+      ><a-tabs v-model:active-key="detailTab"
         ><a-tab-pane key="report" tab="报告"
-          ><a-collapse v-if="Object.keys(state.report).length"
+          ><a-collapse v-if="Object.keys(state.report).length" v-model:active-key="activeReports"
             ><a-collapse-panel v-for="(report, name) in state.report" :key="name" :header="name"
               ><DataDocument :data="report" /></a-collapse-panel></a-collapse
           ><a-empty v-else description="当前尚无报告" /></a-tab-pane

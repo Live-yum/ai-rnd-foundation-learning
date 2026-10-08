@@ -19,12 +19,14 @@ from workbench.aider_tool import command, git
 from workbench.domain import Contract, digest
 from workbench.filesystem import atomic_text, inside, manifest, sha, write_json
 from workbench.generator import PrerequisiteError
+from workbench.native_acceptance import wire_name
 from workbench.native_business_checks import check_business_examples
 from workbench.native_environment import install_backend, login, running_backend
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_recovery import NativeIntegrityError
 from workbench.rules import Rules
 from workbench.scaffolding import scaffold_native_rules
+from workbench.template_standards import coding_standard
 
 REGION = re.compile(r"(?m)^[ \t]*(?://|#) RND_RULE_BEGIN\n(.*?)^[ \t]*(?://|#) RND_RULE_END$", re.S)
 RESERVED = {
@@ -243,6 +245,7 @@ def rollback(product, receipt, originals):
 
 
 INSTRUCTION = """你是原生业务规则编码器。CRUD、鉴权和挂载已经由原生生成器和Plop完成。
+遵循 coding_standard 中当前模板的后端和前端规范；规范不扩大当前注册表达式区的权限。
 只修改registered_files中的RND_RULE_BEGIN/END之间的布尔表达式，返回NativeEdits JSON。
 每个文件都要提供path、before_sha256、blocks，blocks使用该文件路径和严格SEARCH/REPLACE块，不加Markdown围栏。
 Java参数是原生字段名（驼峰），Vue参数data是记录，Python参数data是字典。Java/Vue不能执行语句、新建对象、网络、反射、进程或修改状态。
@@ -291,12 +294,7 @@ def native_rule_customizer(settings, gateway, run_id):
                 or ("/wb" + rule.entity.replace("_", "") + "/") in path
             )
             entity = next(e for e in plan.entities if e.name == rule.entity)
-            fields[path] = [
-                f.name
-                if template == "fastapiadmin"
-                else f.name.split("_")[0] + "".join(p.title() for p in f.name.split("_")[1:])
-                for f in entity.fields
-            ]
+            fields[path] = [wire_name(template, field.name) for field in entity.fields]
         if template == "yudao-vben" and not (reports / "native-front-prepared.json").is_file():
             from workbench.native_vben import prepare_vben_source
 
@@ -323,6 +321,7 @@ def native_rule_customizer(settings, gateway, run_id):
                 INSTRUCTION,
                 {
                     "template": template,
+                    "coding_standard": coding_standard(template),
                     "approved_plan": plan.model_dump(),
                     "registered_files": context,
                     "previous_error": error,

@@ -12,9 +12,9 @@
 
 **创建路径：** `ui/src/App.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L411。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15183`。本段原文以LF换行结束。
+本段原始字节数：`15192`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1aa6a500ae2b2081ef263418ab6490b30bf0d3621936150048dde2b0b1a0a864"} -->
+<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "594338ebbf4c6e53ca33615f508d4216532a6a411e4750a37066ad793a3f0c1b"} -->
 ````vue
 <!-- ui/src/App.vue -->
 <script setup lang="ts">
@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
           ><strong>AI 研发平台</strong>
         </button>
         <a-button class="new-conversation" size="large" @click="navigate('home')"
-          ><PlusOutlined aria-hidden="true" />新建对话</a-button
+          ><PlusOutlined aria-hidden="true" />新建 / 批量项目</a-button
         >
         <nav class="main-nav">
           <button

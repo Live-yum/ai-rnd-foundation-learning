@@ -15,7 +15,7 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from workbench.catalog import selections
-from workbench.domain import AutomationInput, ProjectInput, ResumeInput, RunInput
+from workbench.domain import AutomationInput, BatchInput, ProjectInput, ResumeInput, RunInput
 from workbench.filesystem import inside
 from workbench.runtime import Runtime
 from workbench.settings import ROOT, STAGES, Settings
@@ -195,6 +195,11 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     ):
         require_models()
         return store.create_run(project_id, body.model_dump(), idempotency_key)
+
+    @app.post("/batches", status_code=202)
+    def create_batch(body: BatchInput, idempotency_key: str = Header(), store=Depends(auth)):
+        require_models()
+        return store.create_batch(body.model_dump(), idempotency_key)
 
     @app.get("/runs")
     def runs(

@@ -10,17 +10,20 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.env.example`；**本文件共有 1 段**。本段覆盖源文件 L1–L79。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.env.example`；**本文件共有 1 段**。本段覆盖源文件 L1–L82。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3245`。本段原文以LF换行结束。
+本段原始字节数：`3430`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".env.example", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "687c0fb8332ffb81c6fbe18703fd16fcbf0128ae5768d012786a3944c087cd96"} -->
+<!-- learning-source: {"path": ".env.example", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a0a9581675464892544ad62089954fc07f685bde5c412a4d29b1dae42b87b9b1"} -->
 ````text
 # .env.example
 # Default model: MODE is the provider's model ID, not dev/prod or reasoning mode.
 BASE_URL=
 API_KEY=
 MODE=
+# Keep false unless you explicitly use a trusted HTTP model gateway.
+# HTTP sends credentials without transport encryption; HTTPS remains the default.
+# ALLOW_INSECURE_MODEL_HTTP=false
 # Structured output uses the shared LangChain with_structured_output JSON-mode pipeline.
 # PROVIDER=auto  # auto, openai, deepseek, compatible; explicit provider useful for proxies
 # OUTPUT_MODE=auto  # auto or json_object

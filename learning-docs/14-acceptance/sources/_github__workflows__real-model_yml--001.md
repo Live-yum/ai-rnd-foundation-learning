@@ -14,7 +14,7 @@
 
 本段原始字节数：`6559`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "687d74b290652fd41c86350c83407c30f93029e43ea41755f4fbe3e083c02276"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1b4fefea4a7d275641e7f7b83b0fa8c10e58424c307627616c8798d178e5fccc"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
@@ -60,7 +60,7 @@ jobs:
         run: uv run pytest tests/test_model_feedback_ci.py tests/test_model_connection.py -q
       - name: Explicit bounded connection and signup feedback acceptance
         env:
-          API_KEY: ${{ secrets.APK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
           # User authorized a cumulative CNY 10 ceiling for this repair.
@@ -145,7 +145,7 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Cheap real provider smoke before browser installation
         env:
-          API_KEY: ${{ secrets.APK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
           PYTHONUTF8: '1'
@@ -158,7 +158,7 @@ jobs:
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify actual smart customer delivery after successful smoke
         env:
-          API_KEY: ${{ secrets.APK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
           PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright

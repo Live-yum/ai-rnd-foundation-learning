@@ -3,8 +3,8 @@
   "files": [
     {
       "path": ".env.example",
-      "bytes": 3245,
-      "sha256": "687c0fb8332ffb81c6fbe18703fd16fcbf0128ae5768d012786a3944c087cd96",
+      "bytes": 3430,
+      "sha256": "a0a9581675464892544ad62089954fc07f685bde5c412a4d29b1dae42b87b9b1",
       "stage": "00-environment",
       "parts": [
         "00-environment/sources/_env_example--001.md"
@@ -74,6 +74,42 @@
       ]
     },
     {
+      "path": "templates/standards/common.md",
+      "bytes": 4056,
+      "sha256": "802758af06d577c5d000c2768f63f8f4cd5d5cd4ea30c50e361f9905f2982173",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/templates__standards__common_md--001.md"
+      ]
+    },
+    {
+      "path": "templates/standards/fastapiadmin.md",
+      "bytes": 2360,
+      "sha256": "73f61f7cd9cfa7a5805a71404874a7055f6a9c0eee5bb63206b62d50c47e9835",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/templates__standards__fastapiadmin_md--001.md"
+      ]
+    },
+    {
+      "path": "templates/standards/python-basic.md",
+      "bytes": 2387,
+      "sha256": "8d3c36e5c72983d0d4156c056cea0a5dde57e310a83ed47fbfc6b7f2476b4968",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/templates__standards__python-basic_md--001.md"
+      ]
+    },
+    {
+      "path": "templates/standards/yudao-vben.md",
+      "bytes": 2654,
+      "sha256": "bf68dec6c845f1e2c7510a93dd928d9ffb0b91bfb10d50e18f9ece82c551e0d7",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/templates__standards__yudao-vben_md--001.md"
+      ]
+    },
+    {
       "path": "workbench/business_contracts.py",
       "bytes": 16149,
       "sha256": "6aab51dec85b1468515b5f89131082369c88b0396fb60d0c82d14f5d30187402",
@@ -93,8 +129,8 @@
     },
     {
       "path": "workbench/domain.py",
-      "bytes": 22012,
-      "sha256": "d1f752f5582353df13ba55f95d91728a45b15a88c00749ca98ff24b172a8e7fa",
+      "bytes": 22283,
+      "sha256": "8f06fa5206ba2c21b98684d05db1119d8c5b1b85bde00d48198341ea350bd7c2",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__domain_py--001.md"
@@ -111,8 +147,8 @@
     },
     {
       "path": "workbench/model_settings.py",
-      "bytes": 19657,
-      "sha256": "2ae77603cb8c9538a84e409883c761b0c57cf1873542c14ce85a25d3c9a1d469",
+      "bytes": 20571,
+      "sha256": "3dbe04fd3a8c8ea282b4dad2549c387b44b99d46d097fb62ff7a8df347e185f7",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__model_settings_py--001.md"
@@ -120,8 +156,8 @@
     },
     {
       "path": "workbench/settings.py",
-      "bytes": 12204,
-      "sha256": "7365208fb6e4e1cf0ad73a16d0067f2fa38f09a019e089947e5108940bb4def8",
+      "bytes": 12567,
+      "sha256": "9e2ffd3dc099dfd980b9040905f0d9af161804028522d956568ae581822074a4",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__settings_py--001.md"
@@ -129,11 +165,20 @@
     },
     {
       "path": "workbench/template_adapters.py",
-      "bytes": 11536,
-      "sha256": "d7b1e5b975e47391bbd13dde0ef1b739155efd99c1c73a3c72245489a4ff05e8",
+      "bytes": 17235,
+      "sha256": "84d2925b6500a5fd258059c69c3c2a478857f8cf4a177c2ae3669594e96dcc4e",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__template_adapters_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/template_standards.py",
+      "bytes": 2634,
+      "sha256": "3fe9544508f737fa238d17128753ef4ecd6cb4892303a3cd97dcfe424ecc4b12",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/workbench__template_standards_py--001.md"
       ]
     },
     {
@@ -228,12 +273,66 @@
     },
     {
       "path": "workbench/store.py",
-      "bytes": 45050,
-      "sha256": "1510792d4f9910be17af30d6ea1fb7522f3391375f06a3dd8b5d20ae8b4bc8ee",
+      "bytes": 45852,
+      "sha256": "5bce1686b257b6b81254b43bce3b3d82f8f39f0b03ab54af5077f195039870fa",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__store_py--001.md",
         "02-storage/sources/workbench__store_py--002.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/facilities-ops/contract.json",
+      "bytes": 25102,
+      "sha256": "8afe7380c068118617851d2b71efd1f9729b4045e057469148c3ac3dc0387655",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__facilities-ops__contract_json--001.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/facilities-ops/requirement.md",
+      "bytes": 15153,
+      "sha256": "9a7c1c1f7a5805bf11465ff3815333add1e5bfa0858b54e993188d42ca40abcf",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__facilities-ops__requirement_md--001.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/reading-shelf/contract.json",
+      "bytes": 5078,
+      "sha256": "e24d351661b3c6308e388911754bf00a74e26e51b6d4d7ccf309fe22252ebc15",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__reading-shelf__contract_json--001.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/reading-shelf/requirement.md",
+      "bytes": 2475,
+      "sha256": "2e40aa805ee85166c9a145db91753610a684a693dc73b97fbdde125471596d75",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__reading-shelf__requirement_md--001.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/stock-purchasing/contract.json",
+      "bytes": 12113,
+      "sha256": "21239b0d80099bc8cb6c90c228b297847302931797f4e75f25f244ce87bf4425",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__stock-purchasing__contract_json--001.md"
+      ]
+    },
+    {
+      "path": "examples/acceptance/stock-purchasing/requirement.md",
+      "bytes": 7100,
+      "sha256": "a8e4b98e21cd01b2c8bdebd54b069feef185b35b0ce10a32766bec49b14c7a1b",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/examples__acceptance__stock-purchasing__requirement_md--001.md"
       ]
     },
     {
@@ -575,8 +674,8 @@
     },
     {
       "path": "workbench/feature_planning.py",
-      "bytes": 14514,
-      "sha256": "ac6832cd298905f95a418ddf3c4561f1c38372f424d2614b6eb4a6c4ed47fb06",
+      "bytes": 12995,
+      "sha256": "d3d225346437c389ec76b41be8cc4f5b670fb4038545468507cc3508ca023851",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__feature_planning_py--001.md"
@@ -873,8 +972,8 @@
     },
     {
       "path": "workbench/generator.py",
-      "bytes": 7775,
-      "sha256": "7989bb90498509d29953a735df79cd99720c5817c73fc0365e5c6816fb3becea",
+      "bytes": 7900,
+      "sha256": "05734c11d8c220ea88acc45b4aea0a55876def67c0fe0d199f393ab36f647cde",
       "stage": "06-generation",
       "parts": [
         "06-generation/sources/workbench__generator_py--001.md"
@@ -954,8 +1053,8 @@
     },
     {
       "path": "workbench/aider_tool.py",
-      "bytes": 10329,
-      "sha256": "50110f44951f1c598eeac6b5b7ba94918842e1154ab276661a9e10fcffd44022",
+      "bytes": 10120,
+      "sha256": "2dbb259cec7368bbe53e2a604c6f28667596fb7c751171be109a580a34bb9911",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__aider_tool_py--001.md"
@@ -991,8 +1090,8 @@
     },
     {
       "path": "workbench/coding.py",
-      "bytes": 2971,
-      "sha256": "0fb1edaf8fdd138abe5bdd932b477cacc3ecc97af6f3754541ee937dea16d425",
+      "bytes": 3432,
+      "sha256": "0532d922ad67e46221718c07b9358c8d3c7e12f7bb81baf1327c33d70368b98f",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding_py--001.md"
@@ -1018,8 +1117,8 @@
     },
     {
       "path": "workbench/flow.py",
-      "bytes": 52356,
-      "sha256": "31d989a82cc5792412a2fc8ecbe82fd37b012538225eaf8ad8767ade248c9375",
+      "bytes": 52498,
+      "sha256": "f760268d378c2b8d2d2c30582859b04b17474a3727f8d88c928f81c2d2934288",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__flow_py--001.md"
@@ -1027,8 +1126,8 @@
     },
     {
       "path": "workbench/orchestration.py",
-      "bytes": 45262,
-      "sha256": "575b2ac93f58bc2ad63bb18f349544e5708e05d0ead15d382cbb4e249fc813d6",
+      "bytes": 45796,
+      "sha256": "249341ff26c6e36199f9124bbef223c9f9afc83ed82768eb2e6e573c764f9161",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__orchestration_py--001.md"
@@ -1072,8 +1171,8 @@
     },
     {
       "path": "scripts/guided_browser.cjs",
-      "bytes": 51595,
-      "sha256": "e6f8cbc6bb93b6993be7d3f9fbf4bdfd0ca766e8ae4c656ca5c779ee90956e08",
+      "bytes": 51649,
+      "sha256": "9d32ba43658148eba7624b30911119f977c39f96b455be6f18cf19ffd2643b68",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/scripts__guided_browser_cjs--001.md",
@@ -1109,8 +1208,8 @@
     },
     {
       "path": "tests/test_guided_selection.py",
-      "bytes": 4012,
-      "sha256": "4109126712e48434711c5e1cae024b9c4473e55833c3f2fcd8b411d134af7487",
+      "bytes": 4330,
+      "sha256": "686e8124fe31722128a41c96a9cb228871f3e1ab8337e66ed35aeaf643e20560",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/tests__test_guided_selection_py--001.md"
@@ -1199,8 +1298,8 @@
     },
     {
       "path": "ui/src/App.vue",
-      "bytes": 15183,
-      "sha256": "1aa6a500ae2b2081ef263418ab6490b30bf0d3621936150048dde2b0b1a0a864",
+      "bytes": 15192,
+      "sha256": "594338ebbf4c6e53ca33615f508d4216532a6a411e4750a37066ad793a3f0c1b",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__App_vue--001.md"
@@ -1226,8 +1325,8 @@
     },
     {
       "path": "ui/src/components/HomeView.vue",
-      "bytes": 13989,
-      "sha256": "2b511443299ef473da65cc5ac0f2ee84bedf486b6a2c165042a91d448cc03eff",
+      "bytes": 22961,
+      "sha256": "127f939ee49d357a3d50e947fe3e49db40ecce77943736d1b9fb3c06caa61f27",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__HomeView_vue--001.md"
@@ -1235,8 +1334,8 @@
     },
     {
       "path": "ui/src/components/ProjectsView.vue",
-      "bytes": 8608,
-      "sha256": "4cecd23716b5acdf1ce7077b28a16cb5b35980a7cde86f432ba68c010ceb0ed9",
+      "bytes": 9946,
+      "sha256": "f85185f3d604b27ed8d02c5a9d70123b2b553bcfd48417e943ac00f0502ef01d",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__ProjectsView_vue--001.md"
@@ -1252,9 +1351,18 @@
       ]
     },
     {
+      "path": "ui/src/components/RunTable.vue",
+      "bytes": 1995,
+      "sha256": "ab34f8886e72daaae18788345291146b4927a1ddd9546de5a02e6d8cadfca2dc",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__RunTable_vue--001.md"
+      ]
+    },
+    {
       "path": "ui/src/components/RunView.vue",
-      "bytes": 48654,
-      "sha256": "30d6ee6e450f4e2ea7b62c6c289b2d77202f4627896fa54ece1e540d975b4701",
+      "bytes": 49395,
+      "sha256": "38a41b47586e13dcafb0ccec94a0fcd6fd7e2378e5fbebe38f76e1460c713123",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__RunView_vue--001.md",
@@ -1271,6 +1379,15 @@
       ]
     },
     {
+      "path": "ui/src/components/StageTimeline.vue",
+      "bytes": 2314,
+      "sha256": "ffe7165dad2aa096b5b738b1c3e4d90591eb9bbc990b088acb5f43489e01ace5",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__StageTimeline_vue--001.md"
+      ]
+    },
+    {
       "path": "ui/src/main.ts",
       "bytes": 671,
       "sha256": "05d5d6fec008f2eb2884d100ce084bfe74c13d14481d61ba233cbacdad7f51b6",
@@ -1281,8 +1398,8 @@
     },
     {
       "path": "ui/src/presentation.ts",
-      "bytes": 9141,
-      "sha256": "6594b2bf84937c46f3254c0865e75bf43b5698e47507675d4d05f4602829576e",
+      "bytes": 12214,
+      "sha256": "01d7bee20a9681c6565ece88cf002628bd5f6cae69109f72619613c876291d04",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__presentation_ts--001.md"
@@ -1290,8 +1407,8 @@
     },
     {
       "path": "ui/src/state.ts",
-      "bytes": 9258,
-      "sha256": "8d44af4cb521f2e70f54c81a46a67f4fbf3c3bff81952909e37d74e626c78a81",
+      "bytes": 10078,
+      "sha256": "0f25268bee022a1744e190fccf3f9d063443c3980661f8bb54dc4cdd32361010",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__state_ts--001.md"
@@ -1299,8 +1416,8 @@
     },
     {
       "path": "ui/src/style.css",
-      "bytes": 50267,
-      "sha256": "b47f226c61d030bc0d5aea877c912ccfba07b19323f26e00158207f9d161db52",
+      "bytes": 45746,
+      "sha256": "ff810602d86690bf084c90c4f5a46199a640cafac0c03d9105e0160a6e04dc09",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__style_css--001.md"
@@ -1308,8 +1425,8 @@
     },
     {
       "path": "ui/src/types.ts",
-      "bytes": 1109,
-      "sha256": "7cfe3d047fffad27b06dc77831492f31ca7aaca0b032ca809348b7b146d9e474",
+      "bytes": 1507,
+      "sha256": "e23fbd7f37532ceae7ae24d9c380213691aa065eaecd2dd82e0c278971b888a1",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__types_ts--001.md"
@@ -1370,6 +1487,15 @@
       ]
     },
     {
+      "path": "ui/tests/workbench.test.ts",
+      "bytes": 12614,
+      "sha256": "9c184e4509182d4528bee24a3588e7e0fe0f52c846151508f8be00bd3fce186a",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__workbench_test_ts--001.md"
+      ]
+    },
+    {
       "path": "ui/tests/workflow.test.ts",
       "bytes": 4278,
       "sha256": "81ce4227936755349e9d360f7b157a8fe738bb513daccde79390005f55f9b471",
@@ -1389,8 +1515,8 @@
     },
     {
       "path": "ui/vite.config.ts",
-      "bytes": 807,
-      "sha256": "599381779eaf89552673a5a47e38816bf3fb7d85a55fd9079a403e6def0c34d4",
+      "bytes": 827,
+      "sha256": "bb9220b034f09eded3b82ee38f511b5897a0ac484bb7d56226cecfdf49dd5e51",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__vite_config_ts--001.md"
@@ -1398,8 +1524,8 @@
     },
     {
       "path": "workbench/api.py",
-      "bytes": 11709,
-      "sha256": "e0cf6a885eb032401629b8fe97a013bf3c3eb10fd763cde55bff1e19152c58eb",
+      "bytes": 11954,
+      "sha256": "bdcfa81c30d2caea24d4a2341e634a4e90b4b7aa8403a443c1317a78ab2dc754",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__api_py--001.md"
@@ -1416,8 +1542,8 @@
     },
     {
       "path": "workbench/native.py",
-      "bytes": 20337,
-      "sha256": "fc32d7e88f1a80e327f1fc3f2b909a5f84c689bebaf32fdf61aaf445dc77615c",
+      "bytes": 20453,
+      "sha256": "73f32550f6ee9574caeeb886d52d7763458d0dff4f0b0741012851413bc9e8ff",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__native_py--001.md"
@@ -1425,8 +1551,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 777248,
-      "sha256": "5a964f926b8e889f3feac90ca4aba4988b73413111095c9752a1dcfe0ffba03b",
+      "bytes": 790862,
+      "sha256": "ef2732e3c578983028b0a41f1b37fb82c9cba8c9ea521d55d586d58e14343fbc",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"
@@ -1443,8 +1569,8 @@
     },
     {
       "path": "workbench/web/style.css",
-      "bytes": 41576,
-      "sha256": "a7bb12087826a638e1fc149f02e65a2768d18208720533217041e3adf09aa258",
+      "bytes": 38871,
+      "sha256": "ea57d80fcb7faa697bab895560ea268f5e898a73d6cc395759e6eb0ebd71559e",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__style_css--001.md"
@@ -1867,8 +1993,8 @@
     },
     {
       "path": "workbench/native_coding.py",
-      "bytes": 18161,
-      "sha256": "6ff03a21c2084c2644ae86348cdfd8689c3947cee2ee7bbb8b4336291518bd92",
+      "bytes": 18294,
+      "sha256": "c48dc3f53b33f88c5c9e61e6ea06d0758dc80af2c324d3d6036dac29b7a60cf5",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_coding_py--001.md"
@@ -1885,8 +2011,8 @@
     },
     {
       "path": "workbench/native_delivery.py",
-      "bytes": 19645,
-      "sha256": "3f3872d1d65b8c4594b7f7761aa9ec7b2a9c288635a45babb721a02a9bc29110",
+      "bytes": 19670,
+      "sha256": "112d8e852ff7da073e33009daf1c23bbff8ca7c038a52f9823f2514c2d8fa809",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_delivery_py--001.md"
@@ -1921,8 +2047,8 @@
     },
     {
       "path": "workbench/native_lab.py",
-      "bytes": 15154,
-      "sha256": "8949e39e85914c5ee32ee81f2e130cbddaf855999a9437a78aae44f4773ac5ec",
+      "bytes": 15291,
+      "sha256": "5eba199d60915a52afcfb982cbed54a41711a7f59e7b3a7d95e2a08c589d9c6e",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_lab_py--001.md"
@@ -1975,8 +2101,8 @@
     },
     {
       "path": "workbench/native_style.py",
-      "bytes": 5321,
-      "sha256": "c1e071994187c62ea08aa01140091b48645576d365f258983820d7bfbec899dc",
+      "bytes": 3841,
+      "sha256": "664b0b50b2caba667196096b8d76eb8dca8c81542cb9258bfbc7ba8971d041be",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_style_py--001.md"
@@ -2787,8 +2913,8 @@
     },
     {
       "path": "tests/test_native_tools.py",
-      "bytes": 6680,
-      "sha256": "feaf93c97bb4e2abaed0b652766fccb6806d9dd84b79f390c5cdbf3a2345310a",
+      "bytes": 6864,
+      "sha256": "b46bc8d46f89a716b62a97586fbcc8427e5a855090570c59f2f0ae049d4d13da",
       "stage": "11-local-tools",
       "parts": [
         "11-local-tools/sources/tests__test_native_tools_py--001.md"
@@ -3869,7 +3995,7 @@
     {
       "path": ".github/workflows/native-probe.yml",
       "bytes": 6393,
-      "sha256": "1adeb51cc9d087566ec84344ea4b7256bb1c46558b5979b3982fb7b5f42b21ed",
+      "sha256": "a59aeef94576ea42c819aa4752d89c763776ecb532bc40a3e82f6f6a74752574",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-probe_yml--001.md"
@@ -3896,10 +4022,19 @@
     {
       "path": ".github/workflows/real-model.yml",
       "bytes": 6559,
-      "sha256": "687d74b290652fd41c86350c83407c30f93029e43ea41755f4fbe3e083c02276",
+      "sha256": "1b4fefea4a7d275641e7f7b83b0fa8c10e58424c307627616c8798d178e5fccc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__real-model_yml--001.md"
+      ]
+    },
+    {
+      "path": ".github/workflows/template-project-acceptance.yml",
+      "bytes": 3266,
+      "sha256": "0b2674ff850d3debcea7011f89d05342209e109599d6055e3102f78aa9af7033",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/_github__workflows__template-project-acceptance_yml--001.md"
       ]
     },
     {
@@ -3922,8 +4057,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 24842,
-      "sha256": "8cf080e4dddd5b865406968c871bd6691958a154a6354a6e9cd8b66dfaca614c",
+      "bytes": 25718,
+      "sha256": "9b47ec764cea73e1f8ada6ae2478e5cf851c2b1c91aebaa36e277f9f55ca0e0e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -4164,6 +4299,15 @@
       ]
     },
     {
+      "path": "docs/template-platform.md",
+      "bytes": 12726,
+      "sha256": "dc778d33fc7a2e1f348b40d2f32ea1849768efca354c249a946cc8163aa82ca0",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/docs__template-platform_md--001.md"
+      ]
+    },
+    {
       "path": "docs/toolchain.md",
       "bytes": 35078,
       "sha256": "316a4fdc38e87a0a9913e7f53eb06c16c2b3480c9a291965b2618fa94c3d6603",
@@ -4183,8 +4327,8 @@
     },
     {
       "path": "scripts/build_handbook.py",
-      "bytes": 9404,
-      "sha256": "4842fa170e7ef4bae6ae16c2c1ec4330f8089f0bf15680ae77f1421af9e4ea01",
+      "bytes": 9713,
+      "sha256": "bb9133bc0de1c2e9f916e57d65a0524fc90789c8b16338df393be78f5da3abbc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_handbook_py--001.md"
@@ -4192,8 +4336,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 36213,
-      "sha256": "8b9f20d515d274a512ad1e02b077c0cb115d67f427df7ed9dd4de2bcbd5468c7",
+      "bytes": 36195,
+      "sha256": "c2bb0bec75810ead4a26be100f9d639582bc80aa9511cd67a22d90d578daf00c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -4490,9 +4634,18 @@
       ]
     },
     {
+      "path": "scripts/ci_template_projects.py",
+      "bytes": 23179,
+      "sha256": "4aa0f0ce86779f1d86f6ce410236191ab8cf06be7583a3f17e0207d909dcba8e",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__ci_template_projects_py--001.md"
+      ]
+    },
+    {
       "path": "scripts/handbook_notes.py",
-      "bytes": 88619,
-      "sha256": "1727d1ea743c42d8375e139d952fb4a526ad7319a9fc8a71eaa01ad7fcde905a",
+      "bytes": 90355,
+      "sha256": "49823eb8cd7944c6f6b921d6c6d69567e04e7a015b6a1277d66b69892de721d0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",
@@ -4501,8 +4654,8 @@
     },
     {
       "path": "scripts/learning_docs_content.json",
-      "bytes": 131727,
-      "sha256": "72326428a5c66096077c2bd9591f39f8659993db584ed4725da0a10e8ad94510",
+      "bytes": 135523,
+      "sha256": "7e9a3508caf5175d7876a40945d2ede1b5e0ddbaa000949c248b38fd86716bcf",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__learning_docs_content_json--001.md"
@@ -4528,11 +4681,38 @@
     },
     {
       "path": "scripts/signup_scope_browser.cjs",
-      "bytes": 8785,
-      "sha256": "b3881301e484424717e1c2f1958a27e59e15be7d85e89df79b584ef34d6075e7",
+      "bytes": 8782,
+      "sha256": "1e6564856c944f284bcd6b7381b6ed0348c351bc1543914ee1de5bbbe745f389",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md"
+      ]
+    },
+    {
+      "path": "scripts/template_acceptance_browser.cjs",
+      "bytes": 3272,
+      "sha256": "338b1fc03ac095b40f45b6710084523a21adda07e33c9052d5839ef736952cd0",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__template_acceptance_browser_cjs--001.md"
+      ]
+    },
+    {
+      "path": "scripts/template_acceptance_cases.py",
+      "bytes": 5555,
+      "sha256": "98990eb88c56812228896bec4d81d6ceb779a071205b650cea354ecb2d061a01",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__template_acceptance_cases_py--001.md"
+      ]
+    },
+    {
+      "path": "scripts/template_acceptance_runtime.py",
+      "bytes": 12337,
+      "sha256": "98208beda48264bed8b653fd792182ac7fc3049fcbaffc8a56bd31b6f4d9fe29",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__template_acceptance_runtime_py--001.md"
       ]
     },
     {
@@ -4542,6 +4722,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_batches.py",
+      "bytes": 5060,
+      "sha256": "d9b344068d4b8cc62dc9104d5efa316eaf377799e9220c235d357275b74b718f",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_batches_py--001.md"
       ]
     },
     {
@@ -5061,8 +5250,8 @@
     },
     {
       "path": "tests/test_feature_workflow.py",
-      "bytes": 14948,
-      "sha256": "ce855afc9d94428cabbd308d03f630e1b9962496f02fe39e864aee05eeec9ea0",
+      "bytes": 15099,
+      "sha256": "908e4f87a076314df5b9530ca2b6dfe085e4e87ca15d31fc4a03ff9fd9e547fe",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_feature_workflow_py--001.md"
@@ -5141,6 +5330,15 @@
       ]
     },
     {
+      "path": "tests/test_handbook_source_spans.py",
+      "bytes": 2889,
+      "sha256": "634a10d86cc3bd8e0b71ef6a43e5eedcf06c2d016f7d6245cbe9786ed7660a1d",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_handbook_source_spans_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_learning_docs.py",
       "bytes": 27786,
       "sha256": "d2b371cbb8d9abf4ddb18944fe82ef9b7845accac60c146282daa45c88ef02e6",
@@ -5169,8 +5367,8 @@
     },
     {
       "path": "tests/test_learning_order.py",
-      "bytes": 2352,
-      "sha256": "f3e846ca7911b7fcb89703af94d587b84f4473031c047d683cfdbc796f40e972",
+      "bytes": 2575,
+      "sha256": "0ec7b22990475f17db68f51b36e1240fae9036c301a4ef62a9b8c9b9d6942e64",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_order_py--001.md"
@@ -5206,7 +5404,7 @@
     {
       "path": "tests/test_model_feedback_ci.py",
       "bytes": 18420,
-      "sha256": "d5ed4cb2a663901a238d890cf8f8c2f470c68d5167a64f305895c052cca3b730",
+      "sha256": "ed6ac08c23c7c1e7ddbdeb0441c2cfb310ccffb58b8393b7b26e17184298597b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_model_feedback_ci_py--001.md"
@@ -5219,6 +5417,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_model_feedback_history_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_http_opt_in.py",
+      "bytes": 3300,
+      "sha256": "1761735533ffef8b34beab787beb617ef0904a8b8440abe669728ca49a30efb7",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_http_opt_in_py--001.md"
       ]
     },
     {
@@ -5323,7 +5530,7 @@
     {
       "path": "tests/test_real_model_ci.py",
       "bytes": 55476,
-      "sha256": "d364e55dbb0f655752a123897e8ae5a18491480bbafa573cf4ef28bdecc691e1",
+      "sha256": "fee87f2a38f0947a435a225a99bfdda30039852cab842119981693a77028615a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_real_model_ci_py--001.md",
@@ -5463,6 +5670,24 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_structured_facts_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_template_project_acceptance.py",
+      "bytes": 14756,
+      "sha256": "e42496bb05088d2f6ee1c36f93388421675924fb64cacc6f70805c4992b9fd35",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_template_project_acceptance_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_template_standards.py",
+      "bytes": 8850,
+      "sha256": "82122ab99a6b8b38ebd5aaa588cdbadb71e1602a64f2eaa7f9dc629262928169",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_template_standards_py--001.md"
       ]
     },
     {

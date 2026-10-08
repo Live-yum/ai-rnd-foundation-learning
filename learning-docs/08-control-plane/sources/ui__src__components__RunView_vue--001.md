@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L361。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13376`。本段原文以LF换行结束。
+本段原始字节数：`13754`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "b42250d9c768ec0fc76813465b171530a97b8fa455e66483c9ec1d1686f29ee0"} -->
+<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "591fbfc7141fe3cd0d3df5dc52801a324246e8ecf86cb05bb2dd90bb3bc93e45"} -->
 ````vue
 <!-- ui/src/components/RunView.vue -->
 <script setup lang="ts">
@@ -27,12 +27,10 @@ import {
   ArrowUpOutlined,
   ArrowRightOutlined,
   CheckOutlined,
-  ClockCircleOutlined,
   ReloadOutlined,
   DownloadOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
-  ExclamationCircleOutlined,
 } from '@ant-design/icons-vue'
 import {
   state,
@@ -55,9 +53,12 @@ import {
   statusColor,
   statusLabel,
   terminal,
+  milestoneStatus,
+  runNextAction,
 } from '../presentation'
 import DataDocument from './DataDocument.vue'
 import Questionnaire from './Questionnaire.vue'
+import StageTimeline from './StageTimeline.vue'
 const props = defineProps<{ view: string; runId: string }>()
 const emit = defineEmits<{ navigate: [path: string] }>()
 let mounted = true
@@ -86,6 +87,12 @@ const answer = ref(''),
   reviewed = ref(false),
   tab = ref('overview'),
   showDetails = ref(false),
+  detailTab = ref('report'),
+  activeReports = ref<string[]>([]),
+  eventStage = ref('all'),
+  eventKind = ref('all'),
+  eventLimit = ref(30),
+  expandedEvents = ref(new Set<number>()),
   chatEnd = ref<HTMLElement>(),
   autoScroll = ref(true)
 const run = computed(() => state.run),
@@ -102,7 +109,7 @@ const capabilityAlternatives = computed(() => [
 ])
 const hasScopeChoices = computed(() =>
   gate.value?.data?.requirement?.question_items?.some(
-    (item: any) => item.id === 'registration_scope',
+    (item: any) => Array.isArray(item.options) && item.options.length > 0,
   ),
 )
 const canSubmit = computed(
@@ -113,16 +120,9 @@ const modelFreeApproval = computed(() => gate.value?.needs_model?.approve === fa
 const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
 const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
 const isQuestions = computed(() => gate.value?.actions.includes('answer'))
-const stepEvents = computed(() =>
-  state.events.filter((e) => e.kind === 'stage' || e.kind === 'step'),
-)
 const completeCount = computed(
   () =>
-    new Set(
-      stepEvents.value
-        .filter((e) => e.kind === 'step' || e.data.phase === 'completed')
-        .map((e) => e.data.name),
-    ).size,
+    stages.filter((_, index) => milestoneStatus(index, run.value, state.events) === 'done').length,
 )
 const gateTitle = computed(() =>
   gate.value?.stage === 'requirements'
@@ -186,8 +186,37 @@ const extensionCoverageNotice = computed(() => {
   return ''
 })
 const eventsReversed = computed(() =>
-  [...state.events].filter((e) => !e.kind.startsWith('assistant_delta')).reverse(),
+  [...state.events]
+    .filter((event) => {
+      if (event.kind === 'assistant_delta') return false
+      const kind = ['stage', 'step'].includes(event.kind)
+        ? 'stage'
+        : event.kind.startsWith('assistant_')
+          ? 'model'
+          : 'status'
+      if (eventKind.value !== 'all' && eventKind.value !== kind) return false
+      if (eventStage.value === 'all') return true
+      const name = event.data.name || event.data.stage || ''
+      return stages
+        .find((stage) => stage.key === eventStage.value)
+        ?.steps.some((step) => name === step || name.startsWith(step + ':'))
+    })
+    .reverse(),
 )
+const visibleEvents = computed(() => eventsReversed.value.slice(0, eventLimit.value))
+watch([eventStage, eventKind], () => {
+  eventLimit.value = 30
+  expandedEvents.value.clear()
+})
+function openReport(name: string) {
+  detailTab.value = 'report'
+  activeReports.value = [name]
+  showDetails.value = true
+}
+function toggleEvent(id: number, event: Event) {
+  if ((event.target as HTMLDetailsElement).open) expandedEvents.value.add(id)
+  else expandedEvents.value.delete(id)
+}
 watch(
   () => gateIdentity(gate.value),
   () => {
@@ -204,21 +233,6 @@ watch(
   },
 )
 const route = (view: string) => emit('navigate', `run/${props.runId}/${view}`)
-function milestone(index: number) {
-  // A restored earlier gate invalidates later-stage completion for this revision.
-  // Historical events remain inspectable, but aren't this scope's progress.
-  if (gate.value && index === stageIndex.value) return 'waiting'
-  if (index > stageIndex.value) return 'pending'
-  const relevant = stepEvents.value.filter((e) =>
-      stages[index].steps.some((s) => e.data.name === s || e.data.name?.startsWith(s + ':')),
-    ),
-    last = relevant.at(-1)
-  if (!last) return 'pending'
-  if (last.kind === 'step' || last.data.phase === 'completed') return 'done'
-  if (last.data.phase === 'failed') return 'failed'
-  if (last.data.phase === 'waiting') return 'waiting'
-  return 'running'
-}
 function phaseLabel(phase: string) {
   return (
     ({ started: '开始执行', waiting: '等待确认', completed: '已完成', failed: '失败' } as any)[

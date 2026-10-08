@@ -61,6 +61,16 @@ class RunInput(Contract):
         return self
 
 
+class BatchItem(RunInput):
+    title: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class BatchInput(Contract):
+    """A bounded set of ordinary runs; every item keeps its own approval policy."""
+
+    items: list[BatchItem] = Field(min_length=1, max_length=10)
+
+
 class ClarificationAnswer(Contract):
     """Explicit selections refer only to the current, reviewed question version."""
 

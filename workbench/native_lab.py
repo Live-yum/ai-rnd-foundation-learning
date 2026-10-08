@@ -32,6 +32,7 @@ from workbench.portable import (
     verify_native_delivery,
 )
 from workbench.settings import ROOT
+from workbench.template_standards import write_coding_standard
 from workbench.tools import run_command
 
 
@@ -75,6 +76,9 @@ def run_acceptance(
     source_handoff=None,
 ):
     """Hold one non-ephemeral backend lease across all build/restart phases."""
+    plan = validate_plan(plan)
+    if plan.custom_rules and customization is None:
+        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
     with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
         return _run_acceptance(
             template,
@@ -106,9 +110,6 @@ def _run_acceptance(
     backend_port,
 ):
     """Shared by CLI and CI; never reset an existing database or workspace."""
-    plan = validate_plan(plan)
-    if plan.custom_rules and customization is None:
-        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
     source, output, reports = (
         Path(source).resolve(),
         Path(output).resolve(),
@@ -130,6 +131,8 @@ def _run_acceptance(
         frontend = output.parent / "frontend-product"
         if not resumed:
             copy_source(frontend_source, frontend)
+    if not resumed:
+        write_coding_standard(product_root, template)
     env = native_environment(template, backend, url, backend_port, redis_port=redis_port)
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(

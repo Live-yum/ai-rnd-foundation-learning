@@ -4,7 +4,6 @@ Coverage references support review; they never constitute implementation proof.
 Only executable adapter capabilities can select a deterministic route.
 """
 
-from pathlib import PurePosixPath
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -201,48 +200,12 @@ def route_errors(outline, sources, selected, source_digest):
 
 def module_path_errors(module):
     """An approved filename never grants access to trusted product control files."""
-    errors = []
-    ui = get_adapter(module.adapter).ui_contract()
-    prefix = "frontend/web/" if module.adapter == "fastapiadmin" else "frontend-product/"
-    protected = [prefix + path for path in ui.get("protected_paths", [])]
-    for path in module.files:
-        name = PurePosixPath(path).name
-        blocked = (
-            path.startswith(("deployment/", ".", "backend/app/core/", "backend/app/config/"))
-            or name
-            in {
-                "uv.lock",
-                "pnpm-lock.yaml",
-                "package-lock.json",
-                "pyproject.toml",
-                "package.json",
-                "pom.xml",
-            }
-            or name.startswith(("verify", "RND-"))
-            or any(path == p or (p.endswith("/") and path.startswith(p)) for p in protected)
-        )
-        if module.adapter == "fastapiadmin":
-            blocked |= not path.startswith(
-                (
-                    "backend/app/plugin/",
-                    "backend/tests/",
-                    "frontend/web/src/views/",
-                    "frontend/web/src/components/",
-                    "frontend/web/src/api/",
-                )
-            )
-        if module.adapter == "yudao-vben":
-            blocked |= not path.startswith(
-                (
-                    "backend/yudao-module-infra/src/main/java/",
-                    "backend/yudao-module-infra/src/test/java/",
-                    "frontend-product/apps/web-antd/src/views/",
-                    "frontend-product/apps/web-antd/src/api/",
-                )
-            )
-        if blocked:
-            errors.append(f"{module.id}的路径不属于适配包允许的业务扩展点：{path}")
-    return errors
+    adapter = get_adapter(module.adapter)
+    return [
+        f"{module.id}的路径不属于适配包允许的业务扩展点：{path}"
+        for path in module.files
+        if not adapter.allows_module_path(path)
+    ]
 
 
 def baseline_errors(outline, baseline):

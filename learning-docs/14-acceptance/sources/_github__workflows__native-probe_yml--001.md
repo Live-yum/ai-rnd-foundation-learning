@@ -14,7 +14,7 @@
 
 本段原始字节数：`6393`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-probe.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1adeb51cc9d087566ec84344ea4b7256bb1c46558b5979b3982fb7b5f42b21ed"} -->
+<!-- learning-source: {"path": ".github/workflows/native-probe.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a59aeef94576ea42c819aa4752d89c763776ecb532bc40a3e82f6f6a74752574"} -->
 ````yaml
 # .github/workflows/native-probe.yml
 name: Bundled template integrity
@@ -129,7 +129,7 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Cheap real provider smoke before browser installation
         env:
-          API_KEY: ${{ secrets.APK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
           PYTHONUTF8: '1'
@@ -142,7 +142,7 @@ jobs:
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify actual smart customer delivery after successful smoke
         env:
-          API_KEY: ${{ secrets.APK_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
           PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright

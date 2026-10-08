@@ -29,17 +29,17 @@
 - `NativeClient.payload`（L303–L309）：接收`response`。 控制顺序：L305按`value.get("code", 200) not in {0, 200}`分支；L306抛异常，停止当前正常路径。 调用`response.json`、`value.get`、`PrerequisiteError`。 返回路径：L309的`value.get("data", value)`。
 - `NativeClient.close`（L311–L312）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.client.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `native_export`（L315–L415）：接收`client`、`template`、`mapping`、`plan`。 源码说明：Invoke the upstream's import/update/download APIs, returning actual ZIP bytes.。 控制顺序：L319按`template == "fastapiadmin"`分支；L330按`missing`分支；L341遍历`plan.entities`；L343按`not row`分支；L344抛异常，停止当前正常路径；L350按`not {f.name for f in entity.fields}.issubset(fields)`分支；L351抛异常，停止当前正常路径；L367按`response.headers.get("X-Skipped-Tables")`分支。后续分支沿下方源码相同行号继续阅读。 调用`list`、`mapping.values`、`client.payload`、`client.request`、`tables[0].split`、`isinstance`、`page.get`、`known.get`、`PrerequisiteError`等。 返回路径：L415的`exports`。
-- `generate_native`（L418–L464）：接收`settings`、`template`、`plan`、`destination`、`managed`、`customization`。 控制顺序：L421按`managed or runtime_enabled(settings, template)`分支；L424按`plan.custom_rules or plan.unsupported`分支；L425抛异常，停止当前正常路径；L436遍历`exports`；L441遍历`sources`；L443遍历`files(source["path"])`。 调用`runtime_enabled`、`managed_generate`、`load_config`、`PrerequisiteError`、`prepare_sources`、`create_codegen_tables`、`db_url.get_secret_value`、`destination.mkdir`、`write_json`等。 返回路径：L422的`managed_generate(settings, template, plan, destination, customization=customization)`；L464的`receipt`。
-- `verify_native`（L467–L489）：接收`destination`。 控制顺序：L471按`receipt.get("execution") == "managed-runtime"`分支；L476按`current != receipt["files"] or not any(p.startswith("generated/") for p in current)`分支；L477抛异常，停止当前正常路径；L478遍历`files(destination / "generated")`；L479按`name.endswith(".py")`分支。 调用`json.loads`、`(destination.parent / "native-generation.json").read_text`、`receipt.get`、`managed_verify`、`manifest`、`any`、`p.startswith`、`PrerequisiteError`、`files`等。 返回路径：L474的`managed_verify(destination, receipt)`；L489的`result`。
-- `package_native`（L492–L513）：接收`destination`、`report`。 控制顺序：L493按`report.get("validation_level") == "runtime"`分支；L498按`report.get("passed") is not True or digest(listing) != report["source_digest"]`分支；L499抛异常，停止当前正常路径；L502遍历`files(destination)`。 调用`report.get`、`managed_package`、`manifest`、`digest`、`PrerequisiteError`、`zipfile.ZipFile`、`files`、`z.write`、`sha`等。 返回路径：L496的`managed_package(destination, report)`；L513的`result`。
+- `generate_native`（L418–L466）：接收`settings`、`template`、`plan`、`destination`、`managed`、`customization`。 控制顺序：L422按`managed or runtime_enabled(settings, template)`分支；L425按`plan.custom_rules or plan.unsupported`分支；L426抛异常，停止当前正常路径；L437遍历`exports`；L442遍历`sources`；L444遍历`files(source["path"])`。 调用`runtime_enabled`、`managed_generate`、`load_config`、`PrerequisiteError`、`prepare_sources`、`create_codegen_tables`、`db_url.get_secret_value`、`destination.mkdir`、`write_json`等。 返回路径：L423的`managed_generate(settings, template, plan, destination, customization=customization)`；L466的`receipt`。
+- `verify_native`（L469–L491）：接收`destination`。 控制顺序：L473按`receipt.get("execution") == "managed-runtime"`分支；L478按`current != receipt["files"] or not any(p.startswith("generated/") for p in current)`分支；L479抛异常，停止当前正常路径；L480遍历`files(destination / "generated")`；L481按`name.endswith(".py")`分支。 调用`json.loads`、`(destination.parent / "native-generation.json").read_text`、`receipt.get`、`managed_verify`、`manifest`、`any`、`p.startswith`、`PrerequisiteError`、`files`等。 返回路径：L476的`managed_verify(destination, receipt)`；L491的`result`。
+- `package_native`（L494–L515）：接收`destination`、`report`。 控制顺序：L495按`report.get("validation_level") == "runtime"`分支；L500按`report.get("passed") is not True or digest(listing) != report["source_digest"]`分支；L501抛异常，停止当前正常路径；L504遍历`files(destination)`。 调用`report.get`、`managed_package`、`manifest`、`digest`、`PrerequisiteError`、`zipfile.ZipFile`、`files`、`z.write`、`sha`等。 返回路径：L498的`managed_package(destination, report)`；L515的`result`。
 
 </details>
 
-**创建路径：** `workbench/native.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L513。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L515。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20337`。本段原文以LF换行结束。
+本段原始字节数：`20453`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fc32d7e88f1a80e327f1fc3f2b909a5f84c689bebaf32fdf61aaf445dc77615c"} -->
+<!-- learning-source: {"path": "workbench/native.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "73f32550f6ee9574caeeb886d52d7763458d0dff4f0b0741012851413bc9e8ff"} -->
 ````python
 # workbench/native.py
 """Pinned upstream sources + their real HTTP code generators.
@@ -461,6 +461,7 @@ def native_export(client, template, mapping, plan):
 
 def generate_native(settings, template, plan, destination, *, managed=False, customization=None):
     from workbench.native_delivery import managed_generate, runtime_enabled
+    from workbench.template_standards import write_coding_standard
 
     if managed or runtime_enabled(settings, template):
         return managed_generate(settings, template, plan, destination, customization=customization)
@@ -495,6 +496,7 @@ def generate_native(settings, template, plan, destination, *, managed=False, cus
         "先按原生生成器说明检查目录映射、鉴权、菜单和迁移，在开发分支合入，再执行框架原生测试。\n"
         "本包不声称经过完整启动验收，不等于任意业务需求已完成，也不自动部署。\n",
     )
+    write_coding_standard(destination, template)
     receipt = {
         "template": template,
         "sources": [{k: v for k, v in s.items() if k != "path"} for s in sources],

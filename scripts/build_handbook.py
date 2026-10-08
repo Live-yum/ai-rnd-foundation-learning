@@ -4,7 +4,6 @@ import argparse
 import base64
 import hashlib
 import re
-import textwrap
 from pathlib import Path
 
 from scripts.handbook_notes import notes
@@ -12,6 +11,7 @@ from scripts.handbook_notes import notes
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
 GUIDES = [
+    "docs/template-platform.md",
     "docs/guide.md",
     "docs/implementation.md",
     "docs/implementation-labs.md",
@@ -47,6 +47,7 @@ GROUPS = [
     ("Vue操作台完整源码、构建配置与依赖锁", ["ui"]),
     ("冻结数据库迁移", ["migrations"]),
     ("默认产品与前端", ["templates/product", "templates/frontends"]),
+    ("各技术模板的共享与专用编码规范", ["templates/standards"]),
     ("独立原生交付启动器", ["templates/deployment"]),
     ("业务合同的原生适配模板", ["templates/business"]),
     ("完整需求与结构化验收案例", ["examples"]),
@@ -105,6 +106,12 @@ GENERATED_FRONTEND_PREFIX = "workbench/web/"
 def generated_frontend_asset(name):
     """Vite output is a lossless runtime snapshot, not handwritten lesson source."""
     return name.startswith(GENERATED_FRONTEND_PREFIX)
+
+
+def encoded_lines(content):
+    """Wrap ASCII Base64 at 76 characters without repeatedly slicing a long word."""
+    encoded = base64.b64encode(content).decode("ascii")
+    return "\n".join(encoded[index : index + 76] for index in range(0, len(encoded), 76))
 
 
 def sources():
@@ -176,7 +183,7 @@ def render():
         for name, content in rows:
             if isinstance(content, bytes):
                 code_sha = hashlib.sha256(content).hexdigest()
-                encoded = "\n".join(textwrap.wrap(base64.b64encode(content).decode("ascii"), 76))
+                encoded = encoded_lines(content)
                 text += (
                     f"\n### `{name}`\n\n"
                     + (

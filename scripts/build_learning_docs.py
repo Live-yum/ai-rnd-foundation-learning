@@ -2,14 +2,12 @@
 
 import argparse
 import ast
-import base64
 import hashlib
 import json
 import re
-import textwrap
 from pathlib import Path
 
-from scripts.build_handbook import ROOT, generated_frontend_asset, sources
+from scripts.build_handbook import ROOT, encoded_lines, generated_frontend_asset, sources
 from scripts.handbook_notes import notes, purpose
 from scripts.rebuild_learning_docs import check_fences, comment_line
 
@@ -79,6 +77,7 @@ MODULE_STAGE = {
     "capability_stack": 4,
     "module_imports": 4,
     "template_adapters": 1,
+    "template_standards": 1,
     "feature_planning": 4,
     "capability_sandbox": 7,
     "capability_startup_paths": 7,
@@ -150,6 +149,8 @@ def stage_for(name):
         return MODULE_STAGE[path.stem]
     if name.startswith("migrations/") or name == "alembic.ini":
         return 2
+    if name.startswith("templates/standards/"):
+        return 1
     if name.startswith("templates/product/") or name.startswith("templates/frontends/"):
         return 5
     if name.startswith("templates/business/common/"):
@@ -399,11 +400,7 @@ def source_pages(name, content, stage):
     result = {}
     language = language_for(name, binary)
     for index, piece in enumerate(pieces):
-        payload = (
-            "\n".join(textwrap.wrap(base64.b64encode(piece).decode("ascii"), 76))
-            if binary
-            else piece.decode("utf-8")
-        )
+        payload = encoded_lines(piece) if binary else piece.decode("utf-8")
         width = max(4, max((len(x) for x in re.findall(r"`+", payload)), default=0) + 1)
         fence = "`" * width
         meta = {

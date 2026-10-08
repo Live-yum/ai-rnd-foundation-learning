@@ -4,6 +4,12 @@
 
 按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
+- [examples/acceptance/facilities-ops/contract.json](sources/examples__acceptance__facilities-ops__contract_json--001.md)：可审查的需求与完整合同验收样例；1 段
+- [examples/acceptance/facilities-ops/requirement.md](sources/examples__acceptance__facilities-ops__requirement_md--001.md)：可审查的需求与完整合同验收样例；1 段
+- [examples/acceptance/reading-shelf/contract.json](sources/examples__acceptance__reading-shelf__contract_json--001.md)：可审查的需求与完整合同验收样例；1 段
+- [examples/acceptance/reading-shelf/requirement.md](sources/examples__acceptance__reading-shelf__requirement_md--001.md)：可审查的需求与完整合同验收样例；1 段
+- [examples/acceptance/stock-purchasing/contract.json](sources/examples__acceptance__stock-purchasing__contract_json--001.md)：可审查的需求与完整合同验收样例；1 段
+- [examples/acceptance/stock-purchasing/requirement.md](sources/examples__acceptance__stock-purchasing__requirement_md--001.md)：可审查的需求与完整合同验收样例；1 段
 - [examples/plans/customer-service.json](sources/examples__plans__customer-service_json--001.md)：可审查的需求与完整合同验收样例；1 段
 - [examples/requirements/customer-service-contract.md](sources/examples__requirements__customer-service-contract_md--001.md)：客服黑盒验收的字段与命名约定；1 段
 - [examples/requirements/customer-service-decisions.md](sources/examples__requirements__customer-service-decisions_md--001.md)：客服演示的明确默认决策；1 段

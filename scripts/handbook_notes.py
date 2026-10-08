@@ -2,11 +2,17 @@
 
 import ast
 import re
+from functools import lru_cache
 from pathlib import Path
 
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "template_standards": (
+        "所有模型与生成产物共用的版本化编码规范",
+        "只读取固定的公共规则和所选模板规则，计算来源与合并内容哈希。目录及需求规划编码上下文使用同一份内容；写入产物时保留上游AGENTS并带上VIBECODING和版本回执。读规范不依赖后续生成或文件工具模块，执行边界仍由代码与独立验收落实。",
+        "templates/standards → coding_standard → catalog及模型上下文 → write_coding_standard → 产品生成清单与交付。",
+    ),
     "template_adapters": (
         "技术栈选择与后续交付共用的模板合同",
         "Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。",
@@ -139,7 +145,7 @@ MODULES = {
     ),
     "store": (
         "持久化项目、会话、任务、版本、审批和证据",
-        "SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run建立运行和首条消息；任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。",
+        "SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run和create_batch共享入队逻辑；批量先整批校验再在同一幂等事务建立项目、运行和消息，失败全部回滚。任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。",
         "api写入Store → Runtime认领Job → Workflow记录Revision/Approval/Step/Event；test_store。",
     ),
     "errors": (
@@ -712,8 +718,35 @@ def parse(content):
     return ast.parse(normalized)
 
 
+@lru_cache(maxsize=1)
+def source_lines(content):
+    # AST columns count UTF-8 bytes. bytes.splitlines preserves form feeds and
+    # Unicode separators that str.splitlines incorrectly treats as Python lines.
+    # Keep only the current source: notes() requests many spans from that file.
+    return (*content.encode("utf-8").splitlines(keepends=True), b"")
+
+
+def source_segment(content, node):
+    """Extract the same unpadded span as ast.get_source_segment without rescanning."""
+    try:
+        if node.end_lineno is None or node.end_col_offset is None:
+            return None
+        first, last = node.lineno - 1, node.end_lineno - 1
+        start, end = node.col_offset, node.end_col_offset
+    except AttributeError:
+        return None
+    lines = source_lines(content)
+    if first == last:
+        return lines[first][start:end].decode("utf-8")
+    return (
+        lines[first][start:].decode("utf-8")
+        + b"".join(lines[first + 1 : last]).decode("utf-8")
+        + lines[last][:end].decode("utf-8")
+    )
+
+
 def segment(content, node, limit=110):
-    value = ast.get_source_segment(content, node) or type(node).__name__
+    value = source_segment(content, node) or type(node).__name__
     value = " ".join(value.split()).replace("|", "\\|")
     return value if len(value) <= limit else value[:limit] + "…"
 

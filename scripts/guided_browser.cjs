@@ -152,6 +152,7 @@ async function noHorizontalOverflow(page) {
 }
 async function createRun(page, cfg, title, { ime = false } = {}) {
   console.log("Create run: drafting " + title);
+  const before = await api(page, cfg, "/runs");
   const composer = page.getByRole("textbox", { name: "描述你的产品需求" });
   await composer.fill(cfg.requirement);
   if (ime) {
@@ -164,9 +165,9 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
       bubbles: true,
     });
     assert.equal(
-      await page.getByRole("dialog").count(),
-      0,
-      "IME Enter must not send or open selection",
+      (await api(page, cfg, "/runs")).length,
+      before.length,
+      "IME Enter must not submit a run",
     );
     await composer.dispatchEvent("compositionend");
     await composer.press("Shift+Enter");
@@ -177,13 +178,13 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
     await composer.fill(cfg.requirement);
   }
   await composer.press("Enter");
-  const modal = page.getByRole("dialog");
-  await modal.waitFor();
+  assert((await composer.inputValue()).includes("\n"), "Enter keeps editing a multiline draft");
+  await composer.fill(cfg.requirement);
   console.log("Create run: selecting stack");
   // The backend receives neither project nor run before a deliberate stack confirmation.
-  const before = await api(page, cfg, "/runs");
-  await modal.locator("#new-project-title").fill(title);
-  await antSelect(page, "#template-selection", "FastAPI + 轻量管理页面");
+  await page.locator("#new-project-title").fill(title);
+  await page.getByRole("radio", { name: "FastAPI + 轻量管理页面", exact: true }).check();
+  await page.locator(".selection-details .ant-collapse-header").click();
   console.log("Create run: selected backend");
   await antSelect(page, "#frontend-selection", "simple-admin");
   console.log("Create run: selected frontend");
@@ -191,8 +192,8 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
   console.log("Create run: selected database");
   assert.equal((await api(page, cfg, "/runs")).length, before.length);
   // True repeated browser click, not a direct API shortcut.
-  await modal
-    .getByRole("button", { name: "确认选型并开始", exact: true })
+  await page
+    .getByRole("button", { name: "创建并开始", exact: true })
     .dblclick();
   console.log("Create run: confirmed");
   await page.locator('[data-testid="run-workspace"]').waitFor();
@@ -394,7 +395,7 @@ async function workbench(page, cfg, errors) {
   });
   await route(page, "projects");
   await page
-    .getByRole("heading", { name: "每个项目，都能继续往下走", exact: true })
+    .getByRole("heading", { name: "项目工作台", exact: true })
     .waitFor();
   assert(
     !(await fixture(page, cfg)).completed,
@@ -430,11 +431,11 @@ async function workbench(page, cfg, errors) {
   await page.context().setOffline(true);
   await page.waitForTimeout(250);
   await page.context().setOffline(false);
-  await page.getByRole("button", { name: "查看进度", exact: true }).click();
+  await page.getByRole("button", { name: "执行过程", exact: true }).click();
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果" })
+    .getByRole("heading", { name: "执行过程" })
     .waitFor();
-  await page.getByRole("button", { name: "返回对话", exact: true }).click();
+  await page.getByRole("button", { name: "对话与审批", exact: true }).click();
   await draft.filter({ hasText: cfg.stream_summary }).waitFor();
   assert.equal(await draft.innerText(), cfg.stream_summary);
   assert(
@@ -883,9 +884,9 @@ async function manual(page, cfg, delayedRefresh = false) {
       await request.continue();
     });
   await approve.click();
-  await page.getByRole("button", { name: "查看进度", exact: true }).click();
+  await page.getByRole("button", { name: "执行过程", exact: true }).click();
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .getByRole("heading", { name: "执行过程", exact: true })
     .waitFor();
   await capture(page, {
     animations: "disabled",
@@ -1106,7 +1107,7 @@ async function choices(page, cfg) {
   );
   await route(page, `run/${runId}/progress`);
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .getByRole("heading", { name: "执行过程", exact: true })
     .waitFor();
   await route(page, `run/${runId}/conversation`);
   await page.locator(".user-message").filter({ hasText: extra }).waitFor();

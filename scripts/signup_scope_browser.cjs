@@ -59,7 +59,7 @@ async function main() {
       .click();
     await status("BLOCKED");
     await page
-      .getByRole("heading", { name: "先确认参与者入口与报名范围", exact: true })
+      .getByRole("heading", { name: "先确认模板能力与本次范围", exact: true })
       .waitFor();
     assert.equal(
       await page.locator('.question-card input[type="radio"]:checked').count(),

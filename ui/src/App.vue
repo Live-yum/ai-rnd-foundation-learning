@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
           ><strong>AI 研发平台</strong>
         </button>
         <a-button class="new-conversation" size="large" @click="navigate('home')"
-          ><PlusOutlined aria-hidden="true" />新建对话</a-button
+          ><PlusOutlined aria-hidden="true" />新建 / 批量项目</a-button
         >
         <nav class="main-nav">
           <button

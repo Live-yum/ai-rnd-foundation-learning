@@ -15,7 +15,7 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `create_app`（L25–L293）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L293的`app`。
+- `create_app`（L25–L298）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L298的`app`。
 - `create_app.lifespan`（L29–L51）：接收`app`。 控制顺序：L37按`start_worker`分支。 调用`Store`、`store.token`、`FileLock`、`str`、`store.migrate`、`gateway_factory`、`Runtime`、`threading.Thread`、`worker.start`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `create_app.response_security`（L60–L72）：接收`request`、`call_next`。 控制顺序：L65按`request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/")`分支。 调用`call_next`、`request.url.path.startswith`、`app.middleware`。 返回路径：L72的`response`。
 - `create_app.auth`（L74–L79）：接收`request`、`credentials`。核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。 控制顺序：L75按`not credentials or not hmac.compare_digest( credentials.credentials, request.app.stat…`分支；L78抛异常，停止当前正常路径。 调用`Depends`、`hmac.compare_digest`、`HTTPException`。 返回路径：L79的`request.app.state.store`。
@@ -35,23 +35,24 @@
 - `create_app.project_runs`（L177–L184）：接收`project_id`、`limit`、`offset`、`status`、`store`。 调用`Query`、`Depends`、`store.list_runs`、`app.get`。 返回路径：L184的`store.list_runs(project_id, limit=limit, offset=offset, statuses=status)`。
 - `create_app.require_models`（L186–L190）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190抛异常，停止当前正常路径。 调用`settings.require_model`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `create_app.create_run`（L193–L197）：接收`project_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.create_run`、`body.model_dump`、`app.post`。 返回路径：L197的`store.create_run(project_id, body.model_dump(), idempotency_key)`。
-- `create_app.runs`（L200–L206）：接收`limit`、`offset`、`status`、`store`。 调用`Query`、`Depends`、`store.list_runs`、`app.get`。 返回路径：L206的`store.list_runs(limit=limit, offset=offset, statuses=status)`。
-- `create_app.get_run`（L209–L210）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L210的`store.get_run(run_id)`。
-- `create_app.messages`（L213–L215）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L215的`store.messages(run_id)`。
-- `create_app.resume`（L218–L223）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L221按`body.action != "reject" and not store.is_model_free_approval(run_id, body.model_dump(…`分支。 调用`Header`、`Depends`、`store.is_model_free_approval`、`body.model_dump`、`require_models`、`store.submit`、`app.post`。 返回路径：L223的`store.submit(run_id, body.model_dump(), idempotency_key)`。
-- `create_app.retry`（L226–L230）：接收`run_id`、`idempotency_key`、`store`。 控制顺序：L227按`store.is_model_free_retry(run_id, idempotency_key)`分支。 调用`Header`、`Depends`、`store.is_model_free_retry`、`store.retry`、`require_models`、`app.post`。 返回路径：L228的`store.retry(run_id, idempotency_key, require_model_free=True)`；L230的`store.retry(run_id, idempotency_key)`。
-- `create_app.events`（L233–L234）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L234的`store.events(run_id, after)`。
-- `create_app.report`（L237–L260）：接收`run_id`、`store`。 控制顺序：L241遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L258按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L260的`result`。
-- `create_app.download`（L263–L280）：接收`run_id`、`store`。 控制顺序：L265按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L266抛异常，停止当前正常路径；L268按`not path.is_file()`分支；L269抛异常，停止当前正常路径；L271按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L272抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L273的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
-- `create_app.templates`（L283–L286）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L286的`catalog(settings)`。
+- `create_app.create_batch`（L200–L202）：接收`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.create_batch`、`body.model_dump`、`app.post`。 返回路径：L202的`store.create_batch(body.model_dump(), idempotency_key)`。
+- `create_app.runs`（L205–L211）：接收`limit`、`offset`、`status`、`store`。 调用`Query`、`Depends`、`store.list_runs`、`app.get`。 返回路径：L211的`store.list_runs(limit=limit, offset=offset, statuses=status)`。
+- `create_app.get_run`（L214–L215）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L215的`store.get_run(run_id)`。
+- `create_app.messages`（L218–L220）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L220的`store.messages(run_id)`。
+- `create_app.resume`（L223–L228）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L226按`body.action != "reject" and not store.is_model_free_approval(run_id, body.model_dump(…`分支。 调用`Header`、`Depends`、`store.is_model_free_approval`、`body.model_dump`、`require_models`、`store.submit`、`app.post`。 返回路径：L228的`store.submit(run_id, body.model_dump(), idempotency_key)`。
+- `create_app.retry`（L231–L235）：接收`run_id`、`idempotency_key`、`store`。 控制顺序：L232按`store.is_model_free_retry(run_id, idempotency_key)`分支。 调用`Header`、`Depends`、`store.is_model_free_retry`、`store.retry`、`require_models`、`app.post`。 返回路径：L233的`store.retry(run_id, idempotency_key, require_model_free=True)`；L235的`store.retry(run_id, idempotency_key)`。
+- `create_app.events`（L238–L239）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L239的`store.events(run_id, after)`。
+- `create_app.report`（L242–L265）：接收`run_id`、`store`。 控制顺序：L246遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L263按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L265的`result`。
+- `create_app.download`（L268–L285）：接收`run_id`、`store`。 控制顺序：L270按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L271抛异常，停止当前正常路径；L273按`not path.is_file()`分支；L274抛异常，停止当前正常路径；L276按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L277抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L278的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
+- `create_app.templates`（L288–L291）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L291的`catalog(settings)`。
 
 </details>
 
-**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L296。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L301。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11709`。本段原文以LF换行结束。
+本段原始字节数：`11954`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e0cf6a885eb032401629b8fe97a013bf3c3eb10fd763cde55bff1e19152c58eb"} -->
+<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bdcfa81c30d2caea24d4a2341e634a4e90b4b7aa8403a443c1317a78ab2dc754"} -->
 ````python
 # workbench/api.py
 """Local operator API. Authentication protects every data endpoint, including downloads."""
@@ -71,7 +72,7 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from workbench.catalog import selections
-from workbench.domain import AutomationInput, ProjectInput, ResumeInput, RunInput
+from workbench.domain import AutomationInput, BatchInput, ProjectInput, ResumeInput, RunInput
 from workbench.filesystem import inside
 from workbench.runtime import Runtime
 from workbench.settings import ROOT, STAGES, Settings
@@ -251,6 +252,11 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     ):
         require_models()
         return store.create_run(project_id, body.model_dump(), idempotency_key)
+
+    @app.post("/batches", status_code=202)
+    def create_batch(body: BatchInput, idempotency_key: str = Header(), store=Depends(auth)):
+        require_models()
+        return store.create_batch(body.model_dump(), idempotency_key)
 
     @app.get("/runs")
     def runs(

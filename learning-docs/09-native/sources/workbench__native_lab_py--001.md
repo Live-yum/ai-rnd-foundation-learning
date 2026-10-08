@@ -10,25 +10,25 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_ports`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_ports`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.template_standards`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** 把原生流程看成一串证据：固定来源→专用库→真实生成→SQL/菜单→编译/类型检查→HTTP→原生页面。run_acceptance只能在每一步实际完成后汇总报告。某个模板跑通不能替另一个模板写passed，恢复也必须先核对原始Plan、源码与数据库身份。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `generated_browser`（L38–L61）：接收`template`、`front_url`、`reports`。 控制顺序：L60抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L64–L91）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L79的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L94–L375）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L110按`plan.custom_rules and customization is None`分支；L111抛异常，停止当前正常路径；L124按`not resumed`分支；L127按`template == "fastapiadmin"`分支；L131按`not resumed`分支；L146按`not resumed`分支；L150按`template == "fastapiadmin"`分支；L173按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L356的`report`。
-- `_run_acceptance.stage`（L139–L141）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_browser`（L39–L62）：接收`template`、`front_url`、`reports`。 控制顺序：L61抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L65–L95）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L80按`plan.custom_rules and customization is None`分支；L81抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L83的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L98–L378）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L125按`not resumed`分支；L128按`template == "fastapiadmin"`分支；L132按`not resumed`分支；L134按`not resumed`分支；L149按`not resumed`分支；L153按`template == "fastapiadmin"`分支；L176按`plan.business`分支；L195按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L359的`report`。
+- `_run_acceptance.stage`（L142–L144）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L378。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15154`。本段原文以LF换行结束。
+本段原始字节数：`15291`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8949e39e85914c5ee32ee81f2e130cbddaf855999a9437a78aae44f4773ac5ec"} -->
+<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5eba199d60915a52afcfb982cbed54a41711a7f59e7b3a7d95e2a08c589d9c6e"} -->
 ````python
 # workbench/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -65,6 +65,7 @@ from workbench.portable import (
     verify_native_delivery,
 )
 from workbench.settings import ROOT
+from workbench.template_standards import write_coding_standard
 from workbench.tools import run_command
 
 
@@ -108,6 +109,9 @@ def run_acceptance(
     source_handoff=None,
 ):
     """Hold one non-ephemeral backend lease across all build/restart phases."""
+    plan = validate_plan(plan)
+    if plan.custom_rules and customization is None:
+        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
     with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
         return _run_acceptance(
             template,
@@ -139,9 +143,6 @@ def _run_acceptance(
     backend_port,
 ):
     """Shared by CLI and CI; never reset an existing database or workspace."""
-    plan = validate_plan(plan)
-    if plan.custom_rules and customization is None:
-        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
     source, output, reports = (
         Path(source).resolve(),
         Path(output).resolve(),
@@ -163,6 +164,8 @@ def _run_acceptance(
         frontend = output.parent / "frontend-product"
         if not resumed:
             copy_source(frontend_source, frontend)
+    if not resumed:
+        write_coding_standard(product_root, template)
     env = native_environment(template, backend, url, backend_port, redis_port=redis_port)
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(

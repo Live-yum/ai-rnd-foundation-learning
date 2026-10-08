@@ -10,24 +10,24 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.settings`、`workbench.template_standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** generate_basic把批准Plan和已校验选择写成不可含糊的产物身份，再复制模板、生成迁移并登记每个文件SHA。第一次创建目标目录应得到完整产品；同一路径已经有文件却无相符回执时应停止并保留现场。这里不能用删除重建来伪装幂等，因为目录可能已包含用户修改或数据。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `PrerequisiteError`（L14–L15）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `generate_basic`（L18–L90）：接收`plan`、`destination`、`selection`。 控制顺序：L22按`(plan.business is None and plan.data_scope != "per_user") or plan.unsupported`分支；L23抛异常，停止当前正常路径；L27按`destination.is_symlink() or ( hasattr(destination, "is_junction") and destination.is_…`分支；L30抛异常，停止当前正常路径；L31按`destination.exists()`分支；L33按`destination.is_dir() and pending.is_file() and not pending.is_symlink() and not recei…`分支；L50抛异常，停止当前正常路径；L53按`recoverable`分支。后续分支沿下方源码相同行号继续阅读。 调用`Selection.model_validate(selection or {"template": "python-basic"…`、`Selection.model_validate`、`PrerequisiteError`、`Path`、`destination.is_symlink`、`hasattr`、`destination.is_junction`、`destination.exists`、`destination.is_dir`等。 返回路径：L56的`recovered`；L79的`previous`；L90的`receipt`。
-- `_generate_product`（L93–L169）：接收`plan`、`destination`、`selection`。 控制顺序：L94遍历`files(ROOT / "templates" / "product")`；L101按`selection["frontend"] == "simple-admin"`分支；L102遍历`files(ROOT / "templates/frontends/simple-admin")`；L155按`plan.business is not None`分支。 调用`files`、`target.parent.mkdir`、`shutil.copyfile`、`write_json`、`plan.model_dump`、`atomic_text`、`'''"""Initial, frozen business schema.""" import json from alembi…`、`repr`、`json.dumps`等。 返回路径：L169的`receipt`。
+- `PrerequisiteError`（L15–L16）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `generate_basic`（L19–L91）：接收`plan`、`destination`、`selection`。 控制顺序：L23按`(plan.business is None and plan.data_scope != "per_user") or plan.unsupported`分支；L24抛异常，停止当前正常路径；L28按`destination.is_symlink() or ( hasattr(destination, "is_junction") and destination.is_…`分支；L31抛异常，停止当前正常路径；L32按`destination.exists()`分支；L34按`destination.is_dir() and pending.is_file() and not pending.is_symlink() and not recei…`分支；L51抛异常，停止当前正常路径；L54按`recoverable`分支。后续分支沿下方源码相同行号继续阅读。 调用`Selection.model_validate(selection or {"template": "python-basic"…`、`Selection.model_validate`、`PrerequisiteError`、`Path`、`destination.is_symlink`、`hasattr`、`destination.is_junction`、`destination.exists`、`destination.is_dir`等。 返回路径：L57的`recovered`；L80的`previous`；L91的`receipt`。
+- `_generate_product`（L94–L171）：接收`plan`、`destination`、`selection`。 控制顺序：L95遍历`files(ROOT / "templates" / "product")`；L102按`selection["frontend"] == "simple-admin"`分支；L103遍历`files(ROOT / "templates/frontends/simple-admin")`；L156按`plan.business is not None`分支。 调用`files`、`target.parent.mkdir`、`shutil.copyfile`、`write_json`、`plan.model_dump`、`atomic_text`、`'''"""Initial, frozen business schema.""" import json from alembi…`、`repr`、`json.dumps`等。 返回路径：L171的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/generator.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L169。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/generator.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L171。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7775`。本段原文以LF换行结束。
+本段原始字节数：`7900`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/generator.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7989bb90498509d29953a735df79cd99720c5817c73fc0365e5c6816fb3becea"} -->
+<!-- learning-source: {"path": "workbench/generator.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "05734c11d8c220ea88acc45b4aea0a55876def67c0fe0d199f393ab36f647cde"} -->
 ````python
 # workbench/generator.py
 """Deterministic generation: approved metadata -> reviewed golden files, never LLM boilerplate."""
@@ -41,6 +41,7 @@ from pathlib import Path
 from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, files, manifest, write_json
 from workbench.settings import ROOT
+from workbench.template_standards import write_coding_standard
 
 
 class PrerequisiteError(RuntimeError):
@@ -192,6 +193,7 @@ def downgrade():
         from workbench.product_sql import render
 
         render(plan, destination)
+    write_coding_standard(destination, selection["template"])
     receipt = {
         "generator": "reviewed-python-basic-v2",
         "spec_digest": digest(plan.model_dump()),
