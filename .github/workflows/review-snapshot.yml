@@ -1,0 +1,23 @@
+name: Review source snapshot
+on:
+  push:
+    branches: [refactor/template-platform-workbench]
+    paths: [.github/workflows/review-snapshot.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export tracked public source for review
+        run: git archive --format=tar.gz HEAD > "$RUNNER_TEMP/review-source.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-source
+          path: ${{ runner.temp }}/review-source.tar.gz
+          retention-days: 1
