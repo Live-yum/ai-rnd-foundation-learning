@@ -92,6 +92,7 @@
 - [scripts/template_acceptance_runtime.py](sources/scripts__template_acceptance_runtime_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [tests/capability_dependency_fixtures.py](sources/tests__capability_dependency_fixtures_py--001.md)：可重复的验收用例；1 段
 - [tests/test_batches.py](sources/tests__test_batches_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_workflow_branches.py](sources/tests__test_business_workflow_branches_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_activation_review.py](sources/tests__test_capability_browser_activation_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_apparmor.py](sources/tests__test_capability_browser_apparmor_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_apparmor_review.py](sources/tests__test_capability_browser_apparmor_review_py--001.md)：可重复的验收用例；1 段
@@ -184,6 +185,7 @@
 - [tests/test_postgres.py](sources/tests__test_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_reload_readiness.py](sources/tests__test_product_reload_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_pytest_reporting.py](sources/tests__test_pytest_reporting_py--001.md)：可重复的验收用例；1 段
+- [tests/test_query_attribute_references.py](sources/tests__test_query_attribute_references_py--001.md)：可重复的验收用例；1 段
 - [tests/test_query_obligation_pairing.py](sources/tests__test_query_obligation_pairing_py--001.md)：可重复的验收用例；1 段
 - [tests/test_readonly_dependency_admission.py](sources/tests__test_readonly_dependency_admission_py--001.md)：可重复的验收用例；1 段
 - [tests/test_real_model_ci.py](sources/tests__test_real_model_ci_py--001.md)：可重复的验收用例；2 段

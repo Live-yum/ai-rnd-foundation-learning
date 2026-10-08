@@ -218,6 +218,7 @@ def test_stage(name):
         "native_delivery_boundaries": 9,
         "native_tools": 11,
         "delivery_clearance": 13,
+        "business_workflow_branches": 14,
     }
     if stem in early:
         return early[stem]

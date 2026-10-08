@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import time
 import zlib
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +22,95 @@ import httpx
 def check(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def workflow_transition_paths(workflow, permitted=None):
+    """Find finite routes to each named transition without changing approved states."""
+    transitions = [
+        transition
+        for transition in workflow["transitions"]
+        if permitted is None or permitted(transition)
+    ]
+    paths = {workflow["initial"]: []}
+    pending = deque(paths)
+    while pending:
+        state = pending.popleft()
+        for transition in transitions:
+            target = transition["to_state"]
+            if state in transition["from_states"] and target not in paths:
+                paths[target] = [*paths[state], transition]
+                pending.append(target)
+    result = {}
+    for transition in transitions:
+        prefixes = [paths[state] for state in transition["from_states"] if state in paths]
+        if not prefixes:
+            check(
+                permitted is not None, "Declared workflow transition has no reachable source state"
+            )
+            continue
+        result[transition["name"]] = [*min(prefixes, key=len), transition]
+    return result
+
+
+def workflow_assignee_candidates(actors, grants, entity, preferred):
+    eligible = {
+        actor["id"]
+        for actor in actors.values()
+        if "read" in grants.get((actor["role"], entity), {}).get("actions", [])
+        and grants[actor["role"], entity]["scope"] in {"all", "assigned"}
+    }
+    return [
+        identity
+        for identity in dict.fromkeys([preferred, *(a["id"] for a in actors.values()), None])
+        if identity is None or identity in eligible
+    ]
+
+
+def cover_workflow_branches(
+    workflow, base_row, create_branch, actor_for, apply_transition, existing_rows=()
+):
+    """Keep the original base path, then exercise remaining branches through callbacks."""
+    paths = workflow_transition_paths(workflow)
+    status = workflow["status_field"]
+    covered, visited = set(), set()
+    branches = [base_row, *(row for row in existing_rows if row is not base_row)]
+
+    def advance(row, transition):
+        check(row[status] in transition["from_states"], "Workflow route missed its source state")
+        actor = actor_for(row, transition)
+        check(actor is not None, "Reachable workflow branch has no permitted transition actor")
+        apply_transition(row, transition, actor)
+        covered.add(transition["name"])
+
+    while base_row[status] not in visited:
+        visited.add(base_row[status])
+        transition = next(
+            (
+                item
+                for item in workflow["transitions"]
+                if base_row[status] in item["from_states"] and actor_for(base_row, item) is not None
+            ),
+            None,
+        )
+        if transition is None:
+            break
+        advance(base_row, transition)
+    for transition in workflow["transitions"]:
+        if transition["name"] in covered:
+            continue
+        for row in branches:
+            path = workflow_transition_paths(
+                {**workflow, "initial": row[status]},
+                lambda step: actor_for(row, step) is not None,
+            ).get(transition["name"])
+            if path:
+                break
+        else:
+            row, path = create_branch(transition)
+            branches.append(row)
+        for step in path:
+            advance(row, step)
+    check(covered == set(paths), "Declared workflow transition was not exercised")
 
 
 def verify_query_matrix(spec, actors, rows, samples, create_roles, request, allowed):
@@ -1140,24 +1229,93 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
             checks.append("business-row-permissions")
             for entity, row in base.items():
                 workflow = workflows.get(entity)
-                visited = set()
-                while workflow and row[workflow["status_field"]] not in visited:
-                    state = row[workflow["status_field"]]
-                    visited.add(state)
-                    choices = [
-                        (t, a)
-                        for t in workflow["transitions"]
-                        for a in actors.values()
-                        if state in t["from_states"]
-                        and a["role"] in t["roles"]
-                        and allowed(a["role"], entity, "transition", row, a["id"])
-                    ]
-                    if not choices:
-                        break
-                    transition, actor = choices[0]
+
+                def actor_for(candidate, transition):
+                    return next(
+                        (
+                            actor
+                            for actor in actors.values()
+                            if actor["role"] in transition["roles"]
+                            and allowed(actor["role"], entity, "transition", candidate, actor["id"])
+                        ),
+                        None,
+                    )
+
+                def create_branch(transition):
+                    assignee = resources[entity].get("assignee_field")
+                    recipients = (
+                        workflow_assignee_candidates(actors, grants, entity, row.get(assignee))
+                        if assignee
+                        else [None]
+                    )
+                    selection = None
+                    for creator in actors.values():
+                        if not (
+                            allowed(creator["role"], entity, "create")
+                            and allowed(creator["role"], entity, "read")
+                        ):
+                            continue
+                        for recipient in recipients:
+                            # This is an access-plan only; persisted creator, assignee and
+                            # workflow state are still obtained exclusively through APIs.
+                            access = {"created_by": creator["id"]}
+                            if assignee and recipient:
+                                if not any(
+                                    allowed(a["role"], entity, "assign", access, a["id"])
+                                    for a in actors.values()
+                                ):
+                                    continue
+                                access[assignee] = recipient
+                            path = workflow_transition_paths(
+                                workflow, lambda step: actor_for(access, step) is not None
+                            ).get(transition["name"])
+                            if path:
+                                selection = (creator, recipient, path)
+                                break
+                        if selection:
+                            break
+                    check(selection is not None, "Workflow branch has no permitted creation path")
+                    creator, recipient, path = selection
+                    created = request(
+                        "POST",
+                        "/api/" + entity,
+                        creator,
+                        status=201,
+                        json=samples[entity],
+                    )
+                    # Notification/due expectations must see this owned record before
+                    # assigning it or exercising any of its state transitions.
+                    rows[entity].append(created)
+                    if assignee and recipient:
+                        assigner = next(
+                            (
+                                actor
+                                for actor in actors.values()
+                                if allowed(actor["role"], entity, "assign", created, actor["id"])
+                            ),
+                            None,
+                        )
+                        check(
+                            assigner is not None,
+                            "Workflow branch has no permitted assignment actor",
+                        )
+                        created.update(
+                            request(
+                                "POST",
+                                f"/api/{entity}/{created['id']}/assign",
+                                assigner,
+                                json={"user_id": recipient},
+                            )
+                        )
+                    for actor in actors.values():
+                        notices = request("GET", "/business/notifications", actor)
+                        notification_evidence.inbox(actor, notices)
+                    return created, path
+
+                def apply_transition(candidate, transition, actor):
                     changed = request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         json={"transition": transition["name"]},
                     )
@@ -1170,13 +1328,27 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             changed[transition["set_timestamp"]],
                             "Server transition timestamp missing",
                         )
-                    row.update(changed)
+                    candidate.update(changed)
                     request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         status=409,
                         json={"transition": transition["name"]},
+                    )
+
+                if workflow:
+                    cover_workflow_branches(
+                        workflow,
+                        row,
+                        create_branch,
+                        actor_for,
+                        apply_transition,
+                        [
+                            candidate
+                            for candidate in rows[entity]
+                            if (entity, candidate["id"]) not in future_due_rows
+                        ],
                     )
                 actor = next(
                     (

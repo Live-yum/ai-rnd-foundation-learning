@@ -139,6 +139,8 @@ curl -X POST http://127.0.0.1:8000/batches \
 
 验收至少包括：模型契约与需求匹配、正常生成与独立验证、真实产品浏览器检查、最终交付包哈希、解压到新目录和新库启动、独立场景行为验证、重启后数据持久化。三个案例全部通过才允许汇总为成功。缺少案例、浏览器失败、模型调用失败或预算用尽都会留下失败结果，不把固定 Plan 或历史截图当作本次实测。
 
+流程验收依据已批准的状态图，从初始状态寻找可达路径。互斥分支通过 API 创建独立测试记录，分别触发声明的状态转换及其通知；每条声明通知都必须有真实事件与正确收件人的验证证据，原有权限和状态转换规则继续约束每个测试动作。
+
 失败回执会把字段差异定位到具体属性，例如 `books.started_on.filterable`，并给出受控的期望值和实际值；可能包含任意文本的值只保留长度、数量或摘要，不导出完整 Plan 或原始文本。每个模型任务的 JSON 格式校验仍最多尝试两次（首次请求与一次重试）。如果响应仅在一个符合 schema 的完整 JSON 对象后多出闭合括号，该对象只作为未批准的候选，供下一次模型调用参考；原响应仍记为失败，必须由模型重新返回一个完整且通过校验的响应，才能继续正常验收。格式修复不会默认通过，也不授权删除或改写已确认需求。
 
 在 GitHub 的 `rnd` Environment 中配置：
@@ -31956,50 +31958,52 @@ def canonicalize_requirement(data, audit=None):
 - `_legacy_targets`（L932–L945）：接收`text`、`fields`。 源码说明：Do not turn an ambiguous prose subject into grants on every entity. Exact typed obligations are checked independently. Unscoped repeated names remain semantic-review context unless the prose explicitl。 控制顺序：L939按`_fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text)`分支。 调用`_fact_candidates`、`_fact_entity`、`_ALL_ENTITIES.search`、`len`。 返回路径：L940的`candidates`；L941的`[ field for field in candidates if len({entity for entity, item in fields if item.name == …`。
 - `_query_composition_text`（L954–L993）：接收`text`、`fields`。 源码说明：A composite query needs its own local field targets to declare a flag. A subject-free composition statement combines the predicates already declared elsewhere. Explicit 'combined search by title' stil。 控制顺序：L963遍历`text`；L965按`char in "（([【"`分支；L967按`char in "）)]】"`分支；L970遍历`re.finditer(r"[，,；;。\n]\|以及\|并且\|并\|且\|和\|与\|\band\b", text, re.I…`；L971按`depths[match.start()]`分支；L973按`re.fullmatch(r"[，,；;。\n]", match.group()) or re.search( LEGACY_PROPERTY, text[boundar…`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`re.fullmatch`、`match.group`、`re.search`、`boundaries.append`、`match.end`等。 返回路径：L986的`re.sub( r"(?:组合\|联合\|复合\|多条件)\s*(?:查询\|检索\|搜索\|筛选\|过滤)\|" r"\b(?:combined\|composite\|comp…`。
 - `_query_composition_text.replace`（L979–L984）：接收`match`。 控制顺序：L982按`_fact_candidates(text[start:end], fields)`分支。 调用`max`、`match.start`、`min`、`match.end`、`_fact_candidates`、`match.group`、`len`。 返回路径：L983的`match.group()`；L984的`" " * len(match.group())`。
-- `_query_predicate_text`（L996–L1154）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 控制顺序：L1048遍历`( rf"\b(?:do\|does\|must\|should)\s+not\s+include\s+(?P<targets>{…`。 调用`_query_composition_text`、`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`re.sub`等。 返回路径：L1154的`"; ".join([_DATE_RANGE_QUERY.sub("date_range", text), *shared_predicates])`。
-- `_query_predicate_text.negative_membership`（L1044–L1046）：接收`match`。 调用`re.search`。 返回路径：L1046的`match["targets"] + " " + attribute + "=false"`。
-- `_query_predicate_text.replace`（L1059–L1116）：接收`match`。 控制顺序：L1093按`binds_before or binds_after or imperative`分支；L1098按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L1102按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L1113的`operation + " "`；L1116的`" " * len(match.group())`。
-- `_query_predicate_text.shared_predicate`（L1133–L1147）：接收`match`。 控制顺序：L1136按`operation is None or _DATE_NEGATIVE.search(before)`分支；L1138遍历`re.finditer(subject, match["targets"], re.I)`；L1144遍历`fields`；L1145按`field.kind != "date" and any(field is target for target in candidates)`分支。 调用`re.search`、`re.split`、`match.start`、`_DATE_NEGATIVE.search`、`match.group`、`re.finditer`、`_fact_entity`、`reference.group`、`_legacy_targets`等。 返回路径：L1137的`match.group()`；L1147的`match.group()`。
-- `_section_entity`（L1157–L1162）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L1162的`next(iter(common)) if len(common) == 1 else None`。
-- `_single_operation_heading`（L1165–L1183）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L1169遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L1174按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L1183的`operations == 1 and not remaining`。
-- `_explicit_predicate_heading`（L1186–L1201）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L1188按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L1189的`True`；L1192的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
-- `_explicit_query_sections`（L1204–L1244）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L1211遍历`text`；L1213按`char in "（([【"`分支；L1215按`char in "）)]】"`分支；L1225遍历`boundary.finditer(text)`；L1226按`not depths[match.start()] and ( _fact_candidates(text[start : match.start()], fields)…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`text[start : match.start()].strip`、`_single_operation_heading`、`match.end`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_descriptor_inventory_groups`（L1247–L1293）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L1256遍历`enumerate(text)`；L1257按`char in "（([【"`分支；L1259按`char in "）)]】" and stack`分支；L1261按`not stack`分支；L1264遍历`spans`；L1267遍历`body`；L1269按`char in "（([【"`分支；L1271按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L1293的`"".join(parts), declarations`。
-- `_entity_subject_heading`（L1296–L1320）：接收`text`、`fields`。 源码说明：Read explicit entity subjects before binding any field predicates. A group is a set of independent owners, not a namespace string. Explicit subjects replace inherited scope; unknown members of a partl。 控制顺序：L1311按`not heading`分支；L1316按`any(owner in field_names and owner not in known for owner in owners)`分支；L1318按`not any(owner in known for owner in owners) and "::" not in heading.group()`分支。 调用`re.match`、`tuple`、`dict.fromkeys`、`re.split`、`any`、`heading.group`、`heading.end`。 返回路径：L1312的`None`；L1317的`None`；L1319的`None`。
-- `_explicit_entity_sections`（L1323–L1351）：接收`text`、`fields`。 源码说明：Recognize a new entity subject at top-level punctuation or conjunctions. A coordinated qualified field list still shares its trailing predicate: 'alpha.title and alpha.detail required' is not two inde。 控制顺序：L1332遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1335按`not separator or boundary < protected`分支；L1339按`not heading`分支；L1343按`len(owners) > 1 or not syntax.endswith(".") or re.search(LEGACY_PROPERTY, text[start:…`分支。 调用`_entity_subject_heading`、`len`、`_top_level_parts`、`following[: len(following) - len(body)].rstrip`、`syntax.endswith`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_length_text`（L1354–L1372）：接收`text`、`fields`。 源码说明：Lower explicit length notation, without treating numeric filters as lengths.。 控制顺序：L1356按`not re.search(r"长度\|字符\|\b(?:length\|characters?)\b", text, re.I)`分支。 调用`re.search`、`names.update`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.escape`、`sorted`、`re.sub`。 返回路径：L1357的`text`；L1361的`re.sub( rf"(?<![a-z0-9_])(?P<field>{pattern})\s*(?P<op>≤\|>=\|<=\|≥)\s*(?P<value>\d+)", la…`。
-- `_legacy_subject_projections`（L1375–L1408）：接收`clause`、`pattern`、`scopes`。 源码说明：Project coordinated qualified fields to their owners before predicates. The predicate remains shared, while alpha.title and beta.detail can never become alpha.detail merely because alpha was the previ。 控制顺序：L1387遍历`subjects`；L1392按`not qualified`分支；L1396遍历`owners`；L1398遍历`zip(subjects, bindings)`。 调用`list`、`re.finditer`、`pattern.finditer`、`re.fullmatch`、`match.group`、`any`、`p.start`、`match.start`、`p.end`等。 返回路径：L1393的`[(owner, clause) for owner in scopes or (None,)]`；L1408的`result`。
-- `_legacy_clauses`（L1411–L1663）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1433遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1434按`sentence in {"但是", "但", "不过"}`分支；L1437按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1442按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1455在`True`成立时循环；L1458按`heading`分支；L1461按`syntax.endswith((":", "："))`分支；L1463按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_operation_parts`（L1666–L1680）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1669遍历`text`；L1671按`char in "（([【"`分支；L1673按`char in "）)]】"`分支；L1676遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1677按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_query_operation_groups`（L1683–L1735）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1692遍历`_operation_parts(text)`；L1694按`marker is None`分支；L1695按`prefix`分支；L1697按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1698按`pending`分支；L1724按`prefix`分支；L1727按`is_prefix`分支；L1728按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_query_parts`（L1745–L1773）：接收`text`、`fields`。 源码说明：Share field/operator binding without reading candidate query flags.。 控制顺序：L1748按`re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search( _QUERY_OPERATIO…`分支；L1753遍历`parts`；L1756按`part != text and _fact_entity(part, fields) is None`分支；L1757按`entity_scope`分支；L1759按`_ALL_ENTITIES.search(text)`分支；L1762按`not targets and _fact_candidates(bound, fields)`分支；L1766按`not targets and previous_targets and not re.search(r"关键词\|关键字\|keyword", part, re.I)`分支；L1768按`targets`分支。 调用`re.search`、`list`、`_query_operation_groups`、`_fact_entity`、`_ALL_ENTITIES.search`、`_legacy_targets`、`_fact_candidates`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_query_pairs`（L1776–L1781）：接收`text`、`fields`。 源码说明：Only named positive predicates establish a field's query capability.。 控制顺序：L1778遍历`_legacy_query_parts(text, fields)`；L1779遍历`_QUERY_OPERATIONS.items()`；L1780按`re.search(pattern, part, re.I)`分支。 调用`_legacy_query_parts`、`_QUERY_OPERATIONS.items`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_top_level_parts`（L1810–L1829）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1813遍历`enumerate(text)`；L1815按`quote`分支；L1816按`char == quote and (not index or text[index - 1] != "\\")`分支；L1818按`char in "\"'"`分支；L1820按`char in "（([【"`分支；L1822按`char in "）)]】"`分支；L1825遍历`re.finditer(separators, text, re.I)`；L1826按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_entity`（L1832–L1839）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1837按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1839的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
-- `_metric_clauses`（L1842–L1958）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1947遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1948按`_METRIC_CONTEXT.search(part)`分支；L1955按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L1958的`"".join(result), obligations`。
-- `_metric_clauses.consume`（L1852–L1931）：接收`fragment`、`context`、`inherited`。 控制顺序：L1855按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1860遍历`matches`；L1862按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1875按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1893按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1900按`inherited and not predicates and not scope_only`分支；L1907按`not targets and not predicates and not scope_only`分支；L1909按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1856的`fragment`；L1896的`fragment`；L1901的`fragment`。
-- `_metric_clauses.parenthesis`（L1935–L1942）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1942的`match.group() if filtered == body else ""`。
-- `_negative_operation_pattern`（L1961–L1986）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1978的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
-- `_legacy_boolean_text`（L1989–L2017）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2017的`_negative_operation_pattern(fields).sub(replace, text)`。
-- `_legacy_boolean_text.replace`（L1996–L2015）：接收`match`。 控制顺序：L1998按`not re.match( r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与\|" r"\b(?:never\|cannot\…`分支；L2007按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L2011按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L2013按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`_DATE_RANGE_QUERY.sub`、`" ".join`。 返回路径：L2005的`""`；L2015的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
-- `_legacy_operation_text`（L2020–L2032）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2032的`_negative_operation_pattern(fields).sub("（）", text)`。
-- `_legacy_field_exclusions`（L2035–L2121）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L2082遍历`sentences`；L2084按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L2121的`"".join(output), obligations`。
-- `_legacy_field_exclusions.replace`（L2087–L2116）：接收`match`。 控制顺序：L2096按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L2104遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L2101的`match.group()`；L2116的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
-- `_legacy_date_obligations`（L2156–L2237）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2166遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2167按`not sentence.strip()`分支；L2175遍历`_legacy_clauses(sentence, fields)`；L2178按`not markers and not formats`分支；L2195遍历`[*markers, *formats]`；L2199按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2205按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2207按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_normalized_constraint_value`（L2240–L2260）：接收`attribute`、`expected`。 控制顺序：L2241按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2242按`isinstance(expected, str)`分支；L2244按`word in {"true", "是", "必填"}`分支；L2246按`word in {"false", "否", "可选", "非必填"}`分支；L2248按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2256按`isinstance(expected, str)`分支；L2258按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2260的`expected`。
-- `_matches_constraint`（L2263–L2282）：接收`attribute`、`expected`、`actual`。 控制顺序：L2265按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2267按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2276按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2266的`type(expected) is bool and actual is expected`；L2275的`type(expected) is int and actual == expected`；L2277的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `_field_constraint_matches`（L2285–L2298）：接收`field`、`attribute`、`expected`。 控制顺序：L2286按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2289按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2290的`False`；L2292的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2298的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
-- `_legacy_scalar_constraints`（L2301–L2326）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2312按`not validation`分支；L2313按`(re.search(r"必填\|required", text, re.I) and not optional) or re.search( r"不可空\|不得为空",…`分支；L2317按`optional or re.search(r"可选", text)`分支；L2319遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2324按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_integer_constraints`（L2329–L2346）：接收`text`。 控制顺序：L2330按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2336按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2339遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2345遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_query_closure`（L2367–L2447）：接收`texts`、`fields`。 源码说明：Close only explicitly exhaustive query declarations in source prose. Allowed pairs come from the existing field/operator binder, never a candidate's true flags. A date range does not authorize an exac。 控制顺序：L2375遍历`texts`；L2376按`_QUERY_CLOSURE.search(original)`分支；L2377遍历`enumerate(_legacy_clauses(original, fields))`；L2378遍历`_QUERY_CLOSURE.finditer(clause)`；L2379按`_DATE_CONTEXT.search(clause[: match.start()])`分支；L2395按`not closed`分支；L2420遍历`cleaned`；L2424遍历`_legacy_clauses(_legacy_operation_text(text, fields), fields)`。后续分支沿下方源码相同行号继续阅读。 调用`_QUERY_CLOSURE.search`、`enumerate`、`_legacy_clauses`、`_QUERY_CLOSURE.finditer`、`_DATE_CONTEXT.search`、`match.start`、`re.findall`、`list`、`closed.append`等。 返回路径：L2396的`texts, []`；L2447的`cleaned, obligations`。
-- `_legacy_query_closure.descriptor_row`（L2398–L2405）：接收`match`。 控制顺序：L2400按`not any(entity == owner and field.name == name for entity, field in fields)`分支。 调用`value.strip`、`match.groups`、`any`、`match.group`、`re.sub`。 返回路径：L2401的`match.group()`；L2405的`f"{owner}::{name}（{description}）"`。
-- `explicit_legacy_field_constraints`（L2450–L2541）：接收`requirement`。 源码说明：Reliably bound scalar/query constraints using Requirement vocabulary. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported te。 控制顺序：L2464按`not fields`分支；L2478遍历`texts`；L2482遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2485遍历`_legacy_query_pairs(clause, fields)`；L2496遍历`_legacy_targets(clause, fields)`；L2498遍历`_legacy_scalar_constraints(clause)`；L2509遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2512按`subject not in vocabulary`分支。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_query_closure`、`result.extend`、`_legacy_field_exclusions`等。 返回路径：L2465的`[]`；L2541的`result`。
-- `_legacy_declared_fields`（L2544–L2614）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2554按`heading`分支；L2556按`owner`分支；L2559按`match`分支；L2578按`declaration`分支；L2580按`body[:1] in "（([【"`分支；L2589按`not descriptor`分支；L2593遍历`_top_level_parts(body, separators)`；L2595按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2590的`[]`；L2614的`result`。
-- `coverage_gaps`（L2617–L3057）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2625按`native_normalization`分支；L2673按`plan.data_scope != requirement.data_scope`分支；L2680遍历`enumerate(requirement.field_requirements)`；L2688按`len(matches) != 1`分支；L2692遍历`obligation.model_dump().items()`；L2693按`key in {"field", "entity"} or value is None`分支；L2697按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2699按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L3057的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.query_matches`（L2635–L2641）：接收`field`、`attribute`、`expected`。 控制顺序：L2637按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2638的`typed_queries[key]`；L2641的`getattr(field, attribute) is expected`。
-- `coverage_gaps.gap`（L2643–L2671）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2645按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_query_attribute_text`（L996–L1048）：接收`text`、`fields`。 源码说明：A reference to query switches does not itself turn the switches on. Only literal schema identifiers are considered here, before natural query predicates are lowered to the same spelling. Reuse the sub。 控制顺序：L1004按`not re.search(attribute, text, re.I)`分支；L1021遍历`_legacy_clauses(text, fields)`；L1022按`_fact_candidates(clause, fields)`分支。 调用`re.search`、`re.compile`、`_legacy_clauses`、`_fact_candidates`、`clauses.append`、`identifiers.sub`、`"; ".join`。 返回路径：L1005的`text`；L1048的`"; ".join(clauses) if changed else text`。
+- `_query_attribute_text.replace`（L1026–L1045）：接收`match`。 控制顺序：L1040按`assignment or affirmative or not reference.search(before + after)`分支。 调用`re.split`、`match.start`、`match.end`、`re.match`、`any`、`enable.search`、`_DATE_NEGATIVE.search`、`re.search`、`reference.search`等。 返回路径：L1041的`match.group()`；L1043的`re.sub( attribute, lambda item: " " * len(item.group()), match.group(), flags=re.I )`。
+- `_query_predicate_text`（L1051–L1210）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 控制顺序：L1104遍历`( rf"\b(?:do\|does\|must\|should)\s+not\s+include\s+(?P<targets>{…`。 调用`_query_attribute_text`、`_query_composition_text`、`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。 返回路径：L1210的`"; ".join([_DATE_RANGE_QUERY.sub("date_range", text), *shared_predicates])`。
+- `_query_predicate_text.negative_membership`（L1100–L1102）：接收`match`。 调用`re.search`。 返回路径：L1102的`match["targets"] + " " + attribute + "=false"`。
+- `_query_predicate_text.replace`（L1115–L1172）：接收`match`。 控制顺序：L1149按`binds_before or binds_after or imperative`分支；L1154按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L1158按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L1169的`operation + " "`；L1172的`" " * len(match.group())`。
+- `_query_predicate_text.shared_predicate`（L1189–L1203）：接收`match`。 控制顺序：L1192按`operation is None or _DATE_NEGATIVE.search(before)`分支；L1194遍历`re.finditer(subject, match["targets"], re.I)`；L1200遍历`fields`；L1201按`field.kind != "date" and any(field is target for target in candidates)`分支。 调用`re.search`、`re.split`、`match.start`、`_DATE_NEGATIVE.search`、`match.group`、`re.finditer`、`_fact_entity`、`reference.group`、`_legacy_targets`等。 返回路径：L1193的`match.group()`；L1203的`match.group()`。
+- `_section_entity`（L1213–L1218）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L1218的`next(iter(common)) if len(common) == 1 else None`。
+- `_single_operation_heading`（L1221–L1239）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L1225遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L1230按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L1239的`operations == 1 and not remaining`。
+- `_explicit_predicate_heading`（L1242–L1257）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L1244按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L1245的`True`；L1248的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
+- `_explicit_query_sections`（L1260–L1300）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L1267遍历`text`；L1269按`char in "（([【"`分支；L1271按`char in "）)]】"`分支；L1281遍历`boundary.finditer(text)`；L1282按`not depths[match.start()] and ( _fact_candidates(text[start : match.start()], fields)…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`text[start : match.start()].strip`、`_single_operation_heading`、`match.end`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_descriptor_inventory_groups`（L1303–L1349）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L1312遍历`enumerate(text)`；L1313按`char in "（([【"`分支；L1315按`char in "）)]】" and stack`分支；L1317按`not stack`分支；L1320遍历`spans`；L1323遍历`body`；L1325按`char in "（([【"`分支；L1327按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L1349的`"".join(parts), declarations`。
+- `_entity_subject_heading`（L1352–L1376）：接收`text`、`fields`。 源码说明：Read explicit entity subjects before binding any field predicates. A group is a set of independent owners, not a namespace string. Explicit subjects replace inherited scope; unknown members of a partl。 控制顺序：L1367按`not heading`分支；L1372按`any(owner in field_names and owner not in known for owner in owners)`分支；L1374按`not any(owner in known for owner in owners) and "::" not in heading.group()`分支。 调用`re.match`、`tuple`、`dict.fromkeys`、`re.split`、`any`、`heading.group`、`heading.end`。 返回路径：L1368的`None`；L1373的`None`；L1375的`None`。
+- `_explicit_entity_sections`（L1379–L1407）：接收`text`、`fields`。 源码说明：Recognize a new entity subject at top-level punctuation or conjunctions. A coordinated qualified field list still shares its trailing predicate: 'alpha.title and alpha.detail required' is not two inde。 控制顺序：L1388遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1391按`not separator or boundary < protected`分支；L1395按`not heading`分支；L1399按`len(owners) > 1 or not syntax.endswith(".") or re.search(LEGACY_PROPERTY, text[start:…`分支。 调用`_entity_subject_heading`、`len`、`_top_level_parts`、`following[: len(following) - len(body)].rstrip`、`syntax.endswith`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_length_text`（L1410–L1428）：接收`text`、`fields`。 源码说明：Lower explicit length notation, without treating numeric filters as lengths.。 控制顺序：L1412按`not re.search(r"长度\|字符\|\b(?:length\|characters?)\b", text, re.I)`分支。 调用`re.search`、`names.update`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.escape`、`sorted`、`re.sub`。 返回路径：L1413的`text`；L1417的`re.sub( rf"(?<![a-z0-9_])(?P<field>{pattern})\s*(?P<op>≤\|>=\|<=\|≥)\s*(?P<value>\d+)", la…`。
+- `_legacy_subject_projections`（L1431–L1464）：接收`clause`、`pattern`、`scopes`。 源码说明：Project coordinated qualified fields to their owners before predicates. The predicate remains shared, while alpha.title and beta.detail can never become alpha.detail merely because alpha was the previ。 控制顺序：L1443遍历`subjects`；L1448按`not qualified`分支；L1452遍历`owners`；L1454遍历`zip(subjects, bindings)`。 调用`list`、`re.finditer`、`pattern.finditer`、`re.fullmatch`、`match.group`、`any`、`p.start`、`match.start`、`p.end`等。 返回路径：L1449的`[(owner, clause) for owner in scopes or (None,)]`；L1464的`result`。
+- `_legacy_clauses`（L1467–L1719）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1489遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1490按`sentence in {"但是", "但", "不过"}`分支；L1493按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1498按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1511在`True`成立时循环；L1514按`heading`分支；L1517按`syntax.endswith((":", "："))`分支；L1519按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_operation_parts`（L1722–L1736）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1725遍历`text`；L1727按`char in "（([【"`分支；L1729按`char in "）)]】"`分支；L1732遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1733按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_query_operation_groups`（L1739–L1791）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1748遍历`_operation_parts(text)`；L1750按`marker is None`分支；L1751按`prefix`分支；L1753按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1754按`pending`分支；L1780按`prefix`分支；L1783按`is_prefix`分支；L1784按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_query_parts`（L1801–L1829）：接收`text`、`fields`。 源码说明：Share field/operator binding without reading candidate query flags.。 控制顺序：L1804按`re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search( _QUERY_OPERATIO…`分支；L1809遍历`parts`；L1812按`part != text and _fact_entity(part, fields) is None`分支；L1813按`entity_scope`分支；L1815按`_ALL_ENTITIES.search(text)`分支；L1818按`not targets and _fact_candidates(bound, fields)`分支；L1822按`not targets and previous_targets and not re.search(r"关键词\|关键字\|keyword", part, re.I)`分支；L1824按`targets`分支。 调用`re.search`、`list`、`_query_operation_groups`、`_fact_entity`、`_ALL_ENTITIES.search`、`_legacy_targets`、`_fact_candidates`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_query_pairs`（L1832–L1837）：接收`text`、`fields`。 源码说明：Only named positive predicates establish a field's query capability.。 控制顺序：L1834遍历`_legacy_query_parts(text, fields)`；L1835遍历`_QUERY_OPERATIONS.items()`；L1836按`re.search(pattern, part, re.I)`分支。 调用`_legacy_query_parts`、`_QUERY_OPERATIONS.items`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_top_level_parts`（L1866–L1885）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1869遍历`enumerate(text)`；L1871按`quote`分支；L1872按`char == quote and (not index or text[index - 1] != "\\")`分支；L1874按`char in "\"'"`分支；L1876按`char in "（([【"`分支；L1878按`char in "）)]】"`分支；L1881遍历`re.finditer(separators, text, re.I)`；L1882按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_entity`（L1888–L1895）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1893按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1895的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
+- `_metric_clauses`（L1898–L2014）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L2003遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L2004按`_METRIC_CONTEXT.search(part)`分支；L2011按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L2014的`"".join(result), obligations`。
+- `_metric_clauses.consume`（L1908–L1987）：接收`fragment`、`context`、`inherited`。 控制顺序：L1911按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1916遍历`matches`；L1918按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1931按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1949按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1956按`inherited and not predicates and not scope_only`分支；L1963按`not targets and not predicates and not scope_only`分支；L1965按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1912的`fragment`；L1952的`fragment`；L1957的`fragment`。
+- `_metric_clauses.parenthesis`（L1991–L1998）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1998的`match.group() if filtered == body else ""`。
+- `_negative_operation_pattern`（L2017–L2042）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L2034的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
+- `_legacy_boolean_text`（L2045–L2073）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2073的`_negative_operation_pattern(fields).sub(replace, text)`。
+- `_legacy_boolean_text.replace`（L2052–L2071）：接收`match`。 控制顺序：L2054按`not re.match( r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与\|" r"\b(?:never\|cannot\…`分支；L2063按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L2067按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L2069按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`_DATE_RANGE_QUERY.sub`、`" ".join`。 返回路径：L2061的`""`；L2071的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
+- `_legacy_operation_text`（L2076–L2088）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L2088的`_negative_operation_pattern(fields).sub("（）", text)`。
+- `_legacy_field_exclusions`（L2091–L2177）：接收`text`、`fields`。 源码说明：Separate absence of fields from nullable fields or disabled operations. Only explicit absence/removal predicates bind exclusions. In particular, 'not required', 'not null' and 'do not filter' are not 。 控制顺序：L2138遍历`sentences`；L2140按`heading`分支。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`name.isascii`、`re.compile`、`_fact_entity`、`_top_level_parts`等。 返回路径：L2177的`"".join(output), obligations`。
+- `_legacy_field_exclusions.replace`（L2143–L2172）：接收`match`。 控制顺序：L2152按`query_location or re.search( r"搜索\|检索\|筛选\|过滤\|显示\|展示\|界面\|列表\|\b(?:search\|filter\|d…`分支；L2160遍历`re.split(separator_pattern, identities, flags=re.I)`。 调用`re.split`、`match.start`、`re.match`、`match.end`、`re.search`、`match.group`、`identity.strip`、`re.fullmatch`、`qualified.group`等。 返回路径：L2157的`match.group()`；L2172的`match.group()[:start] + " " * (end - start) + match.group()[end:]`。
+- `_legacy_date_obligations`（L2212–L2293）：接收`text`、`fields`。 源码说明：Interpret field types, not every mention of a date-shaped string. Read original source clauses before query lowering discards negations or headings. A format alone is presentation metadata; it becomes。 控制顺序：L2222遍历`re.split(r"[；;。\n]\|但是\|但\|不过\|\bbut\b", text, flags=re.I)`；L2223按`not sentence.strip()`分支；L2231遍历`_legacy_clauses(sentence, fields)`；L2234按`not markers and not formats`分支；L2251遍历`[*markers, *formats]`；L2255按`_DATE_NEGATIVE.search(local_prefix) or re.match( r"\s*(?:字段\|类型\|校验\|验证)?\s*(?:无需\|不需…`分支；L2261按`context or _DATE_CONTEXT.search(local_prefix)`分支；L2263按`marker in formats and ( not concrete or not _DATE_INPUT.search(clause) or _DATE_PRESE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`re.split`、`sentence.strip`、`re.match`、`bool`、`_DATE_CONTEXT.search`、`headings.group`、`re.search`、`_legacy_clauses`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_normalized_constraint_value`（L2296–L2316）：接收`attribute`、`expected`。 控制顺序：L2297按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2298按`isinstance(expected, str)`分支；L2300按`word in {"true", "是", "必填"}`分支；L2302按`word in {"false", "否", "可选", "非必填"}`分支；L2304按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2312按`isinstance(expected, str)`分支；L2314按`legacy`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`re.fullmatch`、`int`、`legacy.group`。 返回路径：L2316的`expected`。
+- `_matches_constraint`（L2319–L2338）：接收`attribute`、`expected`、`actual`。 控制顺序：L2321按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L2323按`attribute in { "min_length", "max_length", "minimum", "maximum", "exclusive_minimum",…`分支；L2332按`attribute == "choices"`分支。 调用`_normalized_constraint_value`、`type`、`isinstance`、`all`、`set`。 返回路径：L2322的`type(expected) is bool and actual is expected`；L2331的`type(expected) is int and actual == expected`；L2333的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `_field_constraint_matches`（L2341–L2354）：接收`field`、`attribute`、`expected`。 控制顺序：L2342按`attribute in {"minimum", "maximum", "exclusive_minimum", "exclusive_maximum"}`分支；L2345按`field.kind != "integer" or type(expected) is not int`分支。 调用`type`、`integer_bounds`、`field.model_dump`、`_matches_constraint`、`getattr`。 返回路径：L2346的`False`；L2348的`{ "minimum": low == expected, "maximum": high == expected, "exclusive_minimum": low == exp…`；L2354的`_matches_constraint(attribute, expected, getattr(field, attribute))`。
+- `_legacy_scalar_constraints`（L2357–L2382）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2368按`not validation`分支；L2369按`(re.search(r"必填\|required", text, re.I) and not optional) or re.search( r"不可空\|不得为空",…`分支；L2373按`optional or re.search(r"可选", text)`分支；L2375遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2380按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`、`_legacy_integer_constraints`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_integer_constraints`（L2385–L2402）：接收`text`。 控制顺序：L2386按`not re.search( r"minimum\s*[:=]\|maximum\s*[:=]\|必须\|保存\|校验\|拒绝\|不得\|应当\|应满足", text, …`分支；L2392按`not re.search(r"筛选\|过滤\|统计\|查询\|filter\|query\|metric", text, re.I) or re.search( r"保…`分支；L2395遍历`( ("minimum", r"(?<!exclusive_)minimum\s*[:=]\|>=\|≥\|大于等于\|不小于\|…`；L2401遍历`re.finditer(rf"(?:{pattern})\s*(-?\d+)(?![\d.])", text, re.I)`。 调用`re.search`、`re.finditer`、`int`、`match.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_query_closure`（L2423–L2503）：接收`texts`、`fields`。 源码说明：Close only explicitly exhaustive query declarations in source prose. Allowed pairs come from the existing field/operator binder, never a candidate's true flags. A date range does not authorize an exac。 控制顺序：L2431遍历`texts`；L2432按`_QUERY_CLOSURE.search(original)`分支；L2433遍历`enumerate(_legacy_clauses(original, fields))`；L2434遍历`_QUERY_CLOSURE.finditer(clause)`；L2435按`_DATE_CONTEXT.search(clause[: match.start()])`分支；L2451按`not closed`分支；L2476遍历`cleaned`；L2480遍历`_legacy_clauses(_legacy_operation_text(text, fields), fields)`。后续分支沿下方源码相同行号继续阅读。 调用`_QUERY_CLOSURE.search`、`enumerate`、`_legacy_clauses`、`_QUERY_CLOSURE.finditer`、`_DATE_CONTEXT.search`、`match.start`、`re.findall`、`list`、`closed.append`等。 返回路径：L2452的`texts, []`；L2503的`cleaned, obligations`。
+- `_legacy_query_closure.descriptor_row`（L2454–L2461）：接收`match`。 控制顺序：L2456按`not any(entity == owner and field.name == name for entity, field in fields)`分支。 调用`value.strip`、`match.groups`、`any`、`match.group`、`re.sub`。 返回路径：L2457的`match.group()`；L2461的`f"{owner}::{name}（{description}）"`。
+- `explicit_legacy_field_constraints`（L2506–L2597）：接收`requirement`。 源码说明：Reliably bound scalar/query constraints using Requirement vocabulary. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported te。 控制顺序：L2520按`not fields`分支；L2534遍历`texts`；L2538遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2541遍历`_legacy_query_pairs(clause, fields)`；L2552遍历`_legacy_targets(clause, fields)`；L2554遍历`_legacy_scalar_constraints(clause)`；L2565遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2568按`subject not in vocabulary`分支。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_query_closure`、`result.extend`、`_legacy_field_exclusions`等。 返回路径：L2521的`[]`；L2597的`result`。
+- `_legacy_declared_fields`（L2600–L2670）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2610按`heading`分支；L2612按`owner`分支；L2615按`match`分支；L2634按`declaration`分支；L2636按`body[:1] in "（([【"`分支；L2645按`not descriptor`分支；L2649遍历`_top_level_parts(body, separators)`；L2651按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2646的`[]`；L2670的`result`。
+- `coverage_gaps`（L2673–L3113）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2681按`native_normalization`分支；L2729按`plan.data_scope != requirement.data_scope`分支；L2736遍历`enumerate(requirement.field_requirements)`；L2744按`len(matches) != 1`分支；L2748遍历`obligation.model_dump().items()`；L2749按`key in {"field", "entity"} or value is None`分支；L2753按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2755按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_field_constraint_matches`等。 返回路径：L3113的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.query_matches`（L2691–L2697）：接收`field`、`attribute`、`expected`。 控制顺序：L2693按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2694的`typed_queries[key]`；L2697的`getattr(field, attribute) is expected`。
+- `coverage_gaps.gap`（L2699–L2727）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2701按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: a04b371b110800942798ed94d5e66309429d3f50d4c0368122842966d821f114 -->
+<!-- source-file: workbench/requirement_coverage.py sha256: 228feceba53326c28cef3c9de920bab35856f505a3439ffc5fe05b508ce6d20f -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -32996,6 +33000,61 @@ def _query_composition_text(text, fields):
     )
 
 
+def _query_attribute_text(text, fields):
+    """A reference to query switches does not itself turn the switches on.
+
+    Only literal schema identifiers are considered here, before natural query
+    predicates are lowered to the same spelling. Reuse the subject binder so
+    named declarations and neighboring field clauses keep their own meaning.
+    """
+    attribute = r"(?<![a-z0-9_])(?:searchable|filterable|date_range)(?![a-z0-9_])"
+    if not re.search(attribute, text, re.I):
+        return text
+    identifiers = re.compile(
+        rf"`?{attribute}`?(?:\s*(?:[、,，/](?:\s*and\b)?|和|与|及|\band\b)\s*`?{attribute}`?)*",
+        re.I,
+    )
+    reference = re.compile(
+        r"声明|定义|清单|属性|开关|默认|未启用|不启用|"
+        r"\b(?:declar(?:e[ds]?|ations?)|definitions?|attributes?|flags?|defaults?|disabled|false)\b",
+        re.I,
+    )
+    enable = re.compile(
+        r"开启|启用|支持|提供|需要|要求|"
+        r"\b(?:enable[ds]?|activate[ds]?|supports?|provides?|requires?|needs?)\b",
+        re.I,
+    )
+    changed, clauses = False, []
+    for clause in _legacy_clauses(text, fields):
+        if _fact_candidates(clause, fields):
+            clauses.append(clause)
+            continue
+
+        def replace(match):
+            nonlocal changed
+            before = re.split(r"[，,；;。\n]", clause[: match.start()])[-1]
+            after = re.split(r"[，,；;。\n]", clause[match.end() :])[0]
+            assignment = re.match(r"\s*[:=]\s*(?:true|false|是|否)(?![a-z])", after, re.I)
+            # An explicit enabling predicate wins over a descriptive noun,
+            # regardless of intervening modifiers such as 'following flags'.
+            # A negated/default statement still cannot enable an operation.
+            affirmative = any(
+                enable.search(context)
+                and not _DATE_NEGATIVE.search(context)
+                and not re.search(r"(?:未|不)\s*(?:开启|启用|支持|提供|需要|要求)", context)
+                for context in (before, after)
+            ) or re.match(r"\s*(?:is|are|均为|为)\s*true(?![a-z])", after, re.I)
+            if assignment or affirmative or not reference.search(before + after):
+                return match.group()
+            changed = True
+            return re.sub(
+                attribute, lambda item: " " * len(item.group()), match.group(), flags=re.I
+            )
+
+        clauses.append(identifiers.sub(replace, clause))
+    return "; ".join(clauses) if changed else text
+
+
 def _query_predicate_text(text, fields):
     """Exclude operation-derived nouns unless an explicit predicate binds fields.
 
@@ -33004,6 +33063,7 @@ def _query_predicate_text(text, fields):
     'title is a search criterion' and imperatives such as 'filter results by title'.
     Other verbs in the same clause remain available for ordinary subject binding.
     """
+    text = _query_attribute_text(text, fields)
     text = _query_composition_text(text, fields)
     nouns = re.compile(
         r"(?P<operation>"
@@ -73820,28 +73880,35 @@ if __name__ == "__main__":
 **逐个入口与控制逻辑：**
 
 - `check`（L22–L24）：接收`condition`、`message`。 控制顺序：L23按`not condition`分支；L24抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_query_matrix`（L27–L312）：接收`spec`、`actors`、`rows`、`samples`、`create_roles`、`request`、`allowed`。 源码说明：Exact query expectations come from owned API writes, never query responses.。 控制顺序：L46遍历`spec["entities"]`；L50按`not searchable and not filterable`分支；L54按`workflow`分支；L63遍历`actors.items()`；L64按`not allowed(role, entity, "read")`分支；L67按`scope == "own" and not allowed(role, entity, "create")`分支；L72遍历`(0, 1)`；L74遍历`enumerate(fields)`。后续分支沿下方源码相同行号继续阅读。 调用`workflows.get`、`resources[entity].get`、`protected.add`、`protected.update`、`t.get`、`actors.items`、`allowed`、`dict`、`enumerate`等。 返回路径：L312的`cases, evidence`。
-- `verify_query_matrix.wire`（L36–L37）：接收`value`。 调用`type`、`str(value).lower`、`str`。 返回路径：L37的`str(value).lower() if type(value) is bool else str(value)`。
-- `verify_query_matrix.keyword`（L39–L44）：接收`value`。 调用`str`、`len`、`term[:200].upper`。 返回路径：L44的`term[:200].upper()`。
-- `verify_query_matrix.matches`（L164–L174）：接收`row`、`params`。 控制顺序：L166按`q and not any(q in str(row.get(f["name"]) or "").casefold() for f in searchable)`分支。 调用`params.get("q", "").strip().casefold`、`params.get("q", "").strip`、`params.get`、`any`、`str(row.get(f["name"]) or "").casefold`、`str`、`row.get`、`all`、`wire`等。 返回路径：L167的`False`；L168的`all( wire(row.get(f["name"])) == value for key, value in params.items() if key.startswith(…`。
-- `verify_field_constraints`（L315–L385）：接收`client`、`actor`、`entity`、`fields`、`sample`、`row`、`protected`、`can_update`。 源码说明：Reject concrete invalid requests through the generated server, not metadata alone.。 控制顺序：L321遍历`fields`；L324按`name in protected`分支；L328按`can_update`分支；L339按`kind == "integer"`分支；L347按`field["required"]`分支；L353按`kind in {"text", "enum"}`分支；L355按`kind == "text"`分支；L358按`field.get("min_length", 0) > 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`client.get(route, headers=headers, params={"limit": 100}).json`、`client.get`、`client.post`、`check`、`client.put`、`evidence.append`、`integer_bounds`、`invalid.extend`、`proof.update`等。 返回路径：L385的`evidence`。
-- `verify_audit_immutability`（L388–L436）：接收`client`、`actor`、`entity`、`row`、`actor_ids`。 控制顺序：L395遍历`original`；L420遍历`(route, route + "/" + original[0]["id"])`；L421遍历`("PUT", "PATCH", "DELETE")`。 调用`client.get`、`check`、`response.json`、`bool`、`entry.keys`、`all`、`isinstance`、`entry.get`、`datetime.fromisoformat`等。 返回路径：L429的`original, { "entity": entity, "entries_checked": len(original), "action_actor_timestamp": …`。
-- `NotificationEvidence`（L439–L526）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `NotificationEvidence.__init__`（L442–L448）：接收`business`。 调用`Counter`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.recipient`（L450–L456）：接收`rule`、`row`。 调用`row.get`。 返回路径：L456的`row.get(field)`。
-- `NotificationEvidence.event`（L458–L469）：接收`entity`、`row`、`event`、`transition`。 控制顺序：L460遍历`enumerate(self.rules)`；L461按`rule["entity"] != entity or rule["event"] != event`分支；L463按`event == "transitioned" and rule["transition"] != transition`分支；L466按`recipient`分支。 调用`set`、`enumerate`、`self.recipient`、`self.covered.add`、`recipients.add`、`self.expected.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.due`（L471–L496）：接收`rows`、`actor`、`allowed`。 控制顺序：L473遍历`enumerate(self.rules)`；L474按`rule["event"] != "due"`分支；L477遍历`rows[entity]`；L479按`not value or row.get("archived_at") or self.recipient(rule, row) != actor["id"] or no…`分支；L488按`workflow and row[workflow["status_field"]] not in { state for t in workflow["transiti…`分支；L494按`key not in self.due_seen`分支。 调用`datetime.now`、`enumerate`、`row.get`、`self.recipient`、`allowed`、`datetime.fromisoformat`、`value.replace`、`self.workflows.get`、`self.covered.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.inbox`（L498–L520）：接收`actor`、`notices`、`event`。 调用`check`、`len`、`all`、`Counter`、`self.expected.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.complete`（L522–L526）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`check`、`set`、`range`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_png`（L535–L594）：接收`payload`。 控制顺序：L552在`offset < len(payload)`成立时循环；L561按`header is None`分支；L564按`kind == b"IHDR"`分支；L565抛异常，停止当前正常路径；L566按`kind == b"IDAT"`分支；L568按`kind == b"IEND"`分支；L587抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_screenshots`（L597–L645）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L603按`directory is None`分支；L609遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L605的`[]`；L645的`result`。
-- `verify_business`（L648–L1741）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L651按`screenshot_dir is not None`分支；L716按`selection["database"] == "postgresql"`分支；L840遍历`business["roles"]`；L856按`business["registration"]["enabled"]`分支；L880在`pending`成立时循环；L882遍历`list(pending)`；L888按`any(r["target_entity"] not in base for r in relations)`分支；L912按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L1725的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
-- `verify_business.allowed`（L692–L699）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L694按`action not in grant.get("actions", [])`分支；L696按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L695的`False`；L697的`True`；L699的`row.get(key) == identity`。
-- `verify_business.start`（L740–L781）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L770遍历`range(150)`；L772按`client.get("/health").status_code == 200`分支；L776按`process.poll() is not None`分支；L781抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L773的`process, client`。
-- `verify_business.request`（L791–L829）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L799按`method == "GET" and path == "/business/notifications"`分支；L801按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L805按`len(parts) == 2`分支；L808按`len(parts) == 4`分支；L814按`event`分支；L823按`event`分支；L826遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L829的`result`。
-- `verify_business.selected`（L1277–L1293）：接收`row`。 控制顺序：L1278遍历`metric["filters"]`；L1280按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1289按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1288的`False`；L1292的`False`；L1293的`True`。
+- `workflow_transition_paths`（L27–L52）：接收`workflow`、`permitted`。 源码说明：Find finite routes to each named transition without changing approved states.。 控制顺序：L36在`pending`成立时循环；L38遍历`transitions`；L40按`state in transition["from_states"] and target not in paths`分支；L44遍历`transitions`；L46按`not prefixes`分支。 调用`permitted`、`deque`、`pending.popleft`、`pending.append`、`check`、`min`。 返回路径：L52的`result`。
+- `workflow_assignee_candidates`（L55–L66）：接收`actors`、`grants`、`entity`、`preferred`。 调用`actors.values`、`grants.get((actor["role"], entity), {}).get`、`grants.get`、`dict.fromkeys`。 返回路径：L62的`[ identity for identity in dict.fromkeys([preferred, *(a["id"] for a in actors.values()), …`。
+- `cover_workflow_branches`（L69–L113）：接收`workflow`、`base_row`、`create_branch`、`actor_for`、`apply_transition`、`existing_rows`。 源码说明：Keep the original base path, then exercise remaining branches through callbacks.。 控制顺序：L85在`base_row[status] not in visited`成立时循环；L95按`transition is None`分支；L98遍历`workflow["transitions"]`；L99按`transition["name"] in covered`分支；L101遍历`branches`；L106按`path`分支；L111遍历`path`。 调用`workflow_transition_paths`、`set`、`visited.add`、`next`、`actor_for`、`advance`、`workflow_transition_paths( {**workflow, "initial": row[status]}, …`、`create_branch`、`branches.append`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `cover_workflow_branches.advance`（L78–L83）：接收`row`、`transition`。 调用`check`、`actor_for`、`apply_transition`、`covered.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_query_matrix`（L116–L401）：接收`spec`、`actors`、`rows`、`samples`、`create_roles`、`request`、`allowed`。 源码说明：Exact query expectations come from owned API writes, never query responses.。 控制顺序：L135遍历`spec["entities"]`；L139按`not searchable and not filterable`分支；L143按`workflow`分支；L152遍历`actors.items()`；L153按`not allowed(role, entity, "read")`分支；L156按`scope == "own" and not allowed(role, entity, "create")`分支；L161遍历`(0, 1)`；L163遍历`enumerate(fields)`。后续分支沿下方源码相同行号继续阅读。 调用`workflows.get`、`resources[entity].get`、`protected.add`、`protected.update`、`t.get`、`actors.items`、`allowed`、`dict`、`enumerate`等。 返回路径：L401的`cases, evidence`。
+- `verify_query_matrix.wire`（L125–L126）：接收`value`。 调用`type`、`str(value).lower`、`str`。 返回路径：L126的`str(value).lower() if type(value) is bool else str(value)`。
+- `verify_query_matrix.keyword`（L128–L133）：接收`value`。 调用`str`、`len`、`term[:200].upper`。 返回路径：L133的`term[:200].upper()`。
+- `verify_query_matrix.matches`（L253–L263）：接收`row`、`params`。 控制顺序：L255按`q and not any(q in str(row.get(f["name"]) or "").casefold() for f in searchable)`分支。 调用`params.get("q", "").strip().casefold`、`params.get("q", "").strip`、`params.get`、`any`、`str(row.get(f["name"]) or "").casefold`、`str`、`row.get`、`all`、`wire`等。 返回路径：L256的`False`；L257的`all( wire(row.get(f["name"])) == value for key, value in params.items() if key.startswith(…`。
+- `verify_field_constraints`（L404–L474）：接收`client`、`actor`、`entity`、`fields`、`sample`、`row`、`protected`、`can_update`。 源码说明：Reject concrete invalid requests through the generated server, not metadata alone.。 控制顺序：L410遍历`fields`；L413按`name in protected`分支；L417按`can_update`分支；L428按`kind == "integer"`分支；L436按`field["required"]`分支；L442按`kind in {"text", "enum"}`分支；L444按`kind == "text"`分支；L447按`field.get("min_length", 0) > 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`client.get(route, headers=headers, params={"limit": 100}).json`、`client.get`、`client.post`、`check`、`client.put`、`evidence.append`、`integer_bounds`、`invalid.extend`、`proof.update`等。 返回路径：L474的`evidence`。
+- `verify_audit_immutability`（L477–L525）：接收`client`、`actor`、`entity`、`row`、`actor_ids`。 控制顺序：L484遍历`original`；L509遍历`(route, route + "/" + original[0]["id"])`；L510遍历`("PUT", "PATCH", "DELETE")`。 调用`client.get`、`check`、`response.json`、`bool`、`entry.keys`、`all`、`isinstance`、`entry.get`、`datetime.fromisoformat`等。 返回路径：L518的`original, { "entity": entity, "entries_checked": len(original), "action_actor_timestamp": …`。
+- `NotificationEvidence`（L528–L615）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `NotificationEvidence.__init__`（L531–L537）：接收`business`。 调用`Counter`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.recipient`（L539–L545）：接收`rule`、`row`。 调用`row.get`。 返回路径：L545的`row.get(field)`。
+- `NotificationEvidence.event`（L547–L558）：接收`entity`、`row`、`event`、`transition`。 控制顺序：L549遍历`enumerate(self.rules)`；L550按`rule["entity"] != entity or rule["event"] != event`分支；L552按`event == "transitioned" and rule["transition"] != transition`分支；L555按`recipient`分支。 调用`set`、`enumerate`、`self.recipient`、`self.covered.add`、`recipients.add`、`self.expected.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.due`（L560–L585）：接收`rows`、`actor`、`allowed`。 控制顺序：L562遍历`enumerate(self.rules)`；L563按`rule["event"] != "due"`分支；L566遍历`rows[entity]`；L568按`not value or row.get("archived_at") or self.recipient(rule, row) != actor["id"] or no…`分支；L577按`workflow and row[workflow["status_field"]] not in { state for t in workflow["transiti…`分支；L583按`key not in self.due_seen`分支。 调用`datetime.now`、`enumerate`、`row.get`、`self.recipient`、`allowed`、`datetime.fromisoformat`、`value.replace`、`self.workflows.get`、`self.covered.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.inbox`（L587–L609）：接收`actor`、`notices`、`event`。 调用`check`、`len`、`all`、`Counter`、`self.expected.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.complete`（L611–L615）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`check`、`set`、`range`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_png`（L624–L683）：接收`payload`。 控制顺序：L641在`offset < len(payload)`成立时循环；L650按`header is None`分支；L653按`kind == b"IHDR"`分支；L654抛异常，停止当前正常路径；L655按`kind == b"IDAT"`分支；L657按`kind == b"IEND"`分支；L676抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_screenshots`（L686–L734）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L692按`directory is None`分支；L698遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L694的`[]`；L734的`result`。
+- `verify_business`（L737–L1913）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L740按`screenshot_dir is not None`分支；L805按`selection["database"] == "postgresql"`分支；L929遍历`business["roles"]`；L945按`business["registration"]["enabled"]`分支；L969在`pending`成立时循环；L971遍历`list(pending)`；L977按`any(r["target_entity"] not in base for r in relations)`分支；L1001按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L1897的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
+- `verify_business.allowed`（L781–L788）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L783按`action not in grant.get("actions", [])`分支；L785按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L784的`False`；L786的`True`；L788的`row.get(key) == identity`。
+- `verify_business.start`（L829–L870）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L859遍历`range(150)`；L861按`client.get("/health").status_code == 200`分支；L865按`process.poll() is not None`分支；L870抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L862的`process, client`。
+- `verify_business.request`（L880–L918）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L888按`method == "GET" and path == "/business/notifications"`分支；L890按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L894按`len(parts) == 2`分支；L897按`len(parts) == 4`分支；L903按`event`分支；L912按`event`分支；L915遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L918的`result`。
+- `verify_business.actor_for`（L1233–L1242）：接收`candidate`、`transition`。 调用`next`、`actors.values`、`allowed`。 返回路径：L1234的`next( ( actor for actor in actors.values() if actor["role"] in transition["roles"] and all…`。
+- `verify_business.create_branch`（L1244–L1313）：接收`transition`。 控制顺序：L1252遍历`actors.values()`；L1253按`not ( allowed(creator["role"], entity, "create") and allowed(creator["role"], entity,…`分支；L1258遍历`recipients`；L1262按`assignee and recipient`分支；L1263按`not any( allowed(a["role"], entity, "assign", access, a["id"]) for a in actors.values…`分支；L1272按`path`分支；L1275按`selection`分支；L1289按`assignee and recipient`分支。后续分支沿下方源码相同行号继续阅读。 调用`resources[entity].get`、`workflow_assignee_candidates`、`row.get`、`actors.values`、`allowed`、`any`、`workflow_transition_paths( workflow, lambda step: actor_for(acces…`、`workflow_transition_paths`、`actor_for`等。 返回路径：L1313的`created, path`。
+- `verify_business.apply_transition`（L1315–L1338）：接收`candidate`、`transition`、`actor`。 控制顺序：L1326按`transition.get("set_timestamp")`分支。 调用`request`、`check`、`transition.get`、`candidate.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_business.selected`（L1449–L1465）：接收`row`。 控制顺序：L1450遍历`metric["filters"]`；L1452按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1461按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1460的`False`；L1464的`False`；L1465的`True`。
 
-<!-- source-file: templates/product/verify_business.py sha256: 4c8ab919abc2e16d70f839a12a21836c60b761ba6d492d22ca67e9ee7f0b591a -->
+<!-- source-file: templates/product/verify_business.py sha256: 2fe9fd9b291f3ba34bc667904a15a0ea1de1a324377da65a8026d69ae48088db -->
 ````python
 """Independent HTTP/browser business verification against a new owned database."""
 
@@ -73857,7 +73924,7 @@ import subprocess
 import tempfile
 import time
 import zlib
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -73867,6 +73934,95 @@ import httpx
 def check(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def workflow_transition_paths(workflow, permitted=None):
+    """Find finite routes to each named transition without changing approved states."""
+    transitions = [
+        transition
+        for transition in workflow["transitions"]
+        if permitted is None or permitted(transition)
+    ]
+    paths = {workflow["initial"]: []}
+    pending = deque(paths)
+    while pending:
+        state = pending.popleft()
+        for transition in transitions:
+            target = transition["to_state"]
+            if state in transition["from_states"] and target not in paths:
+                paths[target] = [*paths[state], transition]
+                pending.append(target)
+    result = {}
+    for transition in transitions:
+        prefixes = [paths[state] for state in transition["from_states"] if state in paths]
+        if not prefixes:
+            check(
+                permitted is not None, "Declared workflow transition has no reachable source state"
+            )
+            continue
+        result[transition["name"]] = [*min(prefixes, key=len), transition]
+    return result
+
+
+def workflow_assignee_candidates(actors, grants, entity, preferred):
+    eligible = {
+        actor["id"]
+        for actor in actors.values()
+        if "read" in grants.get((actor["role"], entity), {}).get("actions", [])
+        and grants[actor["role"], entity]["scope"] in {"all", "assigned"}
+    }
+    return [
+        identity
+        for identity in dict.fromkeys([preferred, *(a["id"] for a in actors.values()), None])
+        if identity is None or identity in eligible
+    ]
+
+
+def cover_workflow_branches(
+    workflow, base_row, create_branch, actor_for, apply_transition, existing_rows=()
+):
+    """Keep the original base path, then exercise remaining branches through callbacks."""
+    paths = workflow_transition_paths(workflow)
+    status = workflow["status_field"]
+    covered, visited = set(), set()
+    branches = [base_row, *(row for row in existing_rows if row is not base_row)]
+
+    def advance(row, transition):
+        check(row[status] in transition["from_states"], "Workflow route missed its source state")
+        actor = actor_for(row, transition)
+        check(actor is not None, "Reachable workflow branch has no permitted transition actor")
+        apply_transition(row, transition, actor)
+        covered.add(transition["name"])
+
+    while base_row[status] not in visited:
+        visited.add(base_row[status])
+        transition = next(
+            (
+                item
+                for item in workflow["transitions"]
+                if base_row[status] in item["from_states"] and actor_for(base_row, item) is not None
+            ),
+            None,
+        )
+        if transition is None:
+            break
+        advance(base_row, transition)
+    for transition in workflow["transitions"]:
+        if transition["name"] in covered:
+            continue
+        for row in branches:
+            path = workflow_transition_paths(
+                {**workflow, "initial": row[status]},
+                lambda step: actor_for(row, step) is not None,
+            ).get(transition["name"])
+            if path:
+                break
+        else:
+            row, path = create_branch(transition)
+            branches.append(row)
+        for step in path:
+            advance(row, step)
+    check(covered == set(paths), "Declared workflow transition was not exercised")
 
 
 def verify_query_matrix(spec, actors, rows, samples, create_roles, request, allowed):
@@ -74985,24 +75141,93 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
             checks.append("business-row-permissions")
             for entity, row in base.items():
                 workflow = workflows.get(entity)
-                visited = set()
-                while workflow and row[workflow["status_field"]] not in visited:
-                    state = row[workflow["status_field"]]
-                    visited.add(state)
-                    choices = [
-                        (t, a)
-                        for t in workflow["transitions"]
-                        for a in actors.values()
-                        if state in t["from_states"]
-                        and a["role"] in t["roles"]
-                        and allowed(a["role"], entity, "transition", row, a["id"])
-                    ]
-                    if not choices:
-                        break
-                    transition, actor = choices[0]
+
+                def actor_for(candidate, transition):
+                    return next(
+                        (
+                            actor
+                            for actor in actors.values()
+                            if actor["role"] in transition["roles"]
+                            and allowed(actor["role"], entity, "transition", candidate, actor["id"])
+                        ),
+                        None,
+                    )
+
+                def create_branch(transition):
+                    assignee = resources[entity].get("assignee_field")
+                    recipients = (
+                        workflow_assignee_candidates(actors, grants, entity, row.get(assignee))
+                        if assignee
+                        else [None]
+                    )
+                    selection = None
+                    for creator in actors.values():
+                        if not (
+                            allowed(creator["role"], entity, "create")
+                            and allowed(creator["role"], entity, "read")
+                        ):
+                            continue
+                        for recipient in recipients:
+                            # This is an access-plan only; persisted creator, assignee and
+                            # workflow state are still obtained exclusively through APIs.
+                            access = {"created_by": creator["id"]}
+                            if assignee and recipient:
+                                if not any(
+                                    allowed(a["role"], entity, "assign", access, a["id"])
+                                    for a in actors.values()
+                                ):
+                                    continue
+                                access[assignee] = recipient
+                            path = workflow_transition_paths(
+                                workflow, lambda step: actor_for(access, step) is not None
+                            ).get(transition["name"])
+                            if path:
+                                selection = (creator, recipient, path)
+                                break
+                        if selection:
+                            break
+                    check(selection is not None, "Workflow branch has no permitted creation path")
+                    creator, recipient, path = selection
+                    created = request(
+                        "POST",
+                        "/api/" + entity,
+                        creator,
+                        status=201,
+                        json=samples[entity],
+                    )
+                    # Notification/due expectations must see this owned record before
+                    # assigning it or exercising any of its state transitions.
+                    rows[entity].append(created)
+                    if assignee and recipient:
+                        assigner = next(
+                            (
+                                actor
+                                for actor in actors.values()
+                                if allowed(actor["role"], entity, "assign", created, actor["id"])
+                            ),
+                            None,
+                        )
+                        check(
+                            assigner is not None,
+                            "Workflow branch has no permitted assignment actor",
+                        )
+                        created.update(
+                            request(
+                                "POST",
+                                f"/api/{entity}/{created['id']}/assign",
+                                assigner,
+                                json={"user_id": recipient},
+                            )
+                        )
+                    for actor in actors.values():
+                        notices = request("GET", "/business/notifications", actor)
+                        notification_evidence.inbox(actor, notices)
+                    return created, path
+
+                def apply_transition(candidate, transition, actor):
                     changed = request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         json={"transition": transition["name"]},
                     )
@@ -75015,13 +75240,27 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             changed[transition["set_timestamp"]],
                             "Server transition timestamp missing",
                         )
-                    row.update(changed)
+                    candidate.update(changed)
                     request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         status=409,
                         json={"transition": transition["name"]},
+                    )
+
+                if workflow:
+                    cover_workflow_branches(
+                        workflow,
+                        row,
+                        create_branch,
+                        actor_for,
+                        apply_transition,
+                        [
+                            candidate
+                            for candidate in rows[entity]
+                            if (entity, candidate["id"]) not in future_due_rows
+                        ],
                     )
                 actor = next(
                     (
@@ -123229,6 +123468,443 @@ def test_requested_screenshot_output_cannot_silently_be_empty(tmp_path):
     assert verifier().validate_screenshots(None, []) == []
     with pytest.raises(ValueError):
         verifier().validate_screenshots(tmp_path, [])
+````
+
+### `tests/test_business_workflow_branches.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.generator`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `forked_plan`（L17–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L39的`Plan.model_validate( { "title": "Forked review workflow", "data_scope": "shared", "accepta…`。
+- `run_api_probe`（L131–L166）：接收`tmp_path`、`plan`、`omit_transition_notification`。 控制顺序：L136按`omit_transition_notification`分支；L140断言`original.count(notify) == 1`；L165断言`result.stdout.strip()`。 调用`generate_basic`、`source.read_text`、`original.count`、`source.write_text`、`original.replace`、`temporary.mkdir`、`subprocess.run`、`str`、`clean_env`等。 返回路径：L166的`result, json.loads(result.stdout.splitlines()[-1])`。
+- `test_api_probe_exercises_each_branch_and_notifies_both_recipients`（L169–L176）：接收`tmp_path`。 控制顺序：L171断言`result.returncode == 0 and report["passed"] is True`；L172断言`"business-transitions" in report["checks"]`；L173断言`"business-notifications" in report["checks"]`；L174断言`"process_restart_persistence" in report["checks"]`；L175断言`report["browser"] == {"applicable": False, "reason": "api-only frontend"}`；L176断言`report["http"] and report["restart"]`。 调用`run_api_probe`、`forked_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_api_probe_rejects_an_omitted_notification_on_the_alternative_branch`（L179–L182）：接收`tmp_path`。 控制顺序：L181断言`result.returncode == 1 and report["passed"] is False`；L182断言`report["message"] == "Missing, duplicated or unexpected declared notifications"`。 调用`run_api_probe`、`forked_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_api_probe_uses_each_branchs_existing_authorized_role`（L186–L209）：接收`tmp_path`、`scope`。 控制顺序：L192按`scope == "own"`分支；L196遍历`business["permissions"]`；L202遍历`business["workflows"][0]["transitions"]`；L203按`transition["name"] == "start"`分支；L205按`transition["name"] in {"decline", "reopen"}`分支；L208断言`result.returncode == 0 and report["passed"] is True`；L209断言`"business-notifications" in report["checks"] and report["restart"]`。 调用`forked_plan().model_dump`、`forked_plan`、`business["roles"].append`、`next`、`operator["actions"].append`、`business["permissions"].append`、`run_api_probe`、`Plan.model_validate`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_large_source_contract_passes_independent_api_probe`（L212–L229）：接收`tmp_path`。 控制顺序：L219断言`require_contract(case, plan.model_dump())`；L221断言`result.returncode == 0 and report["passed"] is True`；L222断言`report["entities"] == 6 and report["http"] and report["restart"]`；L223断言`report["browser"] == {"applicable": False, "reason": "api-only frontend"}`；L224断言`{ "business-transitions", "business-relations", "business-scoped-metrics", "business-…`。 调用`load_case`、`fixture_plan`、`require_contract`、`plan.model_dump`、`run_api_probe`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_api_probe_skips_transition_actor_who_is_not_an_eligible_assignee`（L232–L252）：接收`tmp_path`。 控制顺序：L235遍历`["no_read", "specialist"]`；L245遍历`business["workflows"][0]["transitions"]`；L246按`transition["name"] == "start"`分支；L248按`transition["name"] in {"decline", "reopen"}`分支；L251断言`result.returncode == 0 and report["passed"] is True`；L252断言`"business-notifications" in report["checks"] and report["restart"]`。 调用`forked_plan().model_dump`、`forked_plan`、`business["roles"].append`、`business["permissions"].append`、`run_api_probe`、`Plan.model_validate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verifier`（L256–L261）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`。 返回路径：L261的`module`。
+- `test_assignee_candidates_preserve_nullable_and_existing_runtime_qualifications`（L264–L282）：接收`verifier`。 控制顺序：L275断言`verifier.workflow_assignee_candidates(actors, grants, "reviews", "handler-user") == […`；L280断言`verifier.workflow_assignee_candidates( {"owner": actors["owner"]}, grants, "reviews",…`。 调用`verifier.workflow_assignee_candidates`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transition_paths_accept_any_reachable_source_and_include_cycle_edges`（L285–L291）：接收`verifier`。 控制顺序：L289断言`[step["name"] for step in paths["accept"]] == ["start", "accept"]`；L290断言`[step["name"] for step in paths["reopen"]] == ["start", "decline", "reopen"]`；L291断言`set(paths) == {"start", "accept", "decline", "reopen"}`。 调用`forked_plan().business.workflows[0].model_dump`、`forked_plan`、`verifier.workflow_transition_paths`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_branch_coverage_replays_required_prefixes_and_bounds_cycles`（L295–L327）：接收`verifier`、`cycle_first`。 控制顺序：L297按`cycle_first`分支；L315断言`{name for _, name in actions} == {"start", "accept", "decline", "reopen"}`；L316断言`rows[0] == {"id": "base", "state": "accepted"}`；L317按`cycle_first`分支；L318断言`len(actions) == 4 and len(rows) == 1`；L320断言`actions == [ ("base", "start"), ("base", "accept"), ("branch", "start"), ("branch", "…`；L327断言`rows[1] == {"id": "branch", "state": "review"}`。 调用`forked_plan().business.workflows[0].model_dump`、`forked_plan`、`verifier.cover_workflow_branches`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_branch_coverage_replays_required_prefixes_and_bounds_cycles.create_branch`（L302–L305）：接收`transition`。 调用`rows.append`、`verifier.workflow_transition_paths`。 返回路径：L305的`row, verifier.workflow_transition_paths(workflow)[transition["name"]]`。
+- `test_branch_coverage_replays_required_prefixes_and_bounds_cycles.apply`（L307–L310）：接收`row`、`transition`、`actor`。 控制顺序：L308断言`row["state"] in transition["from_states"] and actor == "operator"`。 调用`actions.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unreachable_declared_transition_fails_before_any_side_effect`（L330–L340）：接收`verifier`。 调用`forked_plan().business.workflows[0].model_dump`、`forked_plan`、`pytest.raises`、`verifier.cover_workflow_branches`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unreachable_declared_transition_fails_before_any_side_effect.unexpected`（L334–L335）：接收`*args`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_branch_actor_scope_is_rechecked_for_new_records`（L344–L364）：接收`verifier`、`scope_field`。 控制顺序：L363断言`actions == [("base", "start"), ("base", "accept")]`；L364断言`rows[1] == {"id": "branch", "state": "queued", scope_field: "another-user"}`。 调用`forked_plan().business.workflows[0].model_dump`、`forked_plan`、`pytest.raises`、`verifier.cover_workflow_branches`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_branch_actor_scope_is_rechecked_for_new_records.create_branch`（L349–L352）：接收`transition`。 调用`rows.append`、`verifier.workflow_transition_paths`。 返回路径：L352的`row, verifier.workflow_transition_paths(workflow)[transition["name"]]`。
+- `test_branch_actor_scope_is_rechecked_for_new_records.actor_for`（L354–L355）：接收`row`、`transition`。 返回路径：L355的`"operator" if row[scope_field] == "operator" else None`。
+- `test_branch_actor_scope_is_rechecked_for_new_records.apply`（L357–L359）：接收`row`、`transition`、`actor`。 调用`actions.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_owner_record_uses_a_permitted_prefix_regardless_of_order`（L368–L397）：接收`verifier`、`reverse_prefix_order`。 控制顺序：L376按`reverse_prefix_order`分支；L397断言`actions == [("base", "a_start"), ("secondary", "b_start"), ("secondary", "b_finish")]`。 调用`transitions.reverse`、`verifier.cover_workflow_branches`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_owner_record_uses_a_permitted_prefix_regardless_of_order.actor_for`（L385–L386）：接收`row`、`transition`。 返回路径：L386的`row["created_by"] if row["created_by"] in transition["roles"] else None`。
+- `test_existing_owner_record_uses_a_permitted_prefix_regardless_of_order.apply`（L388–L391）：接收`row`、`transition`、`actor`。 控制顺序：L389断言`row["state"] in transition["from_states"] and row["created_by"] == actor`。 调用`actions.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_owner_record_uses_a_permitted_prefix_regardless_of_order.unnecessary_create`（L393–L394）：接收`transition`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_business_workflow_branches.py sha256: 3d5dfb1694eb1fa9f30091a163212322c83cc835ed9b57b12b6db188d99fc95e -->
+````python
+"""Real API-only probes cover alternative workflow paths without weakening notifications."""
+
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from workbench.domain import Plan
+from workbench.generator import generate_basic
+from workbench.tools import clean_env
+
+
+def forked_plan():
+    transitions = [
+        {"name": "start", "from_states": ["queued"], "to_state": "review", "roles": ["operator"]},
+        {
+            "name": "accept",
+            "from_states": ["review"],
+            "to_state": "accepted",
+            "roles": ["operator"],
+        },
+        {
+            "name": "decline",
+            "from_states": ["review"],
+            "to_state": "rejected",
+            "roles": ["operator"],
+        },
+        {
+            "name": "reopen",
+            "from_states": ["rejected"],
+            "to_state": "review",
+            "roles": ["operator"],
+        },
+    ]
+    return Plan.model_validate(
+        {
+            "title": "Forked review workflow",
+            "data_scope": "shared",
+            "acceptance": [
+                "Every declared transition and its recipient notifications are exercised"
+            ],
+            "entities": [
+                {
+                    "name": "reviews",
+                    "description": "Reviews",
+                    "fields": [
+                        {"name": "title", "kind": "text", "max_length": 60},
+                        {"name": "reviewer_id", "kind": "text", "required": False},
+                        {
+                            "name": "state",
+                            "kind": "enum",
+                            "choices": ["queued", "review", "accepted", "rejected"],
+                        },
+                        {"name": "due_at", "kind": "datetime", "required": False},
+                    ],
+                }
+            ],
+            "business": {
+                "roles": [
+                    {"name": "manager", "label": "Manager"},
+                    {"name": "operator", "label": "Operator"},
+                ],
+                "bootstrap_role": "manager",
+                "role_admin_roles": ["manager"],
+                "registration": {"enabled": False, "default_role": "operator"},
+                "resources": [
+                    {"entity": "reviews", "assignee_field": "reviewer_id", "notes": False}
+                ],
+                "relations": [
+                    {"entity": "reviews", "field": "reviewer_id", "target_entity": "$users"}
+                ],
+                "permissions": [
+                    {
+                        "role": "manager",
+                        "entity": "reviews",
+                        "scope": "all",
+                        "actions": [
+                            "create",
+                            "read",
+                            "update",
+                            "archive",
+                            "assign",
+                            "read_history",
+                            "read_audit",
+                        ],
+                    },
+                    {
+                        "role": "operator",
+                        "entity": "reviews",
+                        "scope": "assigned",
+                        "actions": ["read", "transition", "read_history"],
+                    },
+                ],
+                "workflows": [
+                    {
+                        "entity": "reviews",
+                        "status_field": "state",
+                        "initial": "queued",
+                        "transitions": transitions,
+                    }
+                ],
+                "notifications": [
+                    {"entity": "reviews", "event": "assigned", "recipient": "assignee"},
+                    {
+                        "entity": "reviews",
+                        "event": "due",
+                        "recipient": "assignee",
+                        "due_field": "due_at",
+                    },
+                    *[
+                        {
+                            "entity": "reviews",
+                            "event": "transitioned",
+                            "transition": transition["name"],
+                            "recipient": recipient,
+                        }
+                        for transition in transitions
+                        for recipient in ("creator", "assignee")
+                    ],
+                ],
+                "metrics": [],
+            },
+        }
+    )
+
+
+def run_api_probe(tmp_path, plan, omit_transition_notification=False):
+    product = tmp_path / "product"
+    generate_basic(
+        plan, product, {"template": "python-basic", "frontend": "api-only", "database": "sqlite"}
+    )
+    if omit_transition_notification:
+        source = product / "business_runtime.py"
+        original = source.read_text(encoding="utf-8")
+        notify = 'notify(connection, entity, after, "transitioned", event_id, data.transition)'
+        assert original.count(notify) == 1
+        source.write_text(
+            original.replace(notify, f'{notify} if data.transition != "decline" else None'),
+            encoding="utf-8",
+        )
+    temporary = tmp_path / "temporary"
+    temporary.mkdir()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "verify.py",
+            "--python",
+            sys.executable,
+            "--report",
+            str(tmp_path / "verification.json"),
+        ],
+        cwd=product,
+        env=clean_env(
+            {"PATH": os.environ.get("PATH", ""), "TEMP": str(temporary), "TMP": str(temporary)}
+        ),
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        timeout=180,
+    )
+    assert result.stdout.strip(), result.stderr
+    return result, json.loads(result.stdout.splitlines()[-1])
+
+
+def test_api_probe_exercises_each_branch_and_notifies_both_recipients(tmp_path):
+    result, report = run_api_probe(tmp_path, forked_plan())
+    assert result.returncode == 0 and report["passed"] is True, report
+    assert "business-transitions" in report["checks"]
+    assert "business-notifications" in report["checks"]
+    assert "process_restart_persistence" in report["checks"]
+    assert report["browser"] == {"applicable": False, "reason": "api-only frontend"}
+    assert report["http"] and report["restart"]
+
+
+def test_api_probe_rejects_an_omitted_notification_on_the_alternative_branch(tmp_path):
+    result, report = run_api_probe(tmp_path, forked_plan(), omit_transition_notification=True)
+    assert result.returncode == 1 and report["passed"] is False, report
+    assert report["message"] == "Missing, duplicated or unexpected declared notifications"
+
+
+@pytest.mark.parametrize("scope", ["own", "assigned"])
+def test_api_probe_uses_each_branchs_existing_authorized_role(tmp_path, scope):
+    raw = forked_plan().model_dump()
+    business = raw["business"]
+    business["roles"].append({"name": "specialist", "label": "Specialist"})
+    operator = next(grant for grant in business["permissions"] if grant["role"] == "operator")
+    operator["scope"] = scope
+    if scope == "own":
+        operator["actions"].append("create")
+        business["resources"][0]["assignee_field"] = None
+        business["relations"] = []
+        for grant in business["permissions"]:
+            grant["actions"] = [action for action in grant["actions"] if action != "assign"]
+        business["notifications"] = [
+            rule for rule in business["notifications"] if rule["recipient"] == "creator"
+        ]
+    business["permissions"].append({**operator, "role": "specialist"})
+    for transition in business["workflows"][0]["transitions"]:
+        if transition["name"] == "start":
+            transition["roles"] = ["operator", "specialist"]
+        elif transition["name"] in {"decline", "reopen"}:
+            transition["roles"] = ["specialist"]
+    result, report = run_api_probe(tmp_path, Plan.model_validate(raw))
+    assert result.returncode == 0 and report["passed"] is True, report
+    assert "business-notifications" in report["checks"] and report["restart"]
+
+
+def test_large_source_contract_passes_independent_api_probe(tmp_path):
+    from test_template_project_acceptance import fixture_plan
+
+    from scripts.template_acceptance_cases import load_case, require_contract
+
+    case = load_case("facilities-ops")
+    plan = fixture_plan(case)
+    assert require_contract(case, plan.model_dump())
+    result, report = run_api_probe(tmp_path, plan)
+    assert result.returncode == 0 and report["passed"] is True, report
+    assert report["entities"] == 6 and report["http"] and report["restart"]
+    assert report["browser"] == {"applicable": False, "reason": "api-only frontend"}
+    assert {
+        "business-transitions",
+        "business-relations",
+        "business-scoped-metrics",
+        "business-notifications",
+    } <= set(report["checks"])
+
+
+def test_api_probe_skips_transition_actor_who_is_not_an_eligible_assignee(tmp_path):
+    raw = forked_plan().model_dump()
+    business = raw["business"]
+    for role in ["no_read", "specialist"]:
+        business["roles"].append({"name": role, "label": role})
+        business["permissions"].append(
+            {
+                "role": role,
+                "entity": "reviews",
+                "scope": "assigned",
+                "actions": ["transition"] if role == "no_read" else ["read", "transition"],
+            }
+        )
+    for transition in business["workflows"][0]["transitions"]:
+        if transition["name"] == "start":
+            transition["roles"] = ["operator", "no_read", "specialist"]
+        elif transition["name"] in {"decline", "reopen"}:
+            transition["roles"] = ["no_read", "specialist"]
+    result, report = run_api_probe(tmp_path, Plan.model_validate(raw))
+    assert result.returncode == 0 and report["passed"] is True, report
+    assert "business-notifications" in report["checks"] and report["restart"]
+
+
+@pytest.fixture
+def verifier():
+    path = Path(__file__).parents[1] / "templates/product/verify_business.py"
+    spec = importlib.util.spec_from_file_location("branch_verifier", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_assignee_candidates_preserve_nullable_and_existing_runtime_qualifications(verifier):
+    actors = {
+        role: {"id": role + "-user", "role": role}
+        for role in ["no_read", "owner", "reader", "handler"]
+    }
+    grants = {
+        ("no_read", "reviews"): {"actions": ["transition"], "scope": "assigned"},
+        ("owner", "reviews"): {"actions": ["read", "transition"], "scope": "own"},
+        ("reader", "reviews"): {"actions": ["read"], "scope": "all"},
+        ("handler", "reviews"): {"actions": ["read", "transition"], "scope": "assigned"},
+    }
+    assert verifier.workflow_assignee_candidates(actors, grants, "reviews", "handler-user") == [
+        "handler-user",
+        "reader-user",
+        None,
+    ]
+    assert verifier.workflow_assignee_candidates(
+        {"owner": actors["owner"]}, grants, "reviews", "no_read-user"
+    ) == [None]
+
+
+def test_transition_paths_accept_any_reachable_source_and_include_cycle_edges(verifier):
+    workflow = forked_plan().business.workflows[0].model_dump()
+    workflow["transitions"][1]["from_states"] = ["unreachable", "review"]
+    paths = verifier.workflow_transition_paths(workflow)
+    assert [step["name"] for step in paths["accept"]] == ["start", "accept"]
+    assert [step["name"] for step in paths["reopen"]] == ["start", "decline", "reopen"]
+    assert set(paths) == {"start", "accept", "decline", "reopen"}
+
+
+@pytest.mark.parametrize("cycle_first", [False, True])
+def test_branch_coverage_replays_required_prefixes_and_bounds_cycles(verifier, cycle_first):
+    workflow = forked_plan().business.workflows[0].model_dump()
+    if cycle_first:
+        workflow["transitions"] = [workflow["transitions"][i] for i in [0, 2, 3, 1]]
+    rows = [{"id": "base", "state": "queued"}]
+    actions = []
+
+    def create_branch(transition):
+        row = {"id": "branch", "state": "queued"}
+        rows.append(row)
+        return row, verifier.workflow_transition_paths(workflow)[transition["name"]]
+
+    def apply(row, transition, actor):
+        assert row["state"] in transition["from_states"] and actor == "operator"
+        actions.append((row["id"], transition["name"]))
+        row["state"] = transition["to_state"]
+
+    verifier.cover_workflow_branches(
+        workflow, rows[0], create_branch, lambda row, transition: "operator", apply
+    )
+    assert {name for _, name in actions} == {"start", "accept", "decline", "reopen"}
+    assert rows[0] == {"id": "base", "state": "accepted"}
+    if cycle_first:
+        assert len(actions) == 4 and len(rows) == 1
+    else:
+        assert actions == [
+            ("base", "start"),
+            ("base", "accept"),
+            ("branch", "start"),
+            ("branch", "decline"),
+            ("branch", "reopen"),
+        ]
+        assert rows[1] == {"id": "branch", "state": "review"}
+
+
+def test_unreachable_declared_transition_fails_before_any_side_effect(verifier):
+    workflow = forked_plan().business.workflows[0].model_dump()
+    workflow["transitions"][2]["from_states"] = ["never_reachable"]
+
+    def unexpected(*args):
+        pytest.fail("Unreachable graph must fail before creating or changing records")
+
+    with pytest.raises(ValueError, match="no reachable source state"):
+        verifier.cover_workflow_branches(
+            workflow, {"state": "queued"}, unexpected, unexpected, unexpected
+        )
+
+
+@pytest.mark.parametrize("scope_field", ["created_by", "reviewer_id"])
+def test_branch_actor_scope_is_rechecked_for_new_records(verifier, scope_field):
+    workflow = forked_plan().business.workflows[0].model_dump()
+    rows = [{"id": "base", "state": "queued", scope_field: "operator"}]
+    actions = []
+
+    def create_branch(transition):
+        row = {"id": "branch", "state": "queued", scope_field: "another-user"}
+        rows.append(row)
+        return row, verifier.workflow_transition_paths(workflow)[transition["name"]]
+
+    def actor_for(row, transition):
+        return "operator" if row[scope_field] == "operator" else None
+
+    def apply(row, transition, actor):
+        actions.append((row["id"], transition["name"]))
+        row["state"] = transition["to_state"]
+
+    with pytest.raises(ValueError, match="no permitted transition actor"):
+        verifier.cover_workflow_branches(workflow, rows[0], create_branch, actor_for, apply)
+    assert actions == [("base", "start"), ("base", "accept")]
+    assert rows[1] == {"id": "branch", "state": "queued", scope_field: "another-user"}
+
+
+@pytest.mark.parametrize("reverse_prefix_order", [False, True])
+def test_existing_owner_record_uses_a_permitted_prefix_regardless_of_order(
+    verifier, reverse_prefix_order
+):
+    transitions = [
+        {"name": "a_start", "from_states": ["queued"], "to_state": "review", "roles": ["a"]},
+        {"name": "b_finish", "from_states": ["review"], "to_state": "accepted", "roles": ["b"]},
+        {"name": "b_start", "from_states": ["queued"], "to_state": "review", "roles": ["b"]},
+    ]
+    if reverse_prefix_order:
+        transitions.reverse()
+    workflow = {"status_field": "state", "initial": "queued", "transitions": transitions}
+    rows = [
+        {"id": "base", "state": "queued", "created_by": "a"},
+        {"id": "secondary", "state": "queued", "created_by": "b"},
+    ]
+    actions = []
+
+    def actor_for(row, transition):
+        return row["created_by"] if row["created_by"] in transition["roles"] else None
+
+    def apply(row, transition, actor):
+        assert row["state"] in transition["from_states"] and row["created_by"] == actor
+        actions.append((row["id"], transition["name"]))
+        row["state"] = transition["to_state"]
+
+    def unnecessary_create(transition):
+        pytest.fail("An existing permitted owner record must be used before creating another")
+
+    verifier.cover_workflow_branches(workflow, rows[0], unnecessary_create, actor_for, apply, rows)
+    assert actions == [("base", "a_start"), ("secondary", "b_start"), ("secondary", "b_finish")]
 ````
 
 ### `tests/test_business_yudao.py`
@@ -174417,6 +175093,208 @@ def test_large_ids_are_bounded_deterministic_and_input_is_unchanged(value):
     assert pytest_make_parametrize_id(None, value, "payload") == result
 ````
 
+### `tests/test_query_attribute_references.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.requirement_coverage`、`workbench.requirement_sources`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `query_case`（L10–L42）：接收`text`、`section`。 控制顺序：L22按`section == "facts"`分支。 调用`Requirement`、`FieldRequirement`、`setattr`、`Plan`。 返回路径：L42的`requirement, plan`。
+- `test_unbound_query_attribute_references_do_not_require_enabled_queries`（L63–L70）：接收`text`、`section`。 控制顺序：L67断言`coverage_gaps(requirement, plan, diagnostics=diagnostics) == []`；L68断言`diagnostics == []`；L69断言`explicit_legacy_field_constraints(requirement) == []`；L70断言`(requirement.model_dump(), plan.model_dump()) == before`。 调用`query_case`、`requirement.model_dump`、`plan.model_dump`、`coverage_gaps`、`explicit_legacy_field_constraints`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_global_query_requirements_still_need_all_requested_capabilities`（L87–L100）：接收`text`。 控制顺序：L90断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L91断言`{item["attribute"] for item in diagnostics} == { "searchable", "filterable", "date_ra…`；L96遍历`zip( plan.entities[0].fields, ("searchable", "filterable", "date_…`；L100断言`coverage_gaps(requirement, plan) == []`。 调用`query_case`、`coverage_gaps`、`zip`、`setattr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_named_boolean_assignments_are_never_metadata`（L107–L122）：接收`attribute`、`index`、`expected`。 控制顺序：L113断言`coverage_gaps(requirement, plan) == []`；L116断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L117断言`any( item["attribute"] == attribute and item["expected"] is expected and item["target…`。 调用`query_case`、`requirement.features.append`、`str(expected).lower`、`str`、`setattr`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_named_queries_survive_neighboring_attribute_references`（L135–L148）：接收`text`。 控制顺序：L138断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L139断言`any( item["attribute"] == "date_range" and item["targets"] == [{"entity": "records", …`；L144遍历`zip( plan.entities[0].fields, ("searchable", "filterable", "date_…`；L148断言`coverage_gaps(requirement, plan) == []`。 调用`query_case`、`coverage_gaps`、`any`、`zip`、`setattr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reference_prose_cannot_erase_an_independent_typed_query_requirement`（L151–L160）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L155断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L156断言`[(item["source"], item["attribute"], item["expected"]) for item in diagnostics] == [ …`；L160断言`coverage_gaps(requirement, plan) == []`。 调用`query_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reference_prose_cannot_authorize_a_query_under_original_source_closure`（L163–L178）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167断言`coverage_gaps(requirement, plan) == []`；L172断言`any( item["target"] == {"entity": "records", "field": "event_on"} and item["attribute…`。 调用`query_case`、`requirement.features.append`、`"\n".join`、`coverage_gaps`、`requirement.model_copy`、`candidate.features.append`、`analysis_source_conflicts`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_query_attribute_references.py sha256: 1abbe0b3df99368efab6877fb9719083b544102893c16df810eb0906271e71a2 -->
+````python
+"""Query property references do not invent enabled application capabilities."""
+
+import pytest
+
+from workbench.domain import FieldRequirement, Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps, explicit_legacy_field_constraints
+from workbench.requirement_sources import analysis_source_conflicts
+
+
+def query_case(text, section="features"):
+    requirement = Requirement(
+        summary="Record queries",
+        users=["editor"],
+        data_scope="shared",
+        features=[],
+        acceptance=[],
+        field_requirements=[
+            FieldRequirement(entity="records", field=name, kind=kind)
+            for name, kind in (("headline", "text"), ("priority", "enum"), ("event_on", "date"))
+        ],
+    )
+    if section == "facts":
+        requirement.facts = {"query_notes": text}
+    else:
+        setattr(requirement, section, [text])
+    plan = Plan(
+        title="Record queries",
+        data_scope="shared",
+        acceptance=["Manage records"],
+        entities=[
+            {
+                "name": "records",
+                "description": "Records",
+                "fields": [
+                    {"name": "headline", "kind": "text"},
+                    {"name": "priority", "kind": "enum", "choices": ["a", "b"]},
+                    {"name": "event_on", "kind": "date"},
+                ],
+            }
+        ],
+    )
+    return requirement, plan
+
+
+REFERENCES = [
+    "保留用户字段；查询开关遵循字段的 searchable、filterable、date_range 声明。",
+    "所有字段遵循 searchable、filterable、date_range 声明。",
+    "searchable、filterable、date_range 仅按字段清单配置。",
+    "searchable、filterable、date_range 默认为 false。",
+    "未声明的 searchable、filterable、date_range 不启用。",
+    "Query flags searchable, filterable and date_range follow the declared field definitions.",
+    "All fields follow the declared flags searchable, filterable, and date_range.",
+    "The attributes searchable/filterable/date_range default to false.",
+    "The flags `searchable`, `filterable` and `date_range` remain disabled.",
+    "不要启用以下查询开关 searchable、filterable、date_range。",
+    "不启用查询开关 searchable、filterable、date_range。",
+    "Do not enable the following query attributes searchable, filterable and date_range.",
+]
+
+
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize("text", REFERENCES)
+def test_unbound_query_attribute_references_do_not_require_enabled_queries(text, section):
+    requirement, plan = query_case(text, section)
+    before = requirement.model_dump(), plan.model_dump()
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics) == []
+    assert diagnostics == []
+    assert explicit_legacy_field_constraints(requirement) == []
+    assert (requirement.model_dump(), plan.model_dump()) == before
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "所有字段开启 searchable、filterable、date_range 开关。",
+        "开启所有字段的 searchable、filterable、date_range 开关。",
+        "Enable query flags searchable, filterable and date_range.",
+        "Query flags searchable, filterable and date_range are enabled.",
+        "searchable、filterable、date_range 开关均应启用。",
+        "启用以下查询开关 searchable、filterable、date_range。",
+        "Enable the following query attributes searchable, filterable and date_range.",
+        "Query flags searchable, filterable and date_range are true.",
+        "需要关键词搜索、精确筛选和日期范围查询。",
+    ],
+)
+def test_explicit_global_query_requirements_still_need_all_requested_capabilities(text):
+    requirement, plan = query_case(text)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert {item["attribute"] for item in diagnostics} == {
+        "searchable",
+        "filterable",
+        "date_range",
+    }
+    for field, attribute in zip(
+        plan.entities[0].fields, ("searchable", "filterable", "date_range"), strict=True
+    ):
+        setattr(field, attribute, True)
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize(
+    "attribute,index", [("searchable", 0), ("filterable", 1), ("date_range", 2)]
+)
+@pytest.mark.parametrize("expected", [True, False])
+def test_explicit_named_boolean_assignments_are_never_metadata(attribute, index, expected):
+    requirement, plan = query_case(REFERENCES[0])
+    name = plan.entities[0].fields[index].name
+    requirement.features.append(f"records.{name} {attribute}={str(expected).lower()}。")
+    field = plan.entities[0].fields[index]
+    setattr(field, attribute, expected)
+    assert coverage_gaps(requirement, plan) == []
+    setattr(field, attribute, not expected)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == attribute
+        and item["expected"] is expected
+        and item["targets"] == [{"entity": "records", "field": name}]
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        REFERENCES[0] + "records.event_on 日期范围筛选。",
+        "查询开关遵循 searchable、filterable、date_range 声明，同时 records.event_on 开启 date_range。",
+        "Query flags follow searchable, filterable and date_range declarations, "
+        "and records.event_on enables date_range.",
+        "records.headline（searchable），records.priority（filterable），records.event_on（date_range）",
+    ],
+)
+def test_local_named_queries_survive_neighboring_attribute_references(text):
+    requirement, plan = query_case(text)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == "date_range"
+        and item["targets"] == [{"entity": "records", "field": "event_on"}]
+        for item in diagnostics
+    )
+    for field, attribute in zip(
+        plan.entities[0].fields, ("searchable", "filterable", "date_range"), strict=True
+    ):
+        setattr(field, attribute, True)
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_reference_prose_cannot_erase_an_independent_typed_query_requirement():
+    requirement, plan = query_case(REFERENCES[0])
+    requirement.field_requirements[2].date_range = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert [(item["source"], item["attribute"], item["expected"]) for item in diagnostics] == [
+        ({"section": "field_requirements", "index": 2}, "date_range", True)
+    ]
+    plan.entities[0].fields[2].date_range = True
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_reference_prose_cannot_authorize_a_query_under_original_source_closure():
+    requirement, plan = query_case(REFERENCES[0])
+    requirement.features.append("其他未声明的字段不增加查询条件。")
+    original = "\n".join(requirement.features)
+    assert coverage_gaps(requirement, plan) == []
+    candidate = requirement.model_copy(deep=True)
+    candidate.features.append("records.event_on 开启 date_range。")
+    candidate.field_requirements[2].date_range = None
+    diagnostics = analysis_source_conflicts(None, candidate, [original], cursor=1)
+    assert any(
+        item["target"] == {"entity": "records", "field": "event_on"}
+        and item["attribute"] == "date_range"
+        and {source["expected"] for source in item["sources"]} == {False, True}
+        and any(source["origin"] == "user_input" for source in item["sources"])
+        for item in diagnostics
+    )
+````
+
 ### `tests/test_query_obligation_pairing.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -187056,17 +187934,17 @@ if __name__ == "__main__":
 **逐个入口与控制逻辑：**
 
 - `stage_for`（L142–L198）：接收`name`。 控制顺序：L144按`name.startswith(("workbench/web/", "ui/"))`分支；L146按`name.startswith("scripts/extension_oracles/")`分支；L148按`name.startswith("workbench/")`分支；L150按`name.startswith("migrations/") or name == "alembic.ini"`分支；L152按`name.startswith("templates/standards/")`分支；L154按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L156按`name.startswith("templates/business/common/")`分支；L158按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L145的`8`；L147的`4`；L149的`MODULE_STAGE[path.stem]`。
-- `test_stage`（L201–L252）：接收`name`。 控制顺序：L202按`name == "tests/conftest.py"`分支；L204按`name == "tests/news_case.py"`分支；L206按`name.startswith("tests/fixtures/")`分支；L222按`stem in early`分支；L224按`stem == "store"`分支；L226按`stem in {"contracts", "business_contracts"}`分支；L228按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L230按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L203的`2`；L205的`7`；L207的`10`。
-- `language_for`（L255–L280）：接收`name`、`binary`。 控制顺序：L256按`binary`分支；L258按`name.endswith("uv.lock")`分支；L260按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L257的`"base64"`；L259的`"toml"`；L261的`"dockerfile"`。
-- `chunks`（L283–L322）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L285按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L289按`len(lines) <= 1000`分支；L292按`name.endswith(".py")`分支；L300按`name.endswith(".md")`分支；L310在`len(lines) - first > 1000`成立时循环；L312按`not options`分支；L320按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L286的`[data]`；L290的`[data]`；L322的`result or [b""]`。
-- `source_note`（L355–L386）：接收`name`、`content`、`first`、`last`。 控制顺序：L356按`isinstance(content, bytes)`分支；L357按`generated_frontend_asset(name)`分支；L371按`name in TEACHING_CASES`分支；L373按`not separator`分支；L376遍历`entries.splitlines()`；L378按`match and first <= int(match[1]) <= last`分支；L380按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L358的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L364的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L374的`head`。
-- `source_pages`（L389–L456）：接收`name`、`content`、`stage`。 控制顺序：L395按`binary`分支；L397按`name.endswith(("uv.lock", "package-lock.json"))`分支；L402遍历`enumerate(pieces)`；L419按`index`分支；L421按`index + 1 < len(pieces)`分支；L430按`not piece`分支；L432按`not binary`分支；L440按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L450的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L459–L460）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L460的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L463–L510）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L465按`[stage["id"] for stage in curriculum] != STAGES`分支；L466抛异常，停止当前正常路径；L468遍历`sources()`；L469遍历`files`；L471按`set(output).intersection(pages)`分支；L472抛异常，停止当前正常路径；L481遍历`curriculum`；L486按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L510的`output`。
-- `readme`（L513–L596）：接收`curriculum`、`records`。 控制顺序：L527遍历`curriculum`。 调用`len`。 返回路径：L596的`text`。
-- `main`（L599–L627）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L609按`args.check`分支；L616按`wrong`分支；L617抛异常，停止当前正常路径；L621遍历`actual.difference(expected)`；L623遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stage`（L201–L253）：接收`name`。 控制顺序：L202按`name == "tests/conftest.py"`分支；L204按`name == "tests/news_case.py"`分支；L206按`name.startswith("tests/fixtures/")`分支；L223按`stem in early`分支；L225按`stem == "store"`分支；L227按`stem in {"contracts", "business_contracts"}`分支；L229按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L231按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L203的`2`；L205的`7`；L207的`10`。
+- `language_for`（L256–L281）：接收`name`、`binary`。 控制顺序：L257按`binary`分支；L259按`name.endswith("uv.lock")`分支；L261按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L258的`"base64"`；L260的`"toml"`；L262的`"dockerfile"`。
+- `chunks`（L284–L323）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L286按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L290按`len(lines) <= 1000`分支；L293按`name.endswith(".py")`分支；L301按`name.endswith(".md")`分支；L311在`len(lines) - first > 1000`成立时循环；L313按`not options`分支；L321按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L287的`[data]`；L291的`[data]`；L323的`result or [b""]`。
+- `source_note`（L356–L387）：接收`name`、`content`、`first`、`last`。 控制顺序：L357按`isinstance(content, bytes)`分支；L358按`generated_frontend_asset(name)`分支；L372按`name in TEACHING_CASES`分支；L374按`not separator`分支；L377遍历`entries.splitlines()`；L379按`match and first <= int(match[1]) <= last`分支；L381按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L359的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L365的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L375的`head`。
+- `source_pages`（L390–L457）：接收`name`、`content`、`stage`。 控制顺序：L396按`binary`分支；L398按`name.endswith(("uv.lock", "package-lock.json"))`分支；L403遍历`enumerate(pieces)`；L420按`index`分支；L422按`index + 1 < len(pieces)`分支；L431按`not piece`分支；L433按`not binary`分支；L441按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L451的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L460–L461）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L461的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L464–L511）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L466按`[stage["id"] for stage in curriculum] != STAGES`分支；L467抛异常，停止当前正常路径；L469遍历`sources()`；L470遍历`files`；L472按`set(output).intersection(pages)`分支；L473抛异常，停止当前正常路径；L482遍历`curriculum`；L487按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L511的`output`。
+- `readme`（L514–L597）：接收`curriculum`、`records`。 控制顺序：L528遍历`curriculum`。 调用`len`。 返回路径：L597的`text`。
+- `main`（L600–L628）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L610按`args.check`分支；L617按`wrong`分支；L618抛异常，停止当前正常路径；L622遍历`actual.difference(expected)`；L624遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_learning_docs.py sha256: c2bb0bec75810ead4a26be100f9d639582bc80aa9511cd67a22d90d578daf00c -->
+<!-- source-file: scripts/build_learning_docs.py sha256: d7489e15c3bf61632392e3eda65e35b0b6d3abfef23811959cbf4e14216efbda -->
 ````python
 """Build small, staged lessons and lossless source pages from the actual platform."""
 
@@ -187288,6 +188166,7 @@ def test_stage(name):
         "native_delivery_boundaries": 9,
         "native_tools": 11,
         "delivery_clearance": 13,
+        "business_workflow_branches": 14,
     }
     if stem in early:
         return early[stem]
@@ -228601,7 +229480,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/template-platform.md sha256: 22d1dc4d20d3afeac4c8cb7411425a0ad01d816bf0bbf3471e7559c000e8cab9 -->
+<!-- source-file: docs/template-platform.md sha256: 6fbee9ccd957c91f51e91550cd03870e341b73334be85122736d15da643ac206 -->
 ````markdown
 # 从零实现可批量定制的模板研发平台
 
@@ -228743,6 +229622,8 @@ curl -X POST http://127.0.0.1:8000/batches \
 每案的 `requirement.md` 是模型可见的原始需求，`contract.json` 是独立测试的义务与数据，不能当作规划失败时的答案。三案通过 `Store.create_batch` 一次入队，再经普通 LangChain／LangGraph 路径生成。每案最多 12 次模型请求，总上限 36 次；模型格式修复也计入预算。
 
 验收至少包括：模型契约与需求匹配、正常生成与独立验证、真实产品浏览器检查、最终交付包哈希、解压到新目录和新库启动、独立场景行为验证、重启后数据持久化。三个案例全部通过才允许汇总为成功。缺少案例、浏览器失败、模型调用失败或预算用尽都会留下失败结果，不把固定 Plan 或历史截图当作本次实测。
+
+流程验收依据已批准的状态图，从初始状态寻找可达路径。互斥分支通过 API 创建独立测试记录，分别触发声明的状态转换及其通知；每条声明通知都必须有真实事件与正确收件人的验证证据，原有权限和状态转换规则继续约束每个测试动作。
 
 失败回执会把字段差异定位到具体属性，例如 `books.started_on.filterable`，并给出受控的期望值和实际值；可能包含任意文本的值只保留长度、数量或摘要，不导出完整 Plan 或原始文本。每个模型任务的 JSON 格式校验仍最多尝试两次（首次请求与一次重试）。如果响应仅在一个符合 schema 的完整 JSON 对象后多出闭合括号，该对象只作为未批准的候选，供下一次模型调用参考；原响应仍记为失败，必须由模型重新返回一个完整且通过校验的响应，才能继续正常验收。格式修复不会默认通过，也不授权删除或改写已确认需求。
 

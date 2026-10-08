@@ -557,6 +557,7 @@
 - [scripts/template_acceptance_runtime.py](14-acceptance/sources/scripts__template_acceptance_runtime_py--001.md)（1 段）
 - [tests/capability_dependency_fixtures.py](14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md)（1 段）
 - [tests/test_batches.py](14-acceptance/sources/tests__test_batches_py--001.md)（1 段）
+- [tests/test_business_workflow_branches.py](14-acceptance/sources/tests__test_business_workflow_branches_py--001.md)（1 段）
 - [tests/test_capability_browser_activation_review.py](14-acceptance/sources/tests__test_capability_browser_activation_review_py--001.md)（1 段）
 - [tests/test_capability_browser_apparmor.py](14-acceptance/sources/tests__test_capability_browser_apparmor_py--001.md)（1 段）
 - [tests/test_capability_browser_apparmor_review.py](14-acceptance/sources/tests__test_capability_browser_apparmor_review_py--001.md)（1 段）
@@ -649,6 +650,7 @@
 - [tests/test_postgres.py](14-acceptance/sources/tests__test_postgres_py--001.md)（1 段）
 - [tests/test_product_reload_readiness.py](14-acceptance/sources/tests__test_product_reload_readiness_py--001.md)（1 段）
 - [tests/test_pytest_reporting.py](14-acceptance/sources/tests__test_pytest_reporting_py--001.md)（1 段）
+- [tests/test_query_attribute_references.py](14-acceptance/sources/tests__test_query_attribute_references_py--001.md)（1 段）
 - [tests/test_query_obligation_pairing.py](14-acceptance/sources/tests__test_query_obligation_pairing_py--001.md)（1 段）
 - [tests/test_readonly_dependency_admission.py](14-acceptance/sources/tests__test_readonly_dependency_admission_py--001.md)（1 段）
 - [tests/test_real_model_ci.py](14-acceptance/sources/tests__test_real_model_ci_py--001.md)（2 段）

@@ -993,6 +993,61 @@ def _query_composition_text(text, fields):
     )
 
 
+def _query_attribute_text(text, fields):
+    """A reference to query switches does not itself turn the switches on.
+
+    Only literal schema identifiers are considered here, before natural query
+    predicates are lowered to the same spelling. Reuse the subject binder so
+    named declarations and neighboring field clauses keep their own meaning.
+    """
+    attribute = r"(?<![a-z0-9_])(?:searchable|filterable|date_range)(?![a-z0-9_])"
+    if not re.search(attribute, text, re.I):
+        return text
+    identifiers = re.compile(
+        rf"`?{attribute}`?(?:\s*(?:[、,，/](?:\s*and\b)?|和|与|及|\band\b)\s*`?{attribute}`?)*",
+        re.I,
+    )
+    reference = re.compile(
+        r"声明|定义|清单|属性|开关|默认|未启用|不启用|"
+        r"\b(?:declar(?:e[ds]?|ations?)|definitions?|attributes?|flags?|defaults?|disabled|false)\b",
+        re.I,
+    )
+    enable = re.compile(
+        r"开启|启用|支持|提供|需要|要求|"
+        r"\b(?:enable[ds]?|activate[ds]?|supports?|provides?|requires?|needs?)\b",
+        re.I,
+    )
+    changed, clauses = False, []
+    for clause in _legacy_clauses(text, fields):
+        if _fact_candidates(clause, fields):
+            clauses.append(clause)
+            continue
+
+        def replace(match):
+            nonlocal changed
+            before = re.split(r"[，,；;。\n]", clause[: match.start()])[-1]
+            after = re.split(r"[，,；;。\n]", clause[match.end() :])[0]
+            assignment = re.match(r"\s*[:=]\s*(?:true|false|是|否)(?![a-z])", after, re.I)
+            # An explicit enabling predicate wins over a descriptive noun,
+            # regardless of intervening modifiers such as 'following flags'.
+            # A negated/default statement still cannot enable an operation.
+            affirmative = any(
+                enable.search(context)
+                and not _DATE_NEGATIVE.search(context)
+                and not re.search(r"(?:未|不)\s*(?:开启|启用|支持|提供|需要|要求)", context)
+                for context in (before, after)
+            ) or re.match(r"\s*(?:is|are|均为|为)\s*true(?![a-z])", after, re.I)
+            if assignment or affirmative or not reference.search(before + after):
+                return match.group()
+            changed = True
+            return re.sub(
+                attribute, lambda item: " " * len(item.group()), match.group(), flags=re.I
+            )
+
+        clauses.append(identifiers.sub(replace, clause))
+    return "; ".join(clauses) if changed else text
+
+
 def _query_predicate_text(text, fields):
     """Exclude operation-derived nouns unless an explicit predicate binds fields.
 
@@ -1001,6 +1056,7 @@ def _query_predicate_text(text, fields):
     'title is a search criterion' and imperatives such as 'filter results by title'.
     Other verbs in the same clause remain available for ordinary subject binding.
     """
+    text = _query_attribute_text(text, fields)
     text = _query_composition_text(text, fields)
     nouns = re.compile(
         r"(?P<operation>"

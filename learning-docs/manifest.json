@@ -482,8 +482,8 @@
     },
     {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 132554,
-      "sha256": "a04b371b110800942798ed94d5e66309429d3f50d4c0368122842966d821f114",
+      "bytes": 135132,
+      "sha256": "228feceba53326c28cef3c9de920bab35856f505a3439ffc5fe05b508ce6d20f",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
@@ -935,8 +935,8 @@
     },
     {
       "path": "templates/product/verify_business.py",
-      "bytes": 81217,
-      "sha256": "4c8ab919abc2e16d70f839a12a21836c60b761ba6d492d22ca67e9ee7f0b591a",
+      "bytes": 88553,
+      "sha256": "2fe9fd9b291f3ba34bc667904a15a0ea1de1a324377da65a8026d69ae48088db",
       "stage": "05-product",
       "parts": [
         "05-product/sources/templates__product__verify_business_py--001.md",
@@ -4309,8 +4309,8 @@
     },
     {
       "path": "docs/template-platform.md",
-      "bytes": 14136,
-      "sha256": "22d1dc4d20d3afeac4c8cb7411425a0ad01d816bf0bbf3471e7559c000e8cab9",
+      "bytes": 14458,
+      "sha256": "6fbee9ccd957c91f51e91550cd03870e341b73334be85122736d15da643ac206",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-platform_md--001.md"
@@ -4345,8 +4345,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 36195,
-      "sha256": "c2bb0bec75810ead4a26be100f9d639582bc80aa9511cd67a22d90d578daf00c",
+      "bytes": 36237,
+      "sha256": "d7489e15c3bf61632392e3eda65e35b0b6d3abfef23811959cbf4e14216efbda",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -4740,6 +4740,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_batches_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_business_workflow_branches.py",
+      "bytes": 16195,
+      "sha256": "3d5dfb1694eb1fa9f30091a163212322c83cc835ed9b57b12b6db188d99fc95e",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_business_workflow_branches_py--001.md"
       ]
     },
     {
@@ -5570,6 +5579,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_pytest_reporting_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_query_attribute_references.py",
+      "bytes": 7712,
+      "sha256": "1abbe0b3df99368efab6877fb9719083b544102893c16df810eb0906271e71a2",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_query_attribute_references_py--001.md"
       ]
     },
     {
