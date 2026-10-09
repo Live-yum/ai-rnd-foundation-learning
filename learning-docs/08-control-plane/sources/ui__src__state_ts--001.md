@@ -12,17 +12,32 @@
 
 **带着一个具体问题阅读：** 快速打开运行A再打开B时，即使A的请求最后才返回，也不能把A消息写到B。openRun先关闭旧订阅并递增runGeneration；回调核对代次后才更新。重连只接受id大于当前cursor的事件，因此同一已提交delta不会再追加一次。
 
-**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L296。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L327。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9258`。本段原文以LF换行结束。
+本段原始字节数：`10078`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8d44af4cb521f2e70f54c81a46a67f4fbf3c3bff81952909e37d74e626c78a81"} -->
+<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f25268bee022a1744e190fccf3f9d063443c3980661f8bb54dc4cdd32361010"} -->
 ````typescript
 // ui/src/state.ts
 import { reactive } from 'vue'
 import { api, ApiError, errorText, hasToken, isAbort, readStream, setToken } from './api'
 import { applyMessageEvent, gateIdentity } from './presentation'
-import type { CatalogEntry, ChatMessage, Project, Run, RunEvent, RecordData } from './types'
+import type {
+  CatalogEntry,
+  ChatMessage,
+  Project,
+  ProjectDraft,
+  Run,
+  RunEvent,
+  RecordData,
+} from './types'
+const emptyCreation = () => ({
+  template: '',
+  frontend: '',
+  database: '',
+  intelligent: false,
+  allowCustomExtensions: false,
+})
 export const state = reactive({
   authenticated: false,
   connecting: false,
@@ -46,6 +61,11 @@ export const state = reactive({
   cursor: 0,
   stale: false,
   homeDrafts: {} as Record<string, string>,
+  homeTitles: {} as Record<string, string>,
+  creation: emptyCreation(),
+  batchMode: false,
+  batchDrafts: [] as ProjectDraft[],
+  batchRuns: [] as Run[],
   settingsReturn: '',
 })
 let runController: AbortController | undefined,
@@ -137,17 +157,26 @@ export function lock() {
     cursor: 0,
     stale: false,
     homeDrafts: {},
+    homeTitles: {},
+    batchMode: false,
+    batchDrafts: [],
+    batchRuns: [],
     settingsReturn: '',
   })
+  Object.assign(state.creation, emptyCreation())
 }
-export async function refreshLists() {
+export async function refreshLists(options: { models?: boolean } = {}) {
   const generation = authGeneration
   if (!isSessionActive(generation)) return
   try {
     const [projects, runs] = await Promise.all([api('/projects'), api('/runs')])
     if (!isSessionActive(generation)) return
     Object.assign(state, { projects, runs, online: true })
-    await readModelConfig(generation)
+    state.batchRuns = state.batchRuns.map((saved) => ({
+      ...saved,
+      ...runs.find((run: Run) => run.id === saved.id),
+    }))
+    if (options.models !== false) await readModelConfig(generation)
     if (!isSessionActive(generation)) return
     state.lastSync = new Date().toISOString()
   } catch (error) {
@@ -174,6 +203,8 @@ function updateRun(next: Run) {
   state.run = next
   const i = state.runs.findIndex((r) => r.id === next.id)
   if (i >= 0) state.runs[i] = { ...state.runs[i], ...next }
+  const batchIndex = state.batchRuns.findIndex((r) => r.id === next.id)
+  if (batchIndex >= 0) state.batchRuns[batchIndex] = { ...state.batchRuns[batchIndex], ...next }
 }
 export async function refreshRun() {
   const id = state.run?.id,

@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from workbench.domain import ResumeInput, RunInput, digest
+from workbench.domain import BatchInput, ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.settings import ROOT, Settings
 
@@ -226,36 +226,56 @@ class Store:
         def operation(session):
             if not session.get(Project, project_id):
                 raise Missing("项目不存在")
-            run = Run(
-                project_id=project_id,
-                template=data["template"],
-                options={
-                    **data["selection"],
-                    "allow_custom_extensions": data["allow_custom_extensions"],
-                },
-                auto_mode=data["intelligent"],
-            )
-            session.add(run)
-            session.flush()
-            session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
-            session.add(Job(run_id=run.id, payload={"action": "start"}))
-            if run.auto_mode:
-                session.add(
-                    Event(
-                        run_id=run.id,
-                        kind="delegation",
-                        data={
-                            "enabled": True,
-                            "actor": "local-operator",
-                            "scope": "choose missing details and approve subsequent design/delivery; never bypass tests",
-                        },
-                    )
-                )
-            return {"run_id": run.id, "status": "QUEUED"}
+            return self._enqueue_run(session, project_id, data)
 
         return self.request(
             key, {"operation": "create-run", "project": project_id, **data}, operation
         )
+
+    def create_batch(self, data, key):
+        """Validate then create all projects and jobs in one idempotent transaction."""
+        data = BatchInput.model_validate(data).model_dump()
+
+        def operation(session):
+            items = []
+            for item in data["items"]:
+                project = Project(title=item["title"])
+                session.add(project)
+                session.flush()
+                queued = self._enqueue_run(session, project.id, item)
+                items.append({"project_id": project.id, "title": project.title, **queued})
+            return {"items": items}
+
+        return self.request(key, {"operation": "create-batch", **data}, operation)
+
+    def _enqueue_run(self, session, project_id, data):
+        """Single and batch creation share the same durable worker and delegation."""
+        run = Run(
+            project_id=project_id,
+            template=data["template"],
+            options={
+                **data["selection"],
+                "allow_custom_extensions": data["allow_custom_extensions"],
+            },
+            auto_mode=data["intelligent"],
+        )
+        session.add(run)
+        session.flush()
+        session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
+        session.add(Job(run_id=run.id, payload={"action": "start"}))
+        if run.auto_mode:
+            session.add(
+                Event(
+                    run_id=run.id,
+                    kind="delegation",
+                    data={
+                        "enabled": True,
+                        "actor": "local-operator",
+                        "scope": "choose missing details and approve subsequent design/delivery; never bypass tests",
+                    },
+                )
+            )
+        return {"run_id": run.id, "status": "QUEUED"}
 
     def submit(self, run_id, data, key):
         data = ResumeInput.model_validate(data).model_dump()

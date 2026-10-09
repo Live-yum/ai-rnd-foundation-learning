@@ -104,7 +104,7 @@ def test_real_model_lesson_has_exact_commit_gate_and_separate_template_evidence(
         "expected_sha",
         "GITHUB_SHA",
         "environment: rnd",
-        "API_KEY: ${{ secrets.APK_KEY }}",
+        "API_KEY: ${{ secrets.API_KEY }}",
         "--template python-basic",
         "fastapiadmin",
         "yudao-vben",

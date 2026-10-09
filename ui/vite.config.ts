@@ -20,6 +20,7 @@ export default defineConfig({
     proxy: Object.fromEntries(
       [
         '/projects',
+        '/batches',
         '/runs',
         '/models',
         '/settings',

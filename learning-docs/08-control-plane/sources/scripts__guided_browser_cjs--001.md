@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L789。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L790。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26239`。本段原文以LF换行结束。
+本段原始字节数：`26347`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f0ea97f90fadb9298713c205777dda3050651cb7d13c591709546376074e087f"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "d8e14aba2b9677d141f63346db4a046fc21e21921a5a5c04c401859d5a32af6e"} -->
 ````javascript
 // scripts/guided_browser.cjs
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
@@ -171,6 +171,7 @@ async function noHorizontalOverflow(page) {
 }
 async function createRun(page, cfg, title, { ime = false } = {}) {
   console.log("Create run: drafting " + title);
+  const before = await api(page, cfg, "/runs");
   const composer = page.getByRole("textbox", { name: "描述你的产品需求" });
   await composer.fill(cfg.requirement);
   if (ime) {
@@ -183,9 +184,9 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
       bubbles: true,
     });
     assert.equal(
-      await page.getByRole("dialog").count(),
-      0,
-      "IME Enter must not send or open selection",
+      (await api(page, cfg, "/runs")).length,
+      before.length,
+      "IME Enter must not submit a run",
     );
     await composer.dispatchEvent("compositionend");
     await composer.press("Shift+Enter");
@@ -196,13 +197,13 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
     await composer.fill(cfg.requirement);
   }
   await composer.press("Enter");
-  const modal = page.getByRole("dialog");
-  await modal.waitFor();
+  assert((await composer.inputValue()).includes("\n"), "Enter keeps editing a multiline draft");
+  await composer.fill(cfg.requirement);
   console.log("Create run: selecting stack");
   // The backend receives neither project nor run before a deliberate stack confirmation.
-  const before = await api(page, cfg, "/runs");
-  await modal.locator("#new-project-title").fill(title);
-  await antSelect(page, "#template-selection", "FastAPI + 轻量管理页面");
+  await page.locator("#new-project-title").fill(title);
+  await page.getByRole("radio", { name: "FastAPI + 轻量管理页面", exact: true }).check();
+  await page.locator(".selection-details .ant-collapse-header").click();
   console.log("Create run: selected backend");
   await antSelect(page, "#frontend-selection", "simple-admin");
   console.log("Create run: selected frontend");
@@ -210,8 +211,8 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
   console.log("Create run: selected database");
   assert.equal((await api(page, cfg, "/runs")).length, before.length);
   // True repeated browser click, not a direct API shortcut.
-  await modal
-    .getByRole("button", { name: "确认选型并开始", exact: true })
+  await page
+    .getByRole("button", { name: "创建并开始", exact: true })
     .dblclick();
   console.log("Create run: confirmed");
   await page.locator('[data-testid="run-workspace"]').waitFor();
@@ -413,7 +414,7 @@ async function workbench(page, cfg, errors) {
   });
   await route(page, "projects");
   await page
-    .getByRole("heading", { name: "每个项目，都能继续往下走", exact: true })
+    .getByRole("heading", { name: "项目工作台", exact: true })
     .waitFor();
   assert(
     !(await fixture(page, cfg)).completed,
@@ -449,11 +450,11 @@ async function workbench(page, cfg, errors) {
   await page.context().setOffline(true);
   await page.waitForTimeout(250);
   await page.context().setOffline(false);
-  await page.getByRole("button", { name: "查看进度", exact: true }).click();
+  await page.getByRole("button", { name: "执行过程", exact: true }).click();
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果" })
+    .getByRole("heading", { name: "执行过程" })
     .waitFor();
-  await page.getByRole("button", { name: "返回对话", exact: true }).click();
+  await page.getByRole("button", { name: "对话与审批", exact: true }).click();
   await draft.filter({ hasText: cfg.stream_summary }).waitFor();
   assert.equal(await draft.innerText(), cfg.stream_summary);
   assert(
@@ -514,7 +515,7 @@ async function workbench(page, cfg, errors) {
   await waitStatus(page, "READY", 100000);
   assert(
     (await page.locator(".progress-rail").innerText()).includes(
-      "智能推荐已开启",
+      "智能委托已开启",
     ),
   );
   assert.equal(

@@ -59,6 +59,12 @@ uv run python .learning/checks/01_contracts.py
 
 现在不要运行 `pytest tests/test_contracts.py`：pytest 会先加载全局 `tests/conftest.py`，它顶层导入 Store，而 Store 是下一站。这种隐藏依赖比“测试文件名叫合同测试”更能决定何时可执行。也不要调用 `Selection.capabilities()`，其业务能力展开在下一批模块完成后才可用。
 
+## 用同一契约描述技术模板
+
+`TemplateAdapter` 集中声明兼容选型、原生前端页面组件、扩展目录和验收入口；新增业务不再复制这些按技术栈分支的判断。`template_standards.coding_standard` 合并 `templates/standards/common.md` 与当前模板规范，生成稳定的内容哈希。规范属于本阶段必须还原的输入，目录与模型上下文都会读取它。写入产品的函数留到生成阶段执行。
+
+远端模型仍默认要求 HTTPS。明确使用可信 HTTP 网关时，由操作者在进程设置 `ALLOW_INSECURE_MODEL_HTTP=true`；配置请求与模型输出都不能自行开启该选项。HTTP 凭据没有传输加密，应优先使用 HTTPS。模型调用仍固定到配置快照中的地址，不跟随重定向，更换地址也不继承旧 Key。
+
 ## 本阶段源码和后续依赖
 
-本阶段首次创建 7 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。
+本阶段首次创建 12 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

@@ -25,25 +25,27 @@
 - `_actions`（L266–L275）：接收`value`。 控制顺序：L268按`not isinstance(value, list) or not all(isinstance(item, str) for item in value)`分支；L269抛异常，停止当前正常路径；L271按`len(result) != len(set(result))`分支；L272抛异常，停止当前正常路径；L273按`set(result) - set(get_args(Action))`分支；L274抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`all`、`ValueError`、`_ACTION_ALIASES.get`、`len`、`set`、`get_args`。 返回路径：L275的`result`。
 - `_permission_key`（L278–L283）：接收`descriptor`。 源码说明：Only an explicit role/resource/row scope can authorize action pooling.。 控制顺序：L281按`all(isinstance(item, str) for item in key) and key[2] in _SCOPES`分支。 调用`tuple`、`descriptor.get`、`all`、`isinstance`。 返回路径：L282的`key`；L283的`None`。
 - `_permission_action_sets`（L286–L305）：接收`records`。 源码说明：Split positive grants are one action set, never an arbitrary superset. Keep the source records intact: every restriction and malformed declaration must still be checked independently, and diagnostics 。 控制顺序：L295遍历`records`；L296按`kind != "permissions" or (key := _permission_key(descriptor)) is None`分支；L298按`"actions" not in descriptor`分支。 调用`_permission_key`、`_actions`、`result.setdefault((collection, key), set()).update`、`result.setdefault`、`set`。 返回路径：L305的`result`。
-- `_semantic_descriptor`（L308–L379）：接收`kind`、`descriptor`。 控制顺序：L310按`kind == "permissions" and "actions" in descriptor`分支；L312按`kind == "metrics" and "filter" in descriptor`分支；L314按`not isinstance(value, dict) or not value`分支；L315抛异常，停止当前正常路径；L316按`"field" in value`分支；L320按`"filters" in descriptor and not _same_fact(predicates, _decode(descriptor["filters"])…`分支；L321抛异常，停止当前正常路径；L323按`kind == "resources" and "audit_history" in descriptor`分支。后续分支沿下方源码相同行号继续阅读。 调用`_aliases`、`_ALIASES.get`、`_actions`、`_decode`、`isinstance`、`ValueError`、`value.items`、`_same_fact`、`descriptor.get`等。 返回路径：L379的`expected`。
-- `_metric_scope`（L382–L401）：接收`descriptor`。 源码说明：Return only unambiguous role grants; never guess an unknown scope form.。 控制顺序：L389按`isinstance(value, list) and value and all(identifier(role) for role in value)`分支；L390按`len(value) == len(set(value))`分支；L392按`isinstance(value, dict) and value and all( identifier(role) and isinstance(scope, str…`分支。 调用`_decode`、`isinstance`、`all`、`identifier`、`len`、`set`、`dict.fromkeys`、`value.items`。 返回路径：L391的`dict.fromkeys(value)`；L400的`value`；L401的`None`。
-- `_metric_scope.identifier`（L386–L387）：接收`item`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L387的`isinstance(item, str) and bool(re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item))`。
-- `_global_metric_scope`（L404–L421）：接收`value`。 控制顺序：L406按`isinstance(value, dict)`分支；L408按`result is not None`分支；L410按`isinstance(value, str)`分支；L413遍历`re.split(r"[;；,，]", value)`；L415按`not match or match[1] in result`分支；L419按`result`分支；L421抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`_metric_scope`、`re.sub`、`re.split`、`re.fullmatch`、`ValueError`。 返回路径：L409的`result`；L420的`result`。
-- `_notification_match`（L424–L546）：接收`descriptor`、`business`。 源码说明：Aggregate trigger/recipient catalogs are unions, not a Cartesian policy. An event-specific recipients list, by contrast, applies to that event on one matching resource. An explicit entity always binds。 控制顺序：L432按`not isinstance(channel, str) or channel not in {"in_app", "in-app", "in_app_persisten…`分支；L433抛异常，停止当前正常路径；L434按`"persistent" in value and value["persistent"] is not True`分支；L435抛异常，停止当前正常路径；L438按`not isinstance(triggers, list) or not triggers or not all(item is None or isinstance(…`分支；L443抛异常，停止当前正常路径；L447按`not isinstance(recipients, list) or not all(isinstance(item, str) for item in recipie…`分支；L448抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`dict`、`value.get`、`isinstance`、`ValueError`、`_decode`、`all`、`_RECIPIENT_ALIASES.get`、`any`、`re.fullmatch`等。 返回路径：L533的`False`；L538的`False`；L545的`False`。
-- `_notification_match.covers`（L471–L530）：接收`trigger`、`requested_recipients`。 控制顺序：L473按`event == "resolved"`分支；L475按`event not in {None, "created", "assigned", "transitioned", "note_added", "due"}`分支；L476抛异常，停止当前正常路径；L491遍历`{item.entity for item in candidates}`；L495按`trigger == "resolved"`分支；L501按`generic_transition`分支；L503按`event == "transitioned"`分支；L509按`condition_field and event == "due"`分支。后续分支沿下方源码相同行号继续阅读。 调用`_EVENT_ALIASES.get`、`ValueError`、`str`、`value.get`、`workflows.get`、`any`、`all`。 返回路径：L529的`True`；L530的`False`。
-- `_resource_matches`（L549–L614）：接收`descriptor`、`resource`、`business`、`plan`。 控制顺序：L551按`"assignment" in descriptor`分支；L557按`type(expected) is not bool or expected is not actual`分支；L559按`"initial_state" in descriptor and ( not workflow or workflow.initial != descriptor["i…`分支；L563按`"state_transitions" in descriptor and not _same_fact( _decode(descriptor["state_trans…`分支；L568遍历`("features", "capabilities")`；L569按`key not in descriptor`分支；L572按`not isinstance(names, list) or not all(isinstance(name, str) for name in names)`分支；L573抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`next`、`bool`、`any`、`type`、`_same_fact`、`_decode`、`isinstance`、`all`、`ValueError`。 返回路径：L558的`False`；L562的`False`；L567的`False`。
-- `_bounded`（L617–L626）：接收`value`、`depth`。 控制顺序：L618按`depth > 6`分支；L620按`isinstance(value, str)`分支；L622按`isinstance(value, dict)`分支；L624按`isinstance(value, list)`分支。 调用`isinstance`、`str`、`_bounded`、`list`、`value.items`。 返回路径：L619的`"[nested]"`；L621的`value[:160]`；L623的`{str(key)[:80]: _bounded(item, depth + 1) for key, item in list(value.items())[:20]}`。
-- `_policy_roots`（L629–L652）：接收`facts`、`path`、`domain`、`entity_container`。 控制顺序：L631按`isinstance(value, list)`分支；L632遍历`enumerate(value)`；L634按`isinstance(value, dict)`分支；L635按`domain != "presentation" and "permissions" in value and ( "resources" in value or "ro…`分支；L645遍历`value.items()`；L646按`key not in _FIELD_COLLECTIONS \| _FACT_METADATA`分支。 调用`_decode`、`isinstance`、`enumerate`、`_policy_roots`、`value.get`、`value.items`、`_fact_domain`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_business_fact_gaps`（L655–L1139）：接收`requirement`、`plan`、`diagnostics`。 控制顺序：L663遍历`records`；L664按`kind == "permissions" and isinstance(descriptor.get("role"), str) and isinstance(desc…`分支；L670按`kind == "metrics"`分支；L675按`"role_scope" in descriptor`分支；L677按`scopes and isinstance(descriptor.get("entity"), str)`分支；L691遍历`virtual_permissions`；L692按`isinstance(descriptor.get("role"), str)`分支；L751遍历`_policy_roots(requirement.facts)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_business_facts`、`_permission_action_sets`、`set`、`isinstance`、`descriptor.get`、`_aliases`、`_metric_scope`、`metric_access.update`等。 返回路径：L1139的`gaps`。
-- `_business_fact_gaps.report`（L695–L712）：接收`kind`、`path`、`expected`、`actual`、`code`、`reason`。 控制顺序：L704按`diagnostics is not None`分支。 调用`_bounded`、`json.dumps`、`gaps.append`、`diagnostics.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_semantic_descriptor`（L308–L385）：接收`kind`、`descriptor`。 控制顺序：L310按`kind == "permissions"`分支；L311遍历`("actions", "only_actions", "denied_actions", "forbidden_actions"…`；L312按`key in descriptor`分支；L314按`"actions" in descriptor and not descriptor["actions"]`分支；L315抛异常，停止当前正常路径；L316按`"read_only" in descriptor and type(descriptor["read_only"]) is not bool`分支；L317抛异常，停止当前正常路径；L318按`kind == "metrics" and "filter" in descriptor`分支。后续分支沿下方源码相同行号继续阅读。 调用`_aliases`、`_ALIASES.get`、`_actions`、`ValueError`、`type`、`_decode`、`isinstance`、`value.items`、`_same_fact`等。 返回路径：L385的`expected`。
+- `business_analysis_conflicts`（L388–L446）：接收`requirement`、`previous`。 源码说明：Reject malformed fact expressions before they become approved obligations. Reuse the design validator's structural grammar. This does not compare a candidate Plan, infer permissions, or remove facts: 。 控制顺序：L415遍历`_business_facts(requirement.facts, entities)`；L419按`requirement.data_scope == "per_user" and expected`分支；L421抛异常，停止当前正常路径。 调用`entities.update`、`previous.get`、`item.get`、`signature`、`_business_facts`、`_semantic_descriptor`、`ValueError`、`diagnostics.append`、`descriptor.get`等。 返回路径：L446的`diagnostics`。
+- `business_analysis_conflicts.signature`（L405–L406）：接收`kind`、`path`、`descriptor`。 调用`json.dumps`。 返回路径：L406的`kind, path, json.dumps(descriptor, ensure_ascii=False, sort_keys=True)`。
+- `_metric_scope`（L449–L468）：接收`descriptor`。 源码说明：Return only unambiguous role grants; never guess an unknown scope form.。 控制顺序：L456按`isinstance(value, list) and value and all(identifier(role) for role in value)`分支；L457按`len(value) == len(set(value))`分支；L459按`isinstance(value, dict) and value and all( identifier(role) and isinstance(scope, str…`分支。 调用`_decode`、`isinstance`、`all`、`identifier`、`len`、`set`、`dict.fromkeys`、`value.items`。 返回路径：L458的`dict.fromkeys(value)`；L467的`value`；L468的`None`。
+- `_metric_scope.identifier`（L453–L454）：接收`item`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L454的`isinstance(item, str) and bool(re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item))`。
+- `_global_metric_scope`（L471–L488）：接收`value`。 控制顺序：L473按`isinstance(value, dict)`分支；L475按`result is not None`分支；L477按`isinstance(value, str)`分支；L480遍历`re.split(r"[;；,，]", value)`；L482按`not match or match[1] in result`分支；L486按`result`分支；L488抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`_metric_scope`、`re.sub`、`re.split`、`re.fullmatch`、`ValueError`。 返回路径：L476的`result`；L487的`result`。
+- `_notification_match`（L491–L613）：接收`descriptor`、`business`。 源码说明：Aggregate trigger/recipient catalogs are unions, not a Cartesian policy. An event-specific recipients list, by contrast, applies to that event on one matching resource. An explicit entity always binds。 控制顺序：L499按`not isinstance(channel, str) or channel not in {"in_app", "in-app", "in_app_persisten…`分支；L500抛异常，停止当前正常路径；L501按`"persistent" in value and value["persistent"] is not True`分支；L502抛异常，停止当前正常路径；L505按`not isinstance(triggers, list) or not triggers or not all(item is None or isinstance(…`分支；L510抛异常，停止当前正常路径；L514按`not isinstance(recipients, list) or not all(isinstance(item, str) for item in recipie…`分支；L515抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`dict`、`value.get`、`isinstance`、`ValueError`、`_decode`、`all`、`_RECIPIENT_ALIASES.get`、`any`、`re.fullmatch`等。 返回路径：L600的`False`；L605的`False`；L612的`False`。
+- `_notification_match.covers`（L538–L597）：接收`trigger`、`requested_recipients`。 控制顺序：L540按`event == "resolved"`分支；L542按`event not in {None, "created", "assigned", "transitioned", "note_added", "due"}`分支；L543抛异常，停止当前正常路径；L558遍历`{item.entity for item in candidates}`；L562按`trigger == "resolved"`分支；L568按`generic_transition`分支；L570按`event == "transitioned"`分支；L576按`condition_field and event == "due"`分支。后续分支沿下方源码相同行号继续阅读。 调用`_EVENT_ALIASES.get`、`ValueError`、`str`、`value.get`、`workflows.get`、`any`、`all`。 返回路径：L596的`True`；L597的`False`。
+- `_resource_matches`（L616–L681）：接收`descriptor`、`resource`、`business`、`plan`。 控制顺序：L618按`"assignment" in descriptor`分支；L624按`type(expected) is not bool or expected is not actual`分支；L626按`"initial_state" in descriptor and ( not workflow or workflow.initial != descriptor["i…`分支；L630按`"state_transitions" in descriptor and not _same_fact( _decode(descriptor["state_trans…`分支；L635遍历`("features", "capabilities")`；L636按`key not in descriptor`分支；L639按`not isinstance(names, list) or not all(isinstance(name, str) for name in names)`分支；L640抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`next`、`bool`、`any`、`type`、`_same_fact`、`_decode`、`isinstance`、`all`、`ValueError`。 返回路径：L625的`False`；L629的`False`；L634的`False`。
+- `_bounded`（L684–L693）：接收`value`、`depth`。 控制顺序：L685按`depth > 6`分支；L687按`isinstance(value, str)`分支；L689按`isinstance(value, dict)`分支；L691按`isinstance(value, list)`分支。 调用`isinstance`、`str`、`_bounded`、`list`、`value.items`。 返回路径：L686的`"[nested]"`；L688的`value[:160]`；L690的`{str(key)[:80]: _bounded(item, depth + 1) for key, item in list(value.items())[:20]}`。
+- `_policy_roots`（L696–L719）：接收`facts`、`path`、`domain`、`entity_container`。 控制顺序：L698按`isinstance(value, list)`分支；L699遍历`enumerate(value)`；L701按`isinstance(value, dict)`分支；L702按`domain != "presentation" and "permissions" in value and ( "resources" in value or "ro…`分支；L712遍历`value.items()`；L713按`key not in _FIELD_COLLECTIONS \| _FACT_METADATA`分支。 调用`_decode`、`isinstance`、`enumerate`、`_policy_roots`、`value.get`、`value.items`、`_fact_domain`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_business_fact_gaps`（L722–L1202）：接收`requirement`、`plan`、`diagnostics`。 控制顺序：L730遍历`records`；L731按`kind == "permissions" and isinstance(descriptor.get("role"), str) and isinstance(desc…`分支；L737按`kind == "metrics"`分支；L742按`"role_scope" in descriptor`分支；L744按`scopes and isinstance(descriptor.get("entity"), str)`分支；L758遍历`virtual_permissions`；L759按`isinstance(descriptor.get("role"), str)`分支；L816遍历`_policy_roots(requirement.facts)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_business_facts`、`_permission_action_sets`、`set`、`isinstance`、`descriptor.get`、`_aliases`、`_metric_scope`、`metric_access.update`等。 返回路径：L1202的`gaps`。
+- `_business_fact_gaps.report`（L762–L779）：接收`kind`、`path`、`expected`、`actual`、`code`、`reason`。 控制顺序：L771按`diagnostics is not None`分支。 调用`_bounded`、`json.dumps`、`gaps.append`、`diagnostics.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/business_capabilities.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L713。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/business_capabilities.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L780。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29431`。本段原文以LF换行结束。
+本段原始字节数：`32629`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/business_capabilities.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f8946719150dc8a4b3c278898e7e0c139c9d7894cef281acb17ec9730ec0f0bc"} -->
+<!-- learning-source: {"path": "workbench/business_capabilities.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "36162e75be69ce1d05972057a45c59ecbbec9334837745815cdfa9e57a992088"} -->
 ````python
 # workbench/business_capabilities.py
 """Bounded declarative business capabilities and executable requirement coverage."""
@@ -355,8 +357,14 @@ def _permission_action_sets(records):
 
 def _semantic_descriptor(kind, descriptor):
     descriptor = _aliases(descriptor, _ALIASES.get(kind, {}))
-    if kind == "permissions" and "actions" in descriptor:
-        descriptor["actions"] = _actions(descriptor["actions"])
+    if kind == "permissions":
+        for key in ("actions", "only_actions", "denied_actions", "forbidden_actions"):
+            if key in descriptor:
+                descriptor[key] = _actions(descriptor[key])
+        if "actions" in descriptor and not descriptor["actions"]:
+            raise ValueError("actions 需要非空动作标识列表")
+        if "read_only" in descriptor and type(descriptor["read_only"]) is not bool:
+            raise ValueError("read_only 需要布尔值")
     if kind == "metrics" and "filter" in descriptor:
         value = _decode(descriptor["filter"])
         if not isinstance(value, dict) or not value:
@@ -425,6 +433,67 @@ def _semantic_descriptor(kind, descriptor):
                 )
             expected["transitions"] = normalized
     return expected
+
+
+def business_analysis_conflicts(requirement, *, previous=None):
+    """Reject malformed fact expressions before they become approved obligations.
+
+    Reuse the design validator's structural grammar. This does not compare a
+    candidate Plan, infer permissions, or remove facts: the ordinary analysis
+    repair gate must preserve the original request and correct its expression.
+    """
+    entities = {item.entity for item in requirement.entity_requirements}
+    entities.update(item.entity for item in requirement.field_requirements if item.entity)
+    previous = previous or {}
+    previous_entities = entities | {
+        item["entity"]
+        for section in ("entity_requirements", "field_requirements")
+        for item in previous.get(section, [])
+        if item.get("entity")
+    }
+
+    def signature(kind, path, descriptor):
+        return kind, path, json.dumps(descriptor, ensure_ascii=False, sort_keys=True)
+
+    retained = {
+        signature(kind, path, descriptor)
+        for kind, path, descriptor, _ in _business_facts(
+            previous.get("facts", {}), previous_entities
+        )
+    }
+    diagnostics = []
+    for kind, path, descriptor, _ in _business_facts(requirement.facts, entities):
+        code = "requirement_business_shape"
+        try:
+            expected = _semantic_descriptor(kind, descriptor)
+            if requirement.data_scope == "per_user" and expected:
+                code = "requirement_business_scope"
+                raise ValueError(
+                    "per_user 与声明式业务义务冲突；业务契约要求 shared 和明确行权限。"
+                    "依据原文区分普通本人记录 CRUD 与团队业务，不自动改范围或删除需求"
+                )
+        except ValueError as exc:
+            source = {"section": "facts", "path": path, "domain": kind}
+            old = signature(kind, path, descriptor) in retained
+            diagnostics.append(
+                {
+                    "code": code,
+                    "target": {"entity": descriptor.get("entity"), "field": None},
+                    "attribute": kind,
+                    "sources": [
+                        {
+                            "source": source,
+                            "expected": descriptor,
+                            "origin": "previous_requirement" if old else "model_analysis",
+                            **({"previous_source": dict(source)} if old else {}),
+                            "text": str(exc) + ": " + json.dumps(descriptor, ensure_ascii=False),
+                            "user_sources": [],
+                        }
+                    ],
+                    "message": f"需求分析的业务事实 {path} 表达无效：{exc}；依据原始需求修正分析后再设计",
+                }
+            )
+    return diagnostics
 
 
 def _metric_scope(descriptor):

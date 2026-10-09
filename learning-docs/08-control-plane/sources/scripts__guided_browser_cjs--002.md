@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L790–L1520。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L791–L1521。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25356`。本段原文以LF换行结束。
+本段原始字节数：`25302`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "eba39b807277ef3c2329e228b7779de2d20f77f68638237147b8734f67899063"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "934e2b91e998a99ad81d80fe188a6b2f2775560f4bdef13ebf473bee6b3d1831"} -->
 ````javascript
 // scripts/guided_browser.cjs
 async function manual(page, cfg, delayedRefresh = false) {
@@ -113,9 +113,9 @@ async function manual(page, cfg, delayedRefresh = false) {
       await request.continue();
     });
   await approve.click();
-  await page.getByRole("button", { name: "查看进度", exact: true }).click();
+  await page.getByRole("button", { name: "执行过程", exact: true }).click();
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .getByRole("heading", { name: "执行过程", exact: true })
     .waitFor();
   await capture(page, {
     animations: "disabled",
@@ -336,7 +336,7 @@ async function choices(page, cfg) {
   );
   await route(page, `run/${runId}/progress`);
   await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .getByRole("heading", { name: "执行过程", exact: true })
     .waitFor();
   await route(page, `run/${runId}/conversation`);
   await page.locator(".user-message").filter({ hasText: extra }).waitFor();

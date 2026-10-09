@@ -505,7 +505,7 @@ def _business_schema(value):
     )
 
 
-def _fact_records(facts, fields):
+def _fact_records(facts, fields, *, entity_names=()):
     """Classify structural facts before projecting field constraints or prose.
 
     A name/entity pair alone is not a field declaration. Field definitions have
@@ -513,7 +513,7 @@ def _fact_records(facts, fields):
     names, kinds, reference fields and scalar lists. We still descend into every
     structural object so nested explicit field definitions cannot disappear.
     """
-    entities = {entity for entity, _ in fields}
+    entities = {entity for entity, _ in fields} | set(entity_names)
 
     def walk(
         key, value, path, entity=None, subject=None, business=False, container=None, domain=None
@@ -564,7 +564,33 @@ def _fact_records(facts, fields):
         ):
             yield "constraint", label, {}, _fact_subject(None, fields, entity, declared=True)
             return
-        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        # An unambiguous entity key groups field declarations; it is not itself
+        # an enum field whose choices are those field names. Retain the legacy
+        # enum shorthand when the same key already identifies a real field.
+        field_group = (
+            container == "fields"
+            and subject is None
+            and entity is None
+            and key in entities
+            and isinstance(value, (dict, list))
+            and _fact_subject(key, fields) is None
+            and not (
+                isinstance(value, dict)
+                and (
+                    set(value) & FACT_ATTRIBUTES
+                    or "field" in value
+                    or (
+                        "name" in value
+                        and not isinstance(_decode_fact(value["name"]), (dict, list))
+                    )
+                )
+            )
+        )
+        if field_group:
+            entity = key
+        field_container = field_group or (
+            key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        )
         resource_container = (
             key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
         )
@@ -580,7 +606,7 @@ def _fact_records(facts, fields):
             if relation_container
             else None
         )
-        declared = container == "fields"
+        declared = container == "fields" and not field_group
         direct = _fact_subject(key, fields, entity, declared=declared and not key.isdigit())
         attributes = (
             {name: _decode_fact(item) for name, item in value.items() if name in FACT_ATTRIBUTES}
@@ -721,6 +747,22 @@ def _fact_records(facts, fields):
                     domain,
                 )
         elif isinstance(value, list):
+            if collection == "fields" and entity is not None and domain != "constraints":
+                # A scoped list of identifiers declares field presence. Emit
+                # each obligation even when the candidate omitted that field
+                # or its entire entity; do not silently discard malformed rows.
+                for index, item in enumerate(value or [None]):
+                    decoded = _decode_fact(item)
+                    if not isinstance(decoded, (dict, list)):
+                        yield (
+                            "constraint",
+                            f"{label}.{index}",
+                            {},
+                            _fact_subject(decoded, fields, entity, declared=True)
+                            or _fact_subject(None, fields, entity, declared=True),
+                        )
+                if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
+                    return
             if domain == "constraints" and collection == "fields":
                 for index, item in enumerate(value):
                     if not isinstance(_decode_fact(item), dict):
@@ -783,8 +825,8 @@ def _fact_records(facts, fields):
             yield from walk(key, value, [key])
 
 
-def _fact_constraints(facts, fields=()):
-    for kind, path, value, subject in _fact_records(facts, fields):
+def _fact_constraints(facts, fields=(), *, entity_names=()):
+    for kind, path, value, subject in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "constraint":
             yield path, value, subject
 
@@ -835,8 +877,8 @@ def _scalar_fact_attribute(label, value):
     return attribute
 
 
-def _fact_texts(facts, fields=()):
-    for kind, path, value, _ in _fact_records(facts, fields):
+def _fact_texts(facts, fields=(), *, entity_names=()):
+    for kind, path, value, _ in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "text":
             yield path, value
 
@@ -951,6 +993,61 @@ def _query_composition_text(text, fields):
     )
 
 
+def _query_attribute_text(text, fields):
+    """A reference to query switches does not itself turn the switches on.
+
+    Only literal schema identifiers are considered here, before natural query
+    predicates are lowered to the same spelling. Reuse the subject binder so
+    named declarations and neighboring field clauses keep their own meaning.
+    """
+    attribute = r"(?<![a-z0-9_])(?:searchable|filterable|date_range)(?![a-z0-9_])"
+    if not re.search(attribute, text, re.I):
+        return text
+    identifiers = re.compile(
+        rf"`?{attribute}`?(?:\s*(?:[、,，/](?:\s*and\b)?|和|与|及|\band\b)\s*`?{attribute}`?)*",
+        re.I,
+    )
+    reference = re.compile(
+        r"声明|定义|清单|属性|开关|默认|未启用|不启用|"
+        r"\b(?:declar(?:e[ds]?|ations?)|definitions?|attributes?|flags?|defaults?|disabled|false)\b",
+        re.I,
+    )
+    enable = re.compile(
+        r"开启|启用|支持|提供|需要|要求|"
+        r"\b(?:enable[ds]?|activate[ds]?|supports?|provides?|requires?|needs?)\b",
+        re.I,
+    )
+    changed, clauses = False, []
+    for clause in _legacy_clauses(text, fields):
+        if _fact_candidates(clause, fields):
+            clauses.append(clause)
+            continue
+
+        def replace(match):
+            nonlocal changed
+            before = re.split(r"[，,；;。\n]", clause[: match.start()])[-1]
+            after = re.split(r"[，,；;。\n]", clause[match.end() :])[0]
+            assignment = re.match(r"\s*[:=]\s*(?:true|false|是|否)(?![a-z])", after, re.I)
+            # An explicit enabling predicate wins over a descriptive noun,
+            # regardless of intervening modifiers such as 'following flags'.
+            # A negated/default statement still cannot enable an operation.
+            affirmative = any(
+                enable.search(context)
+                and not _DATE_NEGATIVE.search(context)
+                and not re.search(r"(?:未|不)\s*(?:开启|启用|支持|提供|需要|要求)", context)
+                for context in (before, after)
+            ) or re.match(r"\s*(?:is|are|均为|为)\s*true(?![a-z])", after, re.I)
+            if assignment or affirmative or not reference.search(before + after):
+                return match.group()
+            changed = True
+            return re.sub(
+                attribute, lambda item: " " * len(item.group()), match.group(), flags=re.I
+            )
+
+        clauses.append(identifiers.sub(replace, clause))
+    return "; ".join(clauses) if changed else text
+
+
 def _query_predicate_text(text, fields):
     """Exclude operation-derived nouns unless an explicit predicate binds fields.
 
@@ -959,6 +1056,7 @@ def _query_predicate_text(text, fields):
     'title is a search criterion' and imperatives such as 'filter results by title'.
     Other verbs in the same clause remain available for ordinary subject binding.
     """
+    text = _query_attribute_text(text, fields)
     text = _query_composition_text(text, fields)
     nouns = re.compile(
         r"(?P<operation>"
@@ -985,6 +1083,18 @@ def _query_predicate_text(text, fields):
     # exclusion. Output/display surfaces (e.g. search results) are not controls.
     subject = rf"(?:[a-z][a-z0-9_]*(?:::|\.))?(?:{subjects.pattern})"
     targets = rf"{subject}(?:\s*(?:[、/]|和|与|\band\b)\s*{subject})*"
+    # A keyword query (or a field-bound keyword shorthand) is a search
+    # predicate. Lower it before noun/negative/clause handling, so a following
+    # exact-filter operator cannot absorb these already-complete targets.
+    keyword = r"(?:关键词|关键字|(?<![a-z0-9_])keywords?(?![a-z0-9_]))"
+    text = re.sub(keyword + r"\s*(?:查询|\bquer(?:y|ies)\b)", " search ", text, flags=re.I)
+    text = re.sub(
+        rf"(?P<targets>{targets})\s*(?:的\s*)?{keyword}"
+        r"(?=\s*(?:以及|及|并且|并|且|和|与|\band\b|[、，,；;。\n]|$))",
+        r"\g<targets> search ",
+        text,
+        flags=re.I,
+    )
     controls = r"(?:filters?|filter\s+(?:criteria|conditions?)|search\s+(?:criteria|conditions?))"
 
     def negative_membership(match):
@@ -1061,7 +1171,43 @@ def _query_predicate_text(text, fields):
         # subject, predicate or field alias from the noun phrase.
         return " " * len(match.group())
 
-    return nouns.sub(replace, text)
+    text = nouns.sub(replace, text)
+    # In "priority and inclusive date range filtering", the trailing verb
+    # also predicates the preceding bare fields. Project that shared verb
+    # before folding the compound; completed descriptors are not bare targets.
+    shared_targets = rf"{subject}(?:\s*(?:[、/,，]|和|与|\band\b)\s*{subject})*"
+    shared_range = re.compile(
+        rf"(?P<targets>{shared_targets})\s*(?:[、/]|和|与|及|\band\b)\s*"
+        rf"(?P<ranged>(?:{subject}\s*)?"
+        r"(?:(?:含边界|包含(?:首尾|两端|边界)(?:的)?|起止|inclusive)\s*)?)"
+        rf"(?P<range>{_DATE_RANGE_QUERY.pattern})",
+        re.I,
+    )
+
+    shared_predicates = []
+
+    def shared_predicate(match):
+        operation = re.search(r"筛选|过滤|filters?|filtering\b", match["range"], re.I)
+        before = re.split(r"[，,；;。\n]", text[: match.start()])[-1]
+        if operation is None or _DATE_NEGATIVE.search(before):
+            return match.group()
+        for reference in re.finditer(subject, match["targets"], re.I):
+            scope = _fact_entity(reference.group(), fields) or _fact_entity(
+                text[: match.start()], fields
+            )
+            bound = f"{scope}::{reference.group()}" if scope else reference.group()
+            candidates = _legacy_targets(bound, fields)
+            for owner, field in fields:
+                if field.kind != "date" and any(field is target for target in candidates):
+                    shared_predicates.append(f"{owner}.{field.name} {operation.group()}")
+        return match.group()
+
+    text = shared_range.sub(shared_predicate, text)
+    # A compound range query is one capability. Lower it before the legacy
+    # field/operation splitter can treat its search/filter suffix independently.
+    # Keep noun handling first: "date range filter results" is still output,
+    # while "date range filter and exact filter" keeps both real predicates.
+    return "; ".join([_DATE_RANGE_QUERY.sub("date_range", text), *shared_predicates])
 
 
 def _section_entity(text, fields):
@@ -1645,6 +1791,52 @@ def _query_operation_groups(text, fields, operations):
         yield " ".join([*prefix, *pending])
 
 
+_QUERY_OPERATIONS = {
+    "searchable": r"搜索|检索|search",
+    "filterable": r"筛选|过滤|filter",
+    "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
+}
+
+
+def _legacy_query_parts(text, fields):
+    """Share field/operator binding without reading candidate query flags."""
+    parts = [text]
+    if re.search(_QUERY_OPERATIONS["searchable"], text, re.I) and re.search(
+        _QUERY_OPERATIONS["filterable"], text, re.I
+    ):
+        parts = list(_query_operation_groups(text, fields, _QUERY_OPERATIONS))
+    previous_targets = []
+    for part in parts:
+        entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
+        bound = part
+        if part != text and _fact_entity(part, fields) is None:
+            if entity_scope:
+                bound = f"{entity_scope}::{part}"
+            elif _ALL_ENTITIES.search(text):
+                bound = f"所有实体 {part}"
+        targets = _legacy_targets(bound, fields)
+        if not targets and _fact_candidates(bound, fields):
+            continue
+        # A field-free continuation inherits the preceding subject. A generic
+        # keyword operation remains independent of an earlier exact filter.
+        if not targets and previous_targets and not re.search(r"关键词|关键字|keyword", part, re.I):
+            targets = previous_targets
+        if targets:
+            previous_targets = targets
+        available = [
+            field for owner, field in fields if entity_scope is None or owner == entity_scope
+        ]
+        yield part, targets, available
+
+
+def _legacy_query_pairs(text, fields):
+    """Only named positive predicates establish a field's query capability."""
+    for part, targets, _ in _legacy_query_parts(text, fields):
+        for attribute, pattern in _QUERY_OPERATIONS.items():
+            if re.search(pattern, part, re.I):
+                yield from ((field, attribute) for field in targets)
+
+
 _METRIC_CONTEXT = re.compile(
     r"(?<![a-z_])(?:count|group_count|time_count|average_duration|metrics?)(?![a-z_])"
     r"|指标|统计|计数|已解决数|总数|平均.*时长|趋势|分组",
@@ -1823,11 +2015,15 @@ def _metric_clauses(text, fields):
 
 
 def _negative_operation_pattern(fields):
-    negative = r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不)"
+    negative = (
+        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不|"
+        r"\b(?:no|without|never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+        r"(?:\s+(?:require|need|allow|support|provide|enable|use))?)\b)"
+    )
     operation = (
         r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
         r"|(?:日期区间|日期范围)(?:筛选|过滤|查询)?"
-        r"|search(?:able)?|filter(?:able)?|date.?range"
+        r"|(?:keyword\s+)?search(?:ing|able|es)?|(?:exact\s+)?filter(?:ing|s|able)?|date.?range"
     )
     names = {field.name for _, field in fields}
     names.update(name for aliases in ALIASES.values() for name in aliases)
@@ -1837,7 +2033,11 @@ def _negative_operation_pattern(fields):
     targets = "(?P<targets>" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
     return re.compile(
         negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
-        r"(?:\s*(?:以及|[、或和及与])\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        r"(?:\s*(?:以及|[、或和及与]|\band\b|\bor\b)\s*(?:"
+        + negative
+        + r")?\s*(?:"
+        + operation
+        + r"))*",
         re.I,
     )
 
@@ -1851,15 +2051,19 @@ def _legacy_boolean_text(text, fields):
 
     def replace(match):
         phrase = match.group()
-        if not re.match(r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与", phrase):
+        if not re.match(
+            r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与|"
+            r"\b(?:never|cannot|disable|forbid|(?:(?:do|does|must|should)\s+)?not"
+            r"(?!\s+(?:require|need)\b))\b",
+            phrase,
+            re.I,
+        ):
             return ""
         attributes = []
         if re.search(r"搜索|检索|search", phrase, re.I):
             attributes.append("searchable=false")
         # A date-range operation is not a separate exact-filter toggle.
-        exact = re.sub(
-            r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|date.?range", "", phrase, flags=re.I
-        )
+        exact = _DATE_RANGE_QUERY.sub("", phrase)
         if re.search(r"筛选|过滤|filter", exact, re.I):
             attributes.append("filterable=false")
         if re.search(r"日期区间|日期范围|date.?range", phrase, re.I):
@@ -1980,7 +2184,13 @@ _DATE_TYPE = re.compile(
     re.I,
 )
 _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
-_DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|date.?range", re.I)
+_DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|起止日期(?:区间|范围)?|date.?range", re.I)
+_DATE_RANGE_QUERY = re.compile(
+    r"(?:\b(?:filter(?:ing)?|search(?:ing)?)\s+(?:by|using|on)\s+)?"
+    rf"(?:{_DATE_RANGE_OPERATOR.pattern})"
+    r"(?:\s*(?:筛选|过滤|查询)|\s+(?:filters?|filtering|search(?:ing)?|quer(?:y|ies))\b)?",
+    re.I,
+)
 _DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
 _DATE_NEGATIVE = re.compile(
     r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"
@@ -2151,12 +2361,14 @@ def _legacy_scalar_constraints(text):
     )
     optional = re.search(
         r"非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
-        r"required\s*[:=]\s*(?:false|否)",
+        r"required\s*[:=]\s*(?:false|否)|(?<!不)可空",
         text,
         re.I,
     )
     if not validation:
-        if re.search(r"必填|required", text, re.I) and not optional:
+        if (re.search(r"必填|required", text, re.I) and not optional) or re.search(
+            r"不可空|不得为空", text
+        ):
             yield "required", True
         if optional or re.search(r"可选", text):
             yield "required", False
@@ -2190,8 +2402,109 @@ def _legacy_integer_constraints(text):
                 yield attribute, int(match.group(1))
 
 
+_QUERY_CLOSURE = re.compile(
+    r"(?:未(?:声明|指定|列出)(?:的)?|\b(?:undeclared|unspecified|unlisted)\s+)\s*"
+    r"(?P<flags>(?:searchable|filterable|date_range)(?:\s*(?:[、,，/]|和|与|\band\b)\s*"
+    r"(?:searchable|filterable|date_range))*)\s*"
+    r"(?:(?:均|全部)?(?:为|是)|[:=]|(?:are|must\s+be)\s+)\s*(?:false|否)(?![a-z])|"
+    r"(?:其他|其余)?未(?:声明|指定|列出)(?:的)?字段\s*"
+    r"(?:不(?:增加|添加)|不得(?:增加|添加)|禁止(?:新增|增加|添加))\s*"
+    r"(?:任何|额外的?)?(?:查询条件|查询参数|查询能力)|"
+    r"\b(?:do|must|shall|should)\s+not\s+(?:add|enable)\s+(?:any\s+)?"
+    r"query\s+(?:conditions?|parameters?|controls?|capabilities)\s+(?:for|on)\s+"
+    r"(?:any\s+)?(?:other\s+)?(?:undeclared|unlisted|unspecified)\s+fields\b|"
+    r"\b(?:other\s+)?(?:undeclared|unlisted|unspecified)\s+fields\s+"
+    r"(?:must|shall|should)\s+not\s+(?:have|gain|use)\s+"
+    r"query\s+(?:conditions?|parameters?|controls?|capabilities)\b",
+    re.I,
+)
+
+
+def _legacy_query_closure(texts, fields):
+    """Close only explicitly exhaustive query declarations in source prose.
+
+    Allowed pairs come from the existing field/operator binder, never a
+    candidate's true flags. A date range does not authorize an exact filter.
+    The same false obligations feed analysis provenance and design coverage.
+    """
+    closed, cleaned = [], []
+    for origin, original in texts:
+        if _QUERY_CLOSURE.search(original):
+            for index, clause in enumerate(_legacy_clauses(original, fields)):
+                for match in _QUERY_CLOSURE.finditer(clause):
+                    if _DATE_CONTEXT.search(clause[: match.start()]):
+                        continue
+                    attributes = (
+                        re.findall(r"searchable|filterable|date_range", match["flags"], re.I)
+                        if match["flags"]
+                        else list(_QUERY_OPERATIONS)
+                    )
+                    closed.append(
+                        (
+                            {**origin, "clause": index},
+                            _fact_entity(clause, fields),
+                            attributes,
+                            original,
+                        )
+                    )
+        cleaned.append((origin, _QUERY_CLOSURE.sub(" ", original)))
+    if not closed:
+        return texts, []
+
+    def descriptor_row(match):
+        owner, name, description = (value.strip() for value in match.groups())
+        if not any(entity == owner and field.name == name for entity, field in fields):
+            return match.group()
+        # A known three-column field row is the same descriptor syntax already
+        # handled by the binder; semicolons inside its cell do not end its owner.
+        description = re.sub(r"[；;]", "，", description)
+        return f"{owner}::{name}（{description}）"
+
+    cleaned = [
+        (
+            origin,
+            re.sub(
+                r"(?m)^[ \t]*\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|[ \t]*$",
+                descriptor_row,
+                original,
+            ),
+        )
+        for origin, original in cleaned
+    ]
+    allowed = set()
+    owners = {id(field): owner for owner, field in fields}
+    for _, original in cleaned:
+        text, _ = _legacy_field_exclusions(original, fields)
+        text, _ = _metric_clauses(text, fields)
+        text = _query_predicate_text(text, fields)
+        for clause in _legacy_clauses(_legacy_operation_text(text, fields), fields):
+            allowed.update(
+                (owners[id(field)], field.name, attribute)
+                for field, attribute in _legacy_query_pairs(clause, fields)
+            )
+    obligations = []
+    for source, scope, attributes, original in closed:
+        for owner, field in fields:
+            if scope is not None and owner != scope:
+                continue
+            for attribute in attributes:
+                attribute = attribute.lower()
+                if (owner, field.name, attribute) not in allowed:
+                    obligations.append(
+                        {
+                            "source": source,
+                            "entity": owner,
+                            "field": field.name,
+                            "attribute": attribute,
+                            "expected": False,
+                            "text": original,
+                        }
+                    )
+    return cleaned, obligations
+
+
 def explicit_legacy_field_constraints(requirement: Requirement):
-    """Reliably bound scalar constraints using Requirement vocabulary only.
+    """Reliably bound scalar/query constraints using Requirement vocabulary.
 
     This is a read-only projection for source-conflict detection, not a new
     requirements ledger or an excuse to discard unsupported text. It never
@@ -2216,6 +2529,8 @@ def explicit_legacy_field_constraints(requirement: Requirement):
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
         for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
     )
+    texts, query_closure = _legacy_query_closure(texts, fields)
+    result.extend(query_closure)
     for origin, original in texts:
         text, _ = _legacy_field_exclusions(original, fields)
         text, _ = _metric_clauses(text, fields)
@@ -2223,6 +2538,17 @@ def explicit_legacy_field_constraints(requirement: Requirement):
         for index, clause in enumerate(
             _legacy_clauses(_legacy_operation_text(text, fields), fields)
         ):
+            for target, attribute in _legacy_query_pairs(clause, fields):
+                result.append(
+                    {
+                        "source": {**origin, "clause": index},
+                        "entity": next(owner for owner, field in fields if field is target),
+                        "field": target.name,
+                        "attribute": attribute,
+                        "expected": True,
+                        "text": original,
+                    }
+                )
             for target in _legacy_targets(clause, fields):
                 entity = next(owner for owner, field in fields if field is target)
                 for attribute, expected in _legacy_scalar_constraints(clause):
@@ -2443,7 +2769,8 @@ def coverage_gaps(
         for section in ("features", "acceptance")
         for index, text in enumerate(getattr(requirement, section))
     ]
-    structured = list(_fact_constraints(requirement.facts, fields))
+    entity_names = {item.entity for item in requirement.entity_requirements}
+    structured = list(_fact_constraints(requirement.facts, fields, entity_names=entity_names))
     for index, (key, attributes, subject) in enumerate(structured):
         source = {"section": "facts", "index": index, "encoding": "structured", "path": key}
         source_text = key
@@ -2480,8 +2807,27 @@ def coverage_gaps(
                     )
     texts.extend(
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
-        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
+        for index, (path, text) in enumerate(
+            _fact_texts(requirement.facts, fields, entity_names=entity_names)
+        )
     )
+    texts, query_closure = _legacy_query_closure(texts, fields)
+    for obligation in query_closure:
+        source = obligation["source"]
+        source_text = obligation["text"]
+        for owner, field in fields:
+            if owner != obligation["entity"] or field.name != obligation["field"]:
+                continue
+            attribute = obligation["attribute"]
+            if not query_matches(field, attribute, False):
+                gap(
+                    f"已确认不增加未声明查询条件：{owner}.{field.name}.{attribute}=False",
+                    "constraint_mismatch",
+                    targets=[field],
+                    attribute=attribute,
+                    expected=False,
+                    actual=getattr(field, attribute),
+                )
     affirmative_texts = []
     for origin, text in texts:
         affirmative, exclusions = _legacy_field_exclusions(text, fields)
@@ -2533,11 +2879,7 @@ def coverage_gaps(
                     attribute="kind",
                     expected="date",
                 )
-    operations = {
-        "searchable": r"搜索|检索|search",
-        "filterable": r"筛选|过滤|filter",
-        "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
-    }
+    operations = _QUERY_OPERATIONS
     query_texts = []
     for origin, text in texts:
         query_text, metric_obligations = _metric_clauses(text, fields)
@@ -2716,42 +3058,9 @@ def coverage_gaps(
                     and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
                 ):
                     gap(f"已确认条件缺少对应字段 {canonical}: {text}", "legacy_missing_field")
-        operation_parts = [text]
-        if re.search(operations["searchable"], text, re.I) and re.search(
-            operations["filterable"], text, re.I
-        ):
-            operation_parts = list(_query_operation_groups(text, fields, operations))
-        previous_targets = []
-        for part in operation_parts:
-            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
-            bound = part
-            if part != text and _fact_entity(part, fields) is None:
-                if entity_scope:
-                    bound = f"{entity_scope}::{part}"
-                elif _ALL_ENTITIES.search(text):
-                    bound = f"所有实体 {part}"
-            targets = _legacy_targets(bound, fields) if part != text else mentioned
-            ambiguous_subject = not targets and bool(_fact_candidates(bound, fields))
-            # An operation-only continuation (标题搜索和精确筛选) inherits
-            # the previous named subject; another field cannot satisfy it.
-            if (
-                not targets
-                and not ambiguous_subject
-                and previous_targets
-                # A named generic keyword search is its own capability, not
-                # a search obligation on the preceding exact-filter field.
-                and not re.search(r"关键词|关键字|keyword", part, re.I)
-            ):
-                targets = previous_targets
-            if targets:
-                previous_targets = targets
-            available = [
-                f for entity, f in fields if entity_scope is None or entity == entity_scope
-            ]
+        for part, targets, available in _legacy_query_parts(text, fields):
             for flag, pattern in operations.items():
                 if not re.search(pattern, part, re.I):
-                    continue
-                if ambiguous_subject:
                     continue
                 candidates = targets
                 if flag == "date_range":

@@ -24,8 +24,10 @@
 - [ui/src/components/HomeView.vue](sources/ui__src__components__HomeView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/ProjectsView.vue](sources/ui__src__components__ProjectsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/Questionnaire.vue](sources/ui__src__components__Questionnaire_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/components/RunTable.vue](sources/ui__src__components__RunTable_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/RunView.vue](sources/ui__src__components__RunView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；2 段
 - [ui/src/components/SettingsView.vue](sources/ui__src__components__SettingsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/components/StageTimeline.vue](sources/ui__src__components__StageTimeline_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/main.ts](sources/ui__src__main_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/presentation.ts](sources/ui__src__presentation_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/state.ts](sources/ui__src__state_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
@@ -37,6 +39,7 @@
 - [ui/tests/questions.test.ts](sources/ui__tests__questions_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/settings.test.ts](sources/ui__tests__settings_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/state.test.ts](sources/ui__tests__state_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/tests/workbench.test.ts](sources/ui__tests__workbench_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/workflow.test.ts](sources/ui__tests__workflow_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tsconfig.json](sources/ui__tsconfig_json--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/vite.config.ts](sources/ui__vite_config_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段

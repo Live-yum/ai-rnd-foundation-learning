@@ -15,16 +15,16 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_business_fact_gaps.permission_matches`（L714–L747）：接收`expected`、`descriptor`、`candidate`。 控制顺序：L716按`not _same_fact(base, candidate.model_dump())`分支；L720按`not requested <= actual`分支；L725按`"read_audit" in requested`分支；L727按`(candidate.role, candidate.entity) in metric_access`分支；L729按`"actions" in expected and not actual <= permitted`分支；L731按`"only_actions" in descriptor and not actual <= set(_actions(descriptor["only_actions"…`分支；L733按`descriptor.get("read_only") is True and actual & { "create", "update", "archive", "as…`分支；L742按`"read_only" in descriptor and type(descriptor["read_only"]) is not bool`分支。后续分支沿下方源码相同行号继续阅读。 调用`expected.items`、`_same_fact`、`candidate.model_dump`、`set`、`expected.get`、`permitted.add`、`_actions`、`descriptor.get`、`type`等。 返回路径：L717的`False`；L721的`False`；L730的`False`。
-- `business_gaps`（L1168–L1294）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Check recognized obligations; independent review/tests still assess prose semantics.。 控制顺序：L1188按`not requested`分支；L1191按`business is None`分支；L1199遍历`_business_facts(requirement.facts, set(resource_labels))`；L1200按`kind == "resources"`分支；L1202按`isinstance(entity, str) and entity in resource_labels and isinstance(descriptor.get("…`分支；L1209遍历`("summary", "features", "acceptance", "users")`；L1215遍历`enumerate(texts)`；L1216遍历`re.split(r"[；;。\n]", text)`。后续分支沿下方源码相同行号继续阅读。 调用`_business_fact_gaps`、`"\n".join`、`needs.items`、`re.search`、`", ".join`、`sorted`、`_business_facts`、`set`、`descriptor.get`等。 返回路径：L1189的`gaps`；L1192的`gaps + [ "已确认的团队关系、流程、权限或统计需要可执行 business 契约：" + ", ".join(sorted(requested)) ]`；L1290的`gaps + [ "业务设计缺少已确认的可执行能力：" + name for name in sorted(requested) if not implemented[name] …`。
+- `_business_fact_gaps.permission_matches`（L781–L812）：接收`expected`、`descriptor`、`candidate`。 控制顺序：L783按`not _same_fact(base, candidate.model_dump())`分支；L787按`not requested <= actual`分支；L792按`"read_audit" in requested`分支；L794按`(candidate.role, candidate.entity) in metric_access`分支；L796按`"actions" in expected and not actual <= permitted`分支；L798按`"only_actions" in descriptor and not actual <= set(_actions(descriptor["only_actions"…`分支；L800按`descriptor.get("read_only") is True and actual & { "create", "update", "archive", "as…`分支；L809遍历`("denied_actions", "forbidden_actions")`。后续分支沿下方源码相同行号继续阅读。 调用`expected.items`、`_same_fact`、`candidate.model_dump`、`set`、`expected.get`、`permitted.add`、`_actions`、`descriptor.get`。 返回路径：L784的`False`；L788的`False`；L797的`False`。
+- `business_gaps`（L1231–L1357）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Check recognized obligations; independent review/tests still assess prose semantics.。 控制顺序：L1251按`not requested`分支；L1254按`business is None`分支；L1262遍历`_business_facts(requirement.facts, set(resource_labels))`；L1263按`kind == "resources"`分支；L1265按`isinstance(entity, str) and entity in resource_labels and isinstance(descriptor.get("…`分支；L1272遍历`("summary", "features", "acceptance", "users")`；L1278遍历`enumerate(texts)`；L1279遍历`re.split(r"[；;。\n]", text)`。后续分支沿下方源码相同行号继续阅读。 调用`_business_fact_gaps`、`"\n".join`、`needs.items`、`re.search`、`", ".join`、`sorted`、`_business_facts`、`set`、`descriptor.get`等。 返回路径：L1252的`gaps`；L1255的`gaps + [ "已确认的团队关系、流程、权限或统计需要可执行 business 契约：" + ", ".join(sorted(requested)) ]`；L1353的`gaps + [ "业务设计缺少已确认的可执行能力：" + name for name in sorted(requested) if not implemented[name] …`。
 
 </details>
 
-**创建路径：** `workbench/business_capabilities.py`；**本文件共有 2 段**。本段覆盖源文件 L714–L1294。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/business_capabilities.py`；**本文件共有 2 段**。本段覆盖源文件 L781–L1357。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26350`。本段原文以LF换行结束。
+本段原始字节数：`26085`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/business_capabilities.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "e21985bee5a53c96dcfd91587051075d27f525047dba934174af3b47d6700b99"} -->
+<!-- learning-source: {"path": "workbench/business_capabilities.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "03768697e0e1789376ff8dd1347f59e204a82ff66232c8ae157bc6c48318b9ac"} -->
 ````python
 # workbench/business_capabilities.py
     def permission_matches(expected, descriptor, candidate):
@@ -55,8 +55,6 @@
             "add_note",
         }:
             return False
-        if "read_only" in descriptor and type(descriptor["read_only"]) is not bool:
-            raise ValueError("read_only 需要布尔值")
         for key in ("denied_actions", "forbidden_actions"):
             if key in descriptor and actual & set(_actions(descriptor[key])):
                 return False
@@ -218,8 +216,6 @@
             descriptor = _aliases(raw_descriptor, _ALIASES.get(kind, {}))
             expected = _semantic_descriptor(kind, raw_descriptor)
             if kind == "permissions" and "actions" in expected:
-                if not expected["actions"]:
-                    raise ValueError("actions 需要非空动作标识列表")
                 key = (collection, _permission_key(expected))
                 if key in permission_actions:
                     expected["actions"] = sorted(permission_actions[key])

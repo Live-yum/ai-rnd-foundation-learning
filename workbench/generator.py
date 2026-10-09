@@ -9,6 +9,7 @@ from pathlib import Path
 from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, files, manifest, write_json
 from workbench.settings import ROOT
+from workbench.template_standards import write_coding_standard
 
 
 class PrerequisiteError(RuntimeError):
@@ -160,6 +161,7 @@ def downgrade():
         from workbench.product_sql import render
 
         render(plan, destination)
+    write_coding_standard(destination, selection["template"])
     receipt = {
         "generator": "reviewed-python-basic-v2",
         "spec_digest": digest(plan.model_dump()),

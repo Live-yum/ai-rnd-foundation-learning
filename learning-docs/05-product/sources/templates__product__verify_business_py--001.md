@@ -14,30 +14,34 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `check`（L22–L24）：接收`condition`、`message`。 控制顺序：L23按`not condition`分支；L24抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_query_matrix`（L27–L312）：接收`spec`、`actors`、`rows`、`samples`、`create_roles`、`request`、`allowed`。 源码说明：Exact query expectations come from owned API writes, never query responses.。 控制顺序：L46遍历`spec["entities"]`；L50按`not searchable and not filterable`分支；L54按`workflow`分支；L63遍历`actors.items()`；L64按`not allowed(role, entity, "read")`分支；L67按`scope == "own" and not allowed(role, entity, "create")`分支；L72遍历`(0, 1)`；L74遍历`enumerate(fields)`。后续分支沿下方源码相同行号继续阅读。 调用`workflows.get`、`resources[entity].get`、`protected.add`、`protected.update`、`t.get`、`actors.items`、`allowed`、`dict`、`enumerate`等。 返回路径：L312的`cases, evidence`。
-- `verify_query_matrix.wire`（L36–L37）：接收`value`。 调用`type`、`str(value).lower`、`str`。 返回路径：L37的`str(value).lower() if type(value) is bool else str(value)`。
-- `verify_query_matrix.keyword`（L39–L44）：接收`value`。 调用`str`、`len`、`term[:200].upper`。 返回路径：L44的`term[:200].upper()`。
-- `verify_query_matrix.matches`（L164–L174）：接收`row`、`params`。 控制顺序：L166按`q and not any(q in str(row.get(f["name"]) or "").casefold() for f in searchable)`分支。 调用`params.get("q", "").strip().casefold`、`params.get("q", "").strip`、`params.get`、`any`、`str(row.get(f["name"]) or "").casefold`、`str`、`row.get`、`all`、`wire`等。 返回路径：L167的`False`；L168的`all( wire(row.get(f["name"])) == value for key, value in params.items() if key.startswith(…`。
-- `verify_field_constraints`（L315–L385）：接收`client`、`actor`、`entity`、`fields`、`sample`、`row`、`protected`、`can_update`。 源码说明：Reject concrete invalid requests through the generated server, not metadata alone.。 控制顺序：L321遍历`fields`；L324按`name in protected`分支；L328按`can_update`分支；L339按`kind == "integer"`分支；L347按`field["required"]`分支；L353按`kind in {"text", "enum"}`分支；L355按`kind == "text"`分支；L358按`field.get("min_length", 0) > 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`client.get(route, headers=headers, params={"limit": 100}).json`、`client.get`、`client.post`、`check`、`client.put`、`evidence.append`、`integer_bounds`、`invalid.extend`、`proof.update`等。 返回路径：L385的`evidence`。
-- `verify_audit_immutability`（L388–L436）：接收`client`、`actor`、`entity`、`row`、`actor_ids`。 控制顺序：L395遍历`original`；L420遍历`(route, route + "/" + original[0]["id"])`；L421遍历`("PUT", "PATCH", "DELETE")`。 调用`client.get`、`check`、`response.json`、`bool`、`entry.keys`、`all`、`isinstance`、`entry.get`、`datetime.fromisoformat`等。 返回路径：L429的`original, { "entity": entity, "entries_checked": len(original), "action_actor_timestamp": …`。
-- `NotificationEvidence`（L439–L526）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `NotificationEvidence.__init__`（L442–L448）：接收`business`。 调用`Counter`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.recipient`（L450–L456）：接收`rule`、`row`。 调用`row.get`。 返回路径：L456的`row.get(field)`。
-- `NotificationEvidence.event`（L458–L469）：接收`entity`、`row`、`event`、`transition`。 控制顺序：L460遍历`enumerate(self.rules)`；L461按`rule["entity"] != entity or rule["event"] != event`分支；L463按`event == "transitioned" and rule["transition"] != transition`分支；L466按`recipient`分支。 调用`set`、`enumerate`、`self.recipient`、`self.covered.add`、`recipients.add`、`self.expected.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.due`（L471–L496）：接收`rows`、`actor`、`allowed`。 控制顺序：L473遍历`enumerate(self.rules)`；L474按`rule["event"] != "due"`分支；L477遍历`rows[entity]`；L479按`not value or row.get("archived_at") or self.recipient(rule, row) != actor["id"] or no…`分支；L488按`workflow and row[workflow["status_field"]] not in { state for t in workflow["transiti…`分支；L494按`key not in self.due_seen`分支。 调用`datetime.now`、`enumerate`、`row.get`、`self.recipient`、`allowed`、`datetime.fromisoformat`、`value.replace`、`self.workflows.get`、`self.covered.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.inbox`（L498–L520）：接收`actor`、`notices`、`event`。 调用`check`、`len`、`all`、`Counter`、`self.expected.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `NotificationEvidence.complete`（L522–L526）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`check`、`set`、`range`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_png`（L535–L594）：接收`payload`。 控制顺序：L552在`offset < len(payload)`成立时循环；L561按`header is None`分支；L564按`kind == b"IHDR"`分支；L565抛异常，停止当前正常路径；L566按`kind == b"IDAT"`分支；L568按`kind == b"IEND"`分支；L587抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_screenshots`（L597–L645）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L603按`directory is None`分支；L609遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L605的`[]`；L645的`result`。
-- `verify_business`（L648–L1741）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L651按`screenshot_dir is not None`分支；L716按`selection["database"] == "postgresql"`分支；L840遍历`business["roles"]`；L856按`business["registration"]["enabled"]`分支；L880在`pending`成立时循环；L882遍历`list(pending)`；L888按`any(r["target_entity"] not in base for r in relations)`分支；L912按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L1725的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
+- `workflow_transition_paths`（L27–L52）：接收`workflow`、`permitted`。 源码说明：Find finite routes to each named transition without changing approved states.。 控制顺序：L36在`pending`成立时循环；L38遍历`transitions`；L40按`state in transition["from_states"] and target not in paths`分支；L44遍历`transitions`；L46按`not prefixes`分支。 调用`permitted`、`deque`、`pending.popleft`、`pending.append`、`check`、`min`。 返回路径：L52的`result`。
+- `workflow_assignee_candidates`（L55–L66）：接收`actors`、`grants`、`entity`、`preferred`。 调用`actors.values`、`grants.get((actor["role"], entity), {}).get`、`grants.get`、`dict.fromkeys`。 返回路径：L62的`[ identity for identity in dict.fromkeys([preferred, *(a["id"] for a in actors.values()), …`。
+- `cover_workflow_branches`（L69–L113）：接收`workflow`、`base_row`、`create_branch`、`actor_for`、`apply_transition`、`existing_rows`。 源码说明：Keep the original base path, then exercise remaining branches through callbacks.。 控制顺序：L85在`base_row[status] not in visited`成立时循环；L95按`transition is None`分支；L98遍历`workflow["transitions"]`；L99按`transition["name"] in covered`分支；L101遍历`branches`；L106按`path`分支；L111遍历`path`。 调用`workflow_transition_paths`、`set`、`visited.add`、`next`、`actor_for`、`advance`、`workflow_transition_paths( {**workflow, "initial": row[status]}, …`、`create_branch`、`branches.append`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `cover_workflow_branches.advance`（L78–L83）：接收`row`、`transition`。 调用`check`、`actor_for`、`apply_transition`、`covered.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_query_matrix`（L116–L401）：接收`spec`、`actors`、`rows`、`samples`、`create_roles`、`request`、`allowed`。 源码说明：Exact query expectations come from owned API writes, never query responses.。 控制顺序：L135遍历`spec["entities"]`；L139按`not searchable and not filterable`分支；L143按`workflow`分支；L152遍历`actors.items()`；L153按`not allowed(role, entity, "read")`分支；L156按`scope == "own" and not allowed(role, entity, "create")`分支；L161遍历`(0, 1)`；L163遍历`enumerate(fields)`。后续分支沿下方源码相同行号继续阅读。 调用`workflows.get`、`resources[entity].get`、`protected.add`、`protected.update`、`t.get`、`actors.items`、`allowed`、`dict`、`enumerate`等。 返回路径：L401的`cases, evidence`。
+- `verify_query_matrix.wire`（L125–L126）：接收`value`。 调用`type`、`str(value).lower`、`str`。 返回路径：L126的`str(value).lower() if type(value) is bool else str(value)`。
+- `verify_query_matrix.keyword`（L128–L133）：接收`value`。 调用`str`、`len`、`term[:200].upper`。 返回路径：L133的`term[:200].upper()`。
+- `verify_query_matrix.matches`（L253–L263）：接收`row`、`params`。 控制顺序：L255按`q and not any(q in str(row.get(f["name"]) or "").casefold() for f in searchable)`分支。 调用`params.get("q", "").strip().casefold`、`params.get("q", "").strip`、`params.get`、`any`、`str(row.get(f["name"]) or "").casefold`、`str`、`row.get`、`all`、`wire`等。 返回路径：L256的`False`；L257的`all( wire(row.get(f["name"])) == value for key, value in params.items() if key.startswith(…`。
+- `verify_field_constraints`（L404–L474）：接收`client`、`actor`、`entity`、`fields`、`sample`、`row`、`protected`、`can_update`。 源码说明：Reject concrete invalid requests through the generated server, not metadata alone.。 控制顺序：L410遍历`fields`；L413按`name in protected`分支；L417按`can_update`分支；L428按`kind == "integer"`分支；L436按`field["required"]`分支；L442按`kind in {"text", "enum"}`分支；L444按`kind == "text"`分支；L447按`field.get("min_length", 0) > 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`client.get(route, headers=headers, params={"limit": 100}).json`、`client.get`、`client.post`、`check`、`client.put`、`evidence.append`、`integer_bounds`、`invalid.extend`、`proof.update`等。 返回路径：L474的`evidence`。
+- `verify_audit_immutability`（L477–L525）：接收`client`、`actor`、`entity`、`row`、`actor_ids`。 控制顺序：L484遍历`original`；L509遍历`(route, route + "/" + original[0]["id"])`；L510遍历`("PUT", "PATCH", "DELETE")`。 调用`client.get`、`check`、`response.json`、`bool`、`entry.keys`、`all`、`isinstance`、`entry.get`、`datetime.fromisoformat`等。 返回路径：L518的`original, { "entity": entity, "entries_checked": len(original), "action_actor_timestamp": …`。
+- `NotificationEvidence`（L528–L615）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `NotificationEvidence.__init__`（L531–L537）：接收`business`。 调用`Counter`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.recipient`（L539–L545）：接收`rule`、`row`。 调用`row.get`。 返回路径：L545的`row.get(field)`。
+- `NotificationEvidence.event`（L547–L558）：接收`entity`、`row`、`event`、`transition`。 控制顺序：L549遍历`enumerate(self.rules)`；L550按`rule["entity"] != entity or rule["event"] != event`分支；L552按`event == "transitioned" and rule["transition"] != transition`分支；L555按`recipient`分支。 调用`set`、`enumerate`、`self.recipient`、`self.covered.add`、`recipients.add`、`self.expected.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.due`（L560–L585）：接收`rows`、`actor`、`allowed`。 控制顺序：L562遍历`enumerate(self.rules)`；L563按`rule["event"] != "due"`分支；L566遍历`rows[entity]`；L568按`not value or row.get("archived_at") or self.recipient(rule, row) != actor["id"] or no…`分支；L577按`workflow and row[workflow["status_field"]] not in { state for t in workflow["transiti…`分支；L583按`key not in self.due_seen`分支。 调用`datetime.now`、`enumerate`、`row.get`、`self.recipient`、`allowed`、`datetime.fromisoformat`、`value.replace`、`self.workflows.get`、`self.covered.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.inbox`（L587–L609）：接收`actor`、`notices`、`event`。 调用`check`、`len`、`all`、`Counter`、`self.expected.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.complete`（L611–L615）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`check`、`set`、`range`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_png`（L624–L683）：接收`payload`。 控制顺序：L641在`offset < len(payload)`成立时循环；L650按`header is None`分支；L653按`kind == b"IHDR"`分支；L654抛异常，停止当前正常路径；L655按`kind == b"IDAT"`分支；L657按`kind == b"IEND"`分支；L676抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_screenshots`（L686–L734）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L692按`directory is None`分支；L698遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L694的`[]`；L734的`result`。
+- `verify_business`（L737–L1913）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L740按`screenshot_dir is not None`分支；L805按`selection["database"] == "postgresql"`分支；L929遍历`business["roles"]`；L945按`business["registration"]["enabled"]`分支；L969在`pending`成立时循环；L971遍历`list(pending)`；L977按`any(r["target_entity"] not in base for r in relations)`分支；L1001按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L1897的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
 
 </details>
 
-**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L691。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L780。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30268`。本段原文以LF换行结束。
+本段原始字节数：`33669`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "b329c2989e6b21a68d14682b5424c6833e81b67764b86cff57e7b70ba4191242"} -->
+<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "78053e46a6084316b3e496d630f82307c422f182b60857df0ce62f9f3cc0ecbc"} -->
 ````python
 # templates/product/verify_business.py
 """Independent HTTP/browser business verification against a new owned database."""
@@ -54,7 +58,7 @@ import subprocess
 import tempfile
 import time
 import zlib
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,6 +68,95 @@ import httpx
 def check(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def workflow_transition_paths(workflow, permitted=None):
+    """Find finite routes to each named transition without changing approved states."""
+    transitions = [
+        transition
+        for transition in workflow["transitions"]
+        if permitted is None or permitted(transition)
+    ]
+    paths = {workflow["initial"]: []}
+    pending = deque(paths)
+    while pending:
+        state = pending.popleft()
+        for transition in transitions:
+            target = transition["to_state"]
+            if state in transition["from_states"] and target not in paths:
+                paths[target] = [*paths[state], transition]
+                pending.append(target)
+    result = {}
+    for transition in transitions:
+        prefixes = [paths[state] for state in transition["from_states"] if state in paths]
+        if not prefixes:
+            check(
+                permitted is not None, "Declared workflow transition has no reachable source state"
+            )
+            continue
+        result[transition["name"]] = [*min(prefixes, key=len), transition]
+    return result
+
+
+def workflow_assignee_candidates(actors, grants, entity, preferred):
+    eligible = {
+        actor["id"]
+        for actor in actors.values()
+        if "read" in grants.get((actor["role"], entity), {}).get("actions", [])
+        and grants[actor["role"], entity]["scope"] in {"all", "assigned"}
+    }
+    return [
+        identity
+        for identity in dict.fromkeys([preferred, *(a["id"] for a in actors.values()), None])
+        if identity is None or identity in eligible
+    ]
+
+
+def cover_workflow_branches(
+    workflow, base_row, create_branch, actor_for, apply_transition, existing_rows=()
+):
+    """Keep the original base path, then exercise remaining branches through callbacks."""
+    paths = workflow_transition_paths(workflow)
+    status = workflow["status_field"]
+    covered, visited = set(), set()
+    branches = [base_row, *(row for row in existing_rows if row is not base_row)]
+
+    def advance(row, transition):
+        check(row[status] in transition["from_states"], "Workflow route missed its source state")
+        actor = actor_for(row, transition)
+        check(actor is not None, "Reachable workflow branch has no permitted transition actor")
+        apply_transition(row, transition, actor)
+        covered.add(transition["name"])
+
+    while base_row[status] not in visited:
+        visited.add(base_row[status])
+        transition = next(
+            (
+                item
+                for item in workflow["transitions"]
+                if base_row[status] in item["from_states"] and actor_for(base_row, item) is not None
+            ),
+            None,
+        )
+        if transition is None:
+            break
+        advance(base_row, transition)
+    for transition in workflow["transitions"]:
+        if transition["name"] in covered:
+            continue
+        for row in branches:
+            path = workflow_transition_paths(
+                {**workflow, "initial": row[status]},
+                lambda step: actor_for(row, step) is not None,
+            ).get(transition["name"])
+            if path:
+                break
+        else:
+            row, path = create_branch(transition)
+            branches.append(row)
+        for step in path:
+            advance(row, step)
+    check(covered == set(paths), "Declared workflow transition was not exercised")
 
 
 def verify_query_matrix(spec, actors, rows, samples, create_roles, request, allowed):

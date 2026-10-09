@@ -350,7 +350,7 @@ def test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt():
         for step in job["steps"]
         if step.get("run") == "uv run python -m scripts.ci_model_feedback"
     )
-    assert live["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+    assert live["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
     assert live["env"]["APPROVED_MAX_CNY"] == "${{ inputs.remaining_budget_cny }}"
     assert live["env"]["REVIEWED_SHA"] == "${{ inputs.reviewed_sha }}"
     uploads = [

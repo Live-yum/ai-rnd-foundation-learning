@@ -146,6 +146,9 @@ def test_source_module_uses_existing_candidate_and_blocks_missing_executor(
                     implementation=implementation,
                 )
             assert schema is CapabilityEdits
+            from workbench.template_standards import coding_standard
+
+            assert payload["coding_standard"] == coding_standard("python-basic")
             return super().complete(run_id, key, instruction, payload, schema)
 
     run = create(store, request="用户登录后保存自己的资料，并可只读共享")

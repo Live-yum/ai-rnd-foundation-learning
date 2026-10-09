@@ -1,0 +1,158 @@
+{
+  "id": "reading-shelf",
+  "size": "small",
+  "title": "个人阅读书架",
+  "contract": {
+    "data_scope": "per_user",
+    "entities": {
+      "books": {
+        "title": {"kind": "text","required": true,"max_length": 200,"searchable": true},
+        "author": {"kind": "text","required": true,"max_length": 200,"searchable": true},
+        "category": {"kind": "enum","required": true,"choices": ["technology","literature","science"],"filterable": true},
+        "status": {"kind": "enum","required": true,"choices": ["planned","reading","finished"],"filterable": true},
+        "pages": {"kind": "integer","required": true,"minimum": 1,"maximum": 10000},
+        "started_on": {"kind": "date","required": true,"date_range": true},
+        "note": {"kind": "text","required": false,"max_length": 3000}
+      }
+    }
+  },
+  "actors": {"reader": {},"other_reader": {}},
+  "fixtures": {
+    "book": {
+      "title": "Practical Graph Learning",
+      "author": "Ada",
+      "category": "technology",
+      "status": "reading",
+      "pages": 320,
+      "started_on": "2026-01-01",
+      "note": "Read chapter one"
+    },
+    "control": {
+      "title": "Ocean Stories",
+      "author": "Beryl",
+      "category": "literature",
+      "status": "planned",
+      "pages": 180,
+      "started_on": "2026-01-02",
+      "note": null
+    }
+  },
+  "expected_checks": [
+    "reading-create",
+    "reading-combined-query",
+    "reading-inclusive-date",
+    "reading-invalid-pages",
+    "reading-owner-isolation",
+    "reading-update",
+    "reading-delete",
+    "reading-restart"
+  ],
+  "scenario": [
+    {
+      "id": "reading-create",
+      "requests": [
+        {
+          "actor": "reader",
+          "method": "POST",
+          "path": "/api/books",
+          "status": 201,
+          "fixture": "book",
+          "save": "book",
+          "assertions": [{"path": ["status"],"equals": "reading"}]
+        },
+        {"actor": "reader","method": "POST","path": "/api/books","status": 201,"fixture": "control","save": "control"}
+      ]
+    },
+    {
+      "id": "reading-combined-query",
+      "requests": [
+        {
+          "actor": "reader",
+          "method": "GET",
+          "path": "/api/books",
+          "status": 200,
+          "params": {"q": "Graph","filter_category": "technology","filter_status": "reading"},
+          "assertions": [{"path": [],"ids": ["${book.id}"]}]
+        }
+      ]
+    },
+    {
+      "id": "reading-inclusive-date",
+      "requests": [
+        {
+          "actor": "reader",
+          "method": "GET",
+          "path": "/api/books",
+          "status": 200,
+          "params": {"from_started_on": "2026-01-01","to_started_on": "2026-01-01"},
+          "assertions": [{"path": [],"ids": ["${book.id}"]}]
+        }
+      ]
+    },
+    {
+      "id": "reading-invalid-pages",
+      "requests": [{"actor": "reader","method": "POST","path": "/api/books","status": 422,"fixture": "book","json": {"pages": 0}}]
+    },
+    {
+      "id": "reading-owner-isolation",
+      "requests": [
+        {
+          "actor": "other_reader",
+          "method": "GET",
+          "path": "/api/books",
+          "status": 200,
+          "params": {"q": "Graph"},
+          "assertions": [{"path": [],"count": 0}]
+        },
+        {"actor": "other_reader","method": "GET","path": "/api/books/${book.id}","status": 404},
+        {"actor": "other_reader","method": "PUT","path": "/api/books/${book.id}","status": 404,"fixture": "book"},
+        {"actor": "other_reader","method": "DELETE","path": "/api/books/${book.id}","status": 404}
+      ]
+    },
+    {
+      "id": "reading-update",
+      "requests": [
+        {
+          "actor": "reader",
+          "method": "PUT",
+          "path": "/api/books/${book.id}",
+          "status": 200,
+          "fixture": "book",
+          "json": {"status": "finished","note": "Completed and reviewed"},
+          "save": "updated_book",
+          "assertions": [{"path": ["status"],"equals": "finished"},{"path": ["note"],"equals": "Completed and reviewed"}]
+        }
+      ]
+    },
+    {
+      "id": "reading-delete",
+      "requests": [
+        {"actor": "reader","method": "DELETE","path": "/api/books/${control.id}","status": 204},
+        {"actor": "reader","method": "GET","path": "/api/books/${control.id}","status": 404}
+      ]
+    },
+    {
+      "id": "reading-restart",
+      "requests": [
+        {
+          "actor": "reader",
+          "method": "GET",
+          "path": "/api/books/${book.id}",
+          "status": 200,
+          "assertions": [{"path": [],"equals": "${updated_book}"}]
+        },
+        {"actor": "other_reader","method": "GET","path": "/api/books","status": 200,"assertions": [{"path": [],"count": 0}]}
+      ],
+      "restart": true
+    }
+  ],
+  "browser": [
+    {
+      "actor": "reader",
+      "entity": "books",
+      "rows": [{"id": "${book.id}","values": {"title": "Practical Graph Learning","status": "finished","note": "Completed and reviewed"}}],
+      "absent": ["${control.id}"]
+    },
+    {"actor": "other_reader","entity": "books","rows": [],"absent": ["${book.id}"]}
+  ]
+}

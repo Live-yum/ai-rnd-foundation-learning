@@ -371,23 +371,50 @@ class OutputFailure(ValueError):
         super().__init__(message)
 
 
+def json_lengths(text):
+    """Numeric input sizes only; never retain the input or a JSON key in an error."""
+    if isinstance(text, bytes | bytearray):
+        return {"bytes": len(text)}
+    if not isinstance(text, str):
+        return {}
+    result = {"characters": len(text)}
+    try:
+        result["bytes"] = len(text.encode("utf-8"))
+    except UnicodeEncodeError:
+        pass  # A lone surrogate has no valid UTF-8 byte length.
+    return result
+
+
+class JSONGuardFailure(ValueError):
+    def __init__(self, code, text):
+        self.lengths = json_lengths(text)
+        super().__init__(code)
+
+
 def load_json(text):
     def unique_pairs(pairs):
         result = {}
         for key, value in pairs:
             if key in result:
-                raise ValueError("duplicate_json_key")
+                raise JSONGuardFailure("duplicate_json_key", text)
             result[key] = value
         return result
 
     def invalid_constant(_):
-        raise ValueError("non_finite_json_number")
+        raise JSONGuardFailure("non_finite_json_number", text)
 
     def finite_float(value):
         result = float(value)
         if not math.isfinite(result):
-            raise ValueError("non_finite_json_number")
+            raise JSONGuardFailure("non_finite_json_number", text)
         return result
+
+    def bounded_integer(value):
+        try:
+            return int(value)
+        except ValueError:
+            # Keep Python's existing integer digit limit; expose only its static cause.
+            raise JSONGuardFailure("json_integer_limit", text) from None
 
     try:
         return json.loads(
@@ -395,9 +422,10 @@ def load_json(text):
             object_pairs_hook=unique_pairs,
             parse_constant=invalid_constant,
             parse_float=finite_float,
+            parse_int=bounded_integer,
         )
     except RecursionError:
-        raise ValueError("json_nesting_limit") from None
+        raise JSONGuardFailure("json_nesting_limit", text) from None
 
 
 def completion_content(envelope, contract):

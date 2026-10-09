@@ -13,10 +13,10 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from workbench.coding import INSTRUCTION, apply_patch
+from workbench.coding import INSTRUCTION, apply_patch, rule_context
 from workbench.domain import Patch, digest
 from workbench.filesystem import atomic_text, files, manifest, sha, write_json
-from workbench.knowledge import build_index, context_for
+from workbench.knowledge import build_index
 from workbench.rules import Rules
 from workbench.settings import ROOT
 from workbench.tools import ToolFailure, run_command
@@ -205,9 +205,6 @@ def apply_blocks(product, value, settings, attempt=0):
 
 
 def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, error=""):
-    knowledge = Path(product).parent / "knowledge"
-    build_index(product, knowledge, "generated-product")
-    context = context_for(product, knowledge, ["custom_rules.py", "approved-spec.json"])
     instruction = INSTRUCTION.replace("必须返回 patches JSON", "必须返回 EditBlocks JSON")
     instruction += (
         "\n只返回before_sha256、blocks、explanation。blocks不加Markdown围栏，格式："
@@ -218,14 +215,14 @@ def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, err
         run_id,
         f"coding:aider:{attempt}",
         instruction,
-        {"plan": plan.model_dump(), "context": context, "previous_error": error},
+        rule_context(plan, product, error),
         EditBlocks,
     )
     try:
         receipt = apply_blocks(product, value, settings, attempt)
     except ToolFailure as exc:
         raise ValueError("Aider 编辑失败，未写入产品；检查工具安装和当前补丁") from exc
-    build_index(product, knowledge, "generated-product")
+    build_index(product, Path(product).parent / "knowledge", "generated-product")
     return receipt
 
 

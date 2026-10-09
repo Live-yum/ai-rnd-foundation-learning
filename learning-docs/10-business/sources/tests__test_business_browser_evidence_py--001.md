@@ -10,26 +10,27 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.generator`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.generator`、`workbench.tools`、`workbench.verification`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `customer_plan`（L23–L33）：接收`with_employee_history`。 控制顺序：L25按`not with_employee_history`分支；L26遍历`data["business"]["permissions"]`；L27按`permission["role"] == "employee"`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Plan.model_validate`。 返回路径：L33的`Plan.model_validate(data)`。
-- `run_browser_gate`（L36–L93）：接收`tmp_path`、`plan`、`fault`。 控制顺序：L38按`not module or not Path(module).is_dir()`分支；L46按`fault`分支；L72断言`before in source`；L92断言`report.is_file()`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`app.read_text`、`app.write_text`、`source.replace`、`clean_env`等。 返回路径：L93的`result, json.loads(report.read_text(encoding="utf-8"))`。
-- `assert_bounded_evidence`（L96–L177）：接收`plan`、`report`。 控制顺序：L98断言`browser["passed"] is True and browser["real_browser"] is True`；L100断言`set(evidence) == { "version", "relation_labels", "related_views", "related_sources", …`；L108断言`evidence["version"] == 1`；L113断言`len(evidence["relation_labels"]) <= len(roles) * len(relations)`；L114断言`len(evidence["related_views"]) <= len(roles) * len(relations)`；L115断言`len(evidence["related_sources"]) <= len(roles) * len(entities)`；L116断言`len(evidence["datetime_controls"]) <= len(roles) * field_count`；L117遍历`evidence["relation_labels"]`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`sum`、`len`、`next`、`json.dumps`、`re.search`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_browser_evidence_is_real_bounded_and_plan_derived`（L181–L216）：接收`tmp_path`、`with_employee_history`。 控制顺序：L186断言`result.returncode == 0 and report["passed"] is True`；L192遍历`[ ("requests", "customer_id"), ("tasks", "request_id"), ("tasks",…`；L197断言`labels["manager", entity, field]["select"] is True`；L198断言`labels["manager", "requests", "assignee_id"]["detail"] is True`；L203断言`views["manager", "customers", "requests"]["visible_records"] > 0`；L204断言`views["manager", "requests", "tasks"]["visible_records"] > 0`；L205断言`views["employee", "customers", "requests"]["visible_records"] > 0`；L206断言`("employee", "requests", "tasks") not in views`。后续分支沿下方源码相同行号继续阅读。 调用`customer_plan`、`run_browser_gate`、`assert_bounded_evidence`、`any`、`set`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_fault_injection_cannot_claim_customer_evidence`（L229–L234）：接收`tmp_path`、`fault`、`failure`。 控制顺序：L231断言`result.returncode != 0 and report["passed"] is False`；L232断言`"business-browser-" + failure in report["message"]`；L233断言`'"source":"verify-business-browser.cjs"' in report["message"]`；L234断言`'"callsites":[{"line":' in report["message"]`。 调用`run_browser_gate`、`customer_plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generic_business_browser_uses_declared_display_fields`（L237–L248）：接收`tmp_path`。 控制顺序：L244断言`not any(field.name in {"name", "title"} for field in plan.entities[1].fields)`；L246断言`result.returncode == 0 and report["passed"] is True`；L248断言`report["browser"]["evidence"]["related_views"]`。 调用`customer_plan().model_dump`、`customer_plan`、`next`、`Plan.model_validate`、`any`、`run_browser_gate`、`assert_bounded_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_minimal_schema_mobile_sticky_actions_remain_inside_table`（L251–L262）：接收`tmp_path`。 控制顺序：L258断言`len(plan.entities[0].fields) == 1`；L260断言`result.returncode == 0 and report["passed"] is True`；L261断言`"business-browser-responsive-actions" in report["browser"]["checks"]`。 调用`runtime_plan`、`len`、`run_browser_gate`、`assert_bounded_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `customer_plan`（L24–L34）：接收`with_employee_history`。 控制顺序：L26按`not with_employee_history`分支；L27遍历`data["business"]["permissions"]`；L28按`permission["role"] == "employee"`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Plan.model_validate`。 返回路径：L34的`Plan.model_validate(data)`。
+- `run_browser_gate`（L37–L94）：接收`tmp_path`、`plan`、`fault`。 控制顺序：L39按`not module or not Path(module).is_dir()`分支；L47按`fault`分支；L73断言`before in source`；L93断言`report.is_file()`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`app.read_text`、`app.write_text`、`source.replace`、`clean_env`等。 返回路径：L94的`result, json.loads(report.read_text(encoding="utf-8"))`。
+- `assert_bounded_evidence`（L97–L178）：接收`plan`、`report`。 控制顺序：L99断言`browser["passed"] is True and browser["real_browser"] is True`；L101断言`set(evidence) == { "version", "relation_labels", "related_views", "related_sources", …`；L109断言`evidence["version"] == 1`；L114断言`len(evidence["relation_labels"]) <= len(roles) * len(relations)`；L115断言`len(evidence["related_views"]) <= len(roles) * len(relations)`；L116断言`len(evidence["related_sources"]) <= len(roles) * len(entities)`；L117断言`len(evidence["datetime_controls"]) <= len(roles) * field_count`；L118遍历`evidence["relation_labels"]`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`sum`、`len`、`next`、`json.dumps`、`re.search`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_browser_evidence_is_real_bounded_and_plan_derived`（L182–L217）：接收`tmp_path`、`with_employee_history`。 控制顺序：L187断言`result.returncode == 0 and report["passed"] is True`；L193遍历`[ ("requests", "customer_id"), ("tasks", "request_id"), ("tasks",…`；L198断言`labels["manager", entity, field]["select"] is True`；L199断言`labels["manager", "requests", "assignee_id"]["detail"] is True`；L204断言`views["manager", "customers", "requests"]["visible_records"] > 0`；L205断言`views["manager", "requests", "tasks"]["visible_records"] > 0`；L206断言`views["employee", "customers", "requests"]["visible_records"] > 0`；L207断言`("employee", "requests", "tasks") not in views`。后续分支沿下方源码相同行号继续阅读。 调用`customer_plan`、`run_browser_gate`、`assert_bounded_evidence`、`any`、`set`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_fault_injection_cannot_claim_customer_evidence`（L230–L235）：接收`tmp_path`、`fault`、`failure`。 控制顺序：L232断言`result.returncode != 0 and report["passed"] is False`；L233断言`"business-browser-" + failure in report["message"]`；L234断言`'"source":"verify-business-browser.cjs"' in report["message"]`；L235断言`'"callsites":[{"line":' in report["message"]`。 调用`run_browser_gate`、`customer_plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_business_browser_uses_declared_display_fields`（L238–L249）：接收`tmp_path`。 控制顺序：L245断言`not any(field.name in {"name", "title"} for field in plan.entities[1].fields)`；L247断言`result.returncode == 0 and report["passed"] is True`；L249断言`report["browser"]["evidence"]["related_views"]`。 调用`customer_plan().model_dump`、`customer_plan`、`next`、`Plan.model_validate`、`any`、`run_browser_gate`、`assert_bounded_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_minimal_schema_mobile_sticky_actions_remain_inside_table`（L252–L263）：接收`tmp_path`。 控制顺序：L259断言`len(plan.entities[0].fields) == 1`；L261断言`result.returncode == 0 and report["passed"] is True`；L262断言`"business-browser-responsive-actions" in report["browser"]["checks"]`。 调用`runtime_plan`、`len`、`run_browser_gate`、`assert_bounded_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stock_browser_receipt_reaches_platform_gate_without_undeclared_assignment`（L266–L288）：接收`tmp_path`。 控制顺序：L274断言`len(plan.entities) == 3 and len(plan.business.roles) == 3`；L275断言`any(field.kind == "integer" for entity in plan.entities for field in entity.fields)`；L276断言`all(resource.assignee_field is None for resource in plan.business.resources)`；L278断言`result.returncode == 0 and report["passed"] is True`；L280断言`"business-browser-assignment" not in checks`；L281断言`{ "business-browser-transitions", "business-browser-notes-history", "business-browser…`。 调用`fixture_plan`、`load_case`、`len`、`any`、`all`、`run_browser_gate`、`set`、`require_business_evidence`、`plan.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_business_browser_evidence.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L262。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_business_browser_evidence.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L288。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10837`。本段原文以LF换行结束。
+本段原始字节数：`12102`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_business_browser_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c96a046aeba65cce42194b5b22c0155a1daaba9d58e4d554809a7cd27215d944"} -->
+<!-- learning-source: {"path": "tests/test_business_browser_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d576cc69b5f894b09f2c81e9f199a54a4a91cf6bfc4e5be5368604e431a7fac4"} -->
 ````python
 # tests/test_business_browser_evidence.py
 """Real generated-product Chromium evidence and explicit UI fault-injection checks.
@@ -50,6 +51,7 @@ import pytest
 from workbench.domain import Plan
 from workbench.generator import generate_basic
 from workbench.tools import clean_env
+from workbench.verification import require_business_evidence
 
 ROOT = Path(__file__).parents[1]
 
@@ -294,4 +296,29 @@ def test_minimal_schema_mobile_sticky_actions_remain_inside_table(tmp_path):
     assert result.returncode == 0 and report["passed"] is True, report
     assert "business-browser-responsive-actions" in report["browser"]["checks"]
     assert_bounded_evidence(plan, report)
+
+
+def test_stock_browser_receipt_reaches_platform_gate_without_undeclared_assignment(tmp_path):
+    # This contract-derived offline Plan exercises the actual generated HTTP,
+    # Chromium and restart checks. It never substitutes for the live model Plan.
+    from test_template_project_acceptance import fixture_plan
+
+    from scripts.template_acceptance_cases import load_case
+
+    plan = fixture_plan(load_case("stock-purchasing"))
+    assert len(plan.entities) == 3 and len(plan.business.roles) == 3
+    assert any(field.kind == "integer" for entity in plan.entities for field in entity.fields)
+    assert all(resource.assignee_field is None for resource in plan.business.resources)
+    result, report = run_browser_gate(tmp_path, plan)
+    assert result.returncode == 0 and report["passed"] is True, report
+    checks = set(report["browser"]["checks"])
+    assert "business-browser-assignment" not in checks
+    assert {
+        "business-browser-transitions",
+        "business-browser-notes-history",
+        "business-browser-reminders",
+        "business-browser-metrics",
+        "business-browser-relation-labels",
+    } <= checks
+    require_business_evidence(plan.model_dump(), report, True)
 ````

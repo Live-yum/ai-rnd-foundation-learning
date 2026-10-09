@@ -60,6 +60,12 @@ uv run pytest tests/test_contracts.py tests/test_store.py -q
 
 这一站的成功意味着控制面的持久化规则成立。它还不意味着 LangGraph 的暂停点被保存，也不意味着 Worker 已启动。稍后 `checkpoints.db` 管“图停在哪”，`workbench.db` 管“用户看见什么任务和批准”；产品库则管客户、请求和任务，三者不能混用。
 
+## 将单次运行推广成批量提交
+
+`BatchInput` 是 1–10 个带标题的普通 `RunInput`。`Store.create_batch` 先校验整批，再通过同一个 `request` 事务创建 Project、Run、原始 Message 和 Job；单项与批量共享 `_enqueue_run`。任何一次写入失败都整批回滚，使用相同幂等键与正文重试只返回原来的结果。每项保留自己的手动或智能委托策略，批量没有额外的审批捷径。
+
+验证入口是 `tests/test_batches.py`：检查整批回滚、重试、不重复入队、模板兼容和认证。当前 Worker 仍串行消费队列；高吞吐并行调度需要另一套明确的资源与数据库隔离设计，本阶段不声称已实现。
+
 ## 本阶段源码和后续依赖
 
 本阶段首次创建 11 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

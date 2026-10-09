@@ -4,7 +4,7 @@
 
 [下一段](workbench__store_py--002.md)
 
-**作用：持久化项目、会话、任务、版本、审批和证据。** SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run建立运行和首条消息；任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。
+**作用：持久化项目、会话、任务、版本、审批和证据。** SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run和create_batch共享入队逻辑；批量先整批校验再在同一幂等事务建立项目、运行和消息，失败全部回滚。任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。
 
 **对应关系：** api写入Store → Runtime认领Job → Workflow记录Revision/Approval/Step/Event；test_store。
 
@@ -32,7 +32,7 @@
 - `Approval`（L117–L122）：继承`Base`。声明的数据项为`gate_id`、`decision`、`actor`、`created_at`；类型约束/数据库列参数以完整定义为准。
 - `Step`（L125–L132）：继承`Base`。声明的数据项为`id`、`run_id`、`name`、`data`、`created_at`；类型约束/数据库列参数以完整定义为准。
 - `Event`（L135–L141）：继承`Base`。声明的数据项为`id`、`run_id`、`kind`、`data`、`created_at`；类型约束/数据库列参数以完整定义为准。
-- `Store`（L144–L1032）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Store`（L144–L1052）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Store.__init__`（L145–L168）：接收`settings`。 控制顺序：L154按`self.engine.dialect.name == "sqlite"`分支。 调用`settings.prepare`、`settings.db_url.startswith`、`create_engine`、`sessionmaker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Store.__init__.configure`（L157–L166）：接收`connection`、`_`。 调用`_cursor`、`cursor.execute`、`event.listens_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Store.migrate`（L170–L175）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Config`、`str`、`config.set_main_option`、`self.engine.begin`、`command.upgrade`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -42,39 +42,41 @@
 - `Store._request`（L198–L212）：接收`key`、`payload`、`operation`。 控制顺序：L199按`not key or len(key) > 100`分支；L200抛异常，停止当前正常路径；L203按`self.engine.dialect.name == "postgresql"`分支；L206按`previous`分支；L207按`previous.fingerprint != fingerprint`分支；L208抛异常，停止当前正常路径。 调用`len`、`Conflict`、`digest`、`self.tx`、`session.execute`、`text`、`session.get`、`operation`、`session.add`等。 返回路径：L209的`previous.response`；L212的`response`。
 - `Store.create_project`（L214–L221）：接收`title`、`key`。 调用`self.request`。 返回路径：L221的`self.request(key, {"operation": "create-project", "title": title}, operation)`。
 - `Store.create_project.operation`（L215–L219）：接收`session`。 调用`Project`、`session.add`、`session.flush`。 返回路径：L219的`{"id": project.id, "title": project.title}`。
-- `Store.create_run`（L223–L258）：接收`project_id`、`data`、`key`。 调用`RunInput.model_validate(data).model_dump`、`RunInput.model_validate`、`self.request`。 返回路径：L256的`self.request( key, {"operation": "create-run", "project": project_id, **data}, operation )`。
-- `Store.create_run.operation`（L226–L254）：接收`session`。 控制顺序：L227按`not session.get(Project, project_id)`分支；L228抛异常，停止当前正常路径；L242按`run.auto_mode`分支。 调用`session.get`、`Missing`、`Run`、`session.add`、`session.flush`、`Message`、`Job`、`Event`。 返回路径：L254的`{"run_id": run.id, "status": "QUEUED"}`。
-- `Store.submit`（L260–L318）：接收`run_id`、`data`、`key`。 控制顺序：L264遍历`("version", "digest", "answers")`；L265按`data[field] is None or data[field] == []`分支。 调用`ResumeInput.model_validate(data).model_dump`、`ResumeInput.model_validate`、`data.pop`、`self.request`。 返回路径：L318的`self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)`。
-- `Store.submit.operation`（L268–L316）：接收`session`。 控制顺序：L270按`not run`分支；L271抛异常，停止当前正常路径；L273按`not pending or pending["gate_id"] != data["gate_id"]`分支；L274抛异常，停止当前正常路径；L275按`data.get("version") is not None and data["version"] != pending["version"]`分支；L276抛异常，停止当前正常路径；L277按`data.get("digest") is not None and data["digest"] != pending["digest"]`分支；L278抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`session.get`、`Missing`、`Conflict`、`data.get`、`pending.get`、`pending.get("data", {}).get`、`session.add`、`Event`、`render_answer`等。 返回路径：L316的`{"run_id": run_id, "job_id": job.id, "status": "QUEUED"}`。
-- `Store._model_free_retry`（L320–L358）：接收`session`、`run`。 控制顺序：L321按`not run or run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}`分支；L329按`not stage or stage.data.get("name") != "extension_package" or stage.data.get("phase")…`分支；L338按`not previous or previous.status != "FAILED" or previous.payload.get("approved") is no…`分支；L346按`not ( revision and revision.run_id == run.id and revision.stage == "extension_scope" …`分支。 调用`session.scalar`、`select(Event) .where(Event.run_id == run.id, Event.kind == "stage…`、`select(Event) .where`、`select`、`Event.id.desc`、`stage.data.get`、`select(Job).where(Job.run_id == run.id).order_by(Job.created_at.d…`、`select(Job).where(Job.run_id == run.id).order_by`、`select(Job).where`等。 返回路径：L322的`None`；L334的`None`；L343的`None`。
-- `Store.is_model_free_retry`（L360–L365）：接收`run_id`、`key`。 控制顺序：L363按`old and old.fingerprint == digest({"operation": "retry", "run_id": run_id})`分支。 调用`self.tx`、`session.get`、`digest`、`self._model_free_retry`。 返回路径：L364的`True`；L365的`self._model_free_retry(session, session.get(Run, run_id)) is not None`。
-- `Store.retry`（L367–L386）：接收`run_id`、`key`、`require_model_free`。 调用`self.request`。 返回路径：L386的`self.request(key, {"operation": "retry", "run_id": run_id}, operation)`。
-- `Store.retry.operation`（L368–L384）：接收`session`。 控制顺序：L370按`not run`分支；L371抛异常，停止当前正常路径；L372按`run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}`分支；L373抛异常，停止当前正常路径；L374按`run.pending and run.pending.get("data", {}).get("capability_conflicts")`分支；L375抛异常，停止当前正常路径；L377按`require_model_free and not bound_retry`分支；L378抛异常，停止当前正常路径。 调用`session.get`、`Missing`、`Conflict`、`run.pending.get("data", {}).get`、`run.pending.get`、`self._model_free_retry`、`session.add`、`Job`。 返回路径：L384的`{"run_id": run_id, "status": run.status}`。
-- `Store.get_run`（L388–L405）：接收`run_id`。 控制顺序：L391按`not run`分支；L392抛异常，停止当前正常路径。 调用`self.tx`、`session.get`、`Missing`、`getattr`、`action_needs_model`、`self._model_free_retry`。 返回路径：L393的`{ **{c.name: getattr(run, c.name) for c in Run.__table__.columns}, "pending": { **run.pend…`。
-- `Store.messages`（L407–L412）：接收`run_id`。 调用`self.tx`、`session.scalars`、`select(Message).where(Message.run_id == run_id).order_by`、`select(Message).where`、`select`。 返回路径：L412的`[{"role": row.role, "content": row.content} for row in rows]`。
-- `Store.assistant_event`（L414–L486）：接收`run_id`、`kind`、`data`。 源码说明：Append UI-only assistant events; terminal replay is idempotent. The existing Message table remains the authoritative human-input history. Assistant drafts cannot accidentally become requirements on a 。 控制顺序：L427按`kind not in allowed`分支；L428抛异常，停止当前正常路径；L431按`not session.get(Run, run_id)`分支；L432抛异常，停止当前正常路径；L449按`any(r.kind == kind for r in matching) and kind in { "assistant_start", "assistant_com…`分支；L455按`any(r.kind in {"assistant_completed", "assistant_failed"} for r in matching)`分支；L457按`kind == "assistant_start"`分支；L460遍历`rows`。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`FileLock`、`str`、`self.tx`、`session.get`、`Missing`、`list`、`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( {"a…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.transcript`（L488–L595）：接收`run_id`。 源码说明：One read snapshot plus cursor, suitable for replay without duplicated text.。 控制顺序：L491按`self.engine.dialect.name == "postgresql"`分支；L493按`not session.get(Run, run_id)`分支；L494抛异常，停止当前正常路径；L510遍历`session.scalars( select(Event).where(Event.run_id == run_id).orde…`；L514按`not row.kind.startswith("assistant_")`分支；L543按`row.kind == "assistant_delta"`分支；L545按`row.kind in {"assistant_completed", "assistant_failed"}`分支；L551遍历`session.scalars( select(Revision).where(Revision.run_id == run_id…`。后续分支沿下方源码相同行号继续阅读。 调用`self.tx`、`session.execute`、`text`、`session.get`、`Missing`、`str`、`session.scalars`、`select(Message).where(Message.run_id == run_id).order_by`、`select(Message).where`等。 返回路径：L595的`{"messages": messages, "cursor": cursor}`。
-- `Store.step`（L597–L607）：接收`run_id`、`name`、`fn`。 控制顺序：L600按`old`分支。 调用`self.tx`、`session.scalar`、`select(Step).where`、`select`、`fn`、`json.loads`、`json.dumps`、`session.add`、`Step`等。 返回路径：L601的`old.data`；L607的`result`。
-- `Store.reserve_model_call`（L609–L618）：接收`run_id`。 控制顺序：L612按`self.settings.max_model_calls`分支；L615按`changed != 1`分支；L616抛异常，停止当前正常路径。 调用`self.tx`、`update(Run).where`、`update`、`statement.where`、`session.execute`、`statement.values`、`PausedLimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.set_automation`（L620–L682）：接收`run_id`、`enabled`、`key`。 调用`self.request`。 返回路径：L680的`self.request( key, {"operation": "automation", "run_id": run_id, "enabled": enabled}, oper…`。
-- `Store.set_automation.operation`（L621–L678）：接收`session`。 控制顺序：L623按`run is None`分支；L624抛异常，停止当前正常路径；L625按`run.status in {"READY", "SOURCE_READY", "REJECTED"}`分支；L626抛异常，停止当前正常路径；L639按`enabled and run.pending and run.pending.get("data", {}).get("requires_explicit_review…`分支；L650按`enabled and run.pending and run.pending.get("data", {}).get("capability_conflicts")`分支；L659按`enabled and run.pending`分支；L672按`not enabled and run.status == "BLOCKED" and run.pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`session.get`、`Missing`、`Conflict`、`session.add`、`Event`、`run.pending.get("data", {}).get`、`run.pending.get`、`Job`、`run.pending["stage"].upper`。 返回路径：L644的`{ "run_id": run_id, "auto_mode": enabled, "status": run.status, "message": "本次模块权限变更仍需明确人工…`；L653的`{ "run_id": run_id, "auto_mode": enabled, "status": run.status, "message": "当前报名入口仍需明确选择；已…`；L678的`{"run_id": run_id, "auto_mode": enabled, "status": run.status}`。
-- `Store.auto_approve`（L684–L709）：接收`run_id`、`gate`。 控制顺序：L687按`not run or not run.auto_mode or not gate["can_approve"] or gate.get("data", {}).get("…`分支；L693抛异常，停止当前正常路径；L695按`current and not current.decision`分支；L696抛异常，停止当前正常路径；L697按`not current`分支。 调用`self.tx`、`session.get`、`gate.get("data", {}).get`、`gate.get`、`Conflict`、`session.add`、`Approval`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.record_event`（L711–L713）：接收`run_id`、`kind`、`data`。 调用`self.tx`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.model_records`（L715–L747）：接收`run_id`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Step) .where(Step.run_id == run_id, Step.name.like("model:…`、`select(Step) .where`、`select`、`Step.name.like`、`r.data.get`、`select(Event) .where(Event.run_id == run_id, Event.kind == "model…`等。 返回路径：L747的`sorted(records, key=lambda item: item["created_at"])`。
-- `Store.gate`（L749–L772）：接收`run_id`、`stage`、`version`、`data`、`actions`、`can_approve`。 控制顺序：L753按`not session.get(Revision, gate_id)`分支。 调用`digest`、`self.tx`、`session.get`、`session.add`、`Revision`、`action_needs_model`。 返回路径：L763的`{ "gate_id": gate_id, "stage": stage, "version": version, "digest": content_digest, "data"…`。
-- `Store.check_decision`（L774–L797）：接收`run_id`、`gate`、`value`。 控制顺序：L775按`not isinstance(value, dict)`分支；L776抛异常，停止当前正常路径；L777按`value.get("gate_id") != gate["gate_id"] or ( value.get("action") not in gate["actions…`分支；L780抛异常，停止当前正常路径；L781按`value["action"] == "recommend"`分支；L782按`gate.get("data", {}).get("requires_explicit_review")`分支；L783抛异常，停止当前正常路径；L784按`value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`Conflict`、`value.get`、`gate.get("data", {}).get`、`gate.get`、`self.get_run`、`self.tx`、`session.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.explicit_approval`（L799–L822）：接收`run_id`、`stage`、`data`、`version`。 源码说明：Read the durable operator decision, never a model/candidate receipt.。 控制顺序：L815遍历`rows`；L816按`approval.decision is True and approval.actor == "local-operator"`分支；L822抛异常，停止当前正常路径。 调用`digest`、`self.tx`、`session.execute`、`select(Revision, Approval) .join(Approval, Approval.gate_id == Re…`、`select(Revision, Approval) .join`、`select`、`Revision.created_at.desc`、`Conflict`。 返回路径：L817的`{ "gate_id": revision.gate_id, "data_digest": content_digest, "actor": approval.actor, }`。
-- `Store.is_model_free_approval`（L824–L839）：接收`run_id`、`data`。 源码说明：Use the controller's immutable gate, never a client-supplied stage. submit still validates the current pending gate, approval and idempotency. Reading the revision also permits an exact idempotent rep。 控制顺序：L831按`data.get("action") != "approve" or data.get("approved") is not True`分支。 调用`data.get`、`self.tx`、`session.get`、`bool`、`action_needs_model`。 返回路径：L832的`False`；L835的`bool( revision and revision.run_id == run_id and not action_needs_model(revision.stage, da…`。
-- `Store.claim`（L841–L870）：接收`only_rejections`、`include_model_free`。 控制顺序：L844按`only_rejections`分支；L846按`include_model_free`分支；L861按`job is None`分支；L866按`changed != 1`分支。 调用`self.tx`、`select(Job).where`、`select`、`Job.payload["action"].as_string`、`select(Revision.gate_id).where`、`Revision.stage.in_`、`or_`、`and_`、`Job.payload["action"].as_string().in_`等。 返回路径：L862的`None`；L867的`None`；L870的`{"id": job.id, "run_id": job.run_id, "payload": job.payload}`。
-- `Store.recover`（L872–L882）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L880遍历`runs`。 调用`FileLock`、`str`、`self.tx`、`list`、`session.scalars`、`select(Job.run_id).where(Job.status == "RUNNING").distinct`、`select(Job.run_id).where`、`select`、`self._recover_assistants`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.create_run`（L223–L233）：接收`project_id`、`data`、`key`。 调用`RunInput.model_validate(data).model_dump`、`RunInput.model_validate`、`self.request`。 返回路径：L231的`self.request( key, {"operation": "create-run", "project": project_id, **data}, operation )`。
+- `Store.create_run.operation`（L226–L229）：接收`session`。 控制顺序：L227按`not session.get(Project, project_id)`分支；L228抛异常，停止当前正常路径。 调用`session.get`、`Missing`、`self._enqueue_run`。 返回路径：L229的`self._enqueue_run(session, project_id, data)`。
+- `Store.create_batch`（L235–L249）：接收`data`、`key`。 源码说明：Validate then create all projects and jobs in one idempotent transaction.。 调用`BatchInput.model_validate(data).model_dump`、`BatchInput.model_validate`、`self.request`。 返回路径：L249的`self.request(key, {"operation": "create-batch", **data}, operation)`。
+- `Store.create_batch.operation`（L239–L247）：接收`session`。 控制顺序：L241遍历`data["items"]`。 调用`Project`、`session.add`、`session.flush`、`self._enqueue_run`、`items.append`。 返回路径：L247的`{"items": items}`。
+- `Store._enqueue_run`（L251–L278）：接收`session`、`project_id`、`data`。 源码说明：Single and batch creation share the same durable worker and delegation.。 控制顺序：L266按`run.auto_mode`分支。 调用`Run`、`session.add`、`session.flush`、`Message`、`Job`、`Event`。 返回路径：L278的`{"run_id": run.id, "status": "QUEUED"}`。
+- `Store.submit`（L280–L338）：接收`run_id`、`data`、`key`。 控制顺序：L284遍历`("version", "digest", "answers")`；L285按`data[field] is None or data[field] == []`分支。 调用`ResumeInput.model_validate(data).model_dump`、`ResumeInput.model_validate`、`data.pop`、`self.request`。 返回路径：L338的`self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)`。
+- `Store.submit.operation`（L288–L336）：接收`session`。 控制顺序：L290按`not run`分支；L291抛异常，停止当前正常路径；L293按`not pending or pending["gate_id"] != data["gate_id"]`分支；L294抛异常，停止当前正常路径；L295按`data.get("version") is not None and data["version"] != pending["version"]`分支；L296抛异常，停止当前正常路径；L297按`data.get("digest") is not None and data["digest"] != pending["digest"]`分支；L298抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`session.get`、`Missing`、`Conflict`、`data.get`、`pending.get`、`pending.get("data", {}).get`、`session.add`、`Event`、`render_answer`等。 返回路径：L336的`{"run_id": run_id, "job_id": job.id, "status": "QUEUED"}`。
+- `Store._model_free_retry`（L340–L378）：接收`session`、`run`。 控制顺序：L341按`not run or run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}`分支；L349按`not stage or stage.data.get("name") != "extension_package" or stage.data.get("phase")…`分支；L358按`not previous or previous.status != "FAILED" or previous.payload.get("approved") is no…`分支；L366按`not ( revision and revision.run_id == run.id and revision.stage == "extension_scope" …`分支。 调用`session.scalar`、`select(Event) .where(Event.run_id == run.id, Event.kind == "stage…`、`select(Event) .where`、`select`、`Event.id.desc`、`stage.data.get`、`select(Job).where(Job.run_id == run.id).order_by(Job.created_at.d…`、`select(Job).where(Job.run_id == run.id).order_by`、`select(Job).where`等。 返回路径：L342的`None`；L354的`None`；L363的`None`。
+- `Store.is_model_free_retry`（L380–L385）：接收`run_id`、`key`。 控制顺序：L383按`old and old.fingerprint == digest({"operation": "retry", "run_id": run_id})`分支。 调用`self.tx`、`session.get`、`digest`、`self._model_free_retry`。 返回路径：L384的`True`；L385的`self._model_free_retry(session, session.get(Run, run_id)) is not None`。
+- `Store.retry`（L387–L406）：接收`run_id`、`key`、`require_model_free`。 调用`self.request`。 返回路径：L406的`self.request(key, {"operation": "retry", "run_id": run_id}, operation)`。
+- `Store.retry.operation`（L388–L404）：接收`session`。 控制顺序：L390按`not run`分支；L391抛异常，停止当前正常路径；L392按`run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}`分支；L393抛异常，停止当前正常路径；L394按`run.pending and run.pending.get("data", {}).get("capability_conflicts")`分支；L395抛异常，停止当前正常路径；L397按`require_model_free and not bound_retry`分支；L398抛异常，停止当前正常路径。 调用`session.get`、`Missing`、`Conflict`、`run.pending.get("data", {}).get`、`run.pending.get`、`self._model_free_retry`、`session.add`、`Job`。 返回路径：L404的`{"run_id": run_id, "status": run.status}`。
+- `Store.get_run`（L408–L425）：接收`run_id`。 控制顺序：L411按`not run`分支；L412抛异常，停止当前正常路径。 调用`self.tx`、`session.get`、`Missing`、`getattr`、`action_needs_model`、`self._model_free_retry`。 返回路径：L413的`{ **{c.name: getattr(run, c.name) for c in Run.__table__.columns}, "pending": { **run.pend…`。
+- `Store.messages`（L427–L432）：接收`run_id`。 调用`self.tx`、`session.scalars`、`select(Message).where(Message.run_id == run_id).order_by`、`select(Message).where`、`select`。 返回路径：L432的`[{"role": row.role, "content": row.content} for row in rows]`。
+- `Store.assistant_event`（L434–L506）：接收`run_id`、`kind`、`data`。 源码说明：Append UI-only assistant events; terminal replay is idempotent. The existing Message table remains the authoritative human-input history. Assistant drafts cannot accidentally become requirements on a 。 控制顺序：L447按`kind not in allowed`分支；L448抛异常，停止当前正常路径；L451按`not session.get(Run, run_id)`分支；L452抛异常，停止当前正常路径；L469按`any(r.kind == kind for r in matching) and kind in { "assistant_start", "assistant_com…`分支；L475按`any(r.kind in {"assistant_completed", "assistant_failed"} for r in matching)`分支；L477按`kind == "assistant_start"`分支；L480遍历`rows`。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`FileLock`、`str`、`self.tx`、`session.get`、`Missing`、`list`、`session.scalars`、`select(Event) .where( Event.run_id == run_id, Event.kind.in_( {"a…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.transcript`（L508–L615）：接收`run_id`。 源码说明：One read snapshot plus cursor, suitable for replay without duplicated text.。 控制顺序：L511按`self.engine.dialect.name == "postgresql"`分支；L513按`not session.get(Run, run_id)`分支；L514抛异常，停止当前正常路径；L530遍历`session.scalars( select(Event).where(Event.run_id == run_id).orde…`；L534按`not row.kind.startswith("assistant_")`分支；L563按`row.kind == "assistant_delta"`分支；L565按`row.kind in {"assistant_completed", "assistant_failed"}`分支；L571遍历`session.scalars( select(Revision).where(Revision.run_id == run_id…`。后续分支沿下方源码相同行号继续阅读。 调用`self.tx`、`session.execute`、`text`、`session.get`、`Missing`、`str`、`session.scalars`、`select(Message).where(Message.run_id == run_id).order_by`、`select(Message).where`等。 返回路径：L615的`{"messages": messages, "cursor": cursor}`。
+- `Store.step`（L617–L627）：接收`run_id`、`name`、`fn`。 控制顺序：L620按`old`分支。 调用`self.tx`、`session.scalar`、`select(Step).where`、`select`、`fn`、`json.loads`、`json.dumps`、`session.add`、`Step`等。 返回路径：L621的`old.data`；L627的`result`。
+- `Store.reserve_model_call`（L629–L638）：接收`run_id`。 控制顺序：L632按`self.settings.max_model_calls`分支；L635按`changed != 1`分支；L636抛异常，停止当前正常路径。 调用`self.tx`、`update(Run).where`、`update`、`statement.where`、`session.execute`、`statement.values`、`PausedLimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.set_automation`（L640–L702）：接收`run_id`、`enabled`、`key`。 调用`self.request`。 返回路径：L700的`self.request( key, {"operation": "automation", "run_id": run_id, "enabled": enabled}, oper…`。
+- `Store.set_automation.operation`（L641–L698）：接收`session`。 控制顺序：L643按`run is None`分支；L644抛异常，停止当前正常路径；L645按`run.status in {"READY", "SOURCE_READY", "REJECTED"}`分支；L646抛异常，停止当前正常路径；L659按`enabled and run.pending and run.pending.get("data", {}).get("requires_explicit_review…`分支；L670按`enabled and run.pending and run.pending.get("data", {}).get("capability_conflicts")`分支；L679按`enabled and run.pending`分支；L692按`not enabled and run.status == "BLOCKED" and run.pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`session.get`、`Missing`、`Conflict`、`session.add`、`Event`、`run.pending.get("data", {}).get`、`run.pending.get`、`Job`、`run.pending["stage"].upper`。 返回路径：L664的`{ "run_id": run_id, "auto_mode": enabled, "status": run.status, "message": "本次模块权限变更仍需明确人工…`；L673的`{ "run_id": run_id, "auto_mode": enabled, "status": run.status, "message": "当前报名入口仍需明确选择；已…`；L698的`{"run_id": run_id, "auto_mode": enabled, "status": run.status}`。
+- `Store.auto_approve`（L704–L729）：接收`run_id`、`gate`。 控制顺序：L707按`not run or not run.auto_mode or not gate["can_approve"] or gate.get("data", {}).get("…`分支；L713抛异常，停止当前正常路径；L715按`current and not current.decision`分支；L716抛异常，停止当前正常路径；L717按`not current`分支。 调用`self.tx`、`session.get`、`gate.get("data", {}).get`、`gate.get`、`Conflict`、`session.add`、`Approval`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.record_event`（L731–L733）：接收`run_id`、`kind`、`data`。 调用`self.tx`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.model_records`（L735–L767）：接收`run_id`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Step) .where(Step.run_id == run_id, Step.name.like("model:…`、`select(Step) .where`、`select`、`Step.name.like`、`r.data.get`、`select(Event) .where(Event.run_id == run_id, Event.kind == "model…`等。 返回路径：L767的`sorted(records, key=lambda item: item["created_at"])`。
+- `Store.gate`（L769–L792）：接收`run_id`、`stage`、`version`、`data`、`actions`、`can_approve`。 控制顺序：L773按`not session.get(Revision, gate_id)`分支。 调用`digest`、`self.tx`、`session.get`、`session.add`、`Revision`、`action_needs_model`。 返回路径：L783的`{ "gate_id": gate_id, "stage": stage, "version": version, "digest": content_digest, "data"…`。
+- `Store.check_decision`（L794–L817）：接收`run_id`、`gate`、`value`。 控制顺序：L795按`not isinstance(value, dict)`分支；L796抛异常，停止当前正常路径；L797按`value.get("gate_id") != gate["gate_id"] or ( value.get("action") not in gate["actions…`分支；L800抛异常，停止当前正常路径；L801按`value["action"] == "recommend"`分支；L802按`gate.get("data", {}).get("requires_explicit_review")`分支；L803抛异常，停止当前正常路径；L804按`value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`Conflict`、`value.get`、`gate.get("data", {}).get`、`gate.get`、`self.get_run`、`self.tx`、`session.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.explicit_approval`（L819–L842）：接收`run_id`、`stage`、`data`、`version`。 源码说明：Read the durable operator decision, never a model/candidate receipt.。 控制顺序：L835遍历`rows`；L836按`approval.decision is True and approval.actor == "local-operator"`分支；L842抛异常，停止当前正常路径。 调用`digest`、`self.tx`、`session.execute`、`select(Revision, Approval) .join(Approval, Approval.gate_id == Re…`、`select(Revision, Approval) .join`、`select`、`Revision.created_at.desc`、`Conflict`。 返回路径：L837的`{ "gate_id": revision.gate_id, "data_digest": content_digest, "actor": approval.actor, }`。
+- `Store.is_model_free_approval`（L844–L859）：接收`run_id`、`data`。 源码说明：Use the controller's immutable gate, never a client-supplied stage. submit still validates the current pending gate, approval and idempotency. Reading the revision also permits an exact idempotent rep。 控制顺序：L851按`data.get("action") != "approve" or data.get("approved") is not True`分支。 调用`data.get`、`self.tx`、`session.get`、`bool`、`action_needs_model`。 返回路径：L852的`False`；L855的`bool( revision and revision.run_id == run_id and not action_needs_model(revision.stage, da…`。
+- `Store.claim`（L861–L890）：接收`only_rejections`、`include_model_free`。 控制顺序：L864按`only_rejections`分支；L866按`include_model_free`分支；L881按`job is None`分支；L886按`changed != 1`分支。 调用`self.tx`、`select(Job).where`、`select`、`Job.payload["action"].as_string`、`select(Revision.gate_id).where`、`Revision.stage.in_`、`or_`、`and_`、`Job.payload["action"].as_string().in_`等。 返回路径：L882的`None`；L887的`None`；L890的`{"id": job.id, "run_id": job.run_id, "payload": job.payload}`。
 
 </details>
 
-**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L883。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/store.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L891。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`39115`。本段原文以LF换行结束。
+本段原始字节数：`39260`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/store.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "928bee7a717ec138845ea06d502bcfc214f4d5d1af6d51e2e4d150f7bc4b9c95"} -->
+<!-- learning-source: {"path": "workbench/store.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "5a929eccdecb38382df3d4d8990b7502f57683a542df35a6ef433baa9a880a16"} -->
 ````python
 # workbench/store.py
 """Short SQLAlchemy transactions; no model/tool calls inside a database transaction."""
@@ -104,7 +106,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from workbench.domain import ResumeInput, RunInput, digest
+from workbench.domain import BatchInput, ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.settings import ROOT, Settings
 
@@ -305,36 +307,56 @@ class Store:
         def operation(session):
             if not session.get(Project, project_id):
                 raise Missing("项目不存在")
-            run = Run(
-                project_id=project_id,
-                template=data["template"],
-                options={
-                    **data["selection"],
-                    "allow_custom_extensions": data["allow_custom_extensions"],
-                },
-                auto_mode=data["intelligent"],
-            )
-            session.add(run)
-            session.flush()
-            session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
-            session.add(Job(run_id=run.id, payload={"action": "start"}))
-            if run.auto_mode:
-                session.add(
-                    Event(
-                        run_id=run.id,
-                        kind="delegation",
-                        data={
-                            "enabled": True,
-                            "actor": "local-operator",
-                            "scope": "choose missing details and approve subsequent design/delivery; never bypass tests",
-                        },
-                    )
-                )
-            return {"run_id": run.id, "status": "QUEUED"}
+            return self._enqueue_run(session, project_id, data)
 
         return self.request(
             key, {"operation": "create-run", "project": project_id, **data}, operation
         )
+
+    def create_batch(self, data, key):
+        """Validate then create all projects and jobs in one idempotent transaction."""
+        data = BatchInput.model_validate(data).model_dump()
+
+        def operation(session):
+            items = []
+            for item in data["items"]:
+                project = Project(title=item["title"])
+                session.add(project)
+                session.flush()
+                queued = self._enqueue_run(session, project.id, item)
+                items.append({"project_id": project.id, "title": project.title, **queued})
+            return {"items": items}
+
+        return self.request(key, {"operation": "create-batch", **data}, operation)
+
+    def _enqueue_run(self, session, project_id, data):
+        """Single and batch creation share the same durable worker and delegation."""
+        run = Run(
+            project_id=project_id,
+            template=data["template"],
+            options={
+                **data["selection"],
+                "allow_custom_extensions": data["allow_custom_extensions"],
+            },
+            auto_mode=data["intelligent"],
+        )
+        session.add(run)
+        session.flush()
+        session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
+        session.add(Job(run_id=run.id, payload={"action": "start"}))
+        if run.auto_mode:
+            session.add(
+                Event(
+                    run_id=run.id,
+                    kind="delegation",
+                    data={
+                        "enabled": True,
+                        "actor": "local-operator",
+                        "scope": "choose missing details and approve subsequent design/delivery; never bypass tests",
+                    },
+                )
+            )
+        return {"run_id": run.id, "status": "QUEUED"}
 
     def submit(self, run_id, data, key):
         data = ResumeInput.model_validate(data).model_dump()
@@ -947,17 +969,5 @@ class Store:
             run = session.get(Run, job.run_id)
             run.status = "RUNNING"
             return {"id": job.id, "run_id": job.run_id, "payload": job.payload}
-
-    def recover(self):
-        # Runtime holds the single-worker lock before recovery. Serialize with
-        # assistant appenders as well, and commit transcript repair with requeue.
-        with FileLock(str(self.settings.data_dir / "assistant-events.lock"), timeout=30):
-            with self.tx() as session:
-                runs = list(
-                    session.scalars(select(Job.run_id).where(Job.status == "RUNNING").distinct())
-                )
-                for run_id in runs:
-                    self._recover_assistants(session, run_id)
-                session.execute(update(Job).where(Job.status == "RUNNING").values(status="QUEUED"))
 
 ````

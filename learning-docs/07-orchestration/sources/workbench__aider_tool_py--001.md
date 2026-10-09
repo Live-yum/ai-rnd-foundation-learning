@@ -22,16 +22,16 @@
 - `command`（L86–L134）：接收`settings`、`work`、`home`、`*args`。 控制顺序：L97按`not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version)`分支；L98抛异常，停止当前正常路径。 调用`atomic_text`、`isolated_environment`、`run_command`、`executable`、`str`、`re.search`、`re.escape`、`ValueError`。 返回路径：L99的`run_command( [ executable(settings), str(ROOT / "tools/aider/offline_runner.py"), "--model…`。
 - `preview_blocks`（L137–L152）：接收`before`、`blocks`。每段SEARCH必须与原文唯一匹配；预先算出的完整新文本是检查Aider实际执行结果的依据。 控制顺序：L143按`not 1 <= len(matches) <= 8 or pattern.sub("", blocks).strip()`分支；L144抛异常，停止当前正常路径；L146遍历`matches`；L148按`not old or current.count(old) != 1`分支；L149抛异常，停止当前正常路径。 调用`re.compile`、`list`、`pattern.finditer`、`len`、`pattern.sub("", blocks).strip`、`pattern.sub`、`ValueError`、`match.groups`、`current.count`等。 返回路径：L152的`current`。
 - `apply_blocks`（L155–L204）：接收`product`、`value`、`settings`、`attempt`。保护对象是原产品目录：先在隔离副本验证全部变更，只把批准且校验通过的结果复制回去。 控制顺序：L159按`sha(path) != value.before_sha256`分支；L160抛异常，停止当前正常路径；L177按`actual != expected`分支；L178抛异常，停止当前正常路径；L183按`manifest(product) != original`分支；L184抛异常，停止当前正常路径；L185按`evidence.exists()`分支。 调用`Path`、`manifest`、`sha`、`ValueError`、`preview_blocks`、`path.read_text`、`digest`、`value.model_dump`、`evidence.parent.mkdir`等。 返回路径：L204的`receipt`。
-- `code_rules_with_aider`（L207–L229）：接收`run_id`、`plan`、`product`、`gateway`、`settings`、`attempt`、`error`。 控制顺序：L227抛异常，停止当前正常路径。 调用`Path`、`build_index`、`context_for`、`INSTRUCTION.replace`、`gateway.complete`、`plan.model_dump`、`apply_blocks`、`ValueError`。 返回路径：L229的`receipt`。
-- `repo_map`（L232–L275）：接收`source`、`index_dir`、`settings`。 控制顺序：L241按`len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000`分支；L242抛异常，停止当前正常路径；L248遍历`selected`。 调用`current_index`、`files`、`len`、`sum`、`p.stat`、`ValueError`、`tempfile.TemporaryDirectory`、`Path`、`work.mkdir`等。 返回路径：L275的`report`。
+- `code_rules_with_aider`（L207–L226）：接收`run_id`、`plan`、`product`、`gateway`、`settings`、`attempt`、`error`。 控制顺序：L224抛异常，停止当前正常路径。 调用`INSTRUCTION.replace`、`gateway.complete`、`rule_context`、`apply_blocks`、`ValueError`、`build_index`、`Path`。 返回路径：L226的`receipt`。
+- `repo_map`（L229–L272）：接收`source`、`index_dir`、`settings`。 控制顺序：L238按`len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000`分支；L239抛异常，停止当前正常路径；L245遍历`selected`。 调用`current_index`、`files`、`len`、`sum`、`p.stat`、`ValueError`、`tempfile.TemporaryDirectory`、`Path`、`work.mkdir`等。 返回路径：L272的`report`。
 
 </details>
 
-**创建路径：** `workbench/aider_tool.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L275。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/aider_tool.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L272。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10329`。本段原文以LF换行结束。
+本段原始字节数：`10120`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/aider_tool.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "50110f44951f1c598eeac6b5b7ba94918842e1154ab276661a9e10fcffd44022"} -->
+<!-- learning-source: {"path": "workbench/aider_tool.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2dbb259cec7368bbe53e2a604c6f28667596fb7c751171be109a580a34bb9911"} -->
 ````python
 # workbench/aider_tool.py
 """Pinned Aider CLI, used only in a disposable local Git worktree with no keys.
@@ -49,10 +49,10 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from workbench.coding import INSTRUCTION, apply_patch
+from workbench.coding import INSTRUCTION, apply_patch, rule_context
 from workbench.domain import Patch, digest
 from workbench.filesystem import atomic_text, files, manifest, sha, write_json
-from workbench.knowledge import build_index, context_for
+from workbench.knowledge import build_index
 from workbench.rules import Rules
 from workbench.settings import ROOT
 from workbench.tools import ToolFailure, run_command
@@ -241,9 +241,6 @@ def apply_blocks(product, value, settings, attempt=0):
 
 
 def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, error=""):
-    knowledge = Path(product).parent / "knowledge"
-    build_index(product, knowledge, "generated-product")
-    context = context_for(product, knowledge, ["custom_rules.py", "approved-spec.json"])
     instruction = INSTRUCTION.replace("必须返回 patches JSON", "必须返回 EditBlocks JSON")
     instruction += (
         "\n只返回before_sha256、blocks、explanation。blocks不加Markdown围栏，格式："
@@ -254,14 +251,14 @@ def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, err
         run_id,
         f"coding:aider:{attempt}",
         instruction,
-        {"plan": plan.model_dump(), "context": context, "previous_error": error},
+        rule_context(plan, product, error),
         EditBlocks,
     )
     try:
         receipt = apply_blocks(product, value, settings, attempt)
     except ToolFailure as exc:
         raise ValueError("Aider 编辑失败，未写入产品；检查工具安装和当前补丁") from exc
-    build_index(product, knowledge, "generated-product")
+    build_index(product, Path(product).parent / "knowledge", "generated-product")
     return receipt
 
 

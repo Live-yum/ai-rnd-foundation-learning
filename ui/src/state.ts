@@ -1,7 +1,22 @@
 import { reactive } from 'vue'
 import { api, ApiError, errorText, hasToken, isAbort, readStream, setToken } from './api'
 import { applyMessageEvent, gateIdentity } from './presentation'
-import type { CatalogEntry, ChatMessage, Project, Run, RunEvent, RecordData } from './types'
+import type {
+  CatalogEntry,
+  ChatMessage,
+  Project,
+  ProjectDraft,
+  Run,
+  RunEvent,
+  RecordData,
+} from './types'
+const emptyCreation = () => ({
+  template: '',
+  frontend: '',
+  database: '',
+  intelligent: false,
+  allowCustomExtensions: false,
+})
 export const state = reactive({
   authenticated: false,
   connecting: false,
@@ -25,6 +40,11 @@ export const state = reactive({
   cursor: 0,
   stale: false,
   homeDrafts: {} as Record<string, string>,
+  homeTitles: {} as Record<string, string>,
+  creation: emptyCreation(),
+  batchMode: false,
+  batchDrafts: [] as ProjectDraft[],
+  batchRuns: [] as Run[],
   settingsReturn: '',
 })
 let runController: AbortController | undefined,
@@ -116,17 +136,26 @@ export function lock() {
     cursor: 0,
     stale: false,
     homeDrafts: {},
+    homeTitles: {},
+    batchMode: false,
+    batchDrafts: [],
+    batchRuns: [],
     settingsReturn: '',
   })
+  Object.assign(state.creation, emptyCreation())
 }
-export async function refreshLists() {
+export async function refreshLists(options: { models?: boolean } = {}) {
   const generation = authGeneration
   if (!isSessionActive(generation)) return
   try {
     const [projects, runs] = await Promise.all([api('/projects'), api('/runs')])
     if (!isSessionActive(generation)) return
     Object.assign(state, { projects, runs, online: true })
-    await readModelConfig(generation)
+    state.batchRuns = state.batchRuns.map((saved) => ({
+      ...saved,
+      ...runs.find((run: Run) => run.id === saved.id),
+    }))
+    if (options.models !== false) await readModelConfig(generation)
     if (!isSessionActive(generation)) return
     state.lastSync = new Date().toISOString()
   } catch (error) {
@@ -153,6 +182,8 @@ function updateRun(next: Run) {
   state.run = next
   const i = state.runs.findIndex((r) => r.id === next.id)
   if (i >= 0) state.runs[i] = { ...state.runs[i], ...next }
+  const batchIndex = state.batchRuns.findIndex((r) => r.id === next.id)
+  if (batchIndex >= 0) state.batchRuns[batchIndex] = { ...state.batchRuns[batchIndex], ...next }
 }
 export async function refreshRun() {
   const id = state.run?.id,

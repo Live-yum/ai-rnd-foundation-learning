@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L279。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L355。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9141`。本段原文以LF换行结束。
+本段原始字节数：`12214`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6594b2bf84937c46f3254c0865e75bf43b5698e47507675d4d05f4602829576e"} -->
+<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "01d7bee20a9681c6565ece88cf002628bd5f6cae69109f72619613c876291d04"} -->
 ````typescript
 // ui/src/presentation.ts
 import type { Gate, Run, RunEvent, ChatMessage } from './types'
@@ -40,7 +40,7 @@ export const stages = [
   {
     key: 'code',
     label: '生成与编码',
-    description: '按已批准方案串行执行',
+    description: '按已批准方案定制模板',
     steps: ['generate', 'code', 'extension_generate', 'extension_code'],
   },
   {
@@ -94,7 +94,7 @@ export function statusColor(status?: string) {
   return 'blue'
 }
 export const formatDate = (value?: string) =>
-  value
+  value && Number.isFinite(new Date(value).getTime())
     ? new Intl.DateTimeFormat('zh-CN', {
         month: 'short',
         day: 'numeric',
@@ -130,6 +130,7 @@ export function activeStage(run: Run | null, events: RunEvent[]) {
   const raw =
     run.pending?.stage ||
     run.current_step ||
+    (run.status.startsWith('WAITING_') ? run.status.slice(8).toLowerCase() : '') ||
     workflow?.data.name ||
     legacyStep?.data.name ||
     model?.data.stage ||
@@ -149,6 +150,81 @@ export function activeStage(run: Run | null, events: RunEvent[]) {
         item.steps.some((step) => stage === step || stage.startsWith(step + ':')),
     ),
   )
+}
+
+export const runFilters = [
+  { value: 'all', label: '全部' },
+  { value: 'running', label: '进行中' },
+  { value: 'waiting', label: '待处理' },
+  { value: 'failed', label: '失败 / 拒绝' },
+  { value: 'ready', label: '可交付' },
+]
+export function runGroup(run?: Run) {
+  const status = run?.status || ''
+  if (['QUEUED', 'RUNNING'].includes(status)) return 'running'
+  if (status.startsWith('WAITING_') || ['BLOCKED', 'PAUSED_LIMIT'].includes(status))
+    return 'waiting'
+  if (['FAILED', 'REJECTED'].includes(status)) return 'failed'
+  if (['READY', 'SOURCE_READY'].includes(status)) return 'ready'
+  return 'idle'
+}
+export function nextRunView(run: Run) {
+  if (
+    runGroup(run) === 'ready' ||
+    ['WAITING_DELIVERY', 'WAITING_EXTENSION_DELIVERY'].includes(run.status)
+  )
+    return 'delivery'
+  if (run.pending && !run.pending.actions.includes('answer')) return 'review'
+  return 'conversation'
+}
+export function runNextAction(run: Run) {
+  if (run.status === 'QUEUED') return '等待接单，可离开页面'
+  if (run.status === 'RUNNING') return '后台执行中，查看阶段事件'
+  if (run.status === 'FAILED') return '查看原因，恢复当前运行'
+  if (run.status === 'PAUSED_LIMIT') return '检查预算后恢复'
+  if (run.status === 'BLOCKED') return '处理阻塞，保留当前需求'
+  if (run.status === 'REJECTED') return '查看记录或开始新一轮'
+  if (run.status === 'SOURCE_READY') return '源码可下载，运行验收待证明'
+  if (run.status === 'READY') return '查看验收证据与交付包'
+  return run.pending?.actions.includes('answer') || run.status === 'WAITING_CLARIFICATION'
+    ? '回答问题后继续'
+    : '审核当前版本后继续'
+}
+export function runStageLabel(run: Run) {
+  if (run.status === 'QUEUED') return '排队中'
+  if (
+    run.current_step ||
+    run.pending ||
+    run.status.startsWith('WAITING_') ||
+    runGroup(run) === 'ready'
+  )
+    return stages[activeStage(run, [])].label
+  return statusLabel(run.status)
+}
+export function milestoneStatus(
+  index: number,
+  run: Run | null,
+  events: RunEvent[],
+): 'waiting' | 'pending' | 'failed' | 'done' | 'running' {
+  const active = activeStage(run, events)
+  // A restored earlier gate invalidates later completion for the current revision.
+  if (run?.pending && index === active) return 'waiting'
+  if (index > active) return 'pending'
+  if (run?.status === 'FAILED' && index === active) return 'failed'
+  const last = events
+    .filter(
+      (event) =>
+        ['stage', 'step'].includes(event.kind) &&
+        stages[index].steps.some(
+          (step) => event.data.name === step || event.data.name?.startsWith(step + ':'),
+        ),
+    )
+    .at(-1)
+  if (!last) return 'pending'
+  if (last.kind === 'step' || last.data.phase === 'completed') return 'done'
+  if (last.data.phase === 'failed') return 'failed'
+  if (last.data.phase === 'waiting') return 'waiting'
+  return 'running'
 }
 
 export function applyMessageEvent(messages: ChatMessage[], event: RunEvent) {

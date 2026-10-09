@@ -21,6 +21,7 @@ from workbench.native_evidence import MAX_ACCEPTANCE_BYTES, native_review_eviden
 from workbench.native_frontend import frontend_environment, frontend_preview
 from workbench.native_modules import validate_plan
 from workbench.settings import ROOT
+from workbench.template_adapters import get_adapter
 
 
 class RuntimeConfig(BaseModel):
@@ -181,7 +182,7 @@ def require_native_style(report, receipt, current):
         or style.get("generic_frontend_substitution") is not False
     ):
         raise PrerequisiteError(error)
-    root = "frontend/web/" if template == "fastapiadmin" else "frontend-product/"
+    root = get_adapter(template).ui.product_root + "/"
     frontend = {
         name[len(root) :]: value for name, value in current.items() if name.startswith(root)
     }

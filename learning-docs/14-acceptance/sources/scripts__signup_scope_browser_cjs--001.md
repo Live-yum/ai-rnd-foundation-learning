@@ -12,9 +12,9 @@
 
 **创建路径：** `scripts/signup_scope_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L241。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8785`。本段原文以LF换行结束。
+本段原始字节数：`8782`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/signup_scope_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b3881301e484424717e1c2f1958a27e59e15be7d85e89df79b584ef34d6075e7"} -->
+<!-- learning-source: {"path": "scripts/signup_scope_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e6564856c944f284bcd6b7381b6ed0348c351bc1543914ee1de5bbbe745f389"} -->
 ````javascript
 // scripts/signup_scope_browser.cjs
 // Real backend gates and compiled Vue UI; no mocked browser routes or model network.
@@ -78,7 +78,7 @@ async function main() {
       .click();
     await status("BLOCKED");
     await page
-      .getByRole("heading", { name: "先确认参与者入口与报名范围", exact: true })
+      .getByRole("heading", { name: "先确认模板能力与本次范围", exact: true })
       .waitFor();
     assert.equal(
       await page.locator('.question-card input[type="radio"]:checked').count(),

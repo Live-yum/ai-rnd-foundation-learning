@@ -283,6 +283,6 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 ### 19.13 原生验收的边界
 
-正式Actions原生矩阵使用真实PG/Redis/Java/Python/Node/Chromium；平台模型CI使用夹具，不能说已验证用户供应商账户。原生类型检查与HTTP验收不代表所有上游历史测试通过。普通共享CRUD权限不代表任意行级隔离或多租户生产安全。
+本章的原生确定性Actions矩阵使用真实PG/Redis/Java/Python/Node/Chromium；该矩阵的平台模型调用使用夹具，不能据此声称已验证用户供应商账户。原生类型检查与HTTP验收不代表所有上游历史测试通过。普通共享CRUD权限不代表任意行级隔离或多租户生产安全。
 
 本手册第二部分使用的所有实现代码都在后面的整份源码附录；源码改变后用同一build_handbook命令重新生成，不把“待实现”函数藏在附录里。独立交付首次环境仍需互联网安装依赖，但不再需要重新拉取模板或原始开发数据。测试结果以所用提交对应的Actions及portable-start报告为准。

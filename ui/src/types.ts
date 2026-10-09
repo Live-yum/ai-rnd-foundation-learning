@@ -54,5 +54,20 @@ export interface CatalogEntry {
   frontends: string[]
   databases: string[]
   features: string[]
+  coding_standard?: { path: string; sha256?: string; summary?: string; content?: string }
   [key: string]: any
+}
+export interface Selection {
+  template: string
+  backend: string
+  frontend: string
+  database: string
+}
+export interface ProjectDraft {
+  id: string
+  title: string
+  requirement: string
+}
+export interface BatchReceipt {
+  items: { project_id: string; title: string; run_id: string; status: 'QUEUED' }[]
 }

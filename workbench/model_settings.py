@@ -16,7 +16,16 @@ from urllib.parse import urlsplit
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from filelock import FileLock, Timeout
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
 from starlette.concurrency import run_in_threadpool
 
 from workbench.settings import STAGES, ModelProfile, OutputMode, Provider, validate_model_url
@@ -44,8 +53,17 @@ class ProfileConfig(BaseModel):
 
     @field_validator("base_url")
     @classmethod
-    def endpoint(cls, value):
-        return validate_model_url(value) if value else ""
+    def endpoint(cls, value, info: ValidationInfo):
+        return (
+            validate_model_url(
+                value,
+                allow_insecure_http=bool(
+                    info.context and info.context.get("allow_insecure_model_http")
+                ),
+            )
+            if value
+            else ""
+        )
 
     @field_validator("model")
     @classmethod
@@ -76,11 +94,15 @@ class ProfileConfig(BaseModel):
 
 class ModelConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True, hide_input_in_errors=True)
+    _allow_insecure_model_http: bool = PrivateAttr(default=False)
     version: int = 1
     revision: str = Field(default="0", max_length=64)
     default: ProfileConfig
     stages: dict[str, ProfileConfig]
     model_review: bool = False
+
+    def model_post_init(self, context):
+        self._allow_insecure_model_http = bool(context and context.get("allow_insecure_model_http"))
 
     @field_validator("version")
     @classmethod
@@ -131,6 +153,7 @@ class ModelConfiguration(BaseModel):
             or "auto",
             max_output_tokens=override.max_output_tokens
             or (base.max_output_tokens if same_endpoint else None),
+            allow_insecure_http=self._allow_insecure_model_http,
         )
 
     def require_model(self):
@@ -185,7 +208,10 @@ def environment_configuration(settings):
         for stage in STAGES
     }
     try:
-        return ModelConfiguration(default=values, stages=stages, model_review=settings.model_review)
+        return ModelConfiguration.model_validate(
+            {"default": values, "stages": stages, "model_review": settings.model_review},
+            context={"allow_insecure_model_http": settings.allow_insecure_model_http},
+        )
     except ValidationError, ValueError:
         raise ModelSettingsError("模型配置格式无效；请检查 BaseURL、模型名称和配置类型") from None
 
@@ -214,7 +240,7 @@ class ModelSettingsRepository:
                 data = handle.read(MAX_CONFIG_BYTES + 1)
             if len(data) > MAX_CONFIG_BYTES:
                 raise ModelSettingsError("模型配置文件过大")
-            return ModelConfiguration.model_validate_json(data)
+            return ModelConfiguration.model_validate_json(data, context=self._validation_context())
         except ValidationError, ValueError, OSError:
             raise ModelSettingsError(
                 "本机模型配置无效或不可读取；请检查文件格式和 600 权限"
@@ -222,6 +248,9 @@ class ModelSettingsRepository:
 
     def public(self):
         return self.snapshot().public()
+
+    def _validation_context(self):
+        return {"allow_insecure_model_http": self.settings.allow_insecure_model_http}
 
     def update(self, patch):
         if not isinstance(patch, dict) or set(patch) - {
@@ -280,7 +309,7 @@ class ModelSettingsRepository:
             values["model_review"] = patch["model_review"]
         values["revision"] = uuid.uuid4().hex
         try:
-            after = ModelConfiguration.model_validate(values)
+            after = ModelConfiguration.model_validate(values, context=self._validation_context())
         except ValidationError, ValueError:
             raise ModelSettingsError(
                 "模型配置格式无效；请检查 BaseURL、模型名称、API Key 和配置类型"

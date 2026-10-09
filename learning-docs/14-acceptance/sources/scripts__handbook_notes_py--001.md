@@ -13,29 +13,37 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `parse`（L706–L712）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L712的`ast.parse(normalized)`。
-- `segment`（L715–L718）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L718的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L721–L728）：接收`node`、`prefix`。 控制顺序：L722遍历`ast.iter_child_nodes(node)`；L723按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L731–L736）：接收`node`。 控制顺序：L732遍历`ast.iter_child_nodes(node)`；L733按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `parse`（L712–L718）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L718的`ast.parse(normalized)`。
+- `source_lines`（L722–L726）：接收`content`。 调用`content.encode("utf-8").splitlines`、`content.encode`、`lru_cache`。 返回路径：L726的`(*content.encode("utf-8").splitlines(keepends=True), b"")`。
+- `source_segment`（L729–L745）：接收`content`、`node`。 源码说明：Extract the same unpadded span as ast.get_source_segment without rescanning.。 控制顺序：L732按`node.end_lineno is None or node.end_col_offset is None`分支；L739按`first == last`分支。 调用`source_lines`、`lines[first][start:end].decode`、`lines[first][start:].decode`、`b"".join(lines[first + 1 : last]).decode`、`b"".join`、`lines[last][:end].decode`。 返回路径：L733的`None`；L737的`None`；L740的`lines[first][start:end].decode("utf-8")`。
+- `segment`（L748–L751）：接收`content`、`node`、`limit`。 调用`source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L751的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L754–L761）：接收`node`、`prefix`。 控制顺序：L755遍历`ast.iter_child_nodes(node)`；L756按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L764–L769）：接收`node`。 控制顺序：L765遍历`ast.iter_child_nodes(node)`；L766按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L738。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L771。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`65490`。本段原文以LF换行结束。
+本段原始字节数：`67297`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "4ee5f62968c9409025508f0a607ee012f90f7e006b52cdfa174c4f049d04a668"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f1e6564f5b54453af86ea4b36e730c1c20f64b7a890f8b1a44f0c31ce9dbdf0b"} -->
 ````python
 # scripts/handbook_notes.py
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
 import ast
 import re
+from functools import lru_cache
 from pathlib import Path
 
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "template_standards": (
+        "所有模型与生成产物共用的版本化编码规范",
+        "只读取固定的公共规则和所选模板规则，计算来源与合并内容哈希。目录及需求规划编码上下文使用同一份内容；写入产物时保留上游AGENTS并带上VIBECODING和版本回执。读规范不依赖后续生成或文件工具模块，执行边界仍由代码与独立验收落实。",
+        "templates/standards → coding_standard → catalog及模型上下文 → write_coding_standard → 产品生成清单与交付。",
+    ),
     "template_adapters": (
         "技术栈选择与后续交付共用的模板合同",
         "Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。",
@@ -168,7 +176,7 @@ MODULES = {
     ),
     "store": (
         "持久化项目、会话、任务、版本、审批和证据",
-        "SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run建立运行和首条消息；任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。",
+        "SQLAlchemy类说明表的列，Store的方法说明事务操作。create_run和create_batch共享入队逻辑；批量先整批校验再在同一幂等事务建立项目、运行和消息，失败全部回滚。任务认领与完成有状态约束，修订和审批保留指纹。页面状态与Worker进度不能只保存在内存变量里。",
         "api写入Store → Runtime认领Job → Workflow记录Revision/Approval/Step/Event；test_store。",
     ),
     "errors": (
@@ -541,8 +549,8 @@ SCRIPT_ROLES = {
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
-        "显式授权的真实模型完整验收",
-        "可信客服分支的手动任务在rnd中将APK_KEY映射为API_KEY，三个模板各自先Hello再校验同提交同attempt回执。完整需求由原文、默认决策和命名约定构成；真实网页只一次初始智能推荐，随后必须READY、实际下载、新库HTTP/浏览器/重启；公开白名单状态及经过校验的合成页面截图，不输出密钥或模型原文。",
+        "显式授权的DeepSeek专用客服验收",
+        "保留的DeepSeek专用客服链路在可信分支手动运行，从rnd注入API_KEY；三个模板各自先Hello再校验同提交同attempt回执。完整需求由原文、默认决策和命名约定构成；真实网页只一次初始智能推荐，随后必须READY、实际下载、新库HTTP/浏览器/重启；公开白名单状态及经过校验的合成页面截图，不输出密钥或模型原文。当前跨场景三案使用ci_template_projects.py。",
         "native-probe手动real_model=true+expected_sha，或real-model手动矩阵 → rnd job → ModelGateway真实请求 → 当前模板独立产品 → summary.json与合成PNG；工具矩阵和BLOCKED恢复另验。",
     ),
     "build_handbook.py": (
@@ -741,8 +749,35 @@ def parse(content):
     return ast.parse(normalized)
 
 
+@lru_cache(maxsize=1)
+def source_lines(content):
+    # AST columns count UTF-8 bytes. bytes.splitlines preserves form feeds and
+    # Unicode separators that str.splitlines incorrectly treats as Python lines.
+    # Keep only the current source: notes() requests many spans from that file.
+    return (*content.encode("utf-8").splitlines(keepends=True), b"")
+
+
+def source_segment(content, node):
+    """Extract the same unpadded span as ast.get_source_segment without rescanning."""
+    try:
+        if node.end_lineno is None or node.end_col_offset is None:
+            return None
+        first, last = node.lineno - 1, node.end_lineno - 1
+        start, end = node.col_offset, node.end_col_offset
+    except AttributeError:
+        return None
+    lines = source_lines(content)
+    if first == last:
+        return lines[first][start:end].decode("utf-8")
+    return (
+        lines[first][start:].decode("utf-8")
+        + b"".join(lines[first + 1 : last]).decode("utf-8")
+        + lines[last][:end].decode("utf-8")
+    )
+
+
 def segment(content, node, limit=110):
-    value = ast.get_source_segment(content, node) or type(node).__name__
+    value = source_segment(content, node) or type(node).__name__
     value = " ".join(value.split()).replace("|", "\\|")
     return value if len(value) <= limit else value[:limit] + "…"
 

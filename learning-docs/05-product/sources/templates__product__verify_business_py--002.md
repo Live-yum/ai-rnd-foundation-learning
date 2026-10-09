@@ -13,18 +13,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `verify_business.allowed`（L692–L699）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L694按`action not in grant.get("actions", [])`分支；L696按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L695的`False`；L697的`True`；L699的`row.get(key) == identity`。
-- `verify_business.start`（L740–L781）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L770遍历`range(150)`；L772按`client.get("/health").status_code == 200`分支；L776按`process.poll() is not None`分支；L781抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L773的`process, client`。
-- `verify_business.request`（L791–L829）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L799按`method == "GET" and path == "/business/notifications"`分支；L801按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L805按`len(parts) == 2`分支；L808按`len(parts) == 4`分支；L814按`event`分支；L823按`event`分支；L826遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L829的`result`。
-- `verify_business.selected`（L1277–L1293）：接收`row`。 控制顺序：L1278遍历`metric["filters"]`；L1280按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1289按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1288的`False`；L1292的`False`；L1293的`True`。
+- `verify_business.allowed`（L781–L788）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L783按`action not in grant.get("actions", [])`分支；L785按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L784的`False`；L786的`True`；L788的`row.get(key) == identity`。
+- `verify_business.start`（L829–L870）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L859遍历`range(150)`；L861按`client.get("/health").status_code == 200`分支；L865按`process.poll() is not None`分支；L870抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L862的`process, client`。
+- `verify_business.request`（L880–L918）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L888按`method == "GET" and path == "/business/notifications"`分支；L890按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L894按`len(parts) == 2`分支；L897按`len(parts) == 4`分支；L903按`event`分支；L912按`event`分支；L915遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L918的`result`。
+- `verify_business.actor_for`（L1233–L1242）：接收`candidate`、`transition`。 调用`next`、`actors.values`、`allowed`。 返回路径：L1234的`next( ( actor for actor in actors.values() if actor["role"] in transition["roles"] and all…`。
+- `verify_business.create_branch`（L1244–L1313）：接收`transition`。 控制顺序：L1252遍历`actors.values()`；L1253按`not ( allowed(creator["role"], entity, "create") and allowed(creator["role"], entity,…`分支；L1258遍历`recipients`；L1262按`assignee and recipient`分支；L1263按`not any( allowed(a["role"], entity, "assign", access, a["id"]) for a in actors.values…`分支；L1272按`path`分支；L1275按`selection`分支；L1289按`assignee and recipient`分支。后续分支沿下方源码相同行号继续阅读。 调用`resources[entity].get`、`workflow_assignee_candidates`、`row.get`、`actors.values`、`allowed`、`any`、`workflow_transition_paths( workflow, lambda step: actor_for(acces…`、`workflow_transition_paths`、`actor_for`等。 返回路径：L1313的`created, path`。
+- `verify_business.apply_transition`（L1315–L1338）：接收`candidate`、`transition`、`actor`。 控制顺序：L1326按`transition.get("set_timestamp")`分支。 调用`request`、`check`、`transition.get`、`candidate.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_business.selected`（L1449–L1465）：接收`row`。 控制顺序：L1450遍历`metric["filters"]`；L1452按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L1461按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L1460的`False`；L1464的`False`；L1465的`True`。
 
 </details>
 
-**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L692–L1741。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/verify_business.py`；**本文件共有 2 段**。本段覆盖源文件 L781–L1913。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`50949`。本段原文以LF换行结束。
+本段原始字节数：`54884`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "a2f66903d426af5e8a6ca253c3eb01d45194df84c69514d440663a827ef7b6a5"} -->
+<!-- learning-source: {"path": "templates/product/verify_business.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "83ebbe6a5c08121706f06e1731285d4e7329df32703148cceb3f29e135023659"} -->
 ````python
 # templates/product/verify_business.py
     def allowed(role, entity, action, row=None, identity=None):
@@ -478,24 +481,93 @@
             checks.append("business-row-permissions")
             for entity, row in base.items():
                 workflow = workflows.get(entity)
-                visited = set()
-                while workflow and row[workflow["status_field"]] not in visited:
-                    state = row[workflow["status_field"]]
-                    visited.add(state)
-                    choices = [
-                        (t, a)
-                        for t in workflow["transitions"]
-                        for a in actors.values()
-                        if state in t["from_states"]
-                        and a["role"] in t["roles"]
-                        and allowed(a["role"], entity, "transition", row, a["id"])
-                    ]
-                    if not choices:
-                        break
-                    transition, actor = choices[0]
+
+                def actor_for(candidate, transition):
+                    return next(
+                        (
+                            actor
+                            for actor in actors.values()
+                            if actor["role"] in transition["roles"]
+                            and allowed(actor["role"], entity, "transition", candidate, actor["id"])
+                        ),
+                        None,
+                    )
+
+                def create_branch(transition):
+                    assignee = resources[entity].get("assignee_field")
+                    recipients = (
+                        workflow_assignee_candidates(actors, grants, entity, row.get(assignee))
+                        if assignee
+                        else [None]
+                    )
+                    selection = None
+                    for creator in actors.values():
+                        if not (
+                            allowed(creator["role"], entity, "create")
+                            and allowed(creator["role"], entity, "read")
+                        ):
+                            continue
+                        for recipient in recipients:
+                            # This is an access-plan only; persisted creator, assignee and
+                            # workflow state are still obtained exclusively through APIs.
+                            access = {"created_by": creator["id"]}
+                            if assignee and recipient:
+                                if not any(
+                                    allowed(a["role"], entity, "assign", access, a["id"])
+                                    for a in actors.values()
+                                ):
+                                    continue
+                                access[assignee] = recipient
+                            path = workflow_transition_paths(
+                                workflow, lambda step: actor_for(access, step) is not None
+                            ).get(transition["name"])
+                            if path:
+                                selection = (creator, recipient, path)
+                                break
+                        if selection:
+                            break
+                    check(selection is not None, "Workflow branch has no permitted creation path")
+                    creator, recipient, path = selection
+                    created = request(
+                        "POST",
+                        "/api/" + entity,
+                        creator,
+                        status=201,
+                        json=samples[entity],
+                    )
+                    # Notification/due expectations must see this owned record before
+                    # assigning it or exercising any of its state transitions.
+                    rows[entity].append(created)
+                    if assignee and recipient:
+                        assigner = next(
+                            (
+                                actor
+                                for actor in actors.values()
+                                if allowed(actor["role"], entity, "assign", created, actor["id"])
+                            ),
+                            None,
+                        )
+                        check(
+                            assigner is not None,
+                            "Workflow branch has no permitted assignment actor",
+                        )
+                        created.update(
+                            request(
+                                "POST",
+                                f"/api/{entity}/{created['id']}/assign",
+                                assigner,
+                                json={"user_id": recipient},
+                            )
+                        )
+                    for actor in actors.values():
+                        notices = request("GET", "/business/notifications", actor)
+                        notification_evidence.inbox(actor, notices)
+                    return created, path
+
+                def apply_transition(candidate, transition, actor):
                     changed = request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         json={"transition": transition["name"]},
                     )
@@ -508,13 +580,27 @@
                             changed[transition["set_timestamp"]],
                             "Server transition timestamp missing",
                         )
-                    row.update(changed)
+                    candidate.update(changed)
                     request(
                         "POST",
-                        f"/api/{entity}/{row['id']}/transition",
+                        f"/api/{entity}/{candidate['id']}/transition",
                         actor,
                         status=409,
                         json={"transition": transition["name"]},
+                    )
+
+                if workflow:
+                    cover_workflow_branches(
+                        workflow,
+                        row,
+                        create_branch,
+                        actor_for,
+                        apply_transition,
+                        [
+                            candidate
+                            for candidate in rows[entity]
+                            if (entity, candidate["id"]) not in future_due_rows
+                        ],
                     )
                 actor = next(
                     (

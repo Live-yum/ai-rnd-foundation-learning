@@ -174,7 +174,15 @@ def test_reported_planning_errors_repair_with_actionable_feedback_and_preserve_s
     assert len(seen) == store.get_run(run)["model_calls"] == 2
     assert seen[0]["response_format"] == seen[1]["response_format"] == {"type": "json_object"}
     assert json.loads(seen[1]["messages"][1]["content"]) == payload
-    assert seen[1]["messages"][-2]["content"] == bad
+    if failure == "invalid_json":
+        assert [message["role"] for message in seen[1]["messages"]] == [
+            "system",
+            "user",
+            "user",
+        ]
+        assert all(bad not in message["content"] for message in seen[1]["messages"])
+    else:
+        assert seen[1]["messages"][-2] == {"role": "assistant", "content": bad}
     assert hint in seen[1]["messages"][-1]["content"]
     assert "不要删除需求" in seen[1]["messages"][-1]["content"]
     failures = [event for event in store.events(run) if event["kind"] == "assistant_failed"]

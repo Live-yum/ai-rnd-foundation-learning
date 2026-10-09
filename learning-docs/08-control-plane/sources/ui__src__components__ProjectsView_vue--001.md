@@ -10,15 +10,15 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/components/ProjectsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L238。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/ProjectsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L294。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8608`。本段原文以LF换行结束。
+本段原始字节数：`9946`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/ProjectsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4cecd23716b5acdf1ce7077b28a16cb5b35980a7cde86f432ba68c010ceb0ed9"} -->
+<!-- learning-source: {"path": "ui/src/components/ProjectsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f85185f3d604b27ed8d02c5a9d70123b2b553bcfd48417e943ac00f0502ef01d"} -->
 ````vue
 <!-- ui/src/components/ProjectsView.vue -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   PlusOutlined,
   ArrowRightOutlined,
@@ -27,18 +27,32 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons-vue'
 import { state, refreshLists, reportError, sessionIdentity, isSessionActive } from '../state'
-import { api } from '../api'
+import { api, errorText } from '../api'
 import type { Run } from '../types'
-import { statusColor, statusLabel, formatDate, shortId } from '../presentation'
+import {
+  statusColor,
+  statusLabel,
+  formatDate,
+  shortId,
+  runFilters,
+  runGroup,
+  runNextAction,
+} from '../presentation'
+import RunTable from './RunTable.vue'
 const props = defineProps<{ view: string; projectId?: string }>()
 const emit = defineEmits<{ navigate: [path: string] }>()
 const query = ref(''),
   filter = ref('all'),
-  refreshing = ref(false)
-const listedRuns = ref<Run[]>([]),
+  template = ref('all'),
+  refreshing = ref(false),
+  listedRuns = ref<Run[]>([]),
   hasMore = ref(false),
-  loadingRuns = ref(false)
+  loadingRuns = ref(false),
+  listError = ref('')
 let listGeneration = 0
+onBeforeUnmount(() => {
+  listGeneration++
+})
 const deliveryStatuses = [
   'READY',
   'SOURCE_READY',
@@ -51,7 +65,7 @@ async function loadRuns(append = false) {
   const generation = ++listGeneration,
     session = sessionIdentity()
   loadingRuns.value = true
-  if (!append) listedRuns.value = []
+  listError.value = ''
   const parameters = new URLSearchParams({
     limit: '100',
     offset: String(append ? listedRuns.value.length : 0),
@@ -60,61 +74,106 @@ async function loadRuns(append = false) {
     deliveryStatuses.forEach((status) => parameters.append('status', status))
   try {
     const page = await api<Run[]>(
-      (props.projectId ? `/projects/${props.projectId}/runs` : '/runs') + '?' + parameters,
+      (props.projectId ? '/projects/' + props.projectId + '/runs' : '/runs') + '?' + parameters,
     )
     if (generation !== listGeneration || !isSessionActive(session)) return
     listedRuns.value = append ? [...listedRuns.value, ...page] : page
     hasMore.value = page.length === 100
   } catch (error) {
-    if (generation === listGeneration && isSessionActive(session)) reportError(error)
+    if (generation === listGeneration && isSessionActive(session)) {
+      listError.value = errorText(error)
+      reportError(error)
+    }
   } finally {
     if (generation === listGeneration) loadingRuns.value = false
   }
 }
 watch(
   () => [props.projectId, props.view],
-  () => void loadRuns(),
+  () => {
+    listedRuns.value = []
+    hasMore.value = false
+    void loadRuns()
+  },
   { immediate: true },
 )
-const project = computed(() => state.projects.find((p) => p.id === props.projectId))
+const project = computed(() => state.projects.find((item) => item.id === props.projectId))
 const title = computed(() =>
   props.view === 'history'
-    ? '每轮运行，都留下完整记录'
+    ? '运行历史'
     : props.view === 'delivery'
-      ? '经过确认的成果，在这里交付'
-      : project.value?.title || '每个项目，都能继续往下走',
-)
-const runs = computed(() =>
-  listedRuns.value.filter(
-    (r) =>
-      (!props.projectId || r.project_id === props.projectId) &&
-      (props.view !== 'delivery' || deliveryStatuses.includes(r.status)) &&
-      (filter.value === 'all' ||
-        (filter.value === 'ready'
-          ? ['READY', 'SOURCE_READY'].includes(r.status)
-          : filter.value === 'waiting'
-            ? r.status.startsWith('WAITING') || r.status === 'BLOCKED'
-            : ['QUEUED', 'RUNNING'].includes(r.status))) &&
-      (projectName(r.project_id) + ' ' + r.id + ' ' + r.status)
-        .toLowerCase()
-        .includes(query.value.toLowerCase()),
-  ),
+      ? '交付与验收'
+      : project.value?.title || '项目工作台',
 )
 const projectName = (id: string) =>
-  state.projects.find((p) => p.id === id)?.title || '项目 ' + shortId(id)
-const latest = (id: string) => state.runs.find((r) => r.project_id === id)
-const projects = computed(() =>
-  state.projects.filter(
-    (p) =>
-      p.title.toLowerCase().includes(query.value.toLowerCase()) &&
-      (filter.value === 'all' || runs.value.some((r) => r.project_id === p.id)),
+  state.projects.find((item) => item.id === id)?.title || '项目 ' + shortId(id)
+const latest = (id: string) =>
+  listedRuns.value.find((run) => run.project_id === id) ||
+  state.runs.find((run) => run.project_id === id)
+const search = computed(() => query.value.trim().toLowerCase())
+function matches(run?: Run) {
+  return (
+    (filter.value === 'all' || runGroup(run) === filter.value) &&
+    (template.value === 'all' || run?.template === template.value)
+  )
+}
+const runs = computed(() =>
+  listedRuns.value.filter(
+    (run) =>
+      (!props.projectId || run.project_id === props.projectId) &&
+      (props.view !== 'delivery' || deliveryStatuses.includes(run.status)) &&
+      matches(run) &&
+      [projectName(run.project_id), run.id, run.status, statusLabel(run.status), run.template]
+        .join(' ')
+        .toLowerCase()
+        .includes(search.value),
   ),
 )
+const projects = computed(() =>
+  state.projects.filter(
+    (item) =>
+      matches(latest(item.id)) &&
+      [item.title, item.id, latest(item.id)?.template, statusLabel(latest(item.id)?.status)]
+        .join(' ')
+        .toLowerCase()
+        .includes(search.value),
+  ),
+)
+const templateOptions = computed(() => [
+  { value: 'all', label: '全部模板' },
+  ...[
+    ...new Set([
+      ...state.catalog.map((entry) => entry.template),
+      ...listedRuns.value.map((run) => run.template),
+    ]),
+  ].map((value) => ({
+    value,
+    label: state.catalog.find((entry) => entry.template === value)?.name || value,
+  })),
+])
+const counts = computed(() =>
+  runFilters.map((item) => ({
+    ...item,
+    count:
+      item.value === 'all'
+        ? listedRuns.value.length
+        : listedRuns.value.filter((run) => runGroup(run) === item.value).length,
+  })),
+)
 async function refresh() {
+  if (refreshing.value) return
   refreshing.value = true
-  await refreshLists()
-  await loadRuns()
-  refreshing.value = false
+  try {
+    await refreshLists({ models: false })
+    await loadRuns()
+  } finally {
+    refreshing.value = false
+  }
+}
+function resetFilters() {
+  query.value = ''
+  filter.value = 'all'
+  template.value = 'all'
 }
 </script>
 <template>
@@ -124,18 +183,18 @@ async function refresh() {
         <div class="eyebrow">
           {{
             view === 'delivery'
-              ? 'DELIVERY CENTER'
+              ? 'DELIVERY & EVIDENCE'
               : view === 'history'
                 ? 'RUN HISTORY'
-                : 'YOUR WORKSPACE'
+                : 'PROJECTS'
           }}
         </div>
         <h1>{{ title }}</h1>
         <p>
           {{
             view === 'delivery'
-              ? '先核对验证证据，再确认交付。源码级与运行级验收分别标明。'
-              : '项目保存上下文，运行保存过程；历史记录不会被新一轮覆盖。'
+              ? '源码级、运行级与部分成果分别标明，验收证据可逐项查看。'
+              : '每个项目保存独立运行；查看当前状态，处理需要你回应的任务。'
           }}
         </p>
       </div>
@@ -143,116 +202,113 @@ async function refresh() {
         type="primary"
         size="large"
         @click="emit('navigate', projectId ? 'project/' + projectId + '/new' : 'home')"
-        ><PlusOutlined aria-hidden="true" />{{ projectId ? '新一轮运行' : '新建项目' }}</a-button
+        ><PlusOutlined aria-hidden="true" />{{
+          projectId ? '新一轮运行' : '新建 / 批量创建'
+        }}</a-button
       >
     </header>
     <div class="list-toolbar">
-      <a-segmented
-        v-model:value="filter"
-        :options="[
-          { value: 'all', label: '全部' },
-          { value: 'running', label: '进行中' },
-          { value: 'waiting', label: '等待确认' },
-          { value: 'ready', label: '已交付' },
-        ]"
-      />
+      <div class="filter-tabs" role="group" aria-label="按运行状态筛选">
+        <button
+          v-for="item in counts"
+          :key="item.value"
+          type="button"
+          :class="{ active: filter === item.value }"
+          :aria-pressed="filter === item.value"
+          @click="filter = item.value"
+        >
+          {{ item.label }} <span>{{ item.count }}</span>
+        </button>
+      </div>
       <div class="search-actions">
         <a-input
           v-model:value="query"
-          placeholder="搜索项目、运行或状态…"
+          placeholder="搜索名称、运行 ID 或状态"
           aria-label="搜索项目和运行"
           allow-clear
           ><template #prefix><SearchOutlined aria-hidden="true" /></template></a-input
-        ><a-button :loading="refreshing" aria-label="刷新项目和运行" @click="refresh"
+        ><a-select
+          v-model:value="template"
+          :options="templateOptions"
+          aria-label="按技术模板筛选"
+          class="template-filter"
+        /><a-button :loading="refreshing" aria-label="刷新项目和运行" @click="refresh"
           ><ReloadOutlined aria-hidden="true"
         /></a-button>
       </div>
     </div>
+    <a-alert
+      v-if="listError"
+      type="error"
+      show-icon
+      class="list-error"
+      message="运行记录读取失败"
+      :description="
+        listError +
+        (listedRuns.length ? '。下方保留上次读取的记录。' : '。请重新读取，项目不会丢失。')
+      "
+      ><template #action
+        ><a-button :loading="loadingRuns" @click="loadRuns()">重新读取</a-button></template
+      ></a-alert
+    >
     <div v-if="view === 'projects' && !projectId && projects.length" class="project-grid">
-      <article v-for="p in projects" :key="p.id" class="panel project-card">
+      <article v-for="item in projects" :key="item.id" class="panel project-card">
         <div class="section-top">
           <div class="project-icon"><FolderOutlined aria-hidden="true" /></div>
-          <a-tag :color="statusColor(latest(p.id)?.status)">{{
-            statusLabel(latest(p.id)?.status)
+          <a-tag :color="statusColor(latest(item.id)?.status)">{{
+            statusLabel(latest(item.id)?.status)
           }}</a-tag>
         </div>
-        <h2>{{ p.title }}</h2>
-        <p>{{ latest(p.id)?.template || '从第一轮需求开始' }}</p>
-        <p class="muted">项目 {{ shortId(p.id) }}</p>
+        <h2>{{ item.title }}</h2>
+        <p>
+          {{ latest(item.id) ? runNextAction(latest(item.id)!) : '创建第一轮需求，开始生成项目' }}
+        </p>
+        <p class="muted">
+          {{ latest(item.id)?.template || '尚未选择模板' }} · {{ shortId(item.id) }}
+        </p>
         <div class="project-card-footer">
-          <span
-            >{{ state.runs.filter((r) => r.project_id === p.id).length }} 次最近运行 ·
-            {{ formatDate(latest(p.id)?.updated_at || p.created_at) }}</span
+          <span>{{ formatDate(latest(item.id)?.updated_at || item.created_at) }}</span
           ><a-button
             type="text"
-            :aria-label="'打开项目 ' + p.title"
-            @click="emit('navigate', 'project/' + p.id)"
-            ><ArrowRightOutlined aria-hidden="true"
+            :aria-label="'打开项目 ' + item.title"
+            @click="emit('navigate', 'project/' + item.id)"
+            >打开项目 <ArrowRightOutlined aria-hidden="true"
           /></a-button>
         </div>
       </article>
     </div>
-    <section class="panel run-list">
+    <section class="panel run-list" :aria-busy="loadingRuns">
       <div class="panel-heading">
-        <h2>{{ view === 'delivery' ? '交付与待确认产物' : '最近运行' }}</h2>
+        <h2>{{ view === 'delivery' ? '交付与待确认产物' : '运行队列' }}</h2>
         <span class="muted">已读取 {{ listedRuns.length }} 条 · 匹配 {{ runs.length }} 条</span>
       </div>
-      <div v-if="runs.length" class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>项目 / 运行</th>
-              <th>技术模板</th>
-              <th>更新时间</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="run in runs" :key="run.id">
-              <td>
-                <strong>{{ projectName(run.project_id) }}</strong
-                ><small>{{ shortId(run.id) }}</small>
-              </td>
-              <td>{{ run.template }}</td>
-              <td>{{ formatDate(run.updated_at) }}</td>
-              <td>
-                <a-tag :color="statusColor(run.status)">{{ statusLabel(run.status) }}</a-tag>
-              </td>
-              <td>
-                <a-button
-                  type="link"
-                  @click="
-                    emit(
-                      'navigate',
-                      'run/' + run.id + '/' + (view === 'delivery' ? 'delivery' : 'conversation'),
-                    )
-                  "
-                  >{{ ['READY', 'SOURCE_READY'].includes(run.status) ? '查看产物' : '继续' }}
-                  <ArrowRightOutlined aria-hidden="true"
-                /></a-button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="loadingRuns && !listedRuns.length" class="panel-content" role="status">
+        <a-skeleton active :paragraph="{ rows: 4 }" />
+        <p class="muted">正在读取保存的运行记录…</p>
       </div>
+      <RunTable v-else-if="runs.length" :runs="runs" @navigate="(path) => emit('navigate', path)" />
       <a-empty
-        v-else
-        :description="query ? '没有匹配的项目或运行' : '还没有符合条件的运行'"
+        v-else-if="!listError"
+        :description="
+          listedRuns.length || query || filter !== 'all' || template !== 'all'
+            ? '没有符合筛选条件的运行'
+            : '还没有运行记录'
+        "
         class="list-empty"
+        ><a-button v-if="query || filter !== 'all' || template !== 'all'" @click="resetFilters"
+          >清除筛选</a-button
         ><a-button
-          v-if="!query"
+          v-else
           @click="emit('navigate', projectId ? 'project/' + projectId + '/new' : 'home')"
           >开始一轮新需求</a-button
         ></a-empty
       >
-      <a-button v-if="hasMore" :loading="loadingRuns" @click="loadRuns(true)"
-        >加载更早的运行</a-button
-      >
+      <div v-if="hasMore" class="panel-footer">
+        <span>筛选适用于已读取的记录，可继续加载历史。</span
+        ><a-button :loading="loadingRuns" @click="loadRuns(true)">加载更早的运行</a-button>
+      </div>
     </section>
-    <p class="page-footnote">
-      故障恢复保留原 run_id。新一轮按新需求从零生成，不会读取或修改上一轮产物。
-    </p>
+    <p class="page-footnote">故障恢复保留原 run_id 和已有步骤；新一轮根据本次完整需求重新生成。</p>
   </div>
 </template>
 ````

@@ -1,0 +1,357 @@
+# examples/acceptance/stock-purchasing/contract.json · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可审查的需求与完整合同验收样例。** 自然语言说明目标，JSON计划逐项登记实体、字段、关系、角色、转换和指标。它用于确定性验收，不是生产模型失败后的隐藏答案；改需求需修改并重新批准相应合同。
+
+**对应关系：** 按正文验证Plan → ci_native_bundled --spec → 真实原生工具验收；该文件随教材一并还原。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `examples/acceptance/stock-purchasing/contract.json`；**本文件共有 1 段**。本段覆盖源文件 L1–L337。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`12113`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "examples/acceptance/stock-purchasing/contract.json", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "21239b0d80099bc8cb6c90c228b297847302931797f4e75f25f244ce87bf4425"} -->
+````json
+// examples/acceptance/stock-purchasing/contract.json
+{
+  "id": "stock-purchasing",
+  "size": "medium",
+  "title": "库存采购协作台",
+  "contract": {
+    "data_scope": "shared",
+    "entities": {
+      "suppliers": {
+        "name": {"kind": "text","required": true,"max_length": 200,"searchable": true},
+        "contact": {"kind": "text","required": true,"max_length": 200}
+      },
+      "items": {
+        "name": {"kind": "text","required": true,"max_length": 200,"searchable": true},
+        "sku": {"kind": "text","required": true,"max_length": 60},
+        "supplier_id": {"kind": "text","required": true},
+        "stock": {"kind": "integer","required": true,"minimum": 0,"maximum": 100000}
+      },
+      "purchase_orders": {
+        "title": {"kind": "text","required": true,"max_length": 200,"searchable": true},
+        "item_id": {"kind": "text","required": true},
+        "quantity": {"kind": "integer","required": true,"minimum": 1,"maximum": 100000},
+        "state": {"kind": "enum","required": true,"choices": ["draft","approved","received"],"filterable": true},
+        "ordered_on": {"kind": "date","required": true},
+        "received_at": {"kind": "datetime","required": false}
+      }
+    },
+    "business": {
+      "roles": [{"name": "manager"},{"name": "buyer"},{"name": "warehouse"}],
+      "registration": {"enabled": false,"default_role": "buyer"},
+      "bootstrap_role": "manager",
+      "role_admin_roles": ["manager"],
+      "resources": [
+        {"entity": "suppliers","assignee_field": null,"archive": true,"notes": true,"audit": true},
+        {"entity": "items","assignee_field": null,"archive": true,"notes": true,"audit": true},
+        {"entity": "purchase_orders","assignee_field": null,"archive": true,"notes": true,"audit": true}
+      ],
+      "relations": [
+        {"entity": "items","field": "supplier_id","target_entity": "suppliers","on_delete": "restrict"},
+        {"entity": "purchase_orders","field": "item_id","target_entity": "items","on_delete": "restrict"}
+      ],
+      "permissions": [
+        {
+          "role": "manager",
+          "entity": "suppliers",
+          "actions": ["create","read","update","archive","add_note","read_history","read_audit"],
+          "scope": "all"
+        },
+        {
+          "role": "manager",
+          "entity": "items",
+          "actions": ["create","read","update","archive","add_note","read_history","read_audit","read_metrics"],
+          "scope": "all"
+        },
+        {
+          "role": "manager",
+          "entity": "purchase_orders",
+          "actions": ["create","read","update","archive","transition","add_note","read_history","read_audit","read_metrics"],
+          "scope": "all"
+        },
+        {"role": "buyer","entity": "suppliers","actions": ["read"],"scope": "all"},
+        {"role": "buyer","entity": "items","actions": ["read"],"scope": "all"},
+        {"role": "buyer","entity": "purchase_orders","actions": ["create","read","update","add_note","read_history"],"scope": "own"},
+        {"role": "warehouse","entity": "suppliers","actions": ["read"],"scope": "all"},
+        {"role": "warehouse","entity": "items","actions": ["read","update"],"scope": "all"},
+        {"role": "warehouse","entity": "purchase_orders","actions": ["read","transition","add_note","read_history"],"scope": "all"}
+      ],
+      "workflows": [
+        {
+          "entity": "purchase_orders",
+          "status_field": "state",
+          "initial": "draft",
+          "transitions": [
+            {"name": "approve","from_states": ["draft"],"to_state": "approved","roles": ["manager"],"set_timestamp": null},
+            {
+              "name": "receive",
+              "from_states": ["approved"],
+              "to_state": "received",
+              "roles": ["manager","warehouse"],
+              "set_timestamp": "received_at"
+            }
+          ]
+        }
+      ],
+      "notifications": [
+        {
+          "entity": "purchase_orders",
+          "event": "transitioned",
+          "recipient": "creator",
+          "transition": "approve",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "purchase_orders",
+          "event": "transitioned",
+          "recipient": "creator",
+          "transition": "receive",
+          "due_field": null,
+          "channel": "in_app"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "item_count",
+          "entity": "items",
+          "kind": "count",
+          "filters": [],
+          "group_by": null,
+          "start_field": null,
+          "end_field": null,
+          "time_field": null,
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        },
+        {
+          "name": "purchases_by_state",
+          "entity": "purchase_orders",
+          "kind": "group_count",
+          "group_by": "state",
+          "filters": [],
+          "start_field": null,
+          "end_field": null,
+          "time_field": null,
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        }
+      ]
+    }
+  },
+  "actors": {"manager": {"role": "manager"},"buyer": {"role": "buyer"},"other_buyer": {"role": "buyer"},"warehouse": {"role": "warehouse"}},
+  "fixtures": {
+    "supplier": {"name": "Northstar Supplies","contact": "Synthetic contact"},
+    "item": {"name": "Workshop Gloves","sku": "GLOVE-01","stock": 5},
+    "purchase": {"title": "October safety stock","quantity": 12,"ordered_on": "2026-10-08"},
+    "other_purchase": {"title": "Second buyer requisition","quantity": 3,"ordered_on": "2026-10-09"}
+  },
+  "expected_checks": [
+    "purchasing-related-create",
+    "purchasing-invalid-reference",
+    "purchasing-buyer-isolation",
+    "purchasing-approval-permission",
+    "purchasing-state-order",
+    "purchasing-receive",
+    "purchasing-stock-register",
+    "purchasing-history",
+    "purchasing-metrics",
+    "purchasing-restart"
+  ],
+  "scenario": [
+    {
+      "id": "purchasing-related-create",
+      "requests": [
+        {"actor": "manager","method": "POST","path": "/api/suppliers","status": 201,"fixture": "supplier","save": "supplier"},
+        {
+          "actor": "manager",
+          "method": "POST",
+          "path": "/api/items",
+          "status": 201,
+          "fixture": "item",
+          "json": {"supplier_id": "${supplier.id}"},
+          "save": "item"
+        },
+        {
+          "actor": "buyer",
+          "method": "POST",
+          "path": "/api/purchase_orders",
+          "status": 201,
+          "fixture": "purchase",
+          "json": {"item_id": "${item.id}"},
+          "save": "purchase",
+          "assertions": [{"path": ["state"],"equals": "draft"}]
+        },
+        {
+          "actor": "other_buyer",
+          "method": "POST",
+          "path": "/api/purchase_orders",
+          "status": 201,
+          "fixture": "other_purchase",
+          "json": {"item_id": "${item.id}"},
+          "save": "other_purchase"
+        }
+      ]
+    },
+    {
+      "id": "purchasing-invalid-reference",
+      "requests": [
+        {
+          "actor": "buyer",
+          "method": "POST",
+          "path": "/api/purchase_orders",
+          "status": 404,
+          "fixture": "purchase",
+          "json": {"item_id": "00000000-0000-0000-0000-000000000000"}
+        }
+      ]
+    },
+    {
+      "id": "purchasing-buyer-isolation",
+      "requests": [
+        {"actor": "buyer","method": "GET","path": "/api/purchase_orders","status": 200,"assertions": [{"path": [],"ids": ["${purchase.id}"]}]},
+        {"actor": "other_buyer","method": "GET","path": "/api/purchase_orders/${purchase.id}","status": 404},
+        {"actor": "other_buyer","method": "PUT","path": "/api/purchase_orders/${purchase.id}","status": 404,"json": {"quantity": 99}}
+      ]
+    },
+    {
+      "id": "purchasing-approval-permission",
+      "requests": [
+        {
+          "actor": "buyer",
+          "method": "POST",
+          "path": "/api/purchase_orders/${purchase.id}/transition",
+          "status": 403,
+          "json": {"transition": "approve"}
+        },
+        {"actor": "buyer","method": "PUT","path": "/api/purchase_orders/${purchase.id}","status": 422,"json": {"state": "received"}}
+      ]
+    },
+    {
+      "id": "purchasing-state-order",
+      "requests": [
+        {
+          "actor": "warehouse",
+          "method": "POST",
+          "path": "/api/purchase_orders/${purchase.id}/transition",
+          "status": 409,
+          "json": {"transition": "receive"}
+        },
+        {
+          "actor": "manager",
+          "method": "POST",
+          "path": "/api/purchase_orders/${purchase.id}/transition",
+          "status": 200,
+          "json": {"transition": "approve"},
+          "save": "approved_purchase",
+          "assertions": [{"path": ["state"],"equals": "approved"}]
+        }
+      ]
+    },
+    {
+      "id": "purchasing-receive",
+      "requests": [
+        {
+          "actor": "warehouse",
+          "method": "POST",
+          "path": "/api/purchase_orders/${purchase.id}/transition",
+          "status": 200,
+          "json": {"transition": "receive"},
+          "save": "received_purchase",
+          "assertions": [{"path": ["state"],"equals": "received"},{"path": ["received_at"],"timestamp": true}]
+        },
+        {
+          "actor": "buyer",
+          "method": "GET",
+          "path": "/business/notifications",
+          "status": 200,
+          "assertions": [{"path": [],"contains": {"entity": "purchase_orders","record_id": "${purchase.id}","event": "transitioned"}}]
+        }
+      ]
+    },
+    {
+      "id": "purchasing-stock-register",
+      "requests": [
+        {
+          "actor": "warehouse",
+          "method": "PUT",
+          "path": "/api/items/${item.id}",
+          "status": 200,
+          "json": {"stock": 17},
+          "save": "updated_item",
+          "assertions": [{"path": ["stock"],"equals": 17}]
+        },
+        {"actor": "warehouse","method": "PUT","path": "/api/items/${item.id}","status": 422,"json": {"stock": -1}}
+      ]
+    },
+    {
+      "id": "purchasing-history",
+      "requests": [
+        {
+          "actor": "manager",
+          "method": "GET",
+          "path": "/api/purchase_orders/${purchase.id}/history",
+          "status": 200,
+          "assertions": [{"path": [],"contains": {"action": "transitioned:approve"}},{"path": [],"contains": {"action": "transitioned:receive"}}]
+        }
+      ]
+    },
+    {
+      "id": "purchasing-metrics",
+      "requests": [
+        {
+          "actor": "manager",
+          "method": "GET",
+          "path": "/business/metrics",
+          "status": 200,
+          "assertions": [
+            {"path": [],"contains": {"name": "item_count","value": 1}},
+            {"path": [],"contains": {"name": "purchases_by_state","groups": [{"key": "draft","count": 1},{"key": "received","count": 1}]}}
+          ]
+        },
+        {"actor": "buyer","method": "GET","path": "/business/metrics","status": 200,"assertions": [{"path": [],"count": 0}]}
+      ]
+    },
+    {
+      "id": "purchasing-restart",
+      "requests": [
+        {
+          "actor": "warehouse",
+          "method": "GET",
+          "path": "/api/items/${item.id}",
+          "status": 200,
+          "assertions": [{"path": [],"equals": "${updated_item}"}]
+        },
+        {
+          "actor": "buyer",
+          "method": "GET",
+          "path": "/api/purchase_orders/${purchase.id}",
+          "status": 200,
+          "assertions": [{"path": [],"equals": "${received_purchase}"}]
+        },
+        {"actor": "other_buyer","method": "GET","path": "/api/purchase_orders/${purchase.id}","status": 404}
+      ],
+      "restart": true
+    }
+  ],
+  "browser": [
+    {"actor": "manager","entity": "items","rows": [{"id": "${item.id}","values": {"name": "Workshop Gloves","stock": 17}}]},
+    {
+      "actor": "buyer",
+      "entity": "purchase_orders",
+      "rows": [{"id": "${purchase.id}","values": {"title": "October safety stock","state": "received"}}],
+      "absent": ["${other_purchase.id}"]
+    },
+    {"actor": "warehouse","entity": "purchase_orders","rows": [{"id": "${purchase.id}","values": {"state": "received"}}]}
+  ]
+}
+````

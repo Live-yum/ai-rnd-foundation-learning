@@ -21,7 +21,7 @@ export const stages = [
   {
     key: 'code',
     label: '生成与编码',
-    description: '按已批准方案串行执行',
+    description: '按已批准方案定制模板',
     steps: ['generate', 'code', 'extension_generate', 'extension_code'],
   },
   {
@@ -75,7 +75,7 @@ export function statusColor(status?: string) {
   return 'blue'
 }
 export const formatDate = (value?: string) =>
-  value
+  value && Number.isFinite(new Date(value).getTime())
     ? new Intl.DateTimeFormat('zh-CN', {
         month: 'short',
         day: 'numeric',
@@ -111,6 +111,7 @@ export function activeStage(run: Run | null, events: RunEvent[]) {
   const raw =
     run.pending?.stage ||
     run.current_step ||
+    (run.status.startsWith('WAITING_') ? run.status.slice(8).toLowerCase() : '') ||
     workflow?.data.name ||
     legacyStep?.data.name ||
     model?.data.stage ||
@@ -130,6 +131,81 @@ export function activeStage(run: Run | null, events: RunEvent[]) {
         item.steps.some((step) => stage === step || stage.startsWith(step + ':')),
     ),
   )
+}
+
+export const runFilters = [
+  { value: 'all', label: '全部' },
+  { value: 'running', label: '进行中' },
+  { value: 'waiting', label: '待处理' },
+  { value: 'failed', label: '失败 / 拒绝' },
+  { value: 'ready', label: '可交付' },
+]
+export function runGroup(run?: Run) {
+  const status = run?.status || ''
+  if (['QUEUED', 'RUNNING'].includes(status)) return 'running'
+  if (status.startsWith('WAITING_') || ['BLOCKED', 'PAUSED_LIMIT'].includes(status))
+    return 'waiting'
+  if (['FAILED', 'REJECTED'].includes(status)) return 'failed'
+  if (['READY', 'SOURCE_READY'].includes(status)) return 'ready'
+  return 'idle'
+}
+export function nextRunView(run: Run) {
+  if (
+    runGroup(run) === 'ready' ||
+    ['WAITING_DELIVERY', 'WAITING_EXTENSION_DELIVERY'].includes(run.status)
+  )
+    return 'delivery'
+  if (run.pending && !run.pending.actions.includes('answer')) return 'review'
+  return 'conversation'
+}
+export function runNextAction(run: Run) {
+  if (run.status === 'QUEUED') return '等待接单，可离开页面'
+  if (run.status === 'RUNNING') return '后台执行中，查看阶段事件'
+  if (run.status === 'FAILED') return '查看原因，恢复当前运行'
+  if (run.status === 'PAUSED_LIMIT') return '检查预算后恢复'
+  if (run.status === 'BLOCKED') return '处理阻塞，保留当前需求'
+  if (run.status === 'REJECTED') return '查看记录或开始新一轮'
+  if (run.status === 'SOURCE_READY') return '源码可下载，运行验收待证明'
+  if (run.status === 'READY') return '查看验收证据与交付包'
+  return run.pending?.actions.includes('answer') || run.status === 'WAITING_CLARIFICATION'
+    ? '回答问题后继续'
+    : '审核当前版本后继续'
+}
+export function runStageLabel(run: Run) {
+  if (run.status === 'QUEUED') return '排队中'
+  if (
+    run.current_step ||
+    run.pending ||
+    run.status.startsWith('WAITING_') ||
+    runGroup(run) === 'ready'
+  )
+    return stages[activeStage(run, [])].label
+  return statusLabel(run.status)
+}
+export function milestoneStatus(
+  index: number,
+  run: Run | null,
+  events: RunEvent[],
+): 'waiting' | 'pending' | 'failed' | 'done' | 'running' {
+  const active = activeStage(run, events)
+  // A restored earlier gate invalidates later completion for the current revision.
+  if (run?.pending && index === active) return 'waiting'
+  if (index > active) return 'pending'
+  if (run?.status === 'FAILED' && index === active) return 'failed'
+  const last = events
+    .filter(
+      (event) =>
+        ['stage', 'step'].includes(event.kind) &&
+        stages[index].steps.some(
+          (step) => event.data.name === step || event.data.name?.startsWith(step + ':'),
+        ),
+    )
+    .at(-1)
+  if (!last) return 'pending'
+  if (last.kind === 'step' || last.data.phase === 'completed') return 'done'
+  if (last.data.phase === 'failed') return 'failed'
+  if (last.data.phase === 'waiting') return 'waiting'
+  return 'running'
 }
 
 export function applyMessageEvent(messages: ChatMessage[], event: RunEvent) {

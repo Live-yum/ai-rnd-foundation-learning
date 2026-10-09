@@ -3,8 +3,86 @@
 import pytest
 from test_business_receipt import receipt
 
+from workbench.domain import FieldSpec, digest
 from workbench.generator import PrerequisiteError
 from workbench.verification import require_business_evidence
+
+
+def integer_receipt(constraints, required, low, high):
+    """Independent unit receipt values; never a model or live execution substitute."""
+    spec, report = receipt()
+    entity = spec["entities"][0]
+    entity["fields"].append(
+        FieldSpec(name="quantity", kind="integer", required=required, **constraints).model_dump()
+    )
+    proof = {
+        "entity": entity["name"],
+        "field": "quantity",
+        "kind": "integer",
+        "required": required,
+        "minimum": low,
+        "maximum": high,
+        "below_minimum_rejected": True,
+        "above_maximum_rejected": True,
+        "invalid_updates_rejected": 3 if required else 2,
+    }
+    if required:
+        proof.update(missing_required_rejected=True, null_rejected=True)
+    report["business"]["evidence"]["field_validation"].append(proof)
+    for section in ("business", "browser"):
+        report[section]["spec_digest"] = digest(spec)
+    return spec, report, proof
+
+
+@pytest.mark.parametrize(
+    "constraints,required,low,high",
+    [
+        ({}, True, -2147483648, 2147483647),
+        ({"minimum": 0, "maximum": 100000}, True, 0, 100000),
+        ({"exclusive_minimum": 0, "exclusive_maximum": 10}, True, 1, 9),
+        (
+            {"minimum": 2, "maximum": 8, "exclusive_minimum": 3, "exclusive_maximum": 7},
+            True,
+            4,
+            6,
+        ),
+        ({"minimum": 0, "maximum": 10}, False, 0, 10),
+    ],
+)
+def test_integer_proof_matches_effective_approved_domain_and_all_negative_requests(
+    constraints, required, low, high
+):
+    spec, report, _ = integer_receipt(constraints, required, low, high)
+    require_business_evidence(spec, report, True)
+    require_business_evidence(spec, report, False)
+
+
+@pytest.mark.parametrize(
+    "key,bad",
+    [
+        ("minimum", None),
+        ("maximum", None),
+        ("below_minimum_rejected", None),
+        ("above_maximum_rejected", None),
+        ("minimum", -1),
+        ("maximum", 100001),
+        ("minimum", False),
+        ("maximum", 100000.0),
+        ("below_minimum_rejected", False),
+        ("above_maximum_rejected", 1),
+        ("invalid_updates_rejected", 1),
+        ("invalid_updates_rejected", 2),
+        ("invalid_updates_rejected", 4),
+    ],
+)
+def test_integer_proof_rejects_missing_wrong_or_unexecuted_boundaries(key, bad):
+    spec, report, proof = integer_receipt({"minimum": 0, "maximum": 100000}, True, 0, 100000)
+    if bad is None:
+        proof.pop(key)
+    else:
+        proof[key] = bad
+    with pytest.raises(PrerequisiteError):
+        require_business_evidence(spec, report, True)
 
 
 @pytest.mark.parametrize("section", ["business", "browser"])

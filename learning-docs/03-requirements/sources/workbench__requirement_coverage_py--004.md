@@ -17,15 +17,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `coverage_gaps.gap`（L2373–L2401）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2375按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `coverage_gaps.gap`（L2699–L2727）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2701按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2373–L2804。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2699–L3113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20544`。本段原文以LF换行结束。
+本段原始字节数：`19691`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b23845f2d0421e9b078546869bedf2a843df8876bcb938bbe04254263fd95057"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b2e1825237bc2b8138a6f7c7093099a267656af9b82a804a47541bc4f9301350"} -->
 ````python
 # workbench/requirement_coverage.py
     def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
@@ -101,7 +101,8 @@
         for section in ("features", "acceptance")
         for index, text in enumerate(getattr(requirement, section))
     ]
-    structured = list(_fact_constraints(requirement.facts, fields))
+    entity_names = {item.entity for item in requirement.entity_requirements}
+    structured = list(_fact_constraints(requirement.facts, fields, entity_names=entity_names))
     for index, (key, attributes, subject) in enumerate(structured):
         source = {"section": "facts", "index": index, "encoding": "structured", "path": key}
         source_text = key
@@ -138,8 +139,27 @@
                     )
     texts.extend(
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
-        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
+        for index, (path, text) in enumerate(
+            _fact_texts(requirement.facts, fields, entity_names=entity_names)
+        )
     )
+    texts, query_closure = _legacy_query_closure(texts, fields)
+    for obligation in query_closure:
+        source = obligation["source"]
+        source_text = obligation["text"]
+        for owner, field in fields:
+            if owner != obligation["entity"] or field.name != obligation["field"]:
+                continue
+            attribute = obligation["attribute"]
+            if not query_matches(field, attribute, False):
+                gap(
+                    f"已确认不增加未声明查询条件：{owner}.{field.name}.{attribute}=False",
+                    "constraint_mismatch",
+                    targets=[field],
+                    attribute=attribute,
+                    expected=False,
+                    actual=getattr(field, attribute),
+                )
     affirmative_texts = []
     for origin, text in texts:
         affirmative, exclusions = _legacy_field_exclusions(text, fields)
@@ -191,11 +211,7 @@
                     attribute="kind",
                     expected="date",
                 )
-    operations = {
-        "searchable": r"搜索|检索|search",
-        "filterable": r"筛选|过滤|filter",
-        "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
-    }
+    operations = _QUERY_OPERATIONS
     query_texts = []
     for origin, text in texts:
         query_text, metric_obligations = _metric_clauses(text, fields)
@@ -374,42 +390,9 @@
                     and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
                 ):
                     gap(f"已确认条件缺少对应字段 {canonical}: {text}", "legacy_missing_field")
-        operation_parts = [text]
-        if re.search(operations["searchable"], text, re.I) and re.search(
-            operations["filterable"], text, re.I
-        ):
-            operation_parts = list(_query_operation_groups(text, fields, operations))
-        previous_targets = []
-        for part in operation_parts:
-            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
-            bound = part
-            if part != text and _fact_entity(part, fields) is None:
-                if entity_scope:
-                    bound = f"{entity_scope}::{part}"
-                elif _ALL_ENTITIES.search(text):
-                    bound = f"所有实体 {part}"
-            targets = _legacy_targets(bound, fields) if part != text else mentioned
-            ambiguous_subject = not targets and bool(_fact_candidates(bound, fields))
-            # An operation-only continuation (标题搜索和精确筛选) inherits
-            # the previous named subject; another field cannot satisfy it.
-            if (
-                not targets
-                and not ambiguous_subject
-                and previous_targets
-                # A named generic keyword search is its own capability, not
-                # a search obligation on the preceding exact-filter field.
-                and not re.search(r"关键词|关键字|keyword", part, re.I)
-            ):
-                targets = previous_targets
-            if targets:
-                previous_targets = targets
-            available = [
-                f for entity, f in fields if entity_scope is None or entity == entity_scope
-            ]
+        for part, targets, available in _legacy_query_parts(text, fields):
             for flag, pattern in operations.items():
                 if not re.search(pattern, part, re.I):
-                    continue
-                if ambiguous_subject:
                     continue
                 candidates = targets
                 if flag == "date_range":

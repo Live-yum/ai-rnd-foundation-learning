@@ -8,7 +8,9 @@ It detects contradictions within a reconciled candidate, including retained prio
 requirements. On first analysis it also compares corresponding explicit scalar
 obligations in the original/current user input. This is not complete semantic
 grounding: prose normalization covers required, length and explicit integer bounds, using
-typed, entity-qualified field vocabulary. Unknown prose remains untouched.
+typed, entity-qualified field vocabulary, plus named queries and explicit query closure.
+Candidate query flags never authorize extra queries in original source text.
+Unknown prose remains untouched.
 """
 
 import json

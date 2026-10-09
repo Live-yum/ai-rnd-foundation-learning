@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/vite.config.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L34。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/vite.config.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L35。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`807`。本段原文以LF换行结束。
+本段原始字节数：`827`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/vite.config.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "599381779eaf89552673a5a47e38816bf3fb7d85a55fd9079a403e6def0c34d4"} -->
+<!-- learning-source: {"path": "ui/vite.config.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bb9220b034f09eded3b82ee38f511b5897a0ac484bb7d56226cecfdf49dd5e51"} -->
 ````typescript
 // ui/vite.config.ts
 import { defineConfig } from 'vitest/config'
@@ -39,6 +39,7 @@ export default defineConfig({
     proxy: Object.fromEntries(
       [
         '/projects',
+        '/batches',
         '/runs',
         '/models',
         '/settings',

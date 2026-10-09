@@ -6,62 +6,24 @@ from workbench.domain import digest
 from workbench.filesystem import manifest, write_json
 from workbench.native_recovery import NativeIntegrityError
 from workbench.symbols import parse_file
+from workbench.template_adapters import get_adapter, template_ids
 
+# Compatibility view; selection, planning and verification share one adapter.
 PROFILES = {
-    "fastapiadmin": {
-        "protected": ["src/layouts/", "src/styles/", "src/main.ts"],
-        "family": "FastapiAdmin Vue / Fa components / Element Plus",
-    },
-    "yudao-vben": {
-        "protected": [
-            "apps/web-antd/src/layouts/",
-            "apps/web-antd/src/main.ts",
-            "apps/web-antd/src/bootstrap.ts",
-            "packages/@core/ui-kit/layout-ui/",
-            "packages/@core/base/design/",
-            "packages/effects/layouts/",
-            "packages/styles/",
-        ],
-        "family": "Vben5 web-antd / Ant Design Vue / VXE",
-    },
+    template: {
+        "protected": list(get_adapter(template).ui.protected),
+        "family": get_adapter(template).ui.family,
+    }
+    for template in template_ids()
+    if get_adapter(template).ui.protected
 }
 
 
 def native_page_contracts(template, entities, business=False):
-    required = {}
-    for entity in entities:
-        if template == "fastapiadmin":
-            components = {"FaSearchBar", "FaTable", "FaDialog", "FaForm"}
-            if business:
-                components |= {"ElCard", "ElTimeline", "ElTimelineItem", "ElStatistic"}
-            required[f"src/views/module_rnd/{entity}/index.vue"] = (components, [])
-        else:
-            root = "apps/web-antd/src/views/infra/wb" + entity.replace("_", "")
-            required[root + "/index.vue"] = (
-                {"Page", "Grid", "TableAction"} | ({"RndBusinessPanel"} if business else set()),
-                ["@vben/common-ui", "#/adapter/vxe-table", "ant-design-vue"],
-            )
-            required[root + "/modules/form.vue"] = (
-                {"Modal", "Form"},
-                ["@vben/common-ui", "#/adapter/form", "ant-design-vue"],
-            )
-    if business and template == "yudao-vben":
-        root = "apps/web-antd/src/views/infra/rnd-business/"
-        required[root + "panel.vue"] = (
-            {
-                "Card",
-                "Table",
-                "Timeline",
-                "TimelineItem",
-                "Statistic",
-                "MetricChart",
-                "ActionModal",
-                "ActionForm",
-            },
-            ["ant-design-vue", "@vben/common-ui", "#/adapter/form", "#/api/request"],
-        )
-        required[root + "metric-chart.vue"] = ({"EchartsUI"}, ["@vben/plugins/echarts"])
-    return required
+    adapter = get_adapter(template)
+    if not adapter.ui.protected:
+        raise ValueError("Native UI verification requires a registered native template")
+    return adapter.ui.page_contracts(entities, business)
 
 
 def verify_native_style(template, source_frontend, generated_frontend, plan, reports):

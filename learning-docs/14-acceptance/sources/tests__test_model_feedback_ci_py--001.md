@@ -33,7 +33,7 @@
 - `test_real_runtime_two_phase_signup_flow_has_no_generation_or_fake_gateway.handle`（L244–L275）：接收`req`。 控制顺序：L247按`len(calls) == 1`分支；L250断言`ORIGINAL in json.dumps(body, ensure_ascii=False)`；L251断言`ANSWER in json.dumps(body, ensure_ascii=False)`。 调用`json.loads`、`calls.append`、`len`、`json.dumps`、`Requirement( summary=ORIGINAL, users=["参赛者", "管理员"], data_scope="…`、`Requirement`、`httpx.Response`。 返回路径：L259的`httpx.Response( 200, json={ "id": "offline-adapter", "object": "chat.completion", "created…`。
 - `test_failed_schema_run_retains_answer_and_exports_only_safe_diagnostic_paths`（L298–L335）：接收`tmp_path`。 控制顺序：L324断言`not result["passed"] and result["answer_preserved"]`；L325断言`result["corrected"]["status"] == "FAILED"`；L326断言`transport.phase_calls["corrected_requirements"] == 2`；L327断言`len(result["model_failures"]) == 2`；L329断言`diagnostic["phase"] == "response_validation" and diagnostic["trace_id"]`；L330断言`diagnostic["code"] == "schema_validation" and diagnostic["attempt"] == 2`；L331断言`any(detail["path"] == ["summary"] for detail in diagnostic["details"])`；L332断言`KEY not in json.dumps(result)`。后续分支沿下方源码相同行号继续阅读。 调用`mocked_transport`、`configured`、`run_check`、`len`、`any`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failed_schema_run_retains_answer_and_exports_only_safe_diagnostic_paths.handle`（L301–L319）：接收`req`。 调用`calls.append`、`len`、`json.dumps`、`httpx.Response`。 返回路径：L304的`httpx.Response( 200, json={ "id": "offline", "object": "chat.completion", "created": 0, "m…`。
-- `test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt`（L338–L362）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L345断言`job["environment"] == "rnd" and job["timeout-minutes"] == 15`；L346断言`"refs/heads/fix/model-feedback-history" in job["if"]`；L347断言`"github.run_attempt == 1" in job["if"]`；L353断言`live["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L354断言`live["env"]["APPROVED_MAX_CNY"] == "${{ inputs.remaining_budget_cny }}"`；L355断言`live["env"]["REVIEWED_SHA"] == "${{ inputs.reviewed_sha }}"`；L361断言`uploads == ["reports/model-feedback/summary.json"]`；L362断言`"fix/model-feedback-history" not in workflow["jobs"]["real-model"]["if"]`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt`（L338–L362）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L345断言`job["environment"] == "rnd" and job["timeout-minutes"] == 15`；L346断言`"refs/heads/fix/model-feedback-history" in job["if"]`；L347断言`"github.run_attempt == 1" in job["if"]`；L353断言`live["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L354断言`live["env"]["APPROVED_MAX_CNY"] == "${{ inputs.remaining_budget_cny }}"`；L355断言`live["env"]["REVIEWED_SHA"] == "${{ inputs.reviewed_sha }}"`；L361断言`uploads == ["reports/model-feedback/summary.json"]`；L362断言`"fix/model-feedback-history" not in workflow["jobs"]["real-model"]["if"]`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `StreamingBytes`（L365–L375）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `StreamingBytes.__init__`（L366–L368）：接收`value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `StreamingBytes.__iter__`（L370–L372）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L371遍历`range(0, len(self.value), 65536)`。 调用`range`、`len`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
@@ -56,7 +56,7 @@
 
 本段原始字节数：`18420`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_model_feedback_ci.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d5ed4cb2a663901a238d890cf8f8c2f470c68d5167a64f305895c052cca3b730"} -->
+<!-- learning-source: {"path": "tests/test_model_feedback_ci.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ed6ac08c23c7c1e7ddbdeb0441c2cfb310ccffb58b8393b7b26e17184298597b"} -->
 ````python
 # tests/test_model_feedback_ci.py
 """Cost/destination/receipt controls are tested only with explicit mock transports."""
@@ -411,7 +411,7 @@ def test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt():
         for step in job["steps"]
         if step.get("run") == "uv run python -m scripts.ci_model_feedback"
     )
-    assert live["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+    assert live["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
     assert live["env"]["APPROVED_MAX_CNY"] == "${{ inputs.remaining_budget_cny }}"
     assert live["env"]["REVIEWED_SHA"] == "${{ inputs.reviewed_sha }}"
     uploads = [

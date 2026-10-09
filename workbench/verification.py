@@ -293,6 +293,14 @@ def require_business_proof(spec, report, with_browser):
                     assert item["invalid_enum_rejected"] is True
                 if field["kind"] == "datetime":
                     assert item["invalid_timestamp_rejected"] is True
+                if field["kind"] == "integer":
+                    from templates.product.fields import integer_bounds
+
+                    low, high = integer_bounds(field)
+                    assert type(item["minimum"]) is int and item["minimum"] == low
+                    assert type(item["maximum"]) is int and item["maximum"] == high
+                    assert item["below_minimum_rejected"] is True
+                    assert item["above_maximum_rejected"] is True
                 invalid_count = (
                     int(field["required"])
                     + int(field["required"] and field["kind"] in {"text", "enum"})
@@ -300,6 +308,7 @@ def require_business_proof(spec, report, with_browser):
                     + int(field["kind"] == "text" and bool(field.get("min_length")))
                     + int(field["kind"] == "enum")
                     + int(field["kind"] == "datetime")
+                    + 2 * int(field["kind"] == "integer")
                 )
                 if update and invalid_count:
                     assert (
@@ -489,6 +498,46 @@ def require_business_proof(spec, report, with_browser):
         ) from None
 
 
+def business_browser_checks(spec):
+    """Require approved, authorized capabilities even when the browser omitted them."""
+    contract = spec["business"]
+    grants = {(p["role"], p["entity"]): set(p["actions"]) for p in contract["permissions"]}
+
+    def permitted(entity, action):
+        return any(e == entity and action in actions for (_, e), actions in grants.items())
+
+    capabilities = {
+        "assignment": any(
+            r["assignee_field"] and permitted(r["entity"], "assign") for r in contract["resources"]
+        ),
+        "notes-history": any(
+            r["notes"] and permitted(r["entity"], "add_note") for r in contract["resources"]
+        ),
+        "transitions": any(
+            "transition" in grants.get((role, w["entity"]), set())
+            for w in contract["workflows"]
+            for transition in w["transitions"]
+            for role in transition["roles"]
+        ),
+        "metrics": any(permitted(m["entity"], "read_metrics") for m in contract["metrics"]),
+        # Due reminders are notification rules too. Their exact deadline, dedupe
+        # and restart proof is independently required by require_business_proof.
+        "reminders": bool(contract["notifications"]),
+        "relation-labels": bool(contract["relations"]),
+    }
+    return {
+        "business-browser-auth",
+        "business-browser-role-navigation",
+        "business-browser-role-restrictions",
+        "business-browser-related-views",
+        "business-browser-related-row-acl",
+        "business-browser-datetime-controls",
+        "business-browser-query-matrix",
+        *("business-browser-" + name for name, enabled in capabilities.items() if enabled),
+        *("business-browser-records:" + e["name"] for e in spec["entities"]),
+    }
+
+
 def require_business_evidence(spec, report, with_browser):
     business = report.get("business")
     required = {
@@ -523,31 +572,32 @@ def require_business_evidence(spec, report, with_browser):
     if not with_browser:
         return
     browser = report.get("browser")
-    checks = {
-        "business-browser-auth",
-        "business-browser-role-navigation",
-        "business-browser-assignment",
-        "business-browser-transitions",
-        "business-browser-notes-history",
-        "business-browser-reminders",
-        "business-browser-metrics",
-        "business-browser-role-restrictions",
-        "business-browser-related-views",
-        "business-browser-related-row-acl",
-        "business-browser-datetime-controls",
-        "business-browser-query-matrix",
-        *(["business-browser-relation-labels"] if spec["business"]["relations"] else []),
-        *["business-browser-records:" + e["name"] for e in spec["entities"]],
+    checks = business_browser_checks(spec)
+    browser = browser if isinstance(browser, dict) else {}
+    valid = {
+        **{key: browser.get(key) is True for key in ("passed", "real_browser", "applicable")},
+        "spec_digest": browser.get("spec_digest") == digest(spec),
+        "entities": browser.get("entities") == [e["name"] for e in spec["entities"]],
+        "errors": browser.get("errors") == [],
+        "checks": isinstance(browser.get("checks"), list)
+        and all(isinstance(item, str) for item in browser["checks"]),
     }
-    if (
-        not isinstance(browser, dict)
-        or any(browser.get(key) is not True for key in ("passed", "real_browser", "applicable"))
-        or browser.get("spec_digest") != digest(spec)
-        or browser.get("entities") != [e["name"] for e in spec["entities"]]
-        or browser.get("errors") != []
-        or not checks.issubset(set(browser.get("checks", [])))
-    ):
-        raise PrerequisiteError("业务页面的逐角色真实浏览器验收不完整")
+    observed = set(browser["checks"]) if valid["checks"] else set()
+    missing = sorted(checks - observed)
+    if missing or not all(valid.values()):
+        # Only approved marker names, fixed field names and counts enter logs;
+        # raw browser errors, records, credentials and unknown markers do not.
+        detail = {
+            "missing_checks": missing[:20],
+            "missing_check_count": len(missing),
+            "expected_check_count": len(checks),
+            "observed_check_count": len(observed),
+            "invalid_fields": [key for key, value in valid.items() if not value],
+        }
+        raise PrerequisiteError(
+            "业务页面的逐角色真实浏览器验收不完整: "
+            + json.dumps(detail, ensure_ascii=False, separators=(",", ":"))
+        )
 
 
 def validate_rule_examples(plan, product):

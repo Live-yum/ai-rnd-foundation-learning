@@ -1,6 +1,10 @@
 # AI 研发工作台 · Python 3.14
 
-**标准主线：从空目录实现并生成完整的内部客户服务管理系统。**
+**主线：用 LangChain + LangGraph，从稳定模板批量定制可运行的前后端项目，并能照文档从零实现。**
+
+从 [模板平台实现指南](docs/template-platform.md) 开始：先理解技术模板、业务需求和运行队列，再实现批量提交、编码规范、过程与验收。完整源码教材仍在 [learning-docs](learning-docs/README.md)。
+
+新建区支持一次提交 1–10 个独立项目，复用已有持久 Worker，每个项目保留自己的审批、进度、失败恢复与交付。三套模板各有版本化 VIBECODING 规范，随模型上下文和生成产物一起交付。跨场景真实模型验收采用个人阅读书架、库存采购协作、设施维护运营三个递增案例，均固定使用 `python-basic` / `simple-admin` / SQLite，三项全部通过才算该套件验收成功；该套件不代表原生多技术栈或生产压测覆盖。
 
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
@@ -57,7 +61,7 @@ API_KEY=你的密钥
 MODE=你的模型名称
 ```
 
-`MODE` 是模型 ID，也兼容 `MODEL` 别名；不是运行模式。`BASE_URL` 是 Chat Completions API 根地址，不包含 `/chat/completions` 后缀。只支持兼容该协议的服务。远端必须 HTTPS，本机模型服务可以使用回环 HTTP。不要上传 `.env` 或分享密钥。
+`MODE` 是模型 ID，也兼容 `MODEL` 别名；不是运行模式。`BASE_URL` 是 Chat Completions API 根地址，不包含 `/chat/completions` 后缀。只支持兼容该协议的服务。远端默认必须 HTTPS，本机模型服务可以使用回环 HTTP。明确使用可信 HTTP 网关时，可在进程配置中设 `ALLOW_INSECURE_MODEL_HTTP=true`；HTTP 会明文传输凭据，应优先使用 HTTPS。不要上传 `.env` 或分享密钥。
 
 ## 3. 可选：不同阶段使用不同模型
 
@@ -172,7 +176,7 @@ uv run rnd chat --smart
 
 旧运行若曾在原生设计的可选依赖导入处失败，可在升级后重试同一运行。运行 ID、回答、已保存设计与历史审批保留；若检测到原始报名目标曾被缩减，会建立新的澄清版本，旧审批不能批准新版本。无需删除 `.data` 或重新创建项目。
 
-本仓库的标准端到端示例是**内部客户服务管理系统**，从空目录教材、需求、计划、生成、测试到独立部署都围绕同一案例：
+本仓库还保留**内部客户服务管理系统**作为深入学习与原生技术栈验收案例；新的批量跨场景主线见[模板平台实现指南](docs/template-platform.md)：
 
 > 建设公司内部客户服务管理平台：维护客户档案和历史服务记录；创建服务请求、分配负责人、按批准流程改变状态并追加处理记录；支持协作任务、站内提醒和不可修改的操作审计；提供服务数量、创建到解决的时长、客户分组和每日趋势统计。管理员、客服、普通员工按角色及负责/创建范围访问数据。沿用所选框架的原生认证、ORM、事务与UI组件，并交付可在新目录和新数据库独立启动的产品。
 
@@ -212,7 +216,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_learning_docs --check
 ```
 
-Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
+Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。上述普通确定性CI的模型调用采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。显式触发的 **Three-project live acceptance** 使用 `rnd` 环境的 `API_KEY` 调用真实模型，会消耗所配置账号的额度。
 
 详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。从空目录创建文件、数据流讲解、完整代码、数据库迁移、前端、测试、CI与锁文件均包含在同一份教材。第三方模板不是自行编写的代码：教材提供固定提交和打包脚本，读者可以从公开上游重建三个归档，不需要先取得本仓库骨架。演示仓库附带这些归档以便直接体验；源码附录逐文件讲解职责与对应关系。
 
@@ -268,7 +272,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.ci_handbook
 ```
 
-真实模型联调需要你自己的大模型配置。CI使用显式模型协议夹具；真实CLI、数据库、浏览器、本机服务测试的证据分别保存，不把SDK模拟响应当成本机完整部署成功。
+真实模型联调需要你自己的大模型配置。普通确定性CI使用显式模型协议夹具；显式触发的真实模型三案会调用所配置服务并消耗账号额度。真实CLI、数据库、浏览器、本机服务测试的证据分别保存，不把SDK模拟响应当成本机完整部署成功。
 
 ### 本机Daytona的安装边界
 
@@ -291,4 +295,4 @@ uv run python -m scripts.ci_native_bundled yudao-vben --spec examples/plans/cust
 
 原生两条命令各用自己的干净测试环境/空库，不能连续指向一个已有业务数据的库。正式结论须核对同一提交的Actions、实际DeepSeek客服运行及下载后独立启动结果。完成后还要打开列表、表单、关联选择、处理流程、提醒和统计截图，检查原生UI一致性、文字/控件布局和业务信息完整性；“截图生成成功”不等于视觉检查已完成。未通过的项保持失败或未验证，不写“DeepSeek全流程没问题”。
 
-真实模型的手动入口和证据解释见`docs/real-model-acceptance.md`。当前客服分支运行`.github/workflows/native-probe.yml`时选择`feat/customer-service-acceptance`，明确设置`real_model=true`，`expected_sha`填写已审查的完整40位提交SHA。`rnd`环境的`APK_KEY`仅在模型调用步骤映射成`API_KEY`，不打印或复制到源码；三个模板分别执行smoke与完整客服交付，任何一行未完成都仍是未验证。
+真实模型的手动入口和证据解释见`docs/real-model-acceptance.md`。当前客服分支运行`.github/workflows/native-probe.yml`时选择`feat/customer-service-acceptance`，明确设置`real_model=true`，`expected_sha`填写已审查的完整40位提交SHA。`rnd`环境的`API_KEY`仅注入模型调用步骤，不打印或复制到源码；三个模板分别执行smoke与完整客服交付，任何一行未完成都仍是未验证。

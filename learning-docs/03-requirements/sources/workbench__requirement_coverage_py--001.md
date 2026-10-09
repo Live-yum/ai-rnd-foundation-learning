@@ -30,23 +30,21 @@
 - `_optional_fact`（L474–L479）：接收`value`。 控制顺序：L475按`type(value) is bool`分支；L477按`isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}`分支。 调用`type`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L476的`not value`；L478的`value.strip().lower() in {"false", "否"}`；L479的`value`。
 - `_constraint_schema`（L482–L496）：接收`value`。 源码说明：A structural declaration distinguishes a schema from a translated caption.。 控制顺序：L485按`isinstance(value, list)`分支；L487按`not isinstance(value, dict)`分支。 调用`_decode_fact`、`isinstance`、`any`、`value.values`、`value.get`、`bool`、`re.fullmatch`、`type`。 返回路径：L486的`any(isinstance(_decode_fact(item), dict) for item in value)`；L488的`False`；L489的`any(isinstance(_decode_fact(item), (dict, list)) for item in value.values()) or ( isinstan…`。
 - `_business_schema`（L499–L505）：接收`value`。 源码说明：An explicit business wrapper needs structured domain declarations.。 调用`_decode_fact`、`isinstance`、`any`、`value.items`。 返回路径：L502的`isinstance(value, dict) and any( key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fa…`。
-- `_fact_records`（L508–L783）：接收`facts`、`fields`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L781遍历`facts.items()`；L782按`key not in FACT_METADATA_KEYS`分支。 调用`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_records.walk`（L518–L779）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`、`domain`。 控制顺序：L536按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and (domain != "presenta…`分支；L542按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支；L548按`_presentation_namespace(key) and container != "fields" and not field_position`分支；L550按`domain == "presentation"`分支；L551按`isinstance(value, dict)`分支；L553按`isinstance(value, list)`分支；L557遍历`children`；L560按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and not isinstance(value…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`isinstance`、`bool`、`set`、`_fact_subject`、`_constraint_schema`、`_business_schema`、`_presentation_namespace`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_constraints`（L786–L789）：接收`facts`、`fields`。 控制顺序：L787遍历`_fact_records(facts, fields)`；L788按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_attribute`（L792–L816）：接收`label`。 控制顺序：L801按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L803按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L805按`attribute is None`分支；L808遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L813按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L816的`attribute`。
-- `_scalar_fact_attribute`（L819–L835）：接收`label`、`value`。 控制顺序：L821按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L822按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L834的`None`；L835的`attribute`。
-- `_fact_texts`（L838–L841）：接收`facts`、`fields`。 控制顺序：L839遍历`_fact_records(facts, fields)`；L840按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_field_mentions`（L844–L856）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L851的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
-- `_fact_entity`（L859–L866）：接收`key`、`fields`。 控制顺序：L860按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L861的`key.split("::")[0].rsplit(".", 1)[-1]`；L866的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
-- `_fact_candidates`（L869–L882）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L871的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
+- `_fact_records`（L508–L825）：接收`facts`、`fields`、`entity_names`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L823遍历`facts.items()`；L824按`key not in FACT_METADATA_KEYS`分支。 调用`set`、`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_records.walk`（L518–L821）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`、`domain`。 控制顺序：L536按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and (domain != "presenta…`分支；L542按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支；L548按`_presentation_namespace(key) and container != "fields" and not field_position`分支；L550按`domain == "presentation"`分支；L551按`isinstance(value, dict)`分支；L553按`isinstance(value, list)`分支；L557遍历`children`；L560按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and not isinstance(value…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`isinstance`、`bool`、`set`、`_fact_subject`、`_constraint_schema`、`_business_schema`、`_presentation_namespace`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_constraints`（L828–L831）：接收`facts`、`fields`、`entity_names`。 控制顺序：L829遍历`_fact_records(facts, fields, entity_names=entity_names)`；L830按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_attribute`（L834–L858）：接收`label`。 控制顺序：L843按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L845按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L847按`attribute is None`分支；L850遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L855按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L858的`attribute`。
+- `_scalar_fact_attribute`（L861–L877）：接收`label`、`value`。 控制顺序：L863按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L864按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L876的`None`；L877的`attribute`。
+- `_fact_texts`（L880–L883）：接收`facts`、`fields`、`entity_names`。 控制顺序：L881遍历`_fact_records(facts, fields, entity_names=entity_names)`；L882按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_field_mentions`（L886–L898）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L893的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1–L889。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1–L900。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35734`。本段原文以LF换行结束。
+本段原始字节数：`36800`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 1, "parts": 4, "encoding": "utf-8", "sha256": "6badf6952cd721d8a87cc83b04c3d1276a5032b910781fd31dd952e50e0eeb61"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 1, "parts": 4, "encoding": "utf-8", "sha256": "639ca73737485e90a2e1de478d9a43a5d02507da4ac44bc08b02df23852b3c01"} -->
 ````python
 # workbench/requirement_coverage.py
 """Persist approved intent and check executable obligations without a model verdict.
@@ -556,7 +554,7 @@ def _business_schema(value):
     )
 
 
-def _fact_records(facts, fields):
+def _fact_records(facts, fields, *, entity_names=()):
     """Classify structural facts before projecting field constraints or prose.
 
     A name/entity pair alone is not a field declaration. Field definitions have
@@ -564,7 +562,7 @@ def _fact_records(facts, fields):
     names, kinds, reference fields and scalar lists. We still descend into every
     structural object so nested explicit field definitions cannot disappear.
     """
-    entities = {entity for entity, _ in fields}
+    entities = {entity for entity, _ in fields} | set(entity_names)
 
     def walk(
         key, value, path, entity=None, subject=None, business=False, container=None, domain=None
@@ -615,7 +613,33 @@ def _fact_records(facts, fields):
         ):
             yield "constraint", label, {}, _fact_subject(None, fields, entity, declared=True)
             return
-        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        # An unambiguous entity key groups field declarations; it is not itself
+        # an enum field whose choices are those field names. Retain the legacy
+        # enum shorthand when the same key already identifies a real field.
+        field_group = (
+            container == "fields"
+            and subject is None
+            and entity is None
+            and key in entities
+            and isinstance(value, (dict, list))
+            and _fact_subject(key, fields) is None
+            and not (
+                isinstance(value, dict)
+                and (
+                    set(value) & FACT_ATTRIBUTES
+                    or "field" in value
+                    or (
+                        "name" in value
+                        and not isinstance(_decode_fact(value["name"]), (dict, list))
+                    )
+                )
+            )
+        )
+        if field_group:
+            entity = key
+        field_container = field_group or (
+            key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        )
         resource_container = (
             key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
         )
@@ -631,7 +655,7 @@ def _fact_records(facts, fields):
             if relation_container
             else None
         )
-        declared = container == "fields"
+        declared = container == "fields" and not field_group
         direct = _fact_subject(key, fields, entity, declared=declared and not key.isdigit())
         attributes = (
             {name: _decode_fact(item) for name, item in value.items() if name in FACT_ATTRIBUTES}
@@ -772,6 +796,22 @@ def _fact_records(facts, fields):
                     domain,
                 )
         elif isinstance(value, list):
+            if collection == "fields" and entity is not None and domain != "constraints":
+                # A scoped list of identifiers declares field presence. Emit
+                # each obligation even when the candidate omitted that field
+                # or its entire entity; do not silently discard malformed rows.
+                for index, item in enumerate(value or [None]):
+                    decoded = _decode_fact(item)
+                    if not isinstance(decoded, (dict, list)):
+                        yield (
+                            "constraint",
+                            f"{label}.{index}",
+                            {},
+                            _fact_subject(decoded, fields, entity, declared=True)
+                            or _fact_subject(None, fields, entity, declared=True),
+                        )
+                if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
+                    return
             if domain == "constraints" and collection == "fields":
                 for index, item in enumerate(value):
                     if not isinstance(_decode_fact(item), dict):
@@ -834,8 +874,8 @@ def _fact_records(facts, fields):
             yield from walk(key, value, [key])
 
 
-def _fact_constraints(facts, fields=()):
-    for kind, path, value, subject in _fact_records(facts, fields):
+def _fact_constraints(facts, fields=(), *, entity_names=()):
+    for kind, path, value, subject in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "constraint":
             yield path, value, subject
 
@@ -886,8 +926,8 @@ def _scalar_fact_attribute(label, value):
     return attribute
 
 
-def _fact_texts(facts, fields=()):
-    for kind, path, value, _ in _fact_records(facts, fields):
+def _fact_texts(facts, fields=(), *, entity_names=()):
+    for kind, path, value, _ in _fact_records(facts, fields, entity_names=entity_names):
         if kind == "text":
             yield path, value
 
@@ -905,37 +945,6 @@ def _field_mentions(text, names):
         else name in text
         for name in names
     )
-
-
-def _fact_entity(key, fields):
-    if "::" in key:
-        return key.split("::")[0].rsplit(".", 1)[-1]
-    # Nested objects and descriptor arrays retain their path. Bind constraints
-    # to the nearest entity in that path, not every similarly named field.
-    entities = {entity for entity, _ in fields}
-    path = re.split(r"[.：:]", key)
-    return next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)
-
-
-def _fact_candidates(key, fields):
-    explicit_entity = _fact_entity(key, fields)
-    return [
-        field
-        for entity, field in fields
-        if (explicit_entity is None or entity == explicit_entity)
-        and (
-            _field_mentions(key, [field.name])
-            or any(
-                field.name in aliases and _field_mentions(key, aliases)
-                for aliases in ALIASES.values()
-            )
-        )
-    ]
-
-
-_ALL_ENTITIES = re.compile(
-    r"(?:所有|全部|各个?|两个|两种)实体|\b(?:all|both|every)\s+entities\b", re.I
-)
 
 
 ````

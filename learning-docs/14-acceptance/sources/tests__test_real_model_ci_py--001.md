@@ -35,7 +35,7 @@
 - `test_customer_gate_rejects_each_explicit_role_action_omission`（L331–L340）：接收`role`、`entity`、`action`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`permission["actions"].remove`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_customer_managers_require_all_record_scope`（L345–L354）：接收`entity`、`scope`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_customer_collaboration_task_assignment_is_manager_only`（L358–L375）：接收`role`、`scope`。 控制顺序：L368按`permission is None`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`spec["business"]["permissions"].append`、`permission["actions"].append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L378–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L385断言`set(doc["on"]) == {"workflow_dispatch"}`；L387断言`job["environment"] == "rnd"`；L388断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L389断言`REPOSITORY in job["if"]`；L391断言`len(secret_steps) == 2`；L392断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L393断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L394断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L378–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L385断言`set(doc["on"]) == {"workflow_dispatch"}`；L387断言`job["environment"] == "rnd"`；L388断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L389断言`REPOSITORY in job["if"]`；L391断言`len(secret_steps) == 2`；L392断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"`；L393断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L394断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides`（L460–L476）：接收`tmp_path`、`monkeypatch`。 控制顺序：L470遍历`STAGES`；L472断言`profile.base_url == ENDPOINT and profile.model == MODEL`；L473断言`profile.api_key.get_secret_value() == "test-only-secret"`；L474断言`settings.max_model_calls == 16`；L475断言`settings.install_products is True`；L476断言`settings.model_review is True`。 调用`monkeypatch.setenv`、`acceptance_settings`、`config`、`settings.require_model`、`settings.model_for`、`profile.api_key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_full_run_requires_matching_same_run_successful_smoke`（L479–L500）：接收`tmp_path`。 控制顺序：L497断言`verified_smoke_receipt(path, config(), env)["passed"] is True`。 调用`pytest.raises`、`verified_smoke_receipt`、`config`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_exact_user_smoke_payload_preserved_by_real_transport`（L503–L526）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L519断言`json.loads(requests[0].content) == SMOKE_PAYLOAD`；L520断言`"max_tokens" not in json.loads(requests[0].content)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -66,7 +66,7 @@
 
 本段原始字节数：`34790`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_real_model_ci.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "38e9a574c272a00a68d39129f6388b994a2ff53f079b78cbc0875acd5550ece6"} -->
+<!-- learning-source: {"path": "tests/test_real_model_ci.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "0978e0b41c372e5a1f50ae419952b63ce42f613f0b935b231f581f2aaf29e872"} -->
 ````python
 # tests/test_real_model_ci.py
 """No paid calls here: test doubles only test the real-run harness' safety boundaries."""
@@ -460,7 +460,7 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     assert REPOSITORY in job["if"]
     secret_steps = [step for step in job["steps"] if "API_KEY" in step.get("env", {})]
     assert len(secret_steps) == 2
-    assert secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+    assert secret_steps[0]["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
     assert secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"
     assert secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"
     uploads = [
@@ -506,7 +506,7 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     paid_secret_steps = [step for step in paid["steps"] if "API_KEY" in step.get("env", {})]
     assert len(paid_secret_steps) == 2
     for step in paid_secret_steps:
-        assert step["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+        assert step["env"]["API_KEY"] == "${{ secrets.API_KEY }}"
         assert step["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"
         assert step["env"]["MODE"] == "${{ vars.MODE }}"
     assert [step["run"] for step in paid_secret_steps] == [

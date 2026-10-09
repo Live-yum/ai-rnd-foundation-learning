@@ -417,6 +417,7 @@ def native_export(client, template, mapping, plan):
 
 def generate_native(settings, template, plan, destination, *, managed=False, customization=None):
     from workbench.native_delivery import managed_generate, runtime_enabled
+    from workbench.template_standards import write_coding_standard
 
     if managed or runtime_enabled(settings, template):
         return managed_generate(settings, template, plan, destination, customization=customization)
@@ -451,6 +452,7 @@ def generate_native(settings, template, plan, destination, *, managed=False, cus
         "先按原生生成器说明检查目录映射、鉴权、菜单和迁移，在开发分支合入，再执行框架原生测试。\n"
         "本包不声称经过完整启动验收，不等于任意业务需求已完成，也不自动部署。\n",
     )
+    write_coding_standard(destination, template)
     receipt = {
         "template": template,
         "sources": [{k: v for k, v in s.items() if k != "path"} for s in sources],
