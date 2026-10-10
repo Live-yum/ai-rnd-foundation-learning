@@ -36,14 +36,16 @@
 - `test_new_run_pins_version_without_mutating_existing_runs`（L300–L304）：接收`store`。 控制顺序：L303断言`store.get_run(first)["options"]["production_version"] == 2`；L304断言`version_for_run({"options": {"template": "python-basic"}}) == 1`。 调用`store.create_project`、`store.create_run`、`store.get_run`、`version_for_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_worker_rejects_platform_interpreter`（L307–L321）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`result.returncode != 0`；L321断言`b"Worker requires reviewed Python 3.12" in result.stderr`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_restored_design_cannot_change_pinned_run_policy`（L325–L356）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit`（L359–L395）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L380–L381）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L356。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L395。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13005`。本段原文以LF换行结束。
+本段原始字节数：`14278`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "49b0ace95bafb7671bffb8a583226519bd39d63aecd8c5f3789839a053a45234"} -->
+<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67"} -->
 ````python
 # tests/test_production_v2.py
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
@@ -401,5 +403,44 @@ def test_restored_design_cannot_change_pinned_run_policy(settings, monkeypatch, 
                 "extension_scope": scope,
                 "plan": proposal.baseline.model_dump(),
             }
+        )
+
+
+def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path, monkeypatch):
+    import sys
+
+    import httpx
+
+    import workbench.coding.mini_swe as controller
+    from workbench.errors import UnsupportedScope
+    from workbench.llm import ModelGateway
+
+    settings = settings.model_copy(
+        update={
+            "mini_swe_enabled": True,
+            "mini_swe_usd_per_million_tokens": 1,
+            "base_url": "https://fixture.invalid/v1",
+            "model": "fixture",
+            "max_output_tokens": None,
+            "coding_max_output_tokens": None,
+        }
+    )
+    monkeypatch.setattr(controller, "worker_python", lambda: type(tmp_path)(sys.executable))
+
+    def forbidden_request(request):
+        pytest.fail("unbounded request must not reach the model transport")
+
+    gateway = ModelGateway(settings, None, httpx.MockTransport(forbidden_request))
+    selected = compile_v2(design_v1(), executor="mini_swe")
+    with pytest.raises(UnsupportedScope, match="max_output_tokens"):
+        run_agent(
+            settings,
+            gateway,
+            "fixture",
+            selected.implementation.tasks[0],
+            selected.implementation,
+            tmp_path,
+            tmp_path / "worker",
+            {},
         )
 ````

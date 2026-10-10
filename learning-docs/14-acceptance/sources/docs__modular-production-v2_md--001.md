@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L102。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8956`。本段原文以LF换行结束。
+本段原始字节数：`9175`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8ec7db63810e8a8c6a2ecdc5b50566b281a1a2d50ccd62d401ec368990e52c50"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -98,7 +98,7 @@ Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文�
 
 控制端先检查路径、前像 SHA256、文件数量和 UTF-8 内容大小，再写沙箱；收回完整批准路径快照并转为 CapabilityEdits，最后复用 `apply_candidate`。Agent 不能编辑平台、审批、依赖锁、迁移、验收器或启动器。新增依赖/迁移仍阻塞。
 
-显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
+显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。coding模型还必须显式配置 `max_output_tokens`（配置界面，或 `CODING_MAX_OUTPUT_TOKENS` / `MAX_OUTPUT_TOKENS`），未设置则阻止真实调用，不能只预留费用却发送无输出上限的请求。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
 
 ## 版本晋升和恢复
 

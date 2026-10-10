@@ -1377,8 +1377,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 12145,
-      "sha256": "a0ccbce23ca2ad7e4b729157eb83b4cf2b20ee6b271f5814329728f518787429",
+      "bytes": 12330,
+      "sha256": "c5c8a54132b7cb5b5dadb71085a7d9c9d9a9f3914059996a3d31393bf61efc32",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -4786,8 +4786,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 8956,
-      "sha256": "8ec7db63810e8a8c6a2ecdc5b50566b281a1a2d50ccd62d401ec368990e52c50",
+      "bytes": 9175,
+      "sha256": "ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -6123,8 +6123,8 @@
     },
     {
       "path": "tests/test_production_v2.py",
-      "bytes": 13005,
-      "sha256": "49b0ace95bafb7671bffb8a583226519bd39d63aecd8c5f3789839a053a45234",
+      "bytes": 14278,
+      "sha256": "98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_production_v2_py--001.md"

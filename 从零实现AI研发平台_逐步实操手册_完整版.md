@@ -79,7 +79,7 @@ Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文�
 
 控制端先检查路径、前像 SHA256、文件数量和 UTF-8 内容大小，再写沙箱；收回完整批准路径快照并转为 CapabilityEdits，最后复用 `apply_candidate`。Agent 不能编辑平台、审批、依赖锁、迁移、验收器或启动器。新增依赖/迁移仍阻塞。
 
-显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
+显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。coding模型还必须显式配置 `max_output_tokens`（配置界面，或 `CODING_MAX_OUTPUT_TOKENS` / `MAX_OUTPUT_TOKENS`），未设置则阻止真实调用，不能只预留费用却发送无输出上限的请求。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
 
 ## 版本晋升和恢复
 
@@ -16372,12 +16372,12 @@ def snapshot_edits(product, snapshot, task, selection):
 **逐个入口与控制逻辑：**
 
 - `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
-- `run_agent`（L34–L72）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L60的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
-- `_run`（L75–L274）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L95按`record.exists()`分支；L97按`budget["identity"] != identity`分支；L98抛异常，停止当前正常路径；L146在`True`成立时循环；L148按`remaining <= 0`分支；L149抛异常，停止当前正常路径；L153抛异常，停止当前正常路径；L154按`not raw or len(raw) > LIMIT`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`time.monotonic`等。 返回路径：L267的`edits`。
-- `_run.read_lines`（L116–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L117在`True`成立时循环；L123按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L129–L134）：接收`value`。 控制顺序：L131按`len(raw) > LIMIT`分支；L132抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_agent`（L34–L76）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L64的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
+- `_run`（L79–L278）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L99按`record.exists()`分支；L101按`budget["identity"] != identity`分支；L102抛异常，停止当前正常路径；L150在`True`成立时循环；L152按`remaining <= 0`分支；L153抛异常，停止当前正常路径；L157抛异常，停止当前正常路径；L158按`not raw or len(raw) > LIMIT`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`time.monotonic`等。 返回路径：L271的`edits`。
+- `_run.read_lines`（L120–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121在`True`成立时循环；L127按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L133–L138）：接收`value`。 控制顺序：L135按`len(raw) > LIMIT`分支；L136抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: a0ccbce23ca2ad7e4b729157eb83b4cf2b20ee6b271f5814329728f518787429 -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: c5c8a54132b7cb5b5dadb71085a7d9c9d9a9f3914059996a3d31393bf61efc32 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -16432,7 +16432,11 @@ def run_agent(
             raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
         if settings.mini_swe_usd_per_million_tokens <= 0:
             raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
-        output_tokens = profile.max_output_tokens or 65536
+        if profile.max_output_tokens is None:
+            raise UnsupportedScope(
+                "mini-SWE真实调用必须配置coding模型的max_output_tokens以约束预算"
+            )
+        output_tokens = profile.max_output_tokens
     else:
         output_tokens = 4096
     workspace = Path(workspace)
@@ -176945,8 +176949,10 @@ def test_real_product_reload_uses_authenticated_business_readiness(tmp_path, pla
 - `test_new_run_pins_version_without_mutating_existing_runs`（L300–L304）：接收`store`。 控制顺序：L303断言`store.get_run(first)["options"]["production_version"] == 2`；L304断言`version_for_run({"options": {"template": "python-basic"}}) == 1`。 调用`store.create_project`、`store.create_run`、`store.get_run`、`version_for_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_worker_rejects_platform_interpreter`（L307–L321）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`result.returncode != 0`；L321断言`b"Worker requires reviewed Python 3.12" in result.stderr`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_restored_design_cannot_change_pinned_run_policy`（L325–L356）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit`（L359–L395）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L380–L381）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_production_v2.py sha256: 49b0ace95bafb7671bffb8a583226519bd39d63aecd8c5f3789839a053a45234 -->
+<!-- source-file: tests/test_production_v2.py sha256: 98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67 -->
 ````python
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
 
@@ -177303,6 +177309,45 @@ def test_restored_design_cannot_change_pinned_run_policy(settings, monkeypatch, 
                 "extension_scope": scope,
                 "plan": proposal.baseline.model_dump(),
             }
+        )
+
+
+def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path, monkeypatch):
+    import sys
+
+    import httpx
+
+    import workbench.coding.mini_swe as controller
+    from workbench.errors import UnsupportedScope
+    from workbench.llm import ModelGateway
+
+    settings = settings.model_copy(
+        update={
+            "mini_swe_enabled": True,
+            "mini_swe_usd_per_million_tokens": 1,
+            "base_url": "https://fixture.invalid/v1",
+            "model": "fixture",
+            "max_output_tokens": None,
+            "coding_max_output_tokens": None,
+        }
+    )
+    monkeypatch.setattr(controller, "worker_python", lambda: type(tmp_path)(sys.executable))
+
+    def forbidden_request(request):
+        pytest.fail("unbounded request must not reach the model transport")
+
+    gateway = ModelGateway(settings, None, httpx.MockTransport(forbidden_request))
+    selected = compile_v2(design_v1(), executor="mini_swe")
+    with pytest.raises(UnsupportedScope, match="max_output_tokens"):
+        run_agent(
+            settings,
+            gateway,
+            "fixture",
+            selected.implementation.tasks[0],
+            selected.implementation,
+            tmp_path,
+            tmp_path / "worker",
+            {},
         )
 ````
 
@@ -235256,7 +235301,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 8ec7db63810e8a8c6a2ecdc5b50566b281a1a2d50ccd62d401ec368990e52c50 -->
+<!-- source-file: docs/modular-production-v2.md sha256: ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -235339,7 +235384,7 @@ Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文�
 
 控制端先检查路径、前像 SHA256、文件数量和 UTF-8 内容大小，再写沙箱；收回完整批准路径快照并转为 CapabilityEdits，最后复用 `apply_candidate`。Agent 不能编辑平台、审批、依赖锁、迁移、验收器或启动器。新增依赖/迁移仍阻塞。
 
-显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
+显式启用 `MINI_SWE_ENABLED=true`，配置 `MINI_SWE_USD_PER_MILLION_TOKENS` 为运营方确认的保守费用上界；默认0会阻止真实调用。coding模型还必须显式配置 `max_output_tokens`（配置界面，或 `CODING_MAX_OUTPUT_TOKENS` / `MAX_OUTPUT_TOKENS`），未设置则阻止真实调用，不能只预留费用却发送无输出上限的请求。`MINI_SWE_MAX_TOKENS`、`MINI_SWE_MAX_COST_USD`、`MINI_SWE_TIMEOUT` 与批准任务 `max_steps` 共同约束。每次请求预留网关最多两次尝试的 token/费用上界，预留写入任务预算日志后才能调用；实际计费仍以网关回执为准。恢复可能保守重复预留，但不能增加已批准预算。平台原有 Run 级模型次数上限继续生效。
 
 ## 版本晋升和恢复
 

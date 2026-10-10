@@ -354,3 +354,42 @@ def test_restored_design_cannot_change_pinned_run_policy(settings, monkeypatch, 
                 "plan": proposal.baseline.model_dump(),
             }
         )
+
+
+def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path, monkeypatch):
+    import sys
+
+    import httpx
+
+    import workbench.coding.mini_swe as controller
+    from workbench.errors import UnsupportedScope
+    from workbench.llm import ModelGateway
+
+    settings = settings.model_copy(
+        update={
+            "mini_swe_enabled": True,
+            "mini_swe_usd_per_million_tokens": 1,
+            "base_url": "https://fixture.invalid/v1",
+            "model": "fixture",
+            "max_output_tokens": None,
+            "coding_max_output_tokens": None,
+        }
+    )
+    monkeypatch.setattr(controller, "worker_python", lambda: type(tmp_path)(sys.executable))
+
+    def forbidden_request(request):
+        pytest.fail("unbounded request must not reach the model transport")
+
+    gateway = ModelGateway(settings, None, httpx.MockTransport(forbidden_request))
+    selected = compile_v2(design_v1(), executor="mini_swe")
+    with pytest.raises(UnsupportedScope, match="max_output_tokens"):
+        run_agent(
+            settings,
+            gateway,
+            "fixture",
+            selected.implementation.tasks[0],
+            selected.implementation,
+            tmp_path,
+            tmp_path / "worker",
+            {},
+        )

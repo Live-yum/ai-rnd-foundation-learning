@@ -51,7 +51,11 @@ def run_agent(
             raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
         if settings.mini_swe_usd_per_million_tokens <= 0:
             raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
-        output_tokens = profile.max_output_tokens or 65536
+        if profile.max_output_tokens is None:
+            raise UnsupportedScope(
+                "mini-SWE真实调用必须配置coding模型的max_output_tokens以约束预算"
+            )
+        output_tokens = profile.max_output_tokens
     else:
         output_tokens = 4096
     workspace = Path(workspace)
