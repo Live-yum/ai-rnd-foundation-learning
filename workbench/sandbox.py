@@ -177,7 +177,7 @@ def checks_for(template, selection=None):
 
 def harness_archive():
     """Only trusted, committed verifier code; never user files, keys or host caches."""
-    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").glob("*.py")]
+    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").rglob("*.py")]
     names += [
         "scripts/daytona_matrix_probe.py",
         "scripts/native_browser.cjs",

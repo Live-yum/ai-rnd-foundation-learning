@@ -325,3 +325,32 @@ def test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix():
     warm = dockerfile.index(".venv/bin/python /opt/rnd/warm.py")
     assertion = dockerfile.index('test "$(pnpm --version)" = "${PNPM_VERSION}"')
     assert user < assertion < warm
+
+
+def test_trusted_harness_imports_moved_contracts_without_checkout(tmp_path):
+    import subprocess
+    import sys
+
+    from workbench.tools import clean_env
+
+    with zipfile.ZipFile(io.BytesIO(harness_archive())) as archive:
+        archive.extractall(tmp_path)
+    harness = tmp_path / "harness"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys,runpy; sys.path.insert(0,sys.argv[1]); "
+            "sys.argv=['daytona_matrix_probe.py','--help']; "
+            "runpy.run_path(sys.path[0]+'/scripts/daytona_matrix_probe.py',run_name='__main__')",
+            str(harness),
+        ],
+        cwd=tmp_path,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--template" in result.stdout

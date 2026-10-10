@@ -44,14 +44,15 @@
 - `test_python_runtime_descriptor_does_not_replace_matrix_database_identity`（L287–L297）：接收`database`。 控制顺序：L292断言`result["database"] == database`；L293断言`result["runtime_database"] == "real-isolated-" + database`；L294断言`result["fresh_database"] is True`；L295断言`raw["database"] == "real-isolated-" + database`。 调用`basic_runtime_evidence`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_python_runtime_descriptor_normalization_never_hides_failed_checks`（L302–L313）：接收`key`、`bad`。 调用`pytest.raises`、`basic_runtime_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix`（L316–L327）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`"/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in docke…`；L323断言`"--global --prefix /usr/local" in dockerfile`；L327断言`user < assertion < warm`。 调用`(ROOT / "tools/daytona/matrix.Dockerfile").read_text`、`dockerfile.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_harness_imports_moved_contracts_without_checkout`（L330–L356）：接收`tmp_path`。 控制顺序：L355断言`result.returncode == 0`；L356断言`"--template" in result.stdout`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.extractall`、`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_daytona_matrix.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L327。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_daytona_matrix.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L356。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11787`。本段原文以LF换行结束。
+本段原始字节数：`12663`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_matrix.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "785274754ff5b5a07e13b76001b4c0180afc9f4e2cef5ef22b808db12da0da89"} -->
+<!-- learning-source: {"path": "tests/test_daytona_matrix.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "396cc795ac16e1220f55f1fd4fa5b69f435311ca4c705febb88fb54f94d2b632"} -->
 ````python
 # tests/test_daytona_matrix.py
 """Fail-closed registered runtime profiles; actual services run in the matrix Action."""
@@ -381,4 +382,33 @@ def test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix():
     warm = dockerfile.index(".venv/bin/python /opt/rnd/warm.py")
     assertion = dockerfile.index('test "$(pnpm --version)" = "${PNPM_VERSION}"')
     assert user < assertion < warm
+
+
+def test_trusted_harness_imports_moved_contracts_without_checkout(tmp_path):
+    import subprocess
+    import sys
+
+    from workbench.tools import clean_env
+
+    with zipfile.ZipFile(io.BytesIO(harness_archive())) as archive:
+        archive.extractall(tmp_path)
+    harness = tmp_path / "harness"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys,runpy; sys.path.insert(0,sys.argv[1]); "
+            "sys.argv=['daytona_matrix_probe.py','--help']; "
+            "runpy.run_path(sys.path[0]+'/scripts/daytona_matrix_probe.py',run_name='__main__')",
+            str(harness),
+        ],
+        cwd=tmp_path,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--template" in result.stdout
 ````
