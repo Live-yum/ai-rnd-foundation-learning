@@ -257,6 +257,8 @@ class ExtensionWorkflow:
             value = compile_v2(
                 value, executor=run["options"].get("module_executor", "bounded_edit")
             )
+        elif value.outline.version != 1:
+            raise UnsupportedScope("旧运行只能使用V1合同，不能由模型隐式升级审批")
         from workbench.native_plan_normalization import normalize_native_plan
 
         value.baseline, normalization = normalize_native_plan(
@@ -340,6 +342,16 @@ class ExtensionWorkflow:
         design = FeatureDesign.model_validate(state["feature_design"])
         selection = options_for_run(self.store.get_run(state["run_id"])).model_dump()
         errors = feature_design_errors(design, scope, selection)
+        from workbench.planning.versioning import compile_v2, version_for_run
+
+        run = self.store.get_run(state["run_id"])
+        if design.outline.version != version_for_run(run):
+            errors.append("功能合同版本与运行创建时固定的版本不一致")
+        elif design.outline.version == 2:
+            try:
+                compile_v2(design, executor=run["options"].get("module_executor", "bounded_edit"))
+            except ValueError as exc:
+                errors.append(str(exc))
         errors.extend(self._feature_requirement_errors(state, design.baseline))
         if scope != state["extension_scope"]:
             errors.append("逐功能计划来源已变化，必须重新规划和批准")

@@ -18,40 +18,39 @@
 - `ExtensionDesign`（L39–L44）：继承`Contract`。声明的数据项为`baseline`、`implementation`、`dependency_requests`、`permission_changes`、`decisions`；类型约束/数据库列参数以完整定义为准。
 - `human_scope`（L115–L121）：接收`store`、`run_id`。 调用`store.messages`、`digest`、`scope_sources`。 返回路径：L117的`{ "messages": messages, "source_digest": digest(messages), "sources": scope_sources(messag…`。
 - `design_errors`（L124–L152）：接收`design`、`scope`、`selection`。 控制顺序：L127按`plan.selection.model_dump() != selection or plan.source_digest != scope["source_diges…`分支；L129按`design.baseline.unsupported or design.baseline.custom_rules`分支；L131按`design.dependency_requests`分支；L133按`not any(s.after_restart for s in plan.scenarios) or not any( s.browser for s in plan.…`分支；L137遍历`plan.tasks`；L139按`selection["template"] == "fastapiadmin"`分支；L146按`plan.runtime.start.cwd != "backend" or not any(value == "app:create_app" for value in…`分支。 调用`coverage_errors`、`contract_errors`、`plan.selection.model_dump`、`errors.append`、`any`、`errors.extend`、`task_path_errors`、`validate_plan`、`str`等。 返回路径：L152的`list(dict.fromkeys(errors))`。
-- `ExtensionWorkflow`（L155–L1015）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ExtensionWorkflow`（L155–L1027）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `ExtensionWorkflow.product_ledger`（L158–L169）：接收`state`、`plan`。 调用`ProductLedger`、`digest`、`plan.model_dump`、`str`、`state.get`。 返回路径：L161的`ProductLedger( self.settings.data_dir / "runs" / state["run_id"] / "versions" / digest(pla…`。
 - `ExtensionWorkflow.extension_progress`（L171–L182）：接收`state`、`**update`。 调用`state.get("extension_scope", {}).get`、`state.get`、`write_json`、`self.store.record_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `ExtensionWorkflow.extension_requested`（L184–L193）：接收`state`。 调用`custom_requested`、`self.store.messages`。 返回路径：L187的`custom_requested( [ row["content"] for row in self.store.messages(state["run_id"]) if row[…`。
 - `ExtensionWorkflow.feature_requested`（L195–L200）：接收`state`。 调用`self.store.get_run(state["run_id"]) .get("options", {}) .get`、`self.store.get_run(state["run_id"]) .get`、`self.store.get_run`。 返回路径：L196的`self.store.get_run(state["run_id"]) .get("options", {}) .get("allow_custom_extensions", Fa…`。
-- `ExtensionWorkflow.feature_plan`（L202–L322）：接收`state`。 控制顺序：L203按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L204抛异常，停止当前正常路径；L211按`run.get("options", {}).get("specification_mode") == "enhanced"`分支；L256按`version_for_run(run) == 2`分支；L270按`specification and not errors`分支；L275按`not value.implementation`分支；L289按`value.implementation`分支；L296按`not self.settings.enable_coding`分支。后续分支沿下方源码相同行号继续阅读。 调用`PausedLimit`、`human_scope`、`self.analyse_requirement`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`run.get("options", {}).get`、`run.get`、`prepare_specifications`等。 返回路径：L322的`update`。
-- `ExtensionWorkflow._feature_requirement_errors`（L324–L336）：接收`state`、`baseline`。 调用`Requirement.model_validate`、`source_plan`、`state.get`、`coverage_gaps`、`business_gaps`。 返回路径：L332的`[ *(item["message"] for item in state.get("requirement_analysis_diagnostics", [])), *cover…`。
-- `ExtensionWorkflow.checked_feature`（L338–L350）：接收`state`。 控制顺序：L344按`scope != state["extension_scope"]`分支；L346按`design.baseline.model_dump() != state["plan"]`分支；L348按`errors`分支；L349抛异常，停止当前正常路径。 调用`human_scope`、`FeatureDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`feature_design_errors`、`errors.extend`、`self._feature_requirement_errors`、`errors.append`等。 返回路径：L350的`design`。
-- `ExtensionWorkflow.feature_design`（L352–L356）：接收`state`。 控制顺序：L354按`design.implementation`分支。 调用`FeatureDesign.model_validate`、`self.extension_design`、`self.design`。 返回路径：L355的`self.extension_design(state)`；L356的`self.design(state)`。
-- `ExtensionWorkflow.extension_plan`（L358–L415）：接收`state`。 控制顺序：L359按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L360抛异常，停止当前正常路径；L364按`scope["messages"][: len(original["messages"])] != original["messages"]`分支；L365抛异常，停止当前正常路径；L383按`policy["requires_explicit_review"]`分支；L387按`policy["trusted_oracle"] and selection["template"] != "fastapiadmin"`分支；L401按`not self.settings.enable_coding`分支。 调用`PausedLimit`、`human_scope`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`self.store.step`、`len`、`UnsupportedScope`、`scope_policy`等。 返回路径：L403的`{ "extension_design": value.model_dump(), "extension_scope": scope, "extension_policy": po…`。
-- `ExtensionWorkflow.checked_extension`（L417–L440）：接收`state`。 控制顺序：L418按`state.get("feature_design")`分支；L427按`expected.model_dump() != state["extension_design"]`分支；L428抛异常，停止当前正常路径；L430按`scope["source_digest"] != state["extension_scope"]["source_digest"]`分支；L431抛异常，停止当前正常路径；L436按`state.get("extension_policy") != policy`分支；L438按`errors`分支；L439抛异常，停止当前正常路径。 调用`state.get`、`self.checked_feature`、`ExtensionDesign`、`expected.model_dump`、`UnsupportedScope`、`human_scope`、`ExtensionDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`等。 返回路径：L440的`design`。
-- `ExtensionWorkflow.extension_design`（L442–L456）：接收`state`。 控制顺序：L452按`result["decision"] in {"revise", "recommend"}`分支；L454按`result["decision"] == "reject"`分支。 调用`ExtensionDesign.model_validate`、`self.extension_design_data`、`self.gate`。 返回路径：L456的`result`。
-- `ExtensionWorkflow.extension_design_data`（L458–L482）：接收`state`、`design`。 调用`review_contract`、`bool`、`state.get`。 返回路径：L459的`{ "extension": state["extension_design"], "source_units": state["extension_scope"]["source…`。
-- `ExtensionWorkflow.extension_coverage`（L484–L499）：接收`state`、`design`、`proof`。 控制顺序：L486按`not design.implementation.obligations`分支。 调用`business_coverage`、`self.store.explicit_approval`、`self.extension_design_data`、`digest`、`review_contract`、`reviewed_coverage`。 返回路径：L487的`base`；L497的`reviewed_coverage( design.implementation, state["extension_policy"], proof, approval, base…`。
-- `ExtensionWorkflow.extension_generate`（L501–L534）：接收`state`。 控制顺序：L530按`manifest(baseline) != receipt["files"]`分支；L531抛异常，停止当前正常路径；L532按`design.implementation.version == 2`分支。 调用`self.checked_extension`、`digest`、`design.model_dump`、`design.implementation.selection.model_dump`、`self.store.step`、`manifest`、`PrerequisiteError`、`self.product_ledger(state, design.implementation).baseline`、`self.product_ledger`等。 返回路径：L534的`{"extension_product": str(baseline), "extension_baseline": receipt["files"]}`。
-- `ExtensionWorkflow.extension_generate.generate`（L512–L525）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L513按`selection["template"] == "python-basic"`分支；L521按`selection["template"] == "python-basic"`分支。 调用`generate_basic`、`generate_native`、`prepare_consumer`、`manifest`。 返回路径：L525的`{"files": manifest(baseline)}`。
-- `ExtensionWorkflow.extension_task`（L536–L545）：接收`state`、`design`。 调用`state.get`、`next`、`set`。 返回路径：L538的`next( ( task for task in design.implementation.tasks if task.id not in completed and set(t…`。
-- `ExtensionWorkflow.extension_code`（L547–L668）：接收`state`。 控制顺序：L550按`task is None`分支；L551抛异常，停止当前正常路径；L554遍历`task.files`；L566按`self.settings.repo_map_provider == "aider"`分支；L589按`getattr(task, "executor", "bounded_edit") == "mini_swe"`分支。 调用`self.checked_extension`、`self.extension_task`、`PrerequisiteError`、`Path`、`inside`、`path.is_file`、`sha`、`path.read_text`、`build_index`等。 返回路径：L655的`{ "extension_candidate": "", "extension_error": str(exc)[:4000], "extension_candidate_pass…`；L663的`{ "extension_candidate": str(candidate), "extension_edit_receipt": receipt, "extension_err…`。
-- `ExtensionWorkflow.extension_verify`（L670–L722）：接收`state`。 控制顺序：L675按`not state.get("extension_candidate")`分支；L708按`plan.version == 2`分支。 调用`self.checked_extension`、`self.extension_task`、`state.get`、`Path`、`self.extension_progress`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`等。 返回路径：L676的`{"extension_candidate_passed": False}`；L699的`{ "extension_candidate_passed": False, "extension_error": self.settings.redact( str(exc) +…`；L716的`{ "extension_completed": completed, "extension_product": str(candidate), "extension_candid…`。
-- `ExtensionWorkflow.extension_after_verify`（L724–L733）：接收`state`。 控制顺序：L725按`state.get("extension_candidate_passed")`分支；L728按`state.get("extension_attempt", 0) < self.settings.max_repair_attempts`分支；L730抛异常，停止当前正常路径。 调用`state.get`、`ExtensionDesign.model_validate`、`self.extension_task`、`UnsupportedScope`。 返回路径：L727的`"extension_code" if self.extension_task(state, design) else "extension_aggregate"`；L729的`"extension_repair"`。
-- `ExtensionWorkflow.extension_repair`（L735–L736）：接收`state`。 调用`state.get`。 返回路径：L736的`{"extension_attempt": state.get("extension_attempt", 0) + 1}`。
-- `ExtensionWorkflow.extension_aggregate`（L738–L789）：接收`state`。 控制顺序：L743按`{row["task"] for row in state.get("extension_completed", [])} != { task.id for task i…`分支；L746抛异常，停止当前正常路径；L768按`plan.version == 2`分支。 调用`self.checked_extension`、`state.get`、`PrerequisiteError`、`Path`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`、`manifest`等。 返回路径：L771的`{ "extension_aggregate_passed": False, "extension_error": self.settings.redact(str(exc))[:…`；L785的`{ "extension_proof": proof, "extension_coverage": coverage, "extension_aggregate_passed": …`。
-- `ExtensionWorkflow.extension_after_aggregate`（L791–L798）：接收`state`。 控制顺序：L792按`state.get("extension_aggregate_passed")`分支；L794按`state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts`分支；L796抛异常，停止当前正常路径。 调用`state.get`、`UnsupportedScope`。 返回路径：L793的`"extension_review"`；L795的`"extension_integration_repair"`。
-- `ExtensionWorkflow.extension_integration_repair`（L800–L819）：接收`state`。 控制顺序：L809按`manifest(baseline) != state["extension_baseline"]`分支；L810抛异常，停止当前正常路径。 调用`self.checked_extension`、`digest`、`design.model_dump`、`manifest`、`PrerequisiteError`、`state.get`、`str`。 返回路径：L811的`{ "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1, "ext…`。
-- `ExtensionWorkflow.extension_review`（L821–L846）：接收`state`。 控制顺序：L823按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L824的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L846的`{"model_review": result}`。
-- `ExtensionWorkflow.extension_scope_data`（L848–L898）：接收`state`、`design`。 控制顺序：L852按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L878的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
+- `ExtensionWorkflow.feature_plan`（L202–L324）：接收`state`。 控制顺序：L203按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L204抛异常，停止当前正常路径；L211按`run.get("options", {}).get("specification_mode") == "enhanced"`分支；L256按`version_for_run(run) == 2`分支；L260按`value.outline.version != 1`分支；L261抛异常，停止当前正常路径；L272按`specification and not errors`分支；L277按`not value.implementation`分支。后续分支沿下方源码相同行号继续阅读。 调用`PausedLimit`、`human_scope`、`self.analyse_requirement`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`run.get("options", {}).get`、`run.get`、`prepare_specifications`等。 返回路径：L324的`update`。
+- `ExtensionWorkflow._feature_requirement_errors`（L326–L338）：接收`state`、`baseline`。 调用`Requirement.model_validate`、`source_plan`、`state.get`、`coverage_gaps`、`business_gaps`。 返回路径：L334的`[ *(item["message"] for item in state.get("requirement_analysis_diagnostics", [])), *cover…`。
+- `ExtensionWorkflow.checked_feature`（L340–L362）：接收`state`。 控制顺序：L348按`design.outline.version != version_for_run(run)`分支；L350按`design.outline.version == 2`分支；L356按`scope != state["extension_scope"]`分支；L358按`design.baseline.model_dump() != state["plan"]`分支；L360按`errors`分支；L361抛异常，停止当前正常路径。 调用`human_scope`、`FeatureDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`feature_design_errors`、`version_for_run`、`errors.append`、`compile_v2`等。 返回路径：L362的`design`。
+- `ExtensionWorkflow.feature_design`（L364–L368）：接收`state`。 控制顺序：L366按`design.implementation`分支。 调用`FeatureDesign.model_validate`、`self.extension_design`、`self.design`。 返回路径：L367的`self.extension_design(state)`；L368的`self.design(state)`。
+- `ExtensionWorkflow.extension_plan`（L370–L427）：接收`state`。 控制顺序：L371按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L372抛异常，停止当前正常路径；L376按`scope["messages"][: len(original["messages"])] != original["messages"]`分支；L377抛异常，停止当前正常路径；L395按`policy["requires_explicit_review"]`分支；L399按`policy["trusted_oracle"] and selection["template"] != "fastapiadmin"`分支；L413按`not self.settings.enable_coding`分支。 调用`PausedLimit`、`human_scope`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`self.store.step`、`len`、`UnsupportedScope`、`scope_policy`等。 返回路径：L415的`{ "extension_design": value.model_dump(), "extension_scope": scope, "extension_policy": po…`。
+- `ExtensionWorkflow.checked_extension`（L429–L452）：接收`state`。 控制顺序：L430按`state.get("feature_design")`分支；L439按`expected.model_dump() != state["extension_design"]`分支；L440抛异常，停止当前正常路径；L442按`scope["source_digest"] != state["extension_scope"]["source_digest"]`分支；L443抛异常，停止当前正常路径；L448按`state.get("extension_policy") != policy`分支；L450按`errors`分支；L451抛异常，停止当前正常路径。 调用`state.get`、`self.checked_feature`、`ExtensionDesign`、`expected.model_dump`、`UnsupportedScope`、`human_scope`、`ExtensionDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`等。 返回路径：L452的`design`。
+- `ExtensionWorkflow.extension_design`（L454–L468）：接收`state`。 控制顺序：L464按`result["decision"] in {"revise", "recommend"}`分支；L466按`result["decision"] == "reject"`分支。 调用`ExtensionDesign.model_validate`、`self.extension_design_data`、`self.gate`。 返回路径：L468的`result`。
+- `ExtensionWorkflow.extension_design_data`（L470–L494）：接收`state`、`design`。 调用`review_contract`、`bool`、`state.get`。 返回路径：L471的`{ "extension": state["extension_design"], "source_units": state["extension_scope"]["source…`。
+- `ExtensionWorkflow.extension_coverage`（L496–L511）：接收`state`、`design`、`proof`。 控制顺序：L498按`not design.implementation.obligations`分支。 调用`business_coverage`、`self.store.explicit_approval`、`self.extension_design_data`、`digest`、`review_contract`、`reviewed_coverage`。 返回路径：L499的`base`；L509的`reviewed_coverage( design.implementation, state["extension_policy"], proof, approval, base…`。
+- `ExtensionWorkflow.extension_generate`（L513–L546）：接收`state`。 控制顺序：L542按`manifest(baseline) != receipt["files"]`分支；L543抛异常，停止当前正常路径；L544按`design.implementation.version == 2`分支。 调用`self.checked_extension`、`digest`、`design.model_dump`、`design.implementation.selection.model_dump`、`self.store.step`、`manifest`、`PrerequisiteError`、`self.product_ledger(state, design.implementation).baseline`、`self.product_ledger`等。 返回路径：L546的`{"extension_product": str(baseline), "extension_baseline": receipt["files"]}`。
+- `ExtensionWorkflow.extension_generate.generate`（L524–L537）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L525按`selection["template"] == "python-basic"`分支；L533按`selection["template"] == "python-basic"`分支。 调用`generate_basic`、`generate_native`、`prepare_consumer`、`manifest`。 返回路径：L537的`{"files": manifest(baseline)}`。
+- `ExtensionWorkflow.extension_task`（L548–L557）：接收`state`、`design`。 调用`state.get`、`next`、`set`。 返回路径：L550的`next( ( task for task in design.implementation.tasks if task.id not in completed and set(t…`。
+- `ExtensionWorkflow.extension_code`（L559–L680）：接收`state`。 控制顺序：L562按`task is None`分支；L563抛异常，停止当前正常路径；L566遍历`task.files`；L578按`self.settings.repo_map_provider == "aider"`分支；L601按`getattr(task, "executor", "bounded_edit") == "mini_swe"`分支。 调用`self.checked_extension`、`self.extension_task`、`PrerequisiteError`、`Path`、`inside`、`path.is_file`、`sha`、`path.read_text`、`build_index`等。 返回路径：L667的`{ "extension_candidate": "", "extension_error": str(exc)[:4000], "extension_candidate_pass…`；L675的`{ "extension_candidate": str(candidate), "extension_edit_receipt": receipt, "extension_err…`。
+- `ExtensionWorkflow.extension_verify`（L682–L734）：接收`state`。 控制顺序：L687按`not state.get("extension_candidate")`分支；L720按`plan.version == 2`分支。 调用`self.checked_extension`、`self.extension_task`、`state.get`、`Path`、`self.extension_progress`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`等。 返回路径：L688的`{"extension_candidate_passed": False}`；L711的`{ "extension_candidate_passed": False, "extension_error": self.settings.redact( str(exc) +…`；L728的`{ "extension_completed": completed, "extension_product": str(candidate), "extension_candid…`。
+- `ExtensionWorkflow.extension_after_verify`（L736–L745）：接收`state`。 控制顺序：L737按`state.get("extension_candidate_passed")`分支；L740按`state.get("extension_attempt", 0) < self.settings.max_repair_attempts`分支；L742抛异常，停止当前正常路径。 调用`state.get`、`ExtensionDesign.model_validate`、`self.extension_task`、`UnsupportedScope`。 返回路径：L739的`"extension_code" if self.extension_task(state, design) else "extension_aggregate"`；L741的`"extension_repair"`。
+- `ExtensionWorkflow.extension_repair`（L747–L748）：接收`state`。 调用`state.get`。 返回路径：L748的`{"extension_attempt": state.get("extension_attempt", 0) + 1}`。
+- `ExtensionWorkflow.extension_aggregate`（L750–L801）：接收`state`。 控制顺序：L755按`{row["task"] for row in state.get("extension_completed", [])} != { task.id for task i…`分支；L758抛异常，停止当前正常路径；L780按`plan.version == 2`分支。 调用`self.checked_extension`、`state.get`、`PrerequisiteError`、`Path`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`、`manifest`等。 返回路径：L783的`{ "extension_aggregate_passed": False, "extension_error": self.settings.redact(str(exc))[:…`；L797的`{ "extension_proof": proof, "extension_coverage": coverage, "extension_aggregate_passed": …`。
+- `ExtensionWorkflow.extension_after_aggregate`（L803–L810）：接收`state`。 控制顺序：L804按`state.get("extension_aggregate_passed")`分支；L806按`state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts`分支；L808抛异常，停止当前正常路径。 调用`state.get`、`UnsupportedScope`。 返回路径：L805的`"extension_review"`；L807的`"extension_integration_repair"`。
+- `ExtensionWorkflow.extension_integration_repair`（L812–L831）：接收`state`。 控制顺序：L821按`manifest(baseline) != state["extension_baseline"]`分支；L822抛异常，停止当前正常路径。 调用`self.checked_extension`、`digest`、`design.model_dump`、`manifest`、`PrerequisiteError`、`state.get`、`str`。 返回路径：L823的`{ "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1, "ext…`。
+- `ExtensionWorkflow.extension_review`（L833–L858）：接收`state`。 控制顺序：L835按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L836的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L858的`{"model_review": result}`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L899。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L859。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`43557`。本段原文以LF换行结束。
+本段原始字节数：`41526`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "7bb9c4829f2d623fa82ce08838b365b6952f249045e4d35eaaa9620c66cb0e40"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "859a967713ea6f32ddb43465470969d854156245ce048cbe3e8a3d1f6b528118"} -->
 ````python
 # workbench/production/dispatcher.py
 """Durable reviewed capability development, preserving the selected template.
@@ -313,6 +312,8 @@ class ExtensionWorkflow:
             value = compile_v2(
                 value, executor=run["options"].get("module_executor", "bounded_edit")
             )
+        elif value.outline.version != 1:
+            raise UnsupportedScope("旧运行只能使用V1合同，不能由模型隐式升级审批")
         from workbench.native_plan_normalization import normalize_native_plan
 
         value.baseline, normalization = normalize_native_plan(
@@ -396,6 +397,16 @@ class ExtensionWorkflow:
         design = FeatureDesign.model_validate(state["feature_design"])
         selection = options_for_run(self.store.get_run(state["run_id"])).model_dump()
         errors = feature_design_errors(design, scope, selection)
+        from workbench.planning.versioning import compile_v2, version_for_run
+
+        run = self.store.get_run(state["run_id"])
+        if design.outline.version != version_for_run(run):
+            errors.append("功能合同版本与运行创建时固定的版本不一致")
+        elif design.outline.version == 2:
+            try:
+                compile_v2(design, executor=run["options"].get("module_executor", "bounded_edit"))
+            except ValueError as exc:
+                errors.append(str(exc))
         errors.extend(self._feature_requirement_errors(state, design.baseline))
         if scope != state["extension_scope"]:
             errors.append("逐功能计划来源已变化，必须重新规划和批准")
@@ -900,57 +911,5 @@ class ExtensionWorkflow:
             self.settings.data_dir / "runs" / state["run_id"] / "extension-review.json", result
         )
         return {"model_review": result}
-
-    def extension_scope_data(self, state, design):
-        coverage = self.extension_coverage(state, design, state["extension_proof"])
-        review = state.get("model_review", {"enabled": False})
-        conflicts = list(review.get("uncovered_requirements", []))
-        if conflicts:
-            # Model findings cannot close a source, or be silently discarded
-            # when another source is already open. Free-text findings do not
-            # reliably identify one source, so conservatively dispute every
-            # completeness claim while preserving passed atomic observations.
-            rows = [
-                {**row, "status": "review_conflict"}
-                if row["semantic"] == "original.full_source"
-                else dict(row)
-                for row in coverage["obligations"]
-            ]
-            coverage = {
-                **coverage,
-                "pre_review_complete_source_ids": coverage.get("complete_source_ids", []),
-                "complete_source_ids": [],
-                "remaining_source_ids": sorted({row["source_id"] for row in rows}),
-                "remaining_obligations": [
-                    row["goal_id"] for row in rows if row["status"] != "verified"
-                ],
-                "obligations": rows,
-                "full_request_complete": False,
-                "requires_source_rereview": True,
-            }
-        partial = coverage.get("full_request_complete") is not True or bool(
-            design.implementation.prerequisites
-        )
-        return {
-            "delivery_kind": "partial" if partial else "reviewed-contract",
-            "full_request_complete": not partial,
-            "coverage": coverage,
-            "model_review": review,
-            "review_conflicts": conflicts,
-            "source_units": state["extension_scope"]["sources"],
-            "plan_digest": digest(design.implementation.model_dump()),
-            "evidence_digest": digest(state["extension_proof"]),
-            "source_inventory_digest": digest(manifest(Path(state["extension_product"]))),
-            "unverified_prerequisites": [
-                p.model_dump() for p in design.implementation.prerequisites
-            ],
-            "readiness": readiness_report(
-                design, manifest(Path(state["extension_product"])), state["extension_proof"]
-            ),
-            "requires_explicit_review": partial,
-            "notice": "部分成果不关闭未完成来源、外部服务或迁移义务；批准只允许下载当前明确范围。"
-            if partial
-            else "仅证明明确人工审阅的原子合同，不保证任意自然语言的语义完整性。",
-        }
 
 ````

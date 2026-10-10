@@ -34,14 +34,16 @@
 - `test_ledger_atomic_pointer_replay_and_predecessor.interrupted`（L271–L274）：接收`path`、`value`。 控制顺序：L272按`path == ledger.pointer`分支；L273抛异常，停止当前正常路径。 调用`OSError`、`original`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_planner_cannot_upgrade_configured_executor`（L294–L297）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`compile_v2`、`design_v1`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_new_run_pins_version_without_mutating_existing_runs`（L300–L304）：接收`store`。 控制顺序：L303断言`store.get_run(first)["options"]["production_version"] == 2`；L304断言`version_for_run({"options": {"template": "python-basic"}}) == 1`。 调用`store.create_project`、`store.create_run`、`store.get_run`、`version_for_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_rejects_platform_interpreter`（L307–L321）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`result.returncode != 0`；L321断言`b"Worker requires reviewed Python 3.12" in result.stderr`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_restored_design_cannot_change_pinned_run_policy`（L325–L356）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L304。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L356。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11195`。本段原文以LF换行结束。
+本段原始字节数：`13005`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b1367a5cbcd0cb0b9be72f20d838624b7344c6d497732f90fcb61ee7982e9b65"} -->
+<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "49b0ace95bafb7671bffb8a583226519bd39d63aecd8c5f3789839a053a45234"} -->
 ````python
 # tests/test_production_v2.py
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
@@ -348,4 +350,56 @@ def test_new_run_pins_version_without_mutating_existing_runs(store):
     first = store.create_run(project["id"], {"requirement": "fixture"}, "version-run")["run_id"]
     assert store.get_run(first)["options"]["production_version"] == 2
     assert version_for_run({"options": {"template": "python-basic"}}) == 1
+
+
+def test_worker_rejects_platform_interpreter():
+    import subprocess
+    import sys
+
+    from workbench.settings import ROOT
+    from workbench.tools import clean_env
+
+    result = subprocess.run(
+        [sys.executable, "-I", str(ROOT / "tools/mini-swe/worker.py")],
+        capture_output=True,
+        timeout=10,
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert b"Worker requires reviewed Python 3.12" in result.stderr
+
+
+@pytest.mark.parametrize("version,executor", [(1, "mini_swe"), (2, "bounded_edit")])
+def test_restored_design_cannot_change_pinned_run_policy(settings, monkeypatch, version, executor):
+    from types import SimpleNamespace
+
+    import workbench.orchestration as dispatcher
+    from workbench.errors import UnsupportedScope
+    from workbench.flow import Workflow
+
+    proposal = compile_v2(design_v1(), executor="mini_swe")
+    scope = {
+        "source_digest": proposal.outline.source_digest,
+        "sources": [{"id": ref} for ref in proposal.outline.features[0].requirements],
+    }
+    run = {
+        "template": "python-basic",
+        "options": {
+            **proposal.outline.selection.model_dump(),
+            "production_version": version,
+            "module_executor": executor,
+        },
+    }
+    workflow = Workflow(settings, SimpleNamespace(get_run=lambda _: run), None)
+    monkeypatch.setattr(dispatcher, "human_scope", lambda *args: scope)
+    monkeypatch.setattr(workflow, "_feature_requirement_errors", lambda *args: [])
+    with pytest.raises(UnsupportedScope):
+        workflow.checked_feature(
+            {
+                "run_id": "fixture",
+                "feature_design": proposal.model_dump(),
+                "extension_scope": scope,
+                "plan": proposal.baseline.model_dump(),
+            }
+        )
 ````

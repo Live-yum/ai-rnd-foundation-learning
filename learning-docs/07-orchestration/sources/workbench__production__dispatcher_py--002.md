@@ -15,19 +15,72 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ExtensionWorkflow.extension_scope`（L900–L910）：接收`state`。 控制顺序：L908按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L910的`result`。
-- `ExtensionWorkflow.extension_package`（L912–L997）：接收`state`。 控制顺序：L930按`scope["requires_explicit_review"]`分支；L938遍历`files(product)`；L940按`"RND-DELIVERY.json" in listing`分支；L941抛异常，停止当前正常路径；L947按`{ name: value for name, value in clean_listing.items() if name != "RND-DELIVERY.json"…`分支；L950抛异常，停止当前正常路径；L970按`plan.selection.template == "python-basic"`分支。 调用`self.checked_extension`、`Path`、`manifest`、`require_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`self.extension_scope_data`、`self.store.explicit_approval`等。 返回路径：L975的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
-- `ExtensionWorkflow.extension_delivery`（L999–L1015）：接收`state`。 控制顺序：L1008按`sha(archive) != result["sha256"]`分支；L1009抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1015的`decision`。
+- `ExtensionWorkflow.extension_scope_data`（L860–L910）：接收`state`、`design`。 控制顺序：L864按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L890的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
+- `ExtensionWorkflow.extension_scope`（L912–L922）：接收`state`。 控制顺序：L920按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L922的`result`。
+- `ExtensionWorkflow.extension_package`（L924–L1009）：接收`state`。 控制顺序：L942按`scope["requires_explicit_review"]`分支；L950遍历`files(product)`；L952按`"RND-DELIVERY.json" in listing`分支；L953抛异常，停止当前正常路径；L959按`{ name: value for name, value in clean_listing.items() if name != "RND-DELIVERY.json"…`分支；L962抛异常，停止当前正常路径；L982按`plan.selection.template == "python-basic"`分支。 调用`self.checked_extension`、`Path`、`manifest`、`require_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`self.extension_scope_data`、`self.store.explicit_approval`等。 返回路径：L987的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
+- `ExtensionWorkflow.extension_delivery`（L1011–L1027）：接收`state`。 控制顺序：L1020按`sha(archive) != result["sha256"]`分支；L1021抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1027的`decision`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L900–L1015。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L860–L1027。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5249`。本段原文以LF换行结束。
+本段原始字节数：`7939`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "d41ce7694bf305f842a99306db80c7471ea36649afae3d75c54ee32601dbd7e6"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "625a892a18572e51c6f8d1b46f7af1a336bf529e4352e045dd5675d4358dfb71"} -->
 ````python
 # workbench/production/dispatcher.py
+    def extension_scope_data(self, state, design):
+        coverage = self.extension_coverage(state, design, state["extension_proof"])
+        review = state.get("model_review", {"enabled": False})
+        conflicts = list(review.get("uncovered_requirements", []))
+        if conflicts:
+            # Model findings cannot close a source, or be silently discarded
+            # when another source is already open. Free-text findings do not
+            # reliably identify one source, so conservatively dispute every
+            # completeness claim while preserving passed atomic observations.
+            rows = [
+                {**row, "status": "review_conflict"}
+                if row["semantic"] == "original.full_source"
+                else dict(row)
+                for row in coverage["obligations"]
+            ]
+            coverage = {
+                **coverage,
+                "pre_review_complete_source_ids": coverage.get("complete_source_ids", []),
+                "complete_source_ids": [],
+                "remaining_source_ids": sorted({row["source_id"] for row in rows}),
+                "remaining_obligations": [
+                    row["goal_id"] for row in rows if row["status"] != "verified"
+                ],
+                "obligations": rows,
+                "full_request_complete": False,
+                "requires_source_rereview": True,
+            }
+        partial = coverage.get("full_request_complete") is not True or bool(
+            design.implementation.prerequisites
+        )
+        return {
+            "delivery_kind": "partial" if partial else "reviewed-contract",
+            "full_request_complete": not partial,
+            "coverage": coverage,
+            "model_review": review,
+            "review_conflicts": conflicts,
+            "source_units": state["extension_scope"]["sources"],
+            "plan_digest": digest(design.implementation.model_dump()),
+            "evidence_digest": digest(state["extension_proof"]),
+            "source_inventory_digest": digest(manifest(Path(state["extension_product"]))),
+            "unverified_prerequisites": [
+                p.model_dump() for p in design.implementation.prerequisites
+            ],
+            "readiness": readiness_report(
+                design, manifest(Path(state["extension_product"])), state["extension_proof"]
+            ),
+            "requires_explicit_review": partial,
+            "notice": "部分成果不关闭未完成来源、外部服务或迁移义务；批准只允许下载当前明确范围。"
+            if partial
+            else "仅证明明确人工审阅的原子合同，不保证任意自然语言的语义完整性。",
+        }
+
     def extension_scope(self, state):
         design = self.checked_extension(state)
         data = self.extension_scope_data(state, design)

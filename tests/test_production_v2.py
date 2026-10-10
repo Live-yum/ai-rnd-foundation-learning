@@ -302,3 +302,55 @@ def test_new_run_pins_version_without_mutating_existing_runs(store):
     first = store.create_run(project["id"], {"requirement": "fixture"}, "version-run")["run_id"]
     assert store.get_run(first)["options"]["production_version"] == 2
     assert version_for_run({"options": {"template": "python-basic"}}) == 1
+
+
+def test_worker_rejects_platform_interpreter():
+    import subprocess
+    import sys
+
+    from workbench.settings import ROOT
+    from workbench.tools import clean_env
+
+    result = subprocess.run(
+        [sys.executable, "-I", str(ROOT / "tools/mini-swe/worker.py")],
+        capture_output=True,
+        timeout=10,
+        env=clean_env(),
+    )
+    assert result.returncode != 0
+    assert b"Worker requires reviewed Python 3.12" in result.stderr
+
+
+@pytest.mark.parametrize("version,executor", [(1, "mini_swe"), (2, "bounded_edit")])
+def test_restored_design_cannot_change_pinned_run_policy(settings, monkeypatch, version, executor):
+    from types import SimpleNamespace
+
+    import workbench.orchestration as dispatcher
+    from workbench.errors import UnsupportedScope
+    from workbench.flow import Workflow
+
+    proposal = compile_v2(design_v1(), executor="mini_swe")
+    scope = {
+        "source_digest": proposal.outline.source_digest,
+        "sources": [{"id": ref} for ref in proposal.outline.features[0].requirements],
+    }
+    run = {
+        "template": "python-basic",
+        "options": {
+            **proposal.outline.selection.model_dump(),
+            "production_version": version,
+            "module_executor": executor,
+        },
+    }
+    workflow = Workflow(settings, SimpleNamespace(get_run=lambda _: run), None)
+    monkeypatch.setattr(dispatcher, "human_scope", lambda *args: scope)
+    monkeypatch.setattr(workflow, "_feature_requirement_errors", lambda *args: [])
+    with pytest.raises(UnsupportedScope):
+        workflow.checked_feature(
+            {
+                "run_id": "fixture",
+                "feature_design": proposal.model_dump(),
+                "extension_scope": scope,
+                "plan": proposal.baseline.model_dump(),
+            }
+        )

@@ -6,6 +6,10 @@ custom Environment intentionally has no execute-command operation.
 
 import json
 import sys
+from importlib.metadata import version
+
+if sys.version_info[:2] != (3, 12) or version("mini-swe-agent") != "2.4.6":
+    raise RuntimeError("Worker requires reviewed Python 3.12 and mini-swe-agent 2.4.6")
 
 from minisweagent.agents.default import DefaultAgent
 
