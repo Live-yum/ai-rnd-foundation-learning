@@ -22,6 +22,8 @@ HELPERS = (
     "local_only.py",
     "settings.py",
     "domain.py",
+    "core/__init__.py",
+    "core/contracts.py",
     "business_contracts.py",
     "business_schema_receipt.py",
     "business_probe.py",
@@ -296,6 +298,7 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     helper_root = deployment / "workbench"
     helper_root.mkdir(exist_ok=True)
     for name in HELPERS:
+        (helper_root / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "workbench" / name, helper_root / name)
     sql_dir = deployment / "database"
     sql_dir.mkdir(exist_ok=True)

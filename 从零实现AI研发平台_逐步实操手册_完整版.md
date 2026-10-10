@@ -70,7 +70,7 @@ npm ci --prefix tools/openspec --ignore-scripts
 官方协议来源：<https://github.com/SWE-agent/mini-swe-agent/tree/v2.4.6/src/minisweagent>。平台 Python 3.14 不安装该依赖；Worker 单独安装：
 
 ```sh
-uv sync --project tools/mini-swe --locked
+uv sync --project tools/mini-swe --python 3.12 --locked
 ```
 
 Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文件编辑。它没有模型/Daytona 凭据，不装载用户全局配置，不使用 LocalEnvironment 或默认 DockerEnvironment。Environment 只允许 `edit` 和 `submit`；没有任意 shell 工具。此版本是受约束的 mini-SWE 编辑循环，不宣称支持其所有终端工具能力。
@@ -16377,7 +16377,7 @@ def snapshot_edits(product, snapshot, task, selection):
 - `_run.read_lines`（L116–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L117在`True`成立时循环；L123按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `_run.send`（L129–L134）：接收`value`。 控制顺序：L131按`len(raw) > LIMIT`分支；L132抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: 343b9f6ff6cf76676c2c280a124e7f651a1efbfabf1f0cff02267874b47cc679 -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: a0ccbce23ca2ad7e4b729157eb83b4cf2b20ee6b271f5814329728f518787429 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -16422,7 +16422,7 @@ def run_agent(
     executable = worker_python()
     if not executable.is_file():
         raise UnsupportedScope(
-            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --locked"
+            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --python 3.12 --locked"
         )
     from workbench.llm import ModelGateway
 
@@ -31200,17 +31200,17 @@ def version_for_run(run):
 
 **逐个入口与控制逻辑：**
 
-- `_diagnostic_redact`（L61–L73）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L65遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L73的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
-- `_diagnostic_lifecycle`（L76–L139）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L78按`not isinstance(value, dict)`分支；L81遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L89按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L93遍历`("owned_process_group", "started", "port_released")`；L94按`type(value.get(name)) is bool`分支；L97按`value.get("phase") in phases`分支；L99遍历`("failure", "cleanup_failure")`；L101按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L79的`{}`；L139的`result`。
-- `capture_native_delivery_failure`（L142–L222）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L154按`error is not None`分支；L156遍历`("returncode", "timed_out")`；L158按`type(value) in {int, bool}`分支；L171按`len(raw) > 16384`分支；L179按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L184遍历`DIAGNOSTIC_LOGS`；L185按`remaining <= 0`分支；L197按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L222的`result`。
-- `capture_native_delivery_failure.selected_path`（L161–L165）：接收`name`。 控制顺序：L163按`not stat.S_ISREG(path.stat().st_mode)`分支；L164抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L165的`path`。
-- `connection_url`（L225–L226）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L226的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
-- `menu_snapshot`（L229–L236）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L236的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
-- `export_menu_sql`（L239–L278）：接收`template`、`url`、`before`、`target`。 控制顺序：L250按`not changed`分支；L251抛异常，停止当前正常路径；L255遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L278的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
-- `build_native_delivery`（L281–L366）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L286遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L289按`plan.business`分支；L298遍历`HELPERS`；L304按`plan.business`分支；L305遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L310按`source_file.is_file()`分支；L313按`plan.business`分支；L314按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L361的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L369–L469）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L381按`template not in {"fastapiadmin", "yudao-vben"}`分支；L382抛异常，停止当前正常路径；L395按`restored != packaged or manifest(copy) != listing`分支；L396抛异常，停止当前正常路径；L397按`source_handoff is not None`分支；L427按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L434抛异常，停止当前正常路径；L444按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L449的`result`。
+- `_diagnostic_redact`（L63–L75）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L67遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L75的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
+- `_diagnostic_lifecycle`（L78–L141）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L80按`not isinstance(value, dict)`分支；L83遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L91按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L95遍历`("owned_process_group", "started", "port_released")`；L96按`type(value.get(name)) is bool`分支；L99按`value.get("phase") in phases`分支；L101遍历`("failure", "cleanup_failure")`；L103按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L81的`{}`；L141的`result`。
+- `capture_native_delivery_failure`（L144–L224）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L156按`error is not None`分支；L158遍历`("returncode", "timed_out")`；L160按`type(value) in {int, bool}`分支；L173按`len(raw) > 16384`分支；L181按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L186遍历`DIAGNOSTIC_LOGS`；L187按`remaining <= 0`分支；L199按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L224的`result`。
+- `capture_native_delivery_failure.selected_path`（L163–L167）：接收`name`。 控制顺序：L165按`not stat.S_ISREG(path.stat().st_mode)`分支；L166抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L167的`path`。
+- `connection_url`（L227–L228）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L228的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `menu_snapshot`（L231–L238）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L238的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
+- `export_menu_sql`（L241–L280）：接收`template`、`url`、`before`、`target`。 控制顺序：L252按`not changed`分支；L253抛异常，停止当前正常路径；L257遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L280的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
+- `build_native_delivery`（L283–L369）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L288遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L291按`plan.business`分支；L300遍历`HELPERS`；L307按`plan.business`分支；L308遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L313按`source_file.is_file()`分支；L316按`plan.business`分支；L317按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`(helper_root / name).parent.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`等。 返回路径：L364的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
+- `verify_native_delivery`（L372–L472）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L384按`template not in {"fastapiadmin", "yudao-vben"}`分支；L385抛异常，停止当前正常路径；L398按`restored != packaged or manifest(copy) != listing`分支；L399抛异常，停止当前正常路径；L400按`source_handoff is not None`分支；L430按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L437抛异常，停止当前正常路径；L447按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L452的`result`。
 
-<!-- source-file: workbench/portable.py sha256: a47e1db32c1948be246b9ddaa6ffa125128539fa8f64ea10264155da40c4c0ed -->
+<!-- source-file: workbench/portable.py sha256: 5e224be1b307413ec15f1a0a6726aabec1b4cded6e7fdc964e56901ca4d261e0 -->
 ````python
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
@@ -31236,6 +31236,8 @@ HELPERS = (
     "local_only.py",
     "settings.py",
     "domain.py",
+    "core/__init__.py",
+    "core/contracts.py",
     "business_contracts.py",
     "business_schema_receipt.py",
     "business_probe.py",
@@ -31510,6 +31512,7 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     helper_root = deployment / "workbench"
     helper_root.mkdir(exist_ok=True)
     for name in HELPERS:
+        (helper_root / name).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / "workbench" / name, helper_root / name)
     sql_dir = deployment / "database"
     sql_dir.mkdir(exist_ok=True)
@@ -143195,8 +143198,9 @@ def test_workflow_has_independent_complete_gates_and_always_run_fail_closed_aggr
 - `test_no_image_install_execution_or_privilege_surface_expands`（L437–L476）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L439断言`sha(native.ROOT / native.DOCKERFILE) == native.REVIEWED_DOCKERFILE_SHA256 == "ceb125f…`；L444断言`image.ROOTS["fastapiadmin"] == [ "/opt/rnd/runtime/fastapiadmin/backend/.venv", "/opt…`；L453断言`image.GROUPS["fastapiadmin"] == { "python": ["default-groups"], "extras": [], "node":…`；L471断言`len(calls) == 2`；L472断言`all( "source_descriptor_bytes" not in ast.unparse(call) and "descriptor_roles" not in…`。 调用`sha`、`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`、`len`、`all`、`ast.unparse`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_packaged_controller_imports_with_scripts_unavailable`（L479–L493）：接收`monkeypatch`。 控制顺序：L493断言`module.native_descriptor_roles() == admission.native_descriptor_roles()`。 调用`monkeypatch.setattr`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.native_descriptor_roles`、`admission.native_descriptor_roles`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_packaged_controller_imports_with_scripts_unavailable.without_scripts`（L482–L485）：接收`name`、`*args`、`**kwargs`。 控制顺序：L483按`name == "scripts" or name.startswith("scripts.")`分支；L484抛异常，停止当前正常路径。 调用`name.startswith`、`ModuleNotFoundError`、`original_import`。 返回路径：L485的`original_import(name, *args, **kwargs)`。
+- `test_delivered_launcher_imports_without_platform_checkout`（L496–L521）：接收`real_product`、`tmp_path`。 控制顺序：L520断言`result.returncode == 0`；L521断言`"--check" in result.stdout`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_ci_native_capability_full_source.py sha256: f2d9c68943c36a671d65cfc79d860da0486f60a5b00cfea170bf64d768c7ce92 -->
+<!-- source-file: tests/test_ci_native_capability_full_source.py sha256: 7f9ffc1b2ba4d04b2b0bb32c6b92ff614e44e673b3b73b39ddad4710a3922d26 -->
 ````python
 """Real pinned source/layout regression; all database/runtime execution is stubbed.
 
@@ -143691,6 +143695,34 @@ def test_packaged_controller_imports_with_scripts_unavailable(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.native_descriptor_roles() == admission.native_descriptor_roles()
+
+
+def test_delivered_launcher_imports_without_platform_checkout(real_product, tmp_path):
+    import subprocess
+    import sys
+
+    from workbench.tools import clean_env
+
+    product, _, _ = real_product
+    deployment = product / "deployment"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys,runpy; sys.path.insert(0,sys.argv[1]); "
+            "sys.argv=['run.py','--help']; "
+            "runpy.run_path(sys.path[0]+'/run.py',run_name='__main__')",
+            str(deployment),
+        ],
+        cwd=tmp_path,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--check" in result.stdout
 ````
 
 ### `tests/test_ci_native_capability_security.py`
@@ -217831,7 +217863,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: 2df8080dbee7ef6438fb5edcdf5de8dfd0c60c539ad3d9064e88177043aa0d11 -->
+<!-- source-file: .github/workflows/test.yml sha256: a036dfbbe1837b830c3a21a117b9ee10bb4ee9cdca057b5c7324b28dfd263c5f -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -218215,8 +218247,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: uv sync --locked
-      - run: uv sync --project tools/mini-swe --locked
+      - run: uv sync --locked --all-extras
+      - run: uv sync --project tools/mini-swe --python 3.12 --locked
       - run: npm ci --prefix tools/openspec --ignore-scripts --no-audit --no-fund
       - name: Install independent authored-fixture browser
         run: |
@@ -235194,7 +235226,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: d2e1d6e23a931b54fe8d9690d359812c8acae9818eb62837774e01d703d7da06 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 8ec7db63810e8a8c6a2ecdc5b50566b281a1a2d50ccd62d401ec368990e52c50 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -235268,7 +235300,7 @@ npm ci --prefix tools/openspec --ignore-scripts
 官方协议来源：<https://github.com/SWE-agent/mini-swe-agent/tree/v2.4.6/src/minisweagent>。平台 Python 3.14 不安装该依赖；Worker 单独安装：
 
 ```sh
-uv sync --project tools/mini-swe --locked
+uv sync --project tools/mini-swe --python 3.12 --locked
 ```
 
 Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文件编辑。它没有模型/Daytona 凭据，不装载用户全局配置，不使用 LocalEnvironment 或默认 DockerEnvironment。Environment 只允许 `edit` 和 `submit`；没有任意 shell 工具。此版本是受约束的 mini-SWE 编辑循环，不宣称支持其所有终端工具能力。

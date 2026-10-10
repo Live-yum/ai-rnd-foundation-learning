@@ -41,7 +41,7 @@ def run_agent(
     executable = worker_python()
     if not executable.is_file():
         raise UnsupportedScope(
-            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --locked"
+            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --python 3.12 --locked"
         )
     from workbench.llm import ModelGateway
 

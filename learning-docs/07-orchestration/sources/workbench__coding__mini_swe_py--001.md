@@ -25,9 +25,9 @@
 
 **创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L274。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12131`。本段原文以LF换行结束。
+本段原始字节数：`12145`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "343b9f6ff6cf76676c2c280a124e7f651a1efbfabf1f0cff02267874b47cc679"} -->
+<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a0ccbce23ca2ad7e4b729157eb83b4cf2b20ee6b271f5814329728f518787429"} -->
 ````python
 # workbench/coding/mini_swe.py
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
@@ -73,7 +73,7 @@ def run_agent(
     executable = worker_python()
     if not executable.is_file():
         raise UnsupportedScope(
-            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --locked"
+            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --python 3.12 --locked"
         )
     from workbench.llm import ModelGateway
 

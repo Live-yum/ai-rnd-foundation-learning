@@ -70,7 +70,7 @@ npm ci --prefix tools/openspec --ignore-scripts
 官方协议来源：<https://github.com/SWE-agent/mini-swe-agent/tree/v2.4.6/src/minisweagent>。平台 Python 3.14 不安装该依赖；Worker 单独安装：
 
 ```sh
-uv sync --project tools/mini-swe --locked
+uv sync --project tools/mini-swe --python 3.12 --locked
 ```
 
 Worker 通过标准输入输出的有界 JSON-line RPC 请求平台模型与文件编辑。它没有模型/Daytona 凭据，不装载用户全局配置，不使用 LocalEnvironment 或默认 DockerEnvironment。Environment 只允许 `edit` 和 `submit`；没有任意 shell 工具。此版本是受约束的 mini-SWE 编辑循环，不宣称支持其所有终端工具能力。

@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L441。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17383`。本段原文以LF换行结束。
+本段原始字节数：`17410`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2df8080dbee7ef6438fb5edcdf5de8dfd0c60c539ad3d9064e88177043aa0d11"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a036dfbbe1837b830c3a21a117b9ee10bb4ee9cdca057b5c7324b28dfd263c5f"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -399,8 +399,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: uv sync --locked
-      - run: uv sync --project tools/mini-swe --locked
+      - run: uv sync --locked --all-extras
+      - run: uv sync --project tools/mini-swe --python 3.12 --locked
       - run: npm ci --prefix tools/openspec --ignore-scripts --no-audit --no-fund
       - name: Install independent authored-fixture browser
         run: |
