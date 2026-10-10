@@ -6,6 +6,8 @@
 
 - [tests/test_generation_preservation.py](sources/tests__test_generation_preservation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_browser_gate.py](sources/tests__test_product_browser_gate_py--001.md)：可重复的验收用例；1 段
+- [workbench/generation/__init__.py](sources/workbench__generation____init___py--001.md)：项目根配置或说明；1 段
+- [workbench/generation/python_basic.py](sources/workbench__generation__python_basic_py--001.md)：确定性生成基础FastAPI产品；1 段
 - [workbench/generator.py](sources/workbench__generator_py--001.md)：确定性生成基础FastAPI产品；1 段
 - [workbench/postgres_lab.py](sources/workbench__postgres_lab_py--001.md)：基础产品真实PostgreSQL验收环境；1 段
 - [workbench/product_sql.py](sources/workbench__product_sql_py--001.md)：从同一Plan生成可读SQL交付资料；1 段

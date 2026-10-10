@@ -166,6 +166,12 @@ class Settings(BaseSettings):
     tool_timeout: int = Field(default=180, ge=10, le=900)
     coding_engine: Literal["bounded", "aider"] = "bounded"
     module_coding_engine: Literal["structured", "openhands"] = "structured"
+    mini_swe_enabled: bool = False
+    mini_swe_max_tokens: int = Field(default=2000000, ge=1000, le=2000000)
+    mini_swe_max_cost_usd: float = Field(default=10, gt=0, le=100)
+    # Operator-provided conservative maximum tariff, never guessed model pricing.
+    mini_swe_usd_per_million_tokens: float = Field(default=0, ge=0, le=10000)
+    mini_swe_timeout: int = Field(default=180, ge=10, le=900)
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
     retrieval_engine: Literal["local", "continue"] = "local"

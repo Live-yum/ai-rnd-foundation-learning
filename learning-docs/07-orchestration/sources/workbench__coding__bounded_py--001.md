@@ -1,4 +1,4 @@
-# workbench/coding.py · 1/1
+# workbench/coding/bounded.py · 1/1
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
@@ -21,13 +21,13 @@
 
 </details>
 
-**创建路径：** `workbench/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L81。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/bounded.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L81。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
 本段原始字节数：`3432`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0532d922ad67e46221718c07b9358c8d3c7e12f7bb81baf1327c33d70368b98f"} -->
+<!-- learning-source: {"path": "workbench/coding/bounded.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0532d922ad67e46221718c07b9358c8d3c7e12f7bb81baf1327c33d70368b98f"} -->
 ````python
-# workbench/coding.py
+# workbench/coding/bounded.py
 """Bounded coding: one SHA-guarded rule file, parsed/interpreted instead of exec."""
 
 import difflib

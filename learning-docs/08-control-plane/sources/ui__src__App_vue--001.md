@@ -12,9 +12,9 @@
 
 **创建路径：** `ui/src/App.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L411。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15192`。本段原文以LF换行结束。
+本段原始字节数：`15216`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "594338ebbf4c6e53ca33615f508d4216532a6a411e4750a37066ad793a3f0c1b"} -->
+<!-- learning-source: {"path": "ui/src/App.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "baf16bdb442893fa4d1aa4dc156668051cd3b2b22d76aedeb440c338b6f85c37"} -->
 ````vue
 <!-- ui/src/App.vue -->
 <script setup lang="ts">
@@ -36,10 +36,10 @@ import {
 } from '@ant-design/icons-vue'
 import { connect, state, lock, openRun, closeRun, refreshLists } from './state'
 import { shortId } from './presentation'
-import HomeView from './components/HomeView.vue'
-import ProjectsView from './components/ProjectsView.vue'
-import RunView from './components/RunView.vue'
-import SettingsView from './components/SettingsView.vue'
+import HomeView from './features/projects/HomeView.vue'
+import ProjectsView from './features/projects/ProjectsView.vue'
+import RunView from './features/runs/RunView.vue'
+import SettingsView from './features/settings/SettingsView.vue'
 const hash = ref(location.hash.slice(1).replace(/^\//, '') || 'home'),
   authOpen = ref(false),
   mobileOpen = ref(false),

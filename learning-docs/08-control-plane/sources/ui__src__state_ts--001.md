@@ -12,11 +12,11 @@
 
 **带着一个具体问题阅读：** 快速打开运行A再打开B时，即使A的请求最后才返回，也不能把A消息写到B。openRun先关闭旧订阅并递增runGeneration；回调核对代次后才更新。重连只接受id大于当前cursor的事件，因此同一已提交delta不会再追加一次。
 
-**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L327。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/state.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L329。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10078`。本段原文以LF换行结束。
+本段原始字节数：`10203`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f25268bee022a1744e190fccf3f9d063443c3980661f8bb54dc4cdd32361010"} -->
+<!-- learning-source: {"path": "ui/src/state.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "199f498caaaf665587a0aba9928b281edd62a405d0a9cb590d8951d33abf63e9"} -->
 ````typescript
 // ui/src/state.ts
 import { reactive } from 'vue'
@@ -37,6 +37,8 @@ const emptyCreation = () => ({
   database: '',
   intelligent: false,
   allowCustomExtensions: false,
+  specificationMode: 'standard' as 'standard' | 'enhanced',
+  moduleExecutor: 'bounded_edit' as 'bounded_edit' | 'mini_swe',
 })
 export const state = reactive({
   authenticated: false,

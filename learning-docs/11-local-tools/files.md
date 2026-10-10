@@ -32,6 +32,10 @@
 - [tools/browser/seccomp.playwright-1.56.1.json](sources/tools__browser__seccomp_playwright-1_56_1_json--001.md)：项目根配置或说明；1 段
 - [tools/embeddings/pyproject.toml](sources/tools__embeddings__pyproject_toml--001.md)：真实本机向量模型的独立验证环境；1 段
 - [tools/embeddings/uv.lock](sources/locks/tools__embeddings__uv_lock--001.md)：精确依赖锁；1 段
+- [tools/mini-swe/.python-version](sources/tools__mini-swe___python-version--001.md)：项目根配置或说明；1 段
+- [tools/mini-swe/pyproject.toml](sources/tools__mini-swe__pyproject_toml--001.md)：项目根配置或说明；1 段
+- [tools/mini-swe/uv.lock](sources/locks/tools__mini-swe__uv_lock--001.md)：精确依赖锁；1 段
+- [tools/mini-swe/worker.py](sources/tools__mini-swe__worker_py--001.md)：项目根配置或说明；1 段
 - [tools/node/build.mjs](sources/tools__node__build_mjs--001.md)：本机Node索引运行边界；1 段
 - [tools/node/continue-host.mjs](sources/tools__node__continue-host_mjs--001.md)：本机Node索引运行边界；1 段
 - [tools/node/continue-runner.mjs](sources/tools__node__continue-runner_mjs--001.md)：本机Node索引运行边界；1 段
@@ -45,3 +49,5 @@
 - [tools/node/upstream/FullTextSearchCodebaseIndex.ts](sources/tools__node__upstream__FullTextSearchCodebaseIndex_ts--001.md)：固定的Continue开源全文索引组件及许可证；1 段
 - [tools/node/upstream/LICENSE](sources/tools__node__upstream__LICENSE--001.md)：固定的Continue开源全文索引组件及许可证；1 段
 - [tools/node/upstream/manifest.json](sources/tools__node__upstream__manifest_json--001.md)：固定的Continue开源全文索引组件及许可证；1 段
+- [tools/openspec/package-lock.json](sources/locks/tools__openspec__package-lock_json--001.md)：项目根配置或说明；1 段
+- [tools/openspec/package.json](sources/tools__openspec__package_json--001.md)：项目根配置或说明；1 段

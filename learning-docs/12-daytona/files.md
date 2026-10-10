@@ -45,3 +45,5 @@
 - [workbench/daytona_diagnostics.py](sources/workbench__daytona_diagnostics_py--001.md)：本次自有沙箱的有界启动诊断；1 段
 - [workbench/daytona_sessions.py](sources/workbench__daytona_sessions_py--001.md)：长时间沙箱检查的单次异步提交；1 段
 - [workbench/daytona_worker.py](sources/workbench__daytona_worker_py--001.md)：SDK专用的本机网络子进程；1 段
+- [workbench/infrastructure/sandbox/__init__.py](sources/workbench__infrastructure__sandbox____init___py--001.md)：项目根配置或说明；1 段
+- [workbench/infrastructure/sandbox/coding.py](sources/workbench__infrastructure__sandbox__coding_py--001.md)：不依赖Aider的受限规则编辑；1 段

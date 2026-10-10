@@ -16,6 +16,17 @@ from pydantic import SecretStr
 from workbench.model_diagnostics import failure_diagnostic
 
 PUBLIC_PATHS = {
+    ("workbench.core.contracts", "Requirement"): ("summary",),
+    ("workbench.core.contracts", "Plan"): ("title",),
+    ("workbench.core.contracts", "Patches"): ("explanation",),
+    ("workbench.core.contracts", "ModelReview"): ("summary",),
+    ("workbench.planning.feature_planner", "FeatureOutline"): ("summary",),
+    ("workbench.planning.feature_planner", "FeatureDesign"): ("outline", "summary"),
+    ("workbench.production.dispatcher", "ExtensionDesign"): ("implementation", "summary"),
+    ("workbench.planning.contracts", "CapabilityPlan"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityOutline"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityScenarioBatch"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityEdits"): ("explanation",),
     ("workbench.domain", "Requirement"): ("summary",),
     ("workbench.domain", "Plan"): ("title",),
     ("workbench.domain", "Patches"): ("explanation",),

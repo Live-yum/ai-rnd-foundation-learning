@@ -16,6 +16,8 @@ const emptyCreation = () => ({
   database: '',
   intelligent: false,
   allowCustomExtensions: false,
+  specificationMode: 'standard' as 'standard' | 'enhanced',
+  moduleExecutor: 'bounded_edit' as 'bounded_edit' | 'mini_swe',
 })
 export const state = reactive({
   authenticated: false,

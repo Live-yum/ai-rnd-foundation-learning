@@ -1,8 +1,8 @@
-# workbench/requirement_coverage.py · 4/4
+# workbench/requirements/coverage.py · 4/4
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-[上一段](workbench__requirement_coverage_py--003.md)
+[上一段](workbench__requirements__coverage_py--003.md)
 
 **作用：保留用户事实并检查可执行需求覆盖。** 模型格式与类型先由官方LangChain结构化输出和Pydantic负责。reconcile保留已确认事实，替换要有当前真实用户更正原文；coverage_gaps逐项比较结构化字段、数据归属与可识别业务约束，指标与列表查询分区。仅提到英文别名不会建立新字段义务；真实正向声明、明确禁止字段及旧文本兼容检查仍保留，不把部分typed清单当成语义完整证明。来源冲突与设计漏项仍阻塞，不让规划模型自行宣布已覆盖。
 
@@ -12,8 +12,6 @@
 
 **先有这些模块：** `workbench.domain`、`workbench.entity_requirements`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
-**带着一个具体问题阅读：** 例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。
-
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
@@ -21,13 +19,13 @@
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2699–L3113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirements/coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2699–L3113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
 本段原始字节数：`19691`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b2e1825237bc2b8138a6f7c7093099a267656af9b82a804a47541bc4f9301350"} -->
+<!-- learning-source: {"path": "workbench/requirements/coverage.py", "part": 4, "parts": 4, "encoding": "utf-8", "sha256": "b2e1825237bc2b8138a6f7c7093099a267656af9b82a804a47541bc4f9301350"} -->
 ````python
-# workbench/requirement_coverage.py
+# workbench/requirements/coverage.py
     def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
         gaps.append(message)
         if diagnostics is not None:

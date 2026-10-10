@@ -278,6 +278,12 @@ def schema_diagnostics(exc, schema):
         value = error["msg"].removeprefix("Value error, ")
         return value if value in safe_messages else "字段结构或类型不符合约定"
 
+    errors = exc.errors(include_input=False, include_url=False)
+    # Pydantic inserts schema-owned union branch names into locations. They are
+    # not JSON object fields; remove only known definitions, never input text.
+    definitions = set(document.get("$defs", {})) - allowed
+    for error in errors:
+        error["loc"] = tuple(part for part in error["loc"] if part not in definitions)
     return [
         {
             "message": safe_message(error),
@@ -288,5 +294,5 @@ def schema_diagnostics(exc, schema):
             ],
             **(_constraint_hint(document, error) or {}),
         }
-        for error in exc.errors(include_input=False, include_url=False)[:30]
+        for error in errors[:30]
     ]

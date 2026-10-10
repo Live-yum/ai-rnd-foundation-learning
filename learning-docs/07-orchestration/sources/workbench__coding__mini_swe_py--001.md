@@ -1,0 +1,307 @@
+# workbench/coding/mini_swe.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench.coding.candidates`、`workbench.coding.diff_guard`、`workbench.coding.ports`、`workbench.core.contracts`、`workbench.errors`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
+- `run_agent`（L34–L72）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L60的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
+- `_run`（L75–L274）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L95按`record.exists()`分支；L97按`budget["identity"] != identity`分支；L98抛异常，停止当前正常路径；L146在`True`成立时循环；L148按`remaining <= 0`分支；L149抛异常，停止当前正常路径；L153抛异常，停止当前正常路径；L154按`not raw or len(raw) > LIMIT`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`time.monotonic`等。 返回路径：L267的`edits`。
+- `_run.read_lines`（L116–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L117在`True`成立时循环；L123按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L129–L134）：接收`value`。 控制顺序：L131按`len(raw) > LIMIT`分支；L132抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+</details>
+
+**创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L274。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`12131`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "343b9f6ff6cf76676c2c280a124e7f651a1efbfabf1f0cff02267874b47cc679"} -->
+````python
+# workbench/coding/mini_swe.py
+"""Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
+
+import json
+import queue
+import subprocess
+import tempfile
+import threading
+import time
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from filelock import FileLock
+
+from workbench.coding.candidates import apply_candidate
+from workbench.coding.diff_guard import snapshot_edits
+from workbench.coding.ports import AgentTurn
+from workbench.core.contracts import digest
+from workbench.errors import UnsupportedScope
+from workbench.filesystem import inside, manifest, write_json
+from workbench.settings import ROOT
+from workbench.tools import clean_env, process_options, stop_process
+
+LIMIT = 1_200_000
+
+
+def worker_python():
+    import os
+
+    return (
+        ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    )
+
+
+def run_agent(
+    settings, gateway, run_id, task, plan, product, workspace, context, *, environment_factory=None
+):
+    if not settings.mini_swe_enabled:
+        raise UnsupportedScope("MINI_SWE_ENABLED未启用；批准模块已保留")
+    if task.version != 2 or task.executor != "mini_swe":
+        raise ValueError("mini-SWE requires an approved V2 module task")
+    executable = worker_python()
+    if not executable.is_file():
+        raise UnsupportedScope(
+            "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --locked"
+        )
+    from workbench.llm import ModelGateway
+
+    if isinstance(gateway, ModelGateway):
+        profile = settings.model_for("coding")
+        if urlsplit(profile.base_url).scheme != "https":
+            raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
+        if settings.mini_swe_usd_per_million_tokens <= 0:
+            raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
+        output_tokens = profile.max_output_tokens or 65536
+    else:
+        output_tokens = 4096
+    workspace = Path(workspace)
+    workspace.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(workspace / "agent.lock"), timeout=0):
+        return _run(
+            settings,
+            gateway,
+            run_id,
+            task,
+            plan,
+            Path(product),
+            workspace,
+            context,
+            executable,
+            output_tokens,
+            environment_factory,
+        )
+
+
+def _run(
+    settings,
+    gateway,
+    run_id,
+    task,
+    plan,
+    product,
+    workspace,
+    context,
+    executable,
+    output_tokens,
+    environment_factory,
+):
+    from workbench.infrastructure.sandbox.coding import coding_environment
+
+    identity = digest(
+        {"source": manifest(product), "task": task.model_dump(), "plan": plan.model_dump()}
+    )
+    record = workspace / "agent-budget.json"
+    budget = {"identity": identity, "requests": 0, "tokens_reserved": 0, "cost_reserved_usd": 0.0}
+    if record.exists():
+        budget = json.loads(record.read_text())
+        if budget["identity"] != identity:
+            raise ValueError("Agent journal belongs to a different approved task or source")
+    deadline = time.monotonic() + settings.mini_swe_timeout
+    factory = environment_factory or coding_environment
+    current = product
+    edits_count = 0
+    with factory(settings, task, plan.selection.model_dump(), product) as environment:
+        with tempfile.TemporaryDirectory(prefix="rnd-mini-worker-") as cwd:
+            process = subprocess.Popen(
+                [str(executable), "-I", str(ROOT / "tools/mini-swe/worker.py")],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                cwd=cwd,
+                env=clean_env({"MSWEA_GLOBAL_CONFIG_DIR": cwd, "MSWEA_SILENT_STARTUP": "1"}),
+                **process_options(),
+            )
+            lines = queue.Queue(maxsize=2)
+
+            def read_lines():
+                while True:
+                    raw = process.stdout.readline(LIMIT + 1)
+                    try:
+                        lines.put(raw, timeout=1)
+                    except queue.Full:
+                        return
+                    if not raw or len(raw) > LIMIT:
+                        return
+
+            reader = threading.Thread(target=read_lines, daemon=True)
+            reader.start()
+
+            def send(value):
+                raw = json.dumps(value, ensure_ascii=False).encode() + b"\n"
+                if len(raw) > LIMIT:
+                    raise ValueError("Agent RPC exceeds budget")
+                process.stdin.write(raw)
+                process.stdin.flush()
+
+            step = 0
+            submitted = False
+            try:
+                send(
+                    {
+                        "task": task.contract,
+                        "max_steps": task.max_steps,
+                        "timeout": settings.mini_swe_timeout,
+                    }
+                )
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise UnsupportedScope("mini-SWE wall-time budget exhausted")
+                    try:
+                        raw = lines.get(timeout=remaining)
+                    except queue.Empty:
+                        raise UnsupportedScope("mini-SWE worker timed out") from None
+                    if not raw or len(raw) > LIMIT:
+                        raise ValueError("mini-SWE worker protocol ended or exceeded budget")
+                    message = json.loads(raw)
+                    if set(message) != {"operation", "payload"}:
+                        raise ValueError("unexpected worker protocol fields")
+                    operation, payload = message["operation"], message["payload"]
+                    if operation == "model":
+                        if submitted or step >= task.max_steps:
+                            raise ValueError("Agent exceeded approved steps")
+                        # Ignore worker-supplied instructions/context. Only platform-owned inputs go to the gateway.
+                        file_context = {
+                            name: {
+                                "sha256": manifest(current).get(name),
+                                "content": inside(current, name).read_text()
+                                if inside(current, name).is_file()
+                                else None,
+                            }
+                            for name in task.allowed_paths
+                        }
+                        request = {
+                            "task": task.model_dump(),
+                            "context": file_context,
+                            "approved_context": context,
+                            "step": step,
+                            "edits_proposed": edits_count,
+                        }
+                        # Reserve for both possible gateway attempts; UTF-8 bytes conservatively bound input tokens.
+                        token_ceiling = 2 * (4 * settings.max_context_chars + output_tokens)
+                        cost_ceiling = (
+                            token_ceiling * settings.mini_swe_usd_per_million_tokens / 1_000_000
+                        )
+                        if (
+                            budget["requests"] + 2 > 2 * task.max_steps
+                            or budget["tokens_reserved"] + token_ceiling
+                            > settings.mini_swe_max_tokens
+                            or budget["cost_reserved_usd"] + cost_ceiling
+                            > settings.mini_swe_max_cost_usd
+                        ):
+                            raise UnsupportedScope(
+                                "mini-SWE platform request/token/cost budget exhausted"
+                            )
+                        budget["requests"] += 2
+                        budget["tokens_reserved"] += token_ceiling
+                        budget["cost_reserved_usd"] += cost_ceiling
+                        write_json(record, budget)
+                        from workbench.llm import ModelGateway
+
+                        bounded_gateway = gateway
+                        if isinstance(gateway, ModelGateway):
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 2:
+                                raise UnsupportedScope("mini-SWE model deadline exhausted")
+                            bounded_gateway = ModelGateway(
+                                settings.model_copy(
+                                    update={
+                                        "llm_timeout": min(
+                                            settings.llm_timeout, (remaining - 1) / 2
+                                        )
+                                    }
+                                ),
+                                gateway.store,
+                                gateway.transport,
+                                streaming=gateway.streaming,
+                            )
+                        turn = bounded_gateway.complete(
+                            run_id,
+                            f"coding:mini_swe:{identity}:{step}",
+                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。",
+                            request,
+                            AgentTurn,
+                        )
+                        send({"result": turn.model_dump()})
+                        step += 1
+                    elif operation == "environment":
+                        turn = AgentTurn.model_validate(payload)
+                        if turn.operation == "edit":
+                            if submitted or edits_count >= step:
+                                raise ValueError("unexpected agent edit sequence")
+                            next_candidate = workspace / f"step-{step}"
+                            apply_candidate(
+                                current,
+                                turn.edits,
+                                task,
+                                plan.selection.model_dump(),
+                                next_candidate,
+                            )
+                            environment.write(turn.edits)
+                            current = next_candidate
+                            edits_count += 1
+                            send({"result": {"edited": True, "independent_acceptance": "pending"}})
+                        else:
+                            if not edits_count or submitted:
+                                raise ValueError("Cannot submit an empty or repeated candidate")
+                            submitted = True
+                            send({"result": {"submitted": True}})
+                    elif operation == "result":
+                        if not submitted or payload.get("exit_status") != "Submitted":
+                            raise UnsupportedScope(
+                                "mini-SWE did not submit a candidate within budget"
+                            )
+                        snapshot = environment.snapshot(task.allowed_paths)
+                        edits = snapshot_edits(product, snapshot, task, plan.selection.model_dump())
+                        write_json(
+                            workspace / "agent-result.json",
+                            {
+                                "identity": identity,
+                                "task_id": task.task_id,
+                                "steps": step,
+                                "budget": budget,
+                                "candidate_submitted": True,
+                                "implementation_verified": False,
+                            },
+                        )
+                        return edits
+                    else:
+                        raise ValueError("unsupported agent RPC operation")
+            finally:
+                stop_process(process)
+                process.stdin.close()
+                process.stdout.close()
+                reader.join(timeout=2)
+````

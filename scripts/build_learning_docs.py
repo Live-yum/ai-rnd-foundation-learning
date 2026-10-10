@@ -141,6 +141,25 @@ MODULE_STAGE = {
 
 def stage_for(name):
     path = Path(name)
+    if name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.py"}:
+        return 2
+    domains = {
+        "workbench/core/": 1,
+        "workbench/projects/": 2,
+        "workbench/planning/": 4,
+        "workbench/requirements/": 3,
+        "workbench/specifications/": 4,
+        "workbench/coding/": 7,
+        "workbench/production/": 7,
+        "workbench/interfaces/": 8,
+        "workbench/generation/": 6,
+        "workbench/infrastructure/persistence/": 2,
+        "workbench/infrastructure/llm/": 3,
+        "workbench/infrastructure/sandbox/": 12,
+    }
+    for prefix, stage in domains.items():
+        if name.startswith(prefix):
+            return stage
     if name.startswith(("workbench/web/", "ui/")):
         return 8
     if name.startswith("scripts/extension_oracles/"):

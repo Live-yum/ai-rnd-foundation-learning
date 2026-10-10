@@ -31,6 +31,8 @@ class Selection(BaseModel):
 def options_for_run(run):
     options = dict(run.get("options") or {"template": run["template"]})
     options.pop("allow_custom_extensions", None)
+    for name in ("production_version", "specification_mode", "module_executor"):
+        options.pop(name, None)
     return Selection.model_validate(options)
 
 

@@ -38,6 +38,7 @@
 - [docs/implementation-labs.md](sources/docs__implementation-labs_md--001.md)：本教材正文的源文件；1 段
 - [docs/implementation.md](sources/docs__implementation_md--001.md)：本教材正文的源文件；1 段
 - [docs/model-feedback-verification.md](sources/docs__model-feedback-verification_md--001.md)：本教材正文的源文件；1 段
+- [docs/modular-production-v2.md](sources/docs__modular-production-v2_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-baseline.md](sources/docs__native-baseline_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-toolchain.md](sources/docs__native-toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/provider-structured-outputs.md](sources/docs__provider-structured-outputs_md--001.md)：本教材正文的源文件；1 段
@@ -87,6 +88,7 @@
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/signup_scope_browser.cjs](sources/scripts__signup_scope_browser_cjs--001.md)：在真实浏览器确认Vue报名能力范围；1 段
+- [scripts/sla_fixture.py](sources/scripts__sla_fixture_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_browser.cjs](sources/scripts__template_acceptance_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_cases.py](sources/scripts__template_acceptance_cases_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_runtime.py](sources/scripts__template_acceptance_runtime_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -184,6 +186,7 @@
 - [tests/test_planning_transcript.py](sources/tests__test_planning_transcript_py--001.md)：可重复的验收用例；1 段
 - [tests/test_postgres.py](sources/tests__test_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_reload_readiness.py](sources/tests__test_product_reload_readiness_py--001.md)：可重复的验收用例；1 段
+- [tests/test_production_v2.py](sources/tests__test_production_v2_py--001.md)：可重复的验收用例；1 段
 - [tests/test_pytest_reporting.py](sources/tests__test_pytest_reporting_py--001.md)：可重复的验收用例；1 段
 - [tests/test_query_attribute_references.py](sources/tests__test_query_attribute_references_py--001.md)：可重复的验收用例；1 段
 - [tests/test_query_obligation_pairing.py](sources/tests__test_query_obligation_pairing_py--001.md)：可重复的验收用例；1 段
@@ -202,6 +205,7 @@
 - [tests/test_safety.py](sources/tests__test_safety_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_domains.py](sources/tests__test_semantic_fact_domains_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
+- [tests/test_sla_vertical.py](sources/tests__test_sla_vertical_py--001.md)：可重复的验收用例；1 段
 - [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；2 段

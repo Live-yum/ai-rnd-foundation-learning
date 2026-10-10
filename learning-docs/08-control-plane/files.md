@@ -25,9 +25,18 @@
 - [ui/src/components/ProjectsView.vue](sources/ui__src__components__ProjectsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/Questionnaire.vue](sources/ui__src__components__Questionnaire_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/RunTable.vue](sources/ui__src__components__RunTable_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
-- [ui/src/components/RunView.vue](sources/ui__src__components__RunView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；2 段
+- [ui/src/components/RunView.vue](sources/ui__src__components__RunView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/SettingsView.vue](sources/ui__src__components__SettingsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/components/StageTimeline.vue](sources/ui__src__components__StageTimeline_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/approvals/Questionnaire.vue](sources/ui__src__features__approvals__Questionnaire_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/delivery/download.ts](sources/ui__src__features__delivery__download_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/plans/DataDocument.vue](sources/ui__src__features__plans__DataDocument_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/projects/HomeView.vue](sources/ui__src__features__projects__HomeView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/projects/ProjectsView.vue](sources/ui__src__features__projects__ProjectsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/runs/RunTable.vue](sources/ui__src__features__runs__RunTable_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/runs/RunView.vue](sources/ui__src__features__runs__RunView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；2 段
+- [ui/src/features/runs/StageTimeline.vue](sources/ui__src__features__runs__StageTimeline_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/src/features/settings/SettingsView.vue](sources/ui__src__features__settings__SettingsView_vue--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/main.ts](sources/ui__src__main_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/presentation.ts](sources/ui__src__presentation_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/state.ts](sources/ui__src__state_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
@@ -45,6 +54,9 @@
 - [ui/vite.config.ts](sources/ui__vite_config_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [workbench/api.py](sources/workbench__api_py--001.md)：网页及CLI调用的HTTP接口；1 段
 - [workbench/cli.py](sources/workbench__cli_py--001.md)：终端入口和运维命令；1 段
+- [workbench/interfaces/__init__.py](sources/workbench__interfaces____init___py--001.md)：项目根配置或说明；1 段
+- [workbench/interfaces/cli.py](sources/workbench__interfaces__cli_py--001.md)：终端入口和运维命令；1 段
+- [workbench/interfaces/http.py](sources/workbench__interfaces__http_py--001.md)：网页及CLI调用的HTTP接口；1 段
 - [workbench/native.py](sources/workbench__native_py--001.md)：原生代码生成接口的公共适配；1 段
 - [workbench/web/app.js](sources/assets/workbench__web__app_js--001.md)：Vue操作台的精确构建资产；1 段
 - [workbench/web/index.html](sources/assets/workbench__web__index_html--001.md)：Vue操作台的精确构建资产；1 段

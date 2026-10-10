@@ -12,11 +12,11 @@
 
 **带着一个具体问题阅读：** 中文字符和一个SSE帧都可能跨网络块。TextDecoder保留半个UTF-8字符，SSEParser保留未遇到空行的帧；直到data完整才解析JSON。令牌放Authorization而非URL，订阅中断只取消reader，不调用任务重试端点。
 
-**创建路径：** `ui/src/api.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L174。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/api.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L160。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5282`。本段原文以LF换行结束。
+本段原始字节数：`4901`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/api.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5984f5a298182514b6270e166ea1d3d405fae785fbe652f75cef99d7813cdc52"} -->
+<!-- learning-source: {"path": "ui/src/api.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ca56b02f6bffb1ff3b4289c51b8a811ea179af5221117040fb0c7328657bdd67"} -->
 ````typescript
 // ui/src/api.ts
 import type { RunEvent } from './types'
@@ -42,14 +42,14 @@ export function errorText(error: unknown) {
 export function isAbort(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError'
 }
-function headers(json = false, key?: string) {
+export function headers(json = false, key?: string) {
   return {
     Authorization: `Bearer ${accessToken}`,
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(key ? { 'Idempotency-Key': key } : {}),
   }
 }
-async function check(response: Response) {
+export async function check(response: Response) {
   if (response.ok) return response
   let detail: unknown
   try {
@@ -83,21 +83,7 @@ export async function api<T = any>(
   await check(response)
   return response.status === 204 ? (undefined as T) : response.json()
 }
-export async function downloadRun(runId: string) {
-  const response = await check(
-    await fetch(`/runs/${encodeURIComponent(runId)}/download`, {
-      headers: headers(),
-      cache: 'no-store',
-      credentials: 'omit',
-    }),
-  )
-  const url = URL.createObjectURL(await response.blob()),
-    link = document.createElement('a')
-  link.href = url
-  link.download = `${runId}.zip`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
+export { downloadRun } from './features/delivery/download'
 export interface SSEFrame {
   id?: number
   event?: string
