@@ -21886,11 +21886,11 @@ class ModelConnectionTester:
 - `_schema_nodes`（L161–L192）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L181遍历`path`；L183遍历`nodes`；L184遍历`expand(node)`；L185按`isinstance(part, int)`分支；L189按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L192的`[candidate for node in nodes for candidate in expand(node)]`。
 - `_schema_nodes.expand`（L164–L178）：接收`node`、`seen`。 控制顺序：L165按`not isinstance(node, dict)`分支；L169按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L171遍历`ref[2:].split("/")`；L172按`not isinstance(target, dict)`分支；L176遍历`("anyOf", "oneOf", "allOf")`；L177遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_constraint_hint`（L195–L225）：接收`document`、`error`。 控制顺序：L203按`error["type"] not in rules or len(error["loc"]) > 20`分支；L207按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L210按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L216按`isinstance(node.get("description"), str)`分支；L223按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L204的`None`；L208的`None`；L214的`None`。
-- `schema_diagnostics`（L228–L292）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 调用`set`、`schema.model_json_schema`、`collect`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`、`isinstance`、`_constraint_hint`、`exc.errors`。 返回路径：L281的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
+- `schema_diagnostics`（L228–L298）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 控制顺序：L285遍历`errors`。 调用`set`、`schema.model_json_schema`、`collect`、`exc.errors`、`document.get`、`tuple`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`等。 返回路径：L287的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
 - `schema_diagnostics.collect`（L236–L243）：接收`node`。 控制顺序：L237按`isinstance(node, dict)`分支；L239遍历`node.values()`；L241按`isinstance(node, list)`分支；L242遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `schema_diagnostics.safe_message`（L277–L279）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L279的`value if value in safe_messages else "字段结构或类型不符合约定"`。
 
-<!-- source-file: workbench/model_diagnostics.py sha256: 9b01d1133b647aa03ae2f213eaf309cc17b58c468da49bc74ab777e674e1bdf8 -->
+<!-- source-file: workbench/model_diagnostics.py sha256: f230bce9b3dd1bc75336e07c4dc87e25ba9ef0fd5756bb6ca246db6360753d7f -->
 ````python
 """Safe actionable provider failures. Never persist provider bodies or input values."""
 
@@ -22172,6 +22172,12 @@ def schema_diagnostics(exc, schema):
         value = error["msg"].removeprefix("Value error, ")
         return value if value in safe_messages else "字段结构或类型不符合约定"
 
+    errors = exc.errors(include_input=False, include_url=False)
+    # Pydantic inserts schema-owned union branch names into locations. They are
+    # not JSON object fields; remove only known definitions, never input text.
+    definitions = set(document.get("$defs", {})) - allowed
+    for error in errors:
+        error["loc"] = tuple(part for part in error["loc"] if part not in definitions)
     return [
         {
             "message": safe_message(error),
@@ -22182,7 +22188,7 @@ def schema_diagnostics(exc, schema):
             ],
             **(_constraint_hint(document, error) or {}),
         }
-        for error in exc.errors(include_input=False, include_url=False)[:30]
+        for error in errors[:30]
     ]
 ````
 
@@ -40981,30 +40987,30 @@ sys.modules[__name__] = _implementation
 
 **逐个入口与控制逻辑：**
 
-- `public_path`（L34–L40）：接收`schema`。 控制顺序：L38按`getattr(sys.modules.get(module), name, None) is schema`分支。 调用`getattr`、`sys.modules.get`、`PUBLIC_PATHS.get`。 返回路径：L39的`PUBLIC_PATHS.get((module, name))`；L40的`None`。
-- `public_field`（L43–L45）：接收`schema`。 调用`public_path`、`len`。 返回路径：L45的`path[0] if path and len(path) == 1 else None`。
-- `public_text`（L48–L54）：接收`value`、`schema`。 控制顺序：L50按`not path`分支；L52遍历`path`。 调用`public_path`、`getattr`、`isinstance`。 返回路径：L51的`""`；L54的`value if isinstance(value, str) else ""`。
-- `string_projection`（L57–L99）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L64在`index < len(source)`成立时循环；L66按`char == '"'`分支；L69按`char == "\\"`分支；L70按`index + 1 >= len(source)`分支；L73按`end > len(source)`分支；L79按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L80按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L87按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L99的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
-- `string_prefix`（L102–L104）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L104的`string_projection(source)[0]`。
-- `root_string_projection`（L107–L144）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L109按`not field`分支；L120按`source[position : position + 1] != "{"`分支；L124在`True`成立时循环；L127按`not isinstance(key, str)`分支；L130按`source[position : position + 1] != ":"`分支；L134按`key == field`分支；L135按`source[position : position + 1] != '"'`分支；L140按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L110的`"", False`；L121的`"", False`；L128的`"", False`。
-- `root_string_projection.whitespace`（L114–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L116在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `root_string_prefix`（L147–L149）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L149的`root_string_projection(source, field)[0]`。
-- `AssistantStream`（L152–L273）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AssistantStream.__init__`（L155–L186）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L172按`not self.enabled`分支；L183按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.refresh_secrets`（L188–L193）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.redact`（L195–L200）：接收`value`。 控制顺序：L198遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L200的`value`。
-- `AssistantStream.emit`（L202–L204）：接收`kind`、`data`。 控制顺序：L203按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.mode`（L206–L208）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.content`（L210–L249）：接收`fragment`。 控制顺序：L211按`not self.enabled or not self.field or self.projection_finished`分支；L215按`self.projection_finished`分支；L222遍历`self.secrets`；L223遍历`range(1, min(len(secret), len(projected) + 1))`；L224按`projected.endswith(secret[:size])`分支；L226按`hold`分支；L230在`True`成立时循环；L232遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.failed`（L251–L265）：接收`code`、`attempt`、`details`。 调用`self.emit`、`failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.completed_data`（L267–L273）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L268的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
-- `sse_event`（L276–L282）：接收`event`。 调用`json.dumps`。 返回路径：L277的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
-- `event_stream`（L285–L313）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L289在`not await request.is_disconnected()`成立时循环；L291遍历`events`；L292按`await request.is_disconnected()`分支；L296按`events`分支；L300按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L302按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L311按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `register_streaming_routes`（L316–L349）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_streaming_routes.transcript`（L318–L319）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L319的`store.transcript(run_id)`。
-- `register_streaming_routes.stream`（L322–L349）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L330按`last_event_id is not None`分支；L331按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L336抛异常，停止当前正常路径；L338按`value > 9223372036854775807`分支；L339抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L341的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
+- `public_path`（L45–L51）：接收`schema`。 控制顺序：L49按`getattr(sys.modules.get(module), name, None) is schema`分支。 调用`getattr`、`sys.modules.get`、`PUBLIC_PATHS.get`。 返回路径：L50的`PUBLIC_PATHS.get((module, name))`；L51的`None`。
+- `public_field`（L54–L56）：接收`schema`。 调用`public_path`、`len`。 返回路径：L56的`path[0] if path and len(path) == 1 else None`。
+- `public_text`（L59–L65）：接收`value`、`schema`。 控制顺序：L61按`not path`分支；L63遍历`path`。 调用`public_path`、`getattr`、`isinstance`。 返回路径：L62的`""`；L65的`value if isinstance(value, str) else ""`。
+- `string_projection`（L68–L110）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L75在`index < len(source)`成立时循环；L77按`char == '"'`分支；L80按`char == "\\"`分支；L81按`index + 1 >= len(source)`分支；L84按`end > len(source)`分支；L90按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L91按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L98按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L110的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
+- `string_prefix`（L113–L115）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L115的`string_projection(source)[0]`。
+- `root_string_projection`（L118–L155）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L120按`not field`分支；L131按`source[position : position + 1] != "{"`分支；L135在`True`成立时循环；L138按`not isinstance(key, str)`分支；L141按`source[position : position + 1] != ":"`分支；L145按`key == field`分支；L146按`source[position : position + 1] != '"'`分支；L151按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L121的`"", False`；L132的`"", False`；L139的`"", False`。
+- `root_string_projection.whitespace`（L125–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L127在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `root_string_prefix`（L158–L160）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L160的`root_string_projection(source, field)[0]`。
+- `AssistantStream`（L163–L284）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AssistantStream.__init__`（L166–L197）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L183按`not self.enabled`分支；L194按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.refresh_secrets`（L199–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.redact`（L206–L211）：接收`value`。 控制顺序：L209遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L211的`value`。
+- `AssistantStream.emit`（L213–L215）：接收`kind`、`data`。 控制顺序：L214按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.mode`（L217–L219）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.content`（L221–L260）：接收`fragment`。 控制顺序：L222按`not self.enabled or not self.field or self.projection_finished`分支；L226按`self.projection_finished`分支；L233遍历`self.secrets`；L234遍历`range(1, min(len(secret), len(projected) + 1))`；L235按`projected.endswith(secret[:size])`分支；L237按`hold`分支；L241在`True`成立时循环；L243遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.failed`（L262–L276）：接收`code`、`attempt`、`details`。 调用`self.emit`、`failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.completed_data`（L278–L284）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L279的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
+- `sse_event`（L287–L293）：接收`event`。 调用`json.dumps`。 返回路径：L288的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
+- `event_stream`（L296–L324）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L300在`not await request.is_disconnected()`成立时循环；L302遍历`events`；L303按`await request.is_disconnected()`分支；L307按`events`分支；L311按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L313按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L322按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `register_streaming_routes`（L327–L360）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_streaming_routes.transcript`（L329–L330）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L330的`store.transcript(run_id)`。
+- `register_streaming_routes.stream`（L333–L360）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L341按`last_event_id is not None`分支；L342按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L347抛异常，停止当前正常路径；L349按`value > 9223372036854775807`分支；L350抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L352的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
 
-<!-- source-file: workbench/streaming.py sha256: 99c2a307c704f66dcaaa66f5470cb7e499f85d28e027b09ea153d86430c92444 -->
+<!-- source-file: workbench/streaming.py sha256: 438640139ab7acd788784be6cab3176471d29f1e359cd2ccded92ebe7a013d27 -->
 ````python
 """Durable, authenticated UI streams. A subscriber never owns the model worker.
 
@@ -41024,6 +41030,17 @@ from pydantic import SecretStr
 from workbench.model_diagnostics import failure_diagnostic
 
 PUBLIC_PATHS = {
+    ("workbench.core.contracts", "Requirement"): ("summary",),
+    ("workbench.core.contracts", "Plan"): ("title",),
+    ("workbench.core.contracts", "Patches"): ("explanation",),
+    ("workbench.core.contracts", "ModelReview"): ("summary",),
+    ("workbench.planning.feature_planner", "FeatureOutline"): ("summary",),
+    ("workbench.planning.feature_planner", "FeatureDesign"): ("outline", "summary"),
+    ("workbench.production.dispatcher", "ExtensionDesign"): ("implementation", "summary"),
+    ("workbench.planning.contracts", "CapabilityPlan"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityOutline"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityScenarioBatch"): ("summary",),
+    ("workbench.planning.contracts", "CapabilityEdits"): ("explanation",),
     ("workbench.domain", "Requirement"): ("summary",),
     ("workbench.domain", "Plan"): ("title",),
     ("workbench.domain", "Patches"): ("explanation",),
@@ -162628,9 +162645,9 @@ def test_signup_cleanroom_rejects_artifact_changes_after_report(tmp_path, damage
 
 **逐个入口与控制逻辑：**
 
-- `test_database_lesson_runs_from_only_its_documented_files`（L11–L76）：接收`tmp_path`。 控制顺序：L43遍历`names`；L64断言`probe.returncode == 0`；L74断言`result.returncode == 0`；L75断言`not (destination / "workbench/api.py").exists()`；L76断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_lesson_runs_from_only_its_documented_files`（L11–L85）：接收`tmp_path`。 控制顺序：L52遍历`names`；L73断言`probe.returncode == 0`；L83断言`result.returncode == 0`；L84断言`not (destination / "workbench/api.py").exists()`；L85断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_learning_order.py sha256: 0ec7b22990475f17db68f51b36e1240fae9036c301a4ef62a9b8c9b9d6942e64 -->
+<!-- source-file: tests/test_learning_order.py sha256: 4a344c54f42a8890bff9bb6dec160288d7d71730cf65e2c7196cc86a08d64d27 -->
 ````python
 """The first database lesson must not depend on a future API or agent module."""
 
@@ -162655,6 +162672,8 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/business_contracts.py",
         "workbench/business_capabilities.py",
         "workbench/domain.py",
+        "workbench/core/__init__.py",
+        "workbench/core/contracts.py",
         "workbench/errors.py",
         "workbench/catalog.py",
         "workbench/template_adapters.py",
@@ -162664,7 +162683,14 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "templates/standards/fastapiadmin.md",
         "templates/standards/yudao-vben.md",
         "workbench/store.py",
+        "workbench/projects/__init__.py",
+        "workbench/projects/models.py",
+        "workbench/infrastructure/__init__.py",
+        "workbench/infrastructure/persistence/__init__.py",
+        "workbench/infrastructure/persistence/store.py",
         "workbench/clarification.py",
+        "workbench/requirements/__init__.py",
+        "workbench/requirements/clarification.py",
         "tests/conftest.py",
         "tests/test_contracts.py",
         "tests/test_store.py",
@@ -190720,18 +190746,18 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `stage_for`（L142–L215）：接收`name`。 控制顺序：L158遍历`domains.items()`；L159按`name.startswith(prefix)`分支；L161按`name.startswith(("workbench/web/", "ui/"))`分支；L163按`name.startswith("scripts/extension_oracles/")`分支；L165按`name.startswith("workbench/")`分支；L167按`name.startswith("migrations/") or name == "alembic.ini"`分支；L169按`name.startswith("templates/standards/")`分支；L171按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`domains.items`、`name.startswith`、`test_stage`。 返回路径：L160的`stage`；L162的`8`；L164的`4`。
-- `test_stage`（L218–L270）：接收`name`。 控制顺序：L219按`name == "tests/conftest.py"`分支；L221按`name == "tests/news_case.py"`分支；L223按`name.startswith("tests/fixtures/")`分支；L240按`stem in early`分支；L242按`stem == "store"`分支；L244按`stem in {"contracts", "business_contracts"}`分支；L246按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L248按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L220的`2`；L222的`7`；L224的`10`。
-- `language_for`（L273–L298）：接收`name`、`binary`。 控制顺序：L274按`binary`分支；L276按`name.endswith("uv.lock")`分支；L278按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L275的`"base64"`；L277的`"toml"`；L279的`"dockerfile"`。
-- `chunks`（L301–L340）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L303按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L307按`len(lines) <= 1000`分支；L310按`name.endswith(".py")`分支；L318按`name.endswith(".md")`分支；L328在`len(lines) - first > 1000`成立时循环；L330按`not options`分支；L338按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L304的`[data]`；L308的`[data]`；L340的`result or [b""]`。
-- `source_note`（L373–L404）：接收`name`、`content`、`first`、`last`。 控制顺序：L374按`isinstance(content, bytes)`分支；L375按`generated_frontend_asset(name)`分支；L389按`name in TEACHING_CASES`分支；L391按`not separator`分支；L394遍历`entries.splitlines()`；L396按`match and first <= int(match[1]) <= last`分支；L398按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L376的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L382的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L392的`head`。
-- `source_pages`（L407–L474）：接收`name`、`content`、`stage`。 控制顺序：L413按`binary`分支；L415按`name.endswith(("uv.lock", "package-lock.json"))`分支；L420遍历`enumerate(pieces)`；L437按`index`分支；L439按`index + 1 < len(pieces)`分支；L448按`not piece`分支；L450按`not binary`分支；L458按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L468的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L477–L478）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L478的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L481–L528）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L483按`[stage["id"] for stage in curriculum] != STAGES`分支；L484抛异常，停止当前正常路径；L486遍历`sources()`；L487遍历`files`；L489按`set(output).intersection(pages)`分支；L490抛异常，停止当前正常路径；L499遍历`curriculum`；L504按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L528的`output`。
-- `readme`（L531–L614）：接收`curriculum`、`records`。 控制顺序：L545遍历`curriculum`。 调用`len`。 返回路径：L614的`text`。
-- `main`（L617–L645）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L627按`args.check`分支；L634按`wrong`分支；L635抛异常，停止当前正常路径；L639遍历`actual.difference(expected)`；L641遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stage_for`（L142–L217）：接收`name`。 控制顺序：L144按`name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.…`分支；L160遍历`domains.items()`；L161按`name.startswith(prefix)`分支；L163按`name.startswith(("workbench/web/", "ui/"))`分支；L165按`name.startswith("scripts/extension_oracles/")`分支；L167按`name.startswith("workbench/")`分支；L169按`name.startswith("migrations/") or name == "alembic.ini"`分支；L171按`name.startswith("templates/standards/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`domains.items`、`name.startswith`、`test_stage`。 返回路径：L145的`2`；L162的`stage`；L164的`8`。
+- `test_stage`（L220–L272）：接收`name`。 控制顺序：L221按`name == "tests/conftest.py"`分支；L223按`name == "tests/news_case.py"`分支；L225按`name.startswith("tests/fixtures/")`分支；L242按`stem in early`分支；L244按`stem == "store"`分支；L246按`stem in {"contracts", "business_contracts"}`分支；L248按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L250按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L222的`2`；L224的`7`；L226的`10`。
+- `language_for`（L275–L300）：接收`name`、`binary`。 控制顺序：L276按`binary`分支；L278按`name.endswith("uv.lock")`分支；L280按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L277的`"base64"`；L279的`"toml"`；L281的`"dockerfile"`。
+- `chunks`（L303–L342）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L305按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L309按`len(lines) <= 1000`分支；L312按`name.endswith(".py")`分支；L320按`name.endswith(".md")`分支；L330在`len(lines) - first > 1000`成立时循环；L332按`not options`分支；L340按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L306的`[data]`；L310的`[data]`；L342的`result or [b""]`。
+- `source_note`（L375–L406）：接收`name`、`content`、`first`、`last`。 控制顺序：L376按`isinstance(content, bytes)`分支；L377按`generated_frontend_asset(name)`分支；L391按`name in TEACHING_CASES`分支；L393按`not separator`分支；L396遍历`entries.splitlines()`；L398按`match and first <= int(match[1]) <= last`分支；L400按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L378的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L384的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L394的`head`。
+- `source_pages`（L409–L476）：接收`name`、`content`、`stage`。 控制顺序：L415按`binary`分支；L417按`name.endswith(("uv.lock", "package-lock.json"))`分支；L422遍历`enumerate(pieces)`；L439按`index`分支；L441按`index + 1 < len(pieces)`分支；L450按`not piece`分支；L452按`not binary`分支；L460按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L470的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L479–L480）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L480的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L483–L530）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L485按`[stage["id"] for stage in curriculum] != STAGES`分支；L486抛异常，停止当前正常路径；L488遍历`sources()`；L489遍历`files`；L491按`set(output).intersection(pages)`分支；L492抛异常，停止当前正常路径；L501遍历`curriculum`；L506按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L530的`output`。
+- `readme`（L533–L616）：接收`curriculum`、`records`。 控制顺序：L547遍历`curriculum`。 调用`len`。 返回路径：L616的`text`。
+- `main`（L619–L647）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L629按`args.check`分支；L636按`wrong`分支；L637抛异常，停止当前正常路径；L641遍历`actual.difference(expected)`；L643遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_learning_docs.py sha256: 9437d581655789213020e319212b7aaf4e22b883e086b83b1c211c3373a14b88 -->
+<!-- source-file: scripts/build_learning_docs.py sha256: 5999c6949ba71b60ff5eeace76f828440fa5ba1800b4374c4099e72b22d091f1 -->
 ````python
 """Build small, staged lessons and lossless source pages from the actual platform."""
 
@@ -190876,6 +190902,8 @@ MODULE_STAGE = {
 
 def stage_for(name):
     path = Path(name)
+    if name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.py"}:
+        return 2
     domains = {
         "workbench/core/": 1,
         "workbench/projects/": 2,

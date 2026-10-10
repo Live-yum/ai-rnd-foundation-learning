@@ -335,6 +335,24 @@
       ]
     },
     {
+      "path": "workbench/requirements/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "02-storage",
+      "parts": [
+        "02-storage/sources/workbench__requirements____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/requirements/clarification.py",
+      "bytes": 2822,
+      "sha256": "ea794fb1e2ee487a4159f338009f7da4c8154813b091a35e17ac0a4d085ee760",
+      "stage": "02-storage",
+      "parts": [
+        "02-storage/sources/workbench__requirements__clarification_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/store.py",
       "bytes": 203,
       "sha256": "c07b18a3433bed53131a6b16e0d0e1a7e47b7245a3acdf12df1173dcc9cda627",
@@ -535,8 +553,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 13815,
-      "sha256": "9b01d1133b647aa03ae2f213eaf309cc17b58c468da49bc74ab777e674e1bdf8",
+      "bytes": 14165,
+      "sha256": "f230bce9b3dd1bc75336e07c4dc87e25ba9ef0fd5756bb6ca246db6360753d7f",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -588,24 +606,6 @@
       ]
     },
     {
-      "path": "workbench/requirements/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__requirements____init___py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/requirements/clarification.py",
-      "bytes": 2822,
-      "sha256": "ea794fb1e2ee487a4159f338009f7da4c8154813b091a35e17ac0a4d085ee760",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__requirements__clarification_py--001.md"
-      ]
-    },
-    {
       "path": "workbench/requirements/coverage.py",
       "bytes": 135132,
       "sha256": "228feceba53326c28cef3c9de920bab35856f505a3439ffc5fe05b508ce6d20f",
@@ -637,8 +637,8 @@
     },
     {
       "path": "workbench/streaming.py",
-      "bytes": 12807,
-      "sha256": "99c2a307c704f66dcaaa66f5470cb7e499f85d28e027b09ea153d86430c92444",
+      "bytes": 13599,
+      "sha256": "438640139ab7acd788784be6cab3176471d29f1e359cd2ccded92ebe7a013d27",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__streaming_py--001.md"
@@ -4885,8 +4885,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 36823,
-      "sha256": "9437d581655789213020e319212b7aaf4e22b883e086b83b1c211c3373a14b88",
+      "bytes": 36938,
+      "sha256": "5999c6949ba71b60ff5eeace76f828440fa5ba1800b4374c4099e72b22d091f1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -5979,8 +5979,8 @@
     },
     {
       "path": "tests/test_learning_order.py",
-      "bytes": 2575,
-      "sha256": "0ec7b22990475f17db68f51b36e1240fae9036c301a4ef62a9b8c9b9d6942e64",
+      "bytes": 2996,
+      "sha256": "4a344c54f42a8890bff9bb6dec160288d7d71730cf65e2c7196cc86a08d64d27",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_order_py--001.md"

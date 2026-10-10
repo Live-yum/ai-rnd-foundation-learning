@@ -15,15 +15,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_database_lesson_runs_from_only_its_documented_files`（L11–L76）：接收`tmp_path`。 控制顺序：L43遍历`names`；L64断言`probe.returncode == 0`；L74断言`result.returncode == 0`；L75断言`not (destination / "workbench/api.py").exists()`；L76断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_lesson_runs_from_only_its_documented_files`（L11–L85）：接收`tmp_path`。 控制顺序：L52遍历`names`；L73断言`probe.returncode == 0`；L83断言`result.returncode == 0`；L84断言`not (destination / "workbench/api.py").exists()`；L85断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_learning_order.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L76。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_learning_order.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L85。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2575`。本段原文以LF换行结束。
+本段原始字节数：`2996`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_order.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0ec7b22990475f17db68f51b36e1240fae9036c301a4ef62a9b8c9b9d6942e64"} -->
+<!-- learning-source: {"path": "tests/test_learning_order.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4a344c54f42a8890bff9bb6dec160288d7d71730cf65e2c7196cc86a08d64d27"} -->
 ````python
 # tests/test_learning_order.py
 """The first database lesson must not depend on a future API or agent module."""
@@ -49,6 +49,8 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/business_contracts.py",
         "workbench/business_capabilities.py",
         "workbench/domain.py",
+        "workbench/core/__init__.py",
+        "workbench/core/contracts.py",
         "workbench/errors.py",
         "workbench/catalog.py",
         "workbench/template_adapters.py",
@@ -58,7 +60,14 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "templates/standards/fastapiadmin.md",
         "templates/standards/yudao-vben.md",
         "workbench/store.py",
+        "workbench/projects/__init__.py",
+        "workbench/projects/models.py",
+        "workbench/infrastructure/__init__.py",
+        "workbench/infrastructure/persistence/__init__.py",
+        "workbench/infrastructure/persistence/store.py",
         "workbench/clarification.py",
+        "workbench/requirements/__init__.py",
+        "workbench/requirements/clarification.py",
         "tests/conftest.py",
         "tests/test_contracts.py",
         "tests/test_store.py",

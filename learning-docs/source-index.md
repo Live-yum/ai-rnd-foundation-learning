@@ -45,6 +45,8 @@
 - [workbench/infrastructure/persistence/store.py](02-storage/sources/workbench__infrastructure__persistence__store_py--001.md)（1 段）
 - [workbench/projects/__init__.py](02-storage/sources/workbench__projects____init___py--001.md)（1 段）
 - [workbench/projects/models.py](02-storage/sources/workbench__projects__models_py--001.md)（1 段）
+- [workbench/requirements/__init__.py](02-storage/sources/workbench__requirements____init___py--001.md)（1 段）
+- [workbench/requirements/clarification.py](02-storage/sources/workbench__requirements__clarification_py--001.md)（1 段）
 - [workbench/store.py](02-storage/sources/workbench__store_py--001.md)（1 段）
 ## [03-requirements · 需求保真与模型协议](03-requirements/README.md)
 
@@ -75,8 +77,6 @@
 - [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（1 段）
 - [workbench/requirement_intent.py](03-requirements/sources/workbench__requirement_intent_py--001.md)（1 段）
 - [workbench/requirement_sources.py](03-requirements/sources/workbench__requirement_sources_py--001.md)（1 段）
-- [workbench/requirements/__init__.py](03-requirements/sources/workbench__requirements____init___py--001.md)（1 段）
-- [workbench/requirements/clarification.py](03-requirements/sources/workbench__requirements__clarification_py--001.md)（1 段）
 - [workbench/requirements/coverage.py](03-requirements/sources/workbench__requirements__coverage_py--001.md)（4 段）
 - [workbench/requirements/intent.py](03-requirements/sources/workbench__requirements__intent_py--001.md)（1 段）
 - [workbench/requirements/source_ledger.py](03-requirements/sources/workbench__requirements__source_ledger_py--001.md)（1 段）
