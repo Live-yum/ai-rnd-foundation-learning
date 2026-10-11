@@ -1131,3 +1131,445 @@ with patch.object(coding,'client_for',lambda *a:client),patch.object(coding,'cap
             assert descendant.read_text().split()[2] == "Z", (
                 "Owned inspector must not survive SDK kill"
             )
+
+
+@pytest.mark.parametrize("mutation", [None, "missing", "sha", "job", "scenario", "policy"])
+def test_real_file_entrypoint_rechecks_forwarded_scope(settings, tmp_path, monkeypatch, mutation):
+    """Real Session/main/local-environment/browser gate; stop before SDK/network use."""
+    import subprocess
+    import sys
+
+    from test_capability_browser_policy import IMAGE, approved_manual
+
+    from workbench import capability_browser_isolation as isolation
+    from workbench import capability_browser_policy as policy
+    from workbench.infrastructure.sandbox import file_session
+
+    # The selector is Linux-only; exercise that exact identity on every CI controller.
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+    approved_manual(monkeypatch)
+    for key in ("API_KEY", "GITHUB_TOKEN", "HTTP_PROXY", "HTTPS_PROXY"):
+        monkeypatch.setenv(key, "private-must-not-forward")
+    browser = tmp_path / "browser.json"
+    browser.write_text(
+        json.dumps(
+            {
+                "protocol": "offline-browser-isolation-v3",
+                "passed": True,
+                "mocked": False,
+                "image": IMAGE,
+                "runtime": {"fixture_approved_runtime": True},
+                "sources": isolation.browser_source_identity(),
+                "image_sources": isolation.image_source_identity(),
+                "checks": {
+                    "kernel_and_network": dict.fromkeys(
+                        (
+                            "passed",
+                            "kernel_resource_limits",
+                            "network_none",
+                            "tmpfs_exhaustion",
+                            "pid_exhaustion",
+                            "readonly_root",
+                            "browser_build",
+                            "apparmor_enforced",
+                        ),
+                        True,
+                    ),
+                    **dict.fromkeys(
+                        (
+                            "positive",
+                            "error",
+                            "abuse",
+                            "failure_cleanup",
+                            "memory_exhaustion",
+                            "raw_syscalls",
+                        ),
+                        True,
+                    ),
+                },
+            }
+        )
+    )
+    marker = tmp_path / "admitted"
+    child = r"""
+import os,sys,socket
+from pathlib import Path
+from workbench.infrastructure.sandbox import file_session,coding
+from workbench import capability_browser_isolation as isolation, capability_browser_policy as policy
+from workbench.errors import UnsupportedScope
+browser,marker=sys.argv[1:]
+assert not any(k in os.environ for k in ('API_KEY','GITHUB_TOKEN','HTTP_PROXY','HTTPS_PROXY'))
+def deny(*a,**k):raise AssertionError('offline only')
+socket.socket.connect=deny;socket.create_connection=deny
+policy.platform.system=lambda:'Linux'
+policy.platform.machine=lambda:'x86_64'
+isolation.BROWSER_ACCEPTANCE=Path(browser)
+isolation.runtime_identity=lambda image: ({'fixture_approved_runtime':True} if policy.selected_policy() else {'policy_sha256':None,'mode':'docker-default'})
+def prerequisites(*args):
+ isolation.require_browser_acceptance('sha256:'+'a'*64)
+ Path(marker).write_text('admitted')
+ return Path(browser).parent,{}
+def stop(*args):raise UnsupportedScope('private SDK sentinel must never be exported')
+coding.capability_execution_prerequisites=prerequisites
+coding.client_for=stop
+file_session.main()
+"""
+    original = subprocess.Popen
+    children = []
+
+    def launch(command, **kwargs):
+        env = kwargs["env"]
+        assert env["GITHUB_SHA"] == env["REVIEWED_SHA"] == env["GITHUB_WORKFLOW_SHA"]
+        if mutation == "missing":
+            env.pop("CAPABILITY_BROWSER_APPROVED_POLICY")
+        elif mutation is not None:
+            key, value = {
+                "sha": ("REVIEWED_SHA", "b" * 40),
+                "job": ("GITHUB_JOB", "real-model"),
+                "scenario": ("LIVE_SCENARIO", "legacy"),
+                "policy": ("CAPABILITY_BROWSER_APPROVED_POLICY", "0" * 64),
+            }[mutation]
+            env[key] = value
+        process = original([sys.executable, "-c", child, str(browser), str(marker)], **kwargs)
+        children.append(process)
+        return process
+
+    monkeypatch.setattr(file_session.subprocess, "Popen", launch)
+
+    def unresolved(*args):
+        raise UnsupportedScope("Unknown create remains unconfirmed")
+
+    monkeypatch.setattr(file_session, "delete_owned", unresolved)
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "agent-cleanup.json"
+    with pytest.raises(UnsupportedScope):
+        file_session.Session(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            time.monotonic() + 25,
+            path,
+            binding,
+        )
+    assert len(children) == 1 and children[0].poll() is not None
+    assert marker.exists() is (mutation is None)
+    value = json.loads(path.read_text())
+    assert value["failure_phase"] == ("client" if mutation is None else "admission")
+    assert value["failure_kind"] in {"UnsupportedScope", "PrerequisiteError", "ValueError"}
+    assert value["status"] == "unconfirmed" and value["reason"] == "create_unconfirmed"
+    assert "private" not in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "bad_scope",
+    [("GITHUB_JOB", "real-model"), ("GITHUB_RUN_ATTEMPT", "2"), ("REVIEWED_SHA", "b" * 40)],
+)
+def test_file_session_rejects_extra_scope_before_launch(settings, tmp_path, monkeypatch, bad_scope):
+    from test_capability_browser_policy import approved_manual
+
+    from workbench import capability_browser_policy as policy
+    from workbench.infrastructure.sandbox import file_session
+
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+    approved_manual(monkeypatch)
+    monkeypatch.setenv(*bad_scope)
+    launches = []
+    monkeypatch.setattr(file_session.subprocess, "Popen", lambda *a, **k: launches.append(True))
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "journal"
+    with pytest.raises(ValueError, match="approved Actions scope"):
+        file_session.Session(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            time.monotonic() + 25,
+            path,
+            binding,
+        )
+    assert not launches and not path.exists()
+
+
+@pytest.mark.parametrize("mode", ["absent", "eventual", "present", "forbidden", "server", "late"])
+def test_real_sdk_deletion_requires_timely_typed_absence(monkeypatch, mode):
+    """Actual pinned SDK get/delete/error interception, only HTTP transport synthesized."""
+    import io
+    import socket
+
+    from daytona import Daytona, DaytonaConfig
+    from daytona.common.errors import DaytonaAuthorizationError, DaytonaError
+    from urllib3.response import HTTPResponse
+
+    from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+    from workbench.sandbox import close_client
+
+    def deny(*a, **k):
+        raise AssertionError("offline only")
+
+    monkeypatch.setattr(socket.socket, "connect", deny)
+    monkeypatch.setattr(socket, "create_connection", deny)
+    client = Daytona(
+        DaytonaConfig(
+            api_url="http://127.0.0.1:1/api",
+            api_key="offline-fixture",
+            target="local",
+            otel_enabled=False,
+        )
+    )
+    state = {"deleted": False, "gets": 0}
+    calls = []
+    dto = {
+        "id": "owned-id",
+        "organizationId": "fixture",
+        "name": "rnd-source-agent-" + "a" * 32,
+        "user": "root",
+        "env": {},
+        "labels": {},
+        "public": False,
+        "networkBlockAll": True,
+        "target": "local",
+        "cpu": 1,
+        "gpu": 0,
+        "memory": 1,
+        "disk": 1,
+        "toolboxProxyUrl": "http://127.0.0.1:1/toolbox",
+        "state": "started",
+    }
+
+    def request(method, url, **kwargs):
+        status, body = 200, dto
+        if method == "DELETE":
+            state["deleted"] = True
+            status, body = 204, None
+        elif state["deleted"]:
+            state["gets"] += 1
+            if mode == "late":
+                time.sleep(0.25)
+            status = {
+                "absent": 404,
+                "eventual": 200 if state["gets"] == 1 else 404,
+                "present": 200,
+                "forbidden": 403,
+                "server": 500,
+                "late": 404,
+            }[mode]
+            body = dto if status == 200 else {"message": "owned fixture"}
+        calls.append((method, status))
+        return HTTPResponse(
+            status=status,
+            body=io.BytesIO(json.dumps(body).encode() if body else b""),
+            headers={"content-type": "application/json"},
+            preload_content=False,
+        )
+
+    monkeypatch.setattr(client._api_client.rest_client.pool_manager, "request", request)
+    try:
+        target = client.get(dto["name"])
+        if mode in {"absent", "eventual"}:
+            confirm_deleted(client, target, time.monotonic() + 1, 1)
+            assert calls[-1] == ("GET", 404)
+        else:
+            error = {
+                "present": TimeoutError,
+                "late": TimeoutError,
+                "forbidden": DaytonaAuthorizationError,
+                "server": DaytonaError,
+            }[mode]
+            with pytest.raises(error):
+                confirm_deleted(client, target, time.monotonic() + 0.12, 1)
+        assert ("DELETE", 204) in calls
+    finally:
+        close_client(client)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        "CreateJobObjectW",
+        "SetInformationJobObject",
+        "AssignProcessToJobObject",
+        "TerminateJobObject",
+        "CloseHandle",
+    ],
+)
+def test_windows_job_owns_subtree_and_fails_closed(failure):
+    import ctypes
+
+    from workbench.infrastructure.sandbox.windows_job import ExtendedLimits, WindowsJob
+
+    calls = []
+
+    class Function:
+        def __init__(self, name):
+            self.name = name
+
+        def __call__(self, *args):
+            calls.append((self.name, args))
+            if self.name == "SetInformationJobObject":
+                limits = ctypes.cast(args[2], ctypes.POINTER(ExtendedLimits)).contents
+                assert limits.BasicLimitInformation.LimitFlags == 0x2000
+                assert args[1] == 9 and args[3] == ctypes.sizeof(ExtendedLimits)
+            return 0 if self.name == failure else 99 if self.name == "CreateJobObjectW" else 1
+
+    api = SimpleNamespace(
+        **{
+            name: Function(name)
+            for name in (
+                "CreateJobObjectW",
+                "SetInformationJobObject",
+                "AssignProcessToJobObject",
+                "TerminateJobObject",
+                "CloseHandle",
+            )
+        }
+    )
+    if failure is None:
+        job = WindowsJob(SimpleNamespace(_handle=7), api=api)
+        job.terminate()
+        job.close()
+        job.close()
+        assert [name for name, _ in calls] == [
+            "CreateJobObjectW",
+            "SetInformationJobObject",
+            "AssignProcessToJobObject",
+            "TerminateJobObject",
+            "CloseHandle",
+        ]
+        assert calls[2][1] == (99, 7)
+        assert calls[3][1] == (99, 1)
+    else:
+        with pytest.raises(UnsupportedScope):
+            job = WindowsJob(SimpleNamespace(_handle=7), api=api)
+            job.terminate()
+            job.close()
+        if failure in {"SetInformationJobObject", "AssignProcessToJobObject"}:
+            assert calls[-1][0] == "CloseHandle"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native Windows Job Object process-tree proof")
+def test_native_windows_job_kills_pipe_holding_descendant(tmp_path):
+    import ctypes
+    import subprocess
+    import sys
+
+    from workbench.infrastructure.sandbox.file_session import close_pipes_bounded
+    from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+    marker = tmp_path / "pid"
+    child = """import subprocess,sys
+from pathlib import Path
+sys.stdin.readline()
+p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])
+marker=Path(sys.argv[1]); temporary=marker.with_suffix('.tmp')
+temporary.write_text(str(p.pid)); temporary.replace(marker)
+print('ready',flush=True)
+p.wait()
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", child, str(marker)], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+    )
+    job = None
+    descendant = None
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int32, ctypes.c_uint32]
+    api.OpenProcess.restype = ctypes.c_void_p
+    api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    api.WaitForSingleObject.restype = ctypes.c_uint32
+    api.CloseHandle.argtypes = [ctypes.c_void_p]
+    try:
+        job = WindowsJob(process)
+        process.stdin.write(b"start\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 10
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert marker.exists()
+        descendant = api.OpenProcess(0x00100000, False, int(marker.read_text()))
+        assert descendant
+        start = time.monotonic()
+        job.terminate()
+        process.wait(timeout=2)
+        assert api.WaitForSingleObject(descendant, 2000) == 0
+        close_pipes_bounded(process)
+        assert time.monotonic() - start < 4
+    finally:
+        if job is not None:
+            job.close()
+        else:
+            process.kill()
+        if descendant:
+            api.CloseHandle(descendant)
+        process.wait(timeout=2)
+        close_pipes_bounded(process)
+
+
+def test_pipe_reaping_has_independent_bound():
+    import threading
+
+    from workbench.infrastructure.sandbox.file_session import close_pipes_bounded
+
+    release = threading.Event()
+    process = SimpleNamespace(
+        stdin=SimpleNamespace(close=lambda: release.wait(5)),
+        stdout=SimpleNamespace(close=lambda: None),
+    )
+    start = time.monotonic()
+    try:
+        with pytest.raises(UnsupportedScope, match="pipe close exceeded bound"):
+            close_pipes_bounded(process)
+        assert time.monotonic() - start < 1
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("known", [False, True])
+def test_cleanup_child_exports_only_bound_failure_kind(settings, tmp_path, monkeypatch, known):
+    import subprocess
+    import sys
+
+    from workbench.infrastructure.sandbox import cleanup
+
+    child = r"""
+import io,json,socket
+from daytona import Daytona,DaytonaConfig
+from urllib3.response import HTTPResponse
+from workbench.infrastructure.sandbox import cleanup
+from workbench import sandbox
+def deny(*a,**k):raise AssertionError('offline only')
+socket.socket.connect=deny;socket.create_connection=deny
+client=Daytona(DaytonaConfig(api_url='http://127.0.0.1:1/api',api_key='offline-fixture',target='local',otel_enabled=False))
+def request(*a,**k):
+ return HTTPResponse(status=403,body=io.BytesIO(json.dumps({'message':'private server text must not escape'}).encode()),headers={'content-type':'application/json'},preload_content=False)
+client._api_client.rest_client.pool_manager.request=request
+sandbox.client_for=lambda *a:client
+cleanup.main()
+"""
+    original = subprocess.Popen
+    monkeypatch.setattr(
+        cleanup.subprocess,
+        "Popen",
+        lambda command, **kw: original([sys.executable, "-c", child], **kw),
+    )
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "cleanup.json"
+    with pytest.raises(UnsupportedScope):
+        cleanup.delete_owned(
+            settings,
+            "rnd-source-agent-" + "a" * 32,
+            "owned-id" if known else None,
+            binding,
+            path,
+            time.monotonic() + 10,
+        )
+    value = json.loads(path.read_text())
+    assert value["status"] == "unconfirmed"
+    assert value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")
+    assert value["cleanup_failure_kind"] == "DaytonaAuthorizationError"
+    assert "private" not in path.read_text()
+    exported = cleanup.public_receipt(path, task, plan)
+    assert exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"
+    assert exported["status"] == "unconfirmed"

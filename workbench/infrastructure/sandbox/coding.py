@@ -86,14 +86,18 @@ def _local_environment(
     owned_name=None,
     on_created=None,
     external_cleanup=False,
+    on_phase=None,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
 
+    phase = on_phase or (lambda value: None)
+    phase("admission")
     if task_path_errors(task, selection):
         raise UnsupportedScope("Agent task crosses the business-file boundary")
     directory, profile = capability_execution_prerequisites(settings, selection)
+    phase("client")
     client = client_for(settings)
     sandbox = None
     name = None
@@ -125,6 +129,7 @@ def _local_environment(
             from workbench.infrastructure.sandbox.cleanup import receipt
 
             write_json(cleanup_record, receipt(cleanup_binding, name, None, "create_unconfirmed"))
+        phase("create")
         sandbox = client.create(
             params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
@@ -132,9 +137,11 @@ def _local_environment(
         if on_created is not None:
             on_created(name, sandbox.id)
         remaining()
+        phase("refresh")
         sandbox.refresh_data()
         if sandbox.network_block_all is not True or sandbox.public is not False:
             raise UnsupportedScope("Agent sandbox is not private and network-blocked")
+        phase("inspection")
         evidence = require_container_evidence(
             inspect_created_sandbox(
                 directory, sandbox.id, require_resources=True, selection=selection
@@ -152,6 +159,7 @@ def _local_environment(
                 cleanup_binding,
                 name,
             )
+        phase("initial_upload")
         env.write(
             CapabilityEdits(
                 explanation="Approved before-images",

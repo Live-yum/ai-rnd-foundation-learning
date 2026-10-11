@@ -20,10 +20,68 @@ from workbench.tools import clean_env, process_options
 LIMIT = 1_200_000
 
 
+PHASES = {
+    "protocol",
+    "admission",
+    "client",
+    "create",
+    "refresh",
+    "inspection",
+    "initial_upload",
+    "write",
+    "snapshot",
+}
+
+
+def failure_facts(value):
+    from workbench.infrastructure.sandbox.cleanup import FAILURE_KINDS
+
+    return (
+        {"failure_phase": value["phase"], "failure_kind": value["kind"]}
+        if (value.get("phase") in PHASES and value.get("kind") in FAILURE_KINDS)
+        else {}
+    )
+
+
+def preserve_state(path, binding, name, identifier, error, failure):
+    try:
+        value = json.loads(path.read_text()) if path.stat().st_size <= 4096 else {}
+        if (
+            value.get("binding") != binding
+            or value.get("sandbox_name") != name
+            or value.get("sandbox_id") != identifier
+        ):
+            raise ValueError("Stale cleanup state")
+    except OSError, ValueError, TypeError, AttributeError:
+        value = receipt(binding, name, identifier, "deletion_unconfirmed")
+    if error is not None and value.get("status") not in {"unconfirmed"}:
+        value.update(status="unconfirmed", reason="deletion_unconfirmed")
+    value.update(failure)
+    write_json(path, value)
+
+
+def close_pipes_bounded(process):
+    def close():
+        for pipe in (process.stdin, process.stdout):
+            try:
+                pipe.close()
+            except OSError, ValueError:
+                pass
+
+    thread = threading.Thread(target=close, daemon=True)
+    thread.start()
+    thread.join(timeout=0.2)
+    if thread.is_alive():
+        raise UnsupportedScope("File RPC pipe close exceeded bound")
+
+
 class Session:
     def __init__(self, settings, task, selection, product, deadline, path, binding):
         if not 15 < deadline - time.monotonic() <= 180:
             raise UnsupportedScope("File session requires the original bounded module deadline")
+        from workbench.capability_sandbox import verifier_policy_environment
+
+        policy_environment = verifier_policy_environment()
         self.deadline, self.work_end = deadline, deadline - 15
         self.settings, self.path, self.binding = settings, path, dict(binding)
         self.name = (
@@ -32,6 +90,8 @@ class Session:
             + uuid.uuid4().hex
         )
         self.identifier = None
+        self.failure = {}
+        self.windows_job = None
         self.lock, self.done, self.cancel = threading.Lock(), threading.Event(), threading.Event()
         self.closing, self.error = False, None
         self.answers = queue.Queue(maxsize=2)
@@ -67,9 +127,13 @@ class Session:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                env=clean_env(),
+                env=clean_env(policy_environment),
                 **process_options(),
             )
+            if os.name == "nt":
+                from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+                self.windows_job = WindowsJob(self.process)
             self.reader = threading.Thread(target=self.read, daemon=True)
             self.reader.start()
             self.watchdog = threading.Thread(target=self.watch, daemon=True)
@@ -103,6 +167,10 @@ class Session:
                         self.identifier = value["id"]
                         write_json(self.path, receipt(self.binding, self.name, self.identifier))
                 else:
+                    if value.get("error") is True:
+                        with self.lock:
+                            if not self.closing:
+                                self.failure = failure_facts(value)
                     self.answers.put(value, timeout=max(0.001, self.work_end - time.monotonic()))
         except Exception:
             try:
@@ -165,16 +233,20 @@ class Session:
                         if os.name == "posix":
                             # Kill the owned session before reaping its leader, including inspectors.
                             os.killpg(self.process.pid, signal.SIGKILL)
+                        elif self.windows_job is not None:
+                            self.windows_job.terminate()
                         elif self.process.poll() is None:
-                            self.process.kill()
+                            self.process.kill()  # Job setup failed before any request was sent.
                     except ProcessLookupError:
                         pass
                     self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    for pipe in (self.process.stdin, self.process.stdout):
-                        try:
-                            pipe.close()
-                        except OSError, ValueError:
-                            pass  # The reaped worker owns no remaining SDK transport.
+                    if hasattr(self, "reader"):
+                        self.reader.join(timeout=0.2)
+                        if self.reader.is_alive():
+                            raise UnsupportedScope(
+                                "File RPC pipe did not close after tree termination"
+                            )
+                    close_pipes_bounded(self.process)
                 delete_owned(
                     self.settings,
                     self.name,
@@ -185,12 +257,23 @@ class Session:
                 )
             except BaseException as exc:
                 self.error = exc
-                write_json(
-                    self.path,
-                    receipt(self.binding, self.name, self.identifier, "deletion_unconfirmed"),
-                )
             finally:
-                self.done.set()
+                try:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = exc
+                    preserve_state(
+                        self.path,
+                        self.binding,
+                        self.name,
+                        self.identifier,
+                        self.error,
+                        self.failure,
+                    )
+                finally:
+                    self.done.set()
         else:
             # SDK work is killed at its deadline; allow only bounded child reaping here.
             self.done.wait(max(0, self.deadline - time.monotonic()) + 3)
@@ -226,33 +309,43 @@ def main():
         output.write(json.dumps({"nonce": payload["nonce"], **value}) + "\n")
         output.flush()
 
-    with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        with _local_environment(
-            Settings(_env_file=None, **payload["settings"]),
-            CapabilityTaskV2.model_validate(payload["task"]),
-            payload["selection"],
-            Path(payload["product"]),
-            deadline=payload["deadline"],
-            owned_name=payload["name"],
-            external_cleanup=True,
-            on_created=lambda name, identifier: emit(
-                {"event": "created", "name": name, "id": identifier}
-            ),
-        ) as files:
-            emit({"result": True})
-            while True:
-                raw = sys.stdin.buffer.readline(LIMIT + 1)
-                if not raw or len(raw) > LIMIT:
-                    raise ValueError("File worker request ended")
-                request = json.loads(raw)
-                if request["operation"] == "write":
-                    files.write(CapabilityEdits.model_validate(request["edits"]))
-                    result = True
-                elif request["operation"] == "snapshot":
-                    result = files.snapshot(request["paths"])
-                else:
-                    raise ValueError("Unknown file-only operation")
-                emit({"result": result})
+    phase = {"value": "protocol"}
+    try:
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
+            with _local_environment(
+                Settings(_env_file=None, **payload["settings"]),
+                CapabilityTaskV2.model_validate(payload["task"]),
+                payload["selection"],
+                Path(payload["product"]),
+                deadline=payload["deadline"],
+                owned_name=payload["name"],
+                external_cleanup=True,
+                on_phase=lambda value: phase.update(value=value),
+                on_created=lambda name, identifier: emit(
+                    {"event": "created", "name": name, "id": identifier}
+                ),
+            ) as files:
+                emit({"result": True})
+                while True:
+                    raw = sys.stdin.buffer.readline(LIMIT + 1)
+                    if not raw or len(raw) > LIMIT:
+                        raise ValueError("File worker request ended")
+                    request = json.loads(raw)
+                    if request["operation"] == "write":
+                        phase["value"] = "write"
+                        files.write(CapabilityEdits.model_validate(request["edits"]))
+                        result = True
+                    elif request["operation"] == "snapshot":
+                        phase["value"] = "snapshot"
+                        result = files.snapshot(request["paths"])
+                    else:
+                        raise ValueError("Unknown file-only operation")
+                    emit({"result": result})
+    except Exception as exc:
+        from workbench.infrastructure.sandbox.cleanup import failure_kind
+
+        emit({"error": True, "phase": phase["value"], "kind": failure_kind(exc)})
+        raise
 
 
 if __name__ == "__main__":

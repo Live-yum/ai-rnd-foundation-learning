@@ -61,6 +61,7 @@ SOURCE_FILES = (
     "workbench/infrastructure/sandbox/cleanup.py",
     "workbench/infrastructure/sandbox/deadline.py",
     "workbench/infrastructure/sandbox/file_session.py",
+    "workbench/infrastructure/sandbox/windows_job.py",
     "workbench/specifications/__init__.py",
     "workbench/specifications/artifact_writer.py",
     "workbench/specifications/openspec/__init__.py",

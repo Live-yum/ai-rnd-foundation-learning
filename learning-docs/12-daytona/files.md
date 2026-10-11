@@ -53,3 +53,4 @@
 - [workbench/infrastructure/sandbox/coding.py](sources/workbench__infrastructure__sandbox__coding_py--001.md)：不依赖Aider的受限规则编辑；1 段
 - [workbench/infrastructure/sandbox/deadline.py](sources/workbench__infrastructure__sandbox__deadline_py--001.md)：项目根配置或说明；1 段
 - [workbench/infrastructure/sandbox/file_session.py](sources/workbench__infrastructure__sandbox__file_session_py--001.md)：项目根配置或说明；1 段
+- [workbench/infrastructure/sandbox/windows_job.py](sources/workbench__infrastructure__sandbox__windows_job_py--001.md)：项目根配置或说明；1 段

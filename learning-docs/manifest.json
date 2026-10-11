@@ -709,8 +709,8 @@
     },
     {
       "path": "workbench/capability_execution.py",
-      "bytes": 16442,
-      "sha256": "5f18c6ef9124e5db056afb75f1da1ccc91bb27dbc6756dcd1389e7d023521bc3",
+      "bytes": 16497,
+      "sha256": "79577d0a1a0b09a7962de64afad60ef3a8f8416dbafa13b12cd2af7daf4821b0",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_execution_py--001.md"
@@ -4157,8 +4157,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/cleanup.py",
-      "bytes": 8430,
-      "sha256": "a969c7ef93521f99aa666c1535671d53394c0718335cf69fa6d43b7989169784",
+      "bytes": 9920,
+      "sha256": "249ce2bd8a3af394fc09b003d8a6062f377af0631499bf8b190cb3edfd0f8827",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md"
@@ -4166,8 +4166,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/coding.py",
-      "bytes": 8306,
-      "sha256": "2ec058f7c75381deb02df407e1ab29f151f9499f52108f03cbc74d9ee6c09fbc",
+      "bytes": 8522,
+      "sha256": "3320fdf8194c1d570499780442878f52df704d64c5c3b77e541fb47fd4d087e2",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md"
@@ -4184,11 +4184,20 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/file_session.py",
-      "bytes": 10205,
-      "sha256": "a62506c220432ef25aa71f291c924f46b0506687760dd86e7124cab3d9a92615",
+      "bytes": 13552,
+      "sha256": "82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__file_session_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/windows_job.py",
+      "bytes": 3397,
+      "sha256": "ab9a78c0975f66390262b39de147d11d5f4a636636f334817692167f84c4c6cd",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__windows_job_py--001.md"
       ]
     },
     {
@@ -4850,8 +4859,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 69960,
-      "sha256": "21948beb89ca8bf7f7c112efa3adcdf895e696a6b31e8b043a9eb4fa1b96b866",
+      "bytes": 73500,
+      "sha256": "cbc53e7b4e9fa2f6313ebb9be44626193cace3eb5d2139dd7bb24860d8c4577a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -6160,8 +6169,8 @@
     },
     {
       "path": "tests/test_mini_swe_checkpoints.py",
-      "bytes": 42410,
-      "sha256": "bc4eb10dbeacb8f330d777b787c28af8c94cb6b8773a48883ab6e261d6a75cff",
+      "bytes": 58857,
+      "sha256": "a8153a50fe5af800bfcae0c9a70eff69b8926fbe67d7213fd061ab6af1a71cd1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md",
@@ -6323,8 +6332,8 @@
     },
     {
       "path": "tests/test_readonly_dependency_admission.py",
-      "bytes": 17517,
-      "sha256": "8147ccbbf05d347da186320d60d3289eb3a8c962c82e7b3352d7ef252141c15d",
+      "bytes": 17928,
+      "sha256": "e8b7e274c11c889a9ca9e0e7e495761b21c9e7fa556c646168a7c07f9e9540f9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_readonly_dependency_admission_py--001.md"

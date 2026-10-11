@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L363。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`69960`。本段原文以LF换行结束。
+本段原始字节数：`73500`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "21948beb89ca8bf7f7c112efa3adcdf895e696a6b31e8b043a9eb4fa1b96b866"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "cbc53e7b4e9fa2f6313ebb9be44626193cace3eb5d2139dd7bb24860d8c4577a"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -380,4 +380,16 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 新增回归用真实子进程、Event阻塞及真实SDK refresh/生成API/响应解析的无网络路径，覆盖create、refresh、write、snapshot、控制器空闲和正常结束；初始25秒窗口包含进程加载，10秒工作截止后进入原15秒清理保留（较短离线窗口在并行文档生成负载下会先耗于导入，测试明确留出加载余量，生产上限不变），未扩180秒上限。未知create保留unconfirmed，已知ID精确传入清理，部分写入仍绑定预期候选。清理自身的真实SDK阻塞/硬kill及晚到状态沿用既有回归；不使用mock成功代替实际清理证明。MockTransport确认三个网关状态均不可业务修复。修复完成后交同一独立审查者复核新SHA累计diff，仍无推送、真实外部服务或dispatch。
 
 本次本地验证：相关12文件956项通过，最终进程组终止/网关状态边界9项通过；SDK监督进程在回收leader前终止整个自有进程组，离线子进程用例确认阻塞检查后代不继续运行。严格55文件集合2542通过、5个既有本地Landlock返回78失败、13个既有条件跳过；未降低强制标记。全仓Ruff及格式、diff、完整手册与779份教材一致性检查通过。上述为作者实现验证，独立复审结论另行交父线程，不提前宣称通过。
+
+### 第18轮的准入传播及Windows回收修复（本地验证，未重新派发）
+
+父线程实际读取94f21e1的真实运行38167848595/artifact11713775823：模型预留/HTTP尝试/响应均为0、checkpoint为空，agent_controller报UnsupportedScope，sla-api文件沙箱清理为unconfirmed/deletion_unconfirmed。本轮没有进入模型闭环，也没有沙箱已删除证明。正式job114554037314的always Compose down步骤成功，19:42:30—19:42:42 UTC日志明确记录10个Compose容器及2个网络Removed；该命令不删除持久卷。这只能证明此次本地测试部署停止，不能替代具体agent沙箱的typed404确认或把既有unconfirmed回执升级为deleted。
+
+代码检查及真实file_session入口离线回归确认：94f21e1新SDK子进程使用clean_env()，漏传了已验证的浏览器策略Actions scope。现仅复用verifier_policy_environment()返回的既有字段；它在创建子进程前再次验证，子进程准入仍调用原策略选择器和浏览器回执检查。没有修改策略白名单、首次dispatch、三个SHA相等、job/scenario或权限限制；API_KEY、GITHUB_TOKEN和代理环境不随该scope转发。正例真实运行Session→file_session.main→_local_environment→浏览器准入，受控客户端哨兵在准入后终止；负例删除策略或修改SHA、job、scenario、策略摘要时停在准入之前。这是scope传播证明，不是容器隔离或模型验收。旧真实子进程没有阶段诊断，故不能声称已证明上述遗漏是第18轮唯一失败原因。
+
+新增诊断只投影固定阶段和异常类型，不导出SDK消息、路径、密钥或原始HTTP正文。父进程保留create_unconfirmed、module_deadline等原有清理原因，另记file SDK失败阶段和cleanup子进程失败类型；诊断不能升级清理状态。真实锁定SDK的离线HTTP运输替身验证DELETE后的200→404最终一致性、一直200、403、500和迟到404：只有截止前类型化404可确认删除。readonly_dependency_admission夹具补齐相同get→DaytonaNotFoundError接口，原deleted断言及unknown/delete-failed负例保留。
+
+普通Python CI运行38167704467的Windows shard3真实报告refresh生命周期28.008秒，违反原14秒断言。原因是仅kill根进程后，检查后代仍持有stdout，读线程和管道close不能及时返回。Windows现在在发送工作前把SDK子进程加入自有Job Object，使用KILL_ON_JOB_CLOSE及TerminateJobObject回收该进程树；创建、配置或归属失败时不发送工作并失败关闭。不使用全局进程名扫描或提权。读线程join和管道close各有独立0.2秒回收界限。原25秒测试窗口、14秒断言、180秒生产deadline及15秒清理预留均不变。Job Object API合约与管道阻塞测试可在本机执行；新增原生Windows后代终止证明在Linux明确跳过，真实Windows是否修复仍须后续普通CI验证，不能提前宣称通过。
+
+Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
 ````

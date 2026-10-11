@@ -15,27 +15,31 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Session`（L23–L198）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Session.__init__`（L24–L81）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L25按`not 15 < deadline - time.monotonic() <= 180`分支；L26抛异常，停止当前正常路径；L81抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.read`（L83–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85在`True`成立时循环；L87按`not raw or len(raw) > LIMIT`分支；L88抛异常，停止当前正常路径；L90按`value.get("nonce") != self.binding["nonce"]`分支；L91抛异常，停止当前正常路径；L92按`value.get("event") == "created"`分支；L94按`self.closing or time.monotonic() >= self.work_end`分支；L96按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.send`（L113–L118）：接收`value`。 控制顺序：L115按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L116抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.receive`（L120–L132）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124抛异常，停止当前正常路径；L125按`self.closing or time.monotonic() >= self.work_end or value.get("error") or "result" n…`分支；L131抛异常，停止当前正常路径。 调用`self.answers.get`、`max`、`time.monotonic`、`UnsupportedScope`、`value.get`。 返回路径：L132的`value["result"]`。
-- `Session.bind_candidate`（L134–L139）：接收`source`。 控制顺序：L136按`self.closing or time.monotonic() >= self.work_end`分支；L137抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.write`（L141–L143）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.snapshot`（L145–L147）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L147的`self.receive()`。
-- `Session.watch`（L149–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L150按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.finish`（L156–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160按`owner`分支；L163按`self.process is not None`分支；L165按`os.name == "posix"`分支；L168按`self.process.poll() is None`分支；L173遍历`(self.process.stdin, self.process.stdout)`；L197按`not self.done.is_set() or self.error is not None`分支；L198抛异常，停止当前正常路径。 调用`self.cancel.set`、`os.killpg`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`、`pipe.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `supervised_environment`（L202–L209）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `main`（L212–L255）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L220按`len(body) > LIMIT`分支；L221抛异常，停止当前正常路径；L243在`True`成立时循环；L245按`not raw or len(raw) > LIMIT`分支；L246抛异常，停止当前正常路径；L248按`request["operation"] == "write"`分支；L251按`request["operation"] == "snapshot"`分支；L254抛异常，停止当前正常路径。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.emit`（L225–L227）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_facts`（L36–L43）：接收`value`。 调用`value.get`。 返回路径：L39的`{"failure_phase": value["phase"], "failure_kind": value["kind"]} if (value.get("phase") in…`。
+- `preserve_state`（L46–L60）：接收`path`、`binding`、`name`、`identifier`、`error`、`failure`。 控制顺序：L49按`value.get("binding") != binding or value.get("sandbox_name") != name or value.get("sa…`分支；L54抛异常，停止当前正常路径；L57按`error is not None and value.get("status") not in {"unconfirmed"}`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`value.get`、`ValueError`、`receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `close_pipes_bounded`（L63–L75）：接收`process`。 控制顺序：L74按`thread.is_alive()`分支；L75抛异常，停止当前正常路径。 调用`threading.Thread`、`thread.start`、`thread.join`、`thread.is_alive`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `close_pipes_bounded.close`（L64–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65遍历`(process.stdin, process.stdout)`。 调用`pipe.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session`（L78–L281）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Session.__init__`（L79–L145）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L80按`not 15 < deadline - time.monotonic() <= 180`分支；L81抛异常，停止当前正常路径；L133按`os.name == "nt"`分支；L145抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`verifier_policy_environment`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.read`（L147–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149在`True`成立时循环；L151按`not raw or len(raw) > LIMIT`分支；L152抛异常，停止当前正常路径；L154按`value.get("nonce") != self.binding["nonce"]`分支；L155抛异常，停止当前正常路径；L156按`value.get("event") == "created"`分支；L158按`self.closing or time.monotonic() >= self.work_end`分支；L160按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.send`（L181–L186）：接收`value`。 控制顺序：L183按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L184抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.receive`（L188–L200）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L192抛异常，停止当前正常路径；L193按`self.closing or time.monotonic() >= self.work_end or value.get("error") or "result" n…`分支；L199抛异常，停止当前正常路径。 调用`self.answers.get`、`max`、`time.monotonic`、`UnsupportedScope`、`value.get`。 返回路径：L200的`value["result"]`。
+- `Session.bind_candidate`（L202–L207）：接收`source`。 控制顺序：L204按`self.closing or time.monotonic() >= self.work_end`分支；L205抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.write`（L209–L211）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.snapshot`（L213–L215）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L215的`self.receive()`。
+- `Session.watch`（L217–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.finish`（L224–L281）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L231按`self.process is not None`分支；L233按`os.name == "posix"`分支；L236按`self.windows_job is not None`分支；L238按`self.process.poll() is None`分支；L243按`hasattr(self, "reader")`分支；L245按`self.reader.is_alive()`分支；L246抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `supervised_environment`（L285–L292）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `main`（L295–L348）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303按`len(body) > LIMIT`分支；L304抛异常，停止当前正常路径；L329在`True`成立时循环；L331按`not raw or len(raw) > LIMIT`分支；L332抛异常，停止当前正常路径；L334按`request["operation"] == "write"`分支；L338按`request["operation"] == "snapshot"`分支；L342抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.emit`（L308–L310）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/file_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/file_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L352。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10205`。本段原文以LF换行结束。
+本段原始字节数：`13552`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a62506c220432ef25aa71f291c924f46b0506687760dd86e7124cab3d9a92615"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc"} -->
 ````python
 # workbench/infrastructure/sandbox/file_session.py
 """Parent-owned bounded file RPC; no SDK call can hold the controller past its deadline."""
@@ -60,10 +64,68 @@ from workbench.tools import clean_env, process_options
 LIMIT = 1_200_000
 
 
+PHASES = {
+    "protocol",
+    "admission",
+    "client",
+    "create",
+    "refresh",
+    "inspection",
+    "initial_upload",
+    "write",
+    "snapshot",
+}
+
+
+def failure_facts(value):
+    from workbench.infrastructure.sandbox.cleanup import FAILURE_KINDS
+
+    return (
+        {"failure_phase": value["phase"], "failure_kind": value["kind"]}
+        if (value.get("phase") in PHASES and value.get("kind") in FAILURE_KINDS)
+        else {}
+    )
+
+
+def preserve_state(path, binding, name, identifier, error, failure):
+    try:
+        value = json.loads(path.read_text()) if path.stat().st_size <= 4096 else {}
+        if (
+            value.get("binding") != binding
+            or value.get("sandbox_name") != name
+            or value.get("sandbox_id") != identifier
+        ):
+            raise ValueError("Stale cleanup state")
+    except OSError, ValueError, TypeError, AttributeError:
+        value = receipt(binding, name, identifier, "deletion_unconfirmed")
+    if error is not None and value.get("status") not in {"unconfirmed"}:
+        value.update(status="unconfirmed", reason="deletion_unconfirmed")
+    value.update(failure)
+    write_json(path, value)
+
+
+def close_pipes_bounded(process):
+    def close():
+        for pipe in (process.stdin, process.stdout):
+            try:
+                pipe.close()
+            except OSError, ValueError:
+                pass
+
+    thread = threading.Thread(target=close, daemon=True)
+    thread.start()
+    thread.join(timeout=0.2)
+    if thread.is_alive():
+        raise UnsupportedScope("File RPC pipe close exceeded bound")
+
+
 class Session:
     def __init__(self, settings, task, selection, product, deadline, path, binding):
         if not 15 < deadline - time.monotonic() <= 180:
             raise UnsupportedScope("File session requires the original bounded module deadline")
+        from workbench.capability_sandbox import verifier_policy_environment
+
+        policy_environment = verifier_policy_environment()
         self.deadline, self.work_end = deadline, deadline - 15
         self.settings, self.path, self.binding = settings, path, dict(binding)
         self.name = (
@@ -72,6 +134,8 @@ class Session:
             + uuid.uuid4().hex
         )
         self.identifier = None
+        self.failure = {}
+        self.windows_job = None
         self.lock, self.done, self.cancel = threading.Lock(), threading.Event(), threading.Event()
         self.closing, self.error = False, None
         self.answers = queue.Queue(maxsize=2)
@@ -107,9 +171,13 @@ class Session:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                env=clean_env(),
+                env=clean_env(policy_environment),
                 **process_options(),
             )
+            if os.name == "nt":
+                from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+                self.windows_job = WindowsJob(self.process)
             self.reader = threading.Thread(target=self.read, daemon=True)
             self.reader.start()
             self.watchdog = threading.Thread(target=self.watch, daemon=True)
@@ -143,6 +211,10 @@ class Session:
                         self.identifier = value["id"]
                         write_json(self.path, receipt(self.binding, self.name, self.identifier))
                 else:
+                    if value.get("error") is True:
+                        with self.lock:
+                            if not self.closing:
+                                self.failure = failure_facts(value)
                     self.answers.put(value, timeout=max(0.001, self.work_end - time.monotonic()))
         except Exception:
             try:
@@ -205,16 +277,20 @@ class Session:
                         if os.name == "posix":
                             # Kill the owned session before reaping its leader, including inspectors.
                             os.killpg(self.process.pid, signal.SIGKILL)
+                        elif self.windows_job is not None:
+                            self.windows_job.terminate()
                         elif self.process.poll() is None:
-                            self.process.kill()
+                            self.process.kill()  # Job setup failed before any request was sent.
                     except ProcessLookupError:
                         pass
                     self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    for pipe in (self.process.stdin, self.process.stdout):
-                        try:
-                            pipe.close()
-                        except OSError, ValueError:
-                            pass  # The reaped worker owns no remaining SDK transport.
+                    if hasattr(self, "reader"):
+                        self.reader.join(timeout=0.2)
+                        if self.reader.is_alive():
+                            raise UnsupportedScope(
+                                "File RPC pipe did not close after tree termination"
+                            )
+                    close_pipes_bounded(self.process)
                 delete_owned(
                     self.settings,
                     self.name,
@@ -225,12 +301,23 @@ class Session:
                 )
             except BaseException as exc:
                 self.error = exc
-                write_json(
-                    self.path,
-                    receipt(self.binding, self.name, self.identifier, "deletion_unconfirmed"),
-                )
             finally:
-                self.done.set()
+                try:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = exc
+                    preserve_state(
+                        self.path,
+                        self.binding,
+                        self.name,
+                        self.identifier,
+                        self.error,
+                        self.failure,
+                    )
+                finally:
+                    self.done.set()
         else:
             # SDK work is killed at its deadline; allow only bounded child reaping here.
             self.done.wait(max(0, self.deadline - time.monotonic()) + 3)
@@ -266,33 +353,43 @@ def main():
         output.write(json.dumps({"nonce": payload["nonce"], **value}) + "\n")
         output.flush()
 
-    with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        with _local_environment(
-            Settings(_env_file=None, **payload["settings"]),
-            CapabilityTaskV2.model_validate(payload["task"]),
-            payload["selection"],
-            Path(payload["product"]),
-            deadline=payload["deadline"],
-            owned_name=payload["name"],
-            external_cleanup=True,
-            on_created=lambda name, identifier: emit(
-                {"event": "created", "name": name, "id": identifier}
-            ),
-        ) as files:
-            emit({"result": True})
-            while True:
-                raw = sys.stdin.buffer.readline(LIMIT + 1)
-                if not raw or len(raw) > LIMIT:
-                    raise ValueError("File worker request ended")
-                request = json.loads(raw)
-                if request["operation"] == "write":
-                    files.write(CapabilityEdits.model_validate(request["edits"]))
-                    result = True
-                elif request["operation"] == "snapshot":
-                    result = files.snapshot(request["paths"])
-                else:
-                    raise ValueError("Unknown file-only operation")
-                emit({"result": result})
+    phase = {"value": "protocol"}
+    try:
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
+            with _local_environment(
+                Settings(_env_file=None, **payload["settings"]),
+                CapabilityTaskV2.model_validate(payload["task"]),
+                payload["selection"],
+                Path(payload["product"]),
+                deadline=payload["deadline"],
+                owned_name=payload["name"],
+                external_cleanup=True,
+                on_phase=lambda value: phase.update(value=value),
+                on_created=lambda name, identifier: emit(
+                    {"event": "created", "name": name, "id": identifier}
+                ),
+            ) as files:
+                emit({"result": True})
+                while True:
+                    raw = sys.stdin.buffer.readline(LIMIT + 1)
+                    if not raw or len(raw) > LIMIT:
+                        raise ValueError("File worker request ended")
+                    request = json.loads(raw)
+                    if request["operation"] == "write":
+                        phase["value"] = "write"
+                        files.write(CapabilityEdits.model_validate(request["edits"]))
+                        result = True
+                    elif request["operation"] == "snapshot":
+                        phase["value"] = "snapshot"
+                        result = files.snapshot(request["paths"])
+                    else:
+                        raise ValueError("Unknown file-only operation")
+                    emit({"result": result})
+    except Exception as exc:
+        from workbench.infrastructure.sandbox.cleanup import failure_kind
+
+        emit({"error": True, "phase": phase["value"], "kind": failure_kind(exc)})
+        raise
 
 
 if __name__ == "__main__":

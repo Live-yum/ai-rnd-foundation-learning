@@ -362,6 +362,18 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 
 本次本地验证：相关12文件956项通过，最终进程组终止/网关状态边界9项通过；SDK监督进程在回收leader前终止整个自有进程组，离线子进程用例确认阻塞检查后代不继续运行。严格55文件集合2542通过、5个既有本地Landlock返回78失败、13个既有条件跳过；未降低强制标记。全仓Ruff及格式、diff、完整手册与779份教材一致性检查通过。上述为作者实现验证，独立复审结论另行交父线程，不提前宣称通过。
 
+### 第18轮的准入传播及Windows回收修复（本地验证，未重新派发）
+
+父线程实际读取94f21e1的真实运行38167848595/artifact11713775823：模型预留/HTTP尝试/响应均为0、checkpoint为空，agent_controller报UnsupportedScope，sla-api文件沙箱清理为unconfirmed/deletion_unconfirmed。本轮没有进入模型闭环，也没有沙箱已删除证明。正式job114554037314的always Compose down步骤成功，19:42:30—19:42:42 UTC日志明确记录10个Compose容器及2个网络Removed；该命令不删除持久卷。这只能证明此次本地测试部署停止，不能替代具体agent沙箱的typed404确认或把既有unconfirmed回执升级为deleted。
+
+代码检查及真实file_session入口离线回归确认：94f21e1新SDK子进程使用clean_env()，漏传了已验证的浏览器策略Actions scope。现仅复用verifier_policy_environment()返回的既有字段；它在创建子进程前再次验证，子进程准入仍调用原策略选择器和浏览器回执检查。没有修改策略白名单、首次dispatch、三个SHA相等、job/scenario或权限限制；API_KEY、GITHUB_TOKEN和代理环境不随该scope转发。正例真实运行Session→file_session.main→_local_environment→浏览器准入，受控客户端哨兵在准入后终止；负例删除策略或修改SHA、job、scenario、策略摘要时停在准入之前。这是scope传播证明，不是容器隔离或模型验收。旧真实子进程没有阶段诊断，故不能声称已证明上述遗漏是第18轮唯一失败原因。
+
+新增诊断只投影固定阶段和异常类型，不导出SDK消息、路径、密钥或原始HTTP正文。父进程保留create_unconfirmed、module_deadline等原有清理原因，另记file SDK失败阶段和cleanup子进程失败类型；诊断不能升级清理状态。真实锁定SDK的离线HTTP运输替身验证DELETE后的200→404最终一致性、一直200、403、500和迟到404：只有截止前类型化404可确认删除。readonly_dependency_admission夹具补齐相同get→DaytonaNotFoundError接口，原deleted断言及unknown/delete-failed负例保留。
+
+普通Python CI运行38167704467的Windows shard3真实报告refresh生命周期28.008秒，违反原14秒断言。原因是仅kill根进程后，检查后代仍持有stdout，读线程和管道close不能及时返回。Windows现在在发送工作前把SDK子进程加入自有Job Object，使用KILL_ON_JOB_CLOSE及TerminateJobObject回收该进程树；创建、配置或归属失败时不发送工作并失败关闭。不使用全局进程名扫描或提权。读线程join和管道close各有独立0.2秒回收界限。原25秒测试窗口、14秒断言、180秒生产deadline及15秒清理预留均不变。Job Object API合约与管道阻塞测试可在本机执行；新增原生Windows后代终止证明在Linux明确跳过，真实Windows是否修复仍须后续普通CI验证，不能提前宣称通过。
+
+Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -11086,16 +11098,16 @@ sys.modules[__name__] = _implementation
 
 **逐个入口与控制逻辑：**
 
-- `security_checks_for`（L192–L197）：接收`selection`。 控制顺序：L193按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L194的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L197的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L200–L205）：接收`selection`。 调用`selection.get`。 返回路径：L201的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L208–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L209的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L212–L233）：接收`record`。 控制顺序：L216按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L220抛异常，停止当前正常路径；L224按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L225抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L226的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_preinstalled_evidence`（L236–L279）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L255按`native`分支；L257按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L278抛异常，停止当前正常路径。 调用`isinstance`、`expected.get`、`keys.add`、`set`、`type`、`value.get`、`valid_native_runtime_patches`、`any`、`re.fullmatch`等。 返回路径：L279的`value`。
-- `require_profile_container_binding`（L282–L302）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L285按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L289抛异常，停止当前正常路径；L290按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L291抛异常，停止当前正常路径；L292按`record.get("selection", {}).get("template") == "fastapiadmin"`分支；L294按`container.get("profile") != "native-fastapiadmin-postgresql-v1" or type(shared) is no…`分支；L301抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`、`record.get("selection", {}).get`、`record.get`、`type`。 返回路径：L302的`container`。
-- `require_security_receipt`（L305–L348）：接收`value`、`record`、`browser_image`。 控制顺序：L323按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L342抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L348的`value`。
-- `capability_execution_prerequisites`（L351–L406）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L361按`not settings.capability_execution_enabled`分支；L362抛异常，停止当前正常路径；L366按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L370抛异常，停止当前正常路径；L374按`settings.sandbox_provider != "daytona"`分支；L375抛异常，停止当前正常路径；L386按`directory.is_relative_to(runs)`分支；L387抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L406的`directory, record`。
+- `security_checks_for`（L193–L198）：接收`selection`。 控制顺序：L194按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L195的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L198的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L201–L206）：接收`selection`。 调用`selection.get`。 返回路径：L202的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L209–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L210的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L213–L234）：接收`record`。 控制顺序：L217按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L221抛异常，停止当前正常路径；L225按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L226抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L227的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_preinstalled_evidence`（L237–L280）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L256按`native`分支；L258按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L279抛异常，停止当前正常路径。 调用`isinstance`、`expected.get`、`keys.add`、`set`、`type`、`value.get`、`valid_native_runtime_patches`、`any`、`re.fullmatch`等。 返回路径：L280的`value`。
+- `require_profile_container_binding`（L283–L303）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L286按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L290抛异常，停止当前正常路径；L291按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L292抛异常，停止当前正常路径；L293按`record.get("selection", {}).get("template") == "fastapiadmin"`分支；L295按`container.get("profile") != "native-fastapiadmin-postgresql-v1" or type(shared) is no…`分支；L302抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`、`record.get("selection", {}).get`、`record.get`、`type`。 返回路径：L303的`container`。
+- `require_security_receipt`（L306–L349）：接收`value`、`record`、`browser_image`。 控制顺序：L324按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L343抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L349的`value`。
+- `capability_execution_prerequisites`（L352–L407）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L362按`not settings.capability_execution_enabled`分支；L363抛异常，停止当前正常路径；L367按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L371抛异常，停止当前正常路径；L375按`settings.sandbox_provider != "daytona"`分支；L376抛异常，停止当前正常路径；L387按`directory.is_relative_to(runs)`分支；L388抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L407的`directory, record`。
 
-<!-- source-file: workbench/capability_execution.py sha256: 5f18c6ef9124e5db056afb75f1da1ccc91bb27dbc6756dcd1389e7d023521bc3 -->
+<!-- source-file: workbench/capability_execution.py sha256: 79577d0a1a0b09a7962de64afad60ef3a8f8416dbafa13b12cd2af7daf4821b0 -->
 ````python
 """Fail-closed admission for reviewed custom-source execution.
 
@@ -11160,6 +11172,7 @@ SOURCE_FILES = (
     "workbench/infrastructure/sandbox/cleanup.py",
     "workbench/infrastructure/sandbox/deadline.py",
     "workbench/infrastructure/sandbox/file_session.py",
+    "workbench/infrastructure/sandbox/windows_job.py",
     "workbench/specifications/__init__.py",
     "workbench/specifications/artifact_writer.py",
     "workbench/specifications/openspec/__init__.py",
@@ -21190,15 +21203,16 @@ def _cursor(connection):
 
 **逐个入口与控制逻辑：**
 
-- `receipt`（L16–L23）：接收`binding`、`name`、`identifier`、`reason`。 返回路径：L17的`{ "binding": binding, "sandbox_name": name, "sandbox_id": identifier, "status": "pending" …`。
-- `confirm_deleted`（L26–L42）：接收`client`、`target`、`deadline`、`timeout_cap`。 控制顺序：L30按`remaining <= 0`分支；L31抛异常，停止当前正常路径；L34在`time.monotonic() < deadline`成立时循环；L38按`time.monotonic() >= deadline`分支；L39抛异常，停止当前正常路径；L42抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`TimeoutError`、`client.delete`、`client.get`、`time.sleep`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `delete_owned`（L45–L95）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L46按`not NAME.fullmatch(name)`分支；L47抛异常，停止当前正常路径；L79按`late or unresolved_create`分支；L80抛异常，停止当前正常路径；L81按`time.monotonic() >= end or process.returncode or len(output) > 4096`分支；L82抛异常，停止当前正常路径；L84按`result != {"binding": binding, "deleted": True}`分支；L85抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`NAME.fullmatch`、`UnsupportedScope`、`time.monotonic`、`receipt`、`write_json`、`getattr`、`settings.daytona_api_key.get_secret_value`、`subprocess.Popen`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `perform`（L98–L116）：接收`payload`。 控制顺序：L104按`not NAME.fullmatch(payload["name"])`分支；L105抛异常，停止当前正常路径；L109按`target.name != payload["name"] or ( payload["identifier"] is not None and target.id !…`分支；L112抛异常，停止当前正常路径。 调用`install_loopback_guard`、`NAME.fullmatch`、`ValueError`、`client_for`、`Settings`、`client.get`、`confirm_deleted`、`close_client`。 返回路径：L114的`{"binding": payload["binding"], "deleted": True}`。
-- `main`（L119–L129）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124按`len(body) > 16384`分支；L125抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`open`、`contextlib.redirect_stdout`、`perform`、`json.loads`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `public_receipt`（L132–L171）：接收`path`、`task`、`plan`。 控制顺序：L137按`path.stat().st_size > 4096`分支；L141按`set(bound) != {"task", "plan", "source", "nonce"} or bound["task"] != digest(task.mod…`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`set`、`digest`、`task.model_dump`、`plan.model_dump`、`type`、`re.fullmatch`等。 返回路径：L138的`unknown`；L163的`unknown`；L164的`{ "status": value["status"], "reason": value["reason"], "binding": bound, "sandbox_name": …`。
-- `checkpoint_receipts`（L174–L218）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L181遍历`range(1, 9)`；L184按`not path.exists()`分支；L188按`path.stat().st_size > 1_000_000`分支；L189抛异常，停止当前正常路径；L192按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L203抛异常，停止当前正常路径。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L218的`result`。
+- `failure_kind`（L30–L32）：接收`exc`。 调用`type`。 返回路径：L32的`name if name in FAILURE_KINDS else "other"`。
+- `receipt`（L35–L42）：接收`binding`、`name`、`identifier`、`reason`。 返回路径：L36的`{ "binding": binding, "sandbox_name": name, "sandbox_id": identifier, "status": "pending" …`。
+- `confirm_deleted`（L45–L61）：接收`client`、`target`、`deadline`、`timeout_cap`。 控制顺序：L49按`remaining <= 0`分支；L50抛异常，停止当前正常路径；L53在`time.monotonic() < deadline`成立时循环；L57按`time.monotonic() >= deadline`分支；L58抛异常，停止当前正常路径；L61抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`TimeoutError`、`client.delete`、`client.get`、`time.sleep`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `delete_owned`（L64–L123）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L65按`not NAME.fullmatch(name)`分支；L66抛异常，停止当前正常路径；L98按`not process.returncode and len(output) <= 4096`分支；L100按`diagnostic.get("binding") == binding and diagnostic.get("deleted") is False and diagn…`分支；L107按`late or unresolved_create`分支；L108抛异常，停止当前正常路径；L109按`time.monotonic() >= end or process.returncode or len(output) > 4096`分支；L110抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`NAME.fullmatch`、`UnsupportedScope`、`time.monotonic`、`receipt`、`write_json`、`getattr`、`settings.daytona_api_key.get_secret_value`、`subprocess.Popen`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `perform`（L126–L144）：接收`payload`。 控制顺序：L132按`not NAME.fullmatch(payload["name"])`分支；L133抛异常，停止当前正常路径；L137按`target.name != payload["name"] or ( payload["identifier"] is not None and target.id !…`分支；L140抛异常，停止当前正常路径。 调用`install_loopback_guard`、`NAME.fullmatch`、`ValueError`、`client_for`、`Settings`、`client.get`、`confirm_deleted`、`close_client`。 返回路径：L142的`{"binding": payload["binding"], "deleted": True}`。
+- `main`（L147–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L152按`len(body) > 16384`分支；L153抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`open`、`contextlib.redirect_stdout`、`json.loads`、`perform`、`failure_kind`、`print`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `public_receipt`（L168–L215）：接收`path`、`task`、`plan`。 控制顺序：L173按`path.stat().st_size > 4096`分支；L177按`set(bound) != {"task", "plan", "source", "nonce"} or bound["task"] != digest(task.mod…`分支；L203按`value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS`分支；L205按`value.get("cleanup_failure_kind") in FAILURE_KINDS`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`set`、`digest`、`task.model_dump`、`plan.model_dump`、`type`、`re.fullmatch`等。 返回路径：L174的`unknown`；L199的`unknown`；L207的`{ **extra, "status": value["status"], "reason": value["reason"], "binding": bound, "sandbo…`。
+- `checkpoint_receipts`（L218–L262）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L225遍历`range(1, 9)`；L228按`not path.exists()`分支；L232按`path.stat().st_size > 1_000_000`分支；L233抛异常，停止当前正常路径；L236按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L247抛异常，停止当前正常路径。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L262的`result`。
 
-<!-- source-file: workbench/infrastructure/sandbox/cleanup.py sha256: a969c7ef93521f99aa666c1535671d53394c0718335cf69fa6d43b7989169784 -->
+<!-- source-file: workbench/infrastructure/sandbox/cleanup.py sha256: 249ce2bd8a3af394fc09b003d8a6062f377af0631499bf8b190cb3edfd0f8827 -->
 ````python
 """Owned coding-sandbox deletion; the parent alone publishes terminal cleanup state."""
 
@@ -21213,6 +21227,25 @@ from workbench.filesystem import write_json
 from workbench.tools import clean_env, process_options
 
 NAME = re.compile(r"rnd-source-(?:native-)?agent-[a-f0-9]{32}")
+
+
+FAILURE_KINDS = {
+    "PrerequisiteError",
+    "UnsupportedScope",
+    "ValueError",
+    "TimeoutError",
+    "DaytonaNotFoundError",
+    "DaytonaTimeoutError",
+    "DaytonaAuthorizationError",
+    "DaytonaAuthenticationError",
+    "DaytonaError",
+    "other",
+}
+
+
+def failure_kind(exc):
+    name = type(exc).__name__
+    return name if name in FAILURE_KINDS else "other"
 
 
 def receipt(binding, name, identifier, reason="pending"):
@@ -21278,6 +21311,15 @@ def delete_owned(settings, name, identifier, binding, path, deadline):
         output, _ = process.communicate(
             json.dumps(payload).encode(), timeout=max(0, end - time.monotonic())
         )
+        if not process.returncode and len(output) <= 4096:
+            diagnostic = json.loads(output)
+            if (
+                diagnostic.get("binding") == binding
+                and diagnostic.get("deleted") is False
+                and diagnostic.get("failure_kind") in FAILURE_KINDS
+            ):
+                value["cleanup_failure_kind"] = diagnostic["failure_kind"]
+                write_json(path, value)
         if late or unresolved_create:
             raise UnsupportedScope("Terminated cleanup state cannot be upgraded by a late result")
         if time.monotonic() >= end or process.returncode or len(output) > 4096:
@@ -21327,7 +21369,15 @@ def main():
         raise ValueError("Cleanup request too large")
     # SDK output is not protocol data and must not escape to the parent.
     with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        result = perform(json.loads(body))
+        payload = json.loads(body)
+        try:
+            result = perform(payload)
+        except Exception as exc:
+            result = {
+                "binding": payload["binding"],
+                "deleted": False,
+                "failure_kind": failure_kind(exc),
+            }
     print(json.dumps(result))
 
 
@@ -21363,7 +21413,15 @@ def public_receipt(path, task, plan):
             or (value["status"] == "deleted" and value["reason"] != "confirmed_absent")
         ):
             return unknown
+        extra = {}
+        from workbench.infrastructure.sandbox.file_session import PHASES
+
+        if value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS:
+            extra.update(failure_phase=value["failure_phase"], failure_kind=value["failure_kind"])
+        if value.get("cleanup_failure_kind") in FAILURE_KINDS:
+            extra["cleanup_failure_kind"] = value["cleanup_failure_kind"]
         return {
+            **extra,
             "status": value["status"],
             "reason": value["reason"],
             "binding": bound,
@@ -21442,11 +21500,11 @@ if __name__ == "__main__":
 - `DaytonaFiles.remaining`（L42–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`remaining <= 0`分支；L50抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L51的`remaining`。
 - `DaytonaFiles.write`（L53–L60）：接收`edits`。 控制顺序：L54按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L55抛异常，停止当前正常路径；L56遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.snapshot`（L62–L73）：接收`paths`。 控制顺序：L63按`paths != self.task.allowed_paths`分支；L64抛异常，停止当前正常路径；L66遍历`paths`；L70按`not isinstance(content, bytes) or len(content) > 100000`分支；L71抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L73的`result`。
-- `_local_environment`（L77–L202）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`、`owned_name`、`on_created`、`external_cleanup`。 控制顺序：L94按`task_path_errors(task, selection)`分支；L95抛异常，停止当前正常路径；L124按`cleanup_record is not None`分支；L132按`on_created is not None`分支；L136按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L137抛异常，停止当前正常路径；L148按`cleanup_record is not None`分支；L173按`external_cleanup`分支。后续分支沿下方源码相同行号继续阅读。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`、`client.create`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_local_environment.remaining`（L103–L117）：接收`cleanup`。 控制顺序：L111按`available <= 0`分支；L112按`cleanup`分支；L116抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L115的`1`；L117的`available`。
-- `coding_environment`（L205–L219）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 源码说明：All production SDK work runs in a process supervised until owned cleanup ends.。 调用`supervised_environment`。 返回路径：L211的`supervised_environment( settings, task, selection, product, deadline=deadline, cleanup_rec…`。
+- `_local_environment`（L77–L210）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`、`owned_name`、`on_created`、`external_cleanup`、`on_phase`。 控制顺序：L97按`task_path_errors(task, selection)`分支；L98抛异常，停止当前正常路径；L128按`cleanup_record is not None`分支；L137按`on_created is not None`分支；L142按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L143抛异常，停止当前正常路径；L155按`cleanup_record is not None`分支；L181按`external_cleanup`分支。后续分支沿下方源码相同行号继续阅读。 调用`phase`、`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_local_environment.remaining`（L107–L121）：接收`cleanup`。 控制顺序：L115按`available <= 0`分支；L116按`cleanup`分支；L120抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L119的`1`；L121的`available`。
+- `coding_environment`（L213–L227）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 源码说明：All production SDK work runs in a process supervised until owned cleanup ends.。 调用`supervised_environment`。 返回路径：L219的`supervised_environment( settings, task, selection, product, deadline=deadline, cleanup_rec…`。
 
-<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: 2ec058f7c75381deb02df407e1ab29f151f9499f52108f03cbc74d9ee6c09fbc -->
+<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: 3320fdf8194c1d570499780442878f52df704d64c5c3b77e541fb47fd4d087e2 -->
 ````python
 """File-only coding session on the existing admitted private Daytona channel.
 
@@ -21536,14 +21594,18 @@ def _local_environment(
     owned_name=None,
     on_created=None,
     external_cleanup=False,
+    on_phase=None,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
 
+    phase = on_phase or (lambda value: None)
+    phase("admission")
     if task_path_errors(task, selection):
         raise UnsupportedScope("Agent task crosses the business-file boundary")
     directory, profile = capability_execution_prerequisites(settings, selection)
+    phase("client")
     client = client_for(settings)
     sandbox = None
     name = None
@@ -21575,6 +21637,7 @@ def _local_environment(
             from workbench.infrastructure.sandbox.cleanup import receipt
 
             write_json(cleanup_record, receipt(cleanup_binding, name, None, "create_unconfirmed"))
+        phase("create")
         sandbox = client.create(
             params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
@@ -21582,9 +21645,11 @@ def _local_environment(
         if on_created is not None:
             on_created(name, sandbox.id)
         remaining()
+        phase("refresh")
         sandbox.refresh_data()
         if sandbox.network_block_all is not True or sandbox.public is not False:
             raise UnsupportedScope("Agent sandbox is not private and network-blocked")
+        phase("inspection")
         evidence = require_container_evidence(
             inspect_created_sandbox(
                 directory, sandbox.id, require_resources=True, selection=selection
@@ -21602,6 +21667,7 @@ def _local_environment(
                 cleanup_binding,
                 name,
             )
+        phase("initial_upload")
         env.write(
             CapabilityEdits(
                 explanation="Approved before-images",
@@ -21768,21 +21834,25 @@ class CheckpointDeadline:
 
 **逐个入口与控制逻辑：**
 
-- `Session`（L23–L198）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Session.__init__`（L24–L81）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L25按`not 15 < deadline - time.monotonic() <= 180`分支；L26抛异常，停止当前正常路径；L81抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.read`（L83–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85在`True`成立时循环；L87按`not raw or len(raw) > LIMIT`分支；L88抛异常，停止当前正常路径；L90按`value.get("nonce") != self.binding["nonce"]`分支；L91抛异常，停止当前正常路径；L92按`value.get("event") == "created"`分支；L94按`self.closing or time.monotonic() >= self.work_end`分支；L96按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.send`（L113–L118）：接收`value`。 控制顺序：L115按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L116抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.receive`（L120–L132）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124抛异常，停止当前正常路径；L125按`self.closing or time.monotonic() >= self.work_end or value.get("error") or "result" n…`分支；L131抛异常，停止当前正常路径。 调用`self.answers.get`、`max`、`time.monotonic`、`UnsupportedScope`、`value.get`。 返回路径：L132的`value["result"]`。
-- `Session.bind_candidate`（L134–L139）：接收`source`。 控制顺序：L136按`self.closing or time.monotonic() >= self.work_end`分支；L137抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.write`（L141–L143）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.snapshot`（L145–L147）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L147的`self.receive()`。
-- `Session.watch`（L149–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L150按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.finish`（L156–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160按`owner`分支；L163按`self.process is not None`分支；L165按`os.name == "posix"`分支；L168按`self.process.poll() is None`分支；L173遍历`(self.process.stdin, self.process.stdout)`；L197按`not self.done.is_set() or self.error is not None`分支；L198抛异常，停止当前正常路径。 调用`self.cancel.set`、`os.killpg`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`、`pipe.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `supervised_environment`（L202–L209）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `main`（L212–L255）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L220按`len(body) > LIMIT`分支；L221抛异常，停止当前正常路径；L243在`True`成立时循环；L245按`not raw or len(raw) > LIMIT`分支；L246抛异常，停止当前正常路径；L248按`request["operation"] == "write"`分支；L251按`request["operation"] == "snapshot"`分支；L254抛异常，停止当前正常路径。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.emit`（L225–L227）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_facts`（L36–L43）：接收`value`。 调用`value.get`。 返回路径：L39的`{"failure_phase": value["phase"], "failure_kind": value["kind"]} if (value.get("phase") in…`。
+- `preserve_state`（L46–L60）：接收`path`、`binding`、`name`、`identifier`、`error`、`failure`。 控制顺序：L49按`value.get("binding") != binding or value.get("sandbox_name") != name or value.get("sa…`分支；L54抛异常，停止当前正常路径；L57按`error is not None and value.get("status") not in {"unconfirmed"}`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`value.get`、`ValueError`、`receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `close_pipes_bounded`（L63–L75）：接收`process`。 控制顺序：L74按`thread.is_alive()`分支；L75抛异常，停止当前正常路径。 调用`threading.Thread`、`thread.start`、`thread.join`、`thread.is_alive`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `close_pipes_bounded.close`（L64–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65遍历`(process.stdin, process.stdout)`。 调用`pipe.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session`（L78–L281）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Session.__init__`（L79–L145）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L80按`not 15 < deadline - time.monotonic() <= 180`分支；L81抛异常，停止当前正常路径；L133按`os.name == "nt"`分支；L145抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`verifier_policy_environment`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.read`（L147–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149在`True`成立时循环；L151按`not raw or len(raw) > LIMIT`分支；L152抛异常，停止当前正常路径；L154按`value.get("nonce") != self.binding["nonce"]`分支；L155抛异常，停止当前正常路径；L156按`value.get("event") == "created"`分支；L158按`self.closing or time.monotonic() >= self.work_end`分支；L160按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.send`（L181–L186）：接收`value`。 控制顺序：L183按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L184抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.receive`（L188–L200）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L192抛异常，停止当前正常路径；L193按`self.closing or time.monotonic() >= self.work_end or value.get("error") or "result" n…`分支；L199抛异常，停止当前正常路径。 调用`self.answers.get`、`max`、`time.monotonic`、`UnsupportedScope`、`value.get`。 返回路径：L200的`value["result"]`。
+- `Session.bind_candidate`（L202–L207）：接收`source`。 控制顺序：L204按`self.closing or time.monotonic() >= self.work_end`分支；L205抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.write`（L209–L211）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.snapshot`（L213–L215）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L215的`self.receive()`。
+- `Session.watch`（L217–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.finish`（L224–L281）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L231按`self.process is not None`分支；L233按`os.name == "posix"`分支；L236按`self.windows_job is not None`分支；L238按`self.process.poll() is None`分支；L243按`hasattr(self, "reader")`分支；L245按`self.reader.is_alive()`分支；L246抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `supervised_environment`（L285–L292）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `main`（L295–L348）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303按`len(body) > LIMIT`分支；L304抛异常，停止当前正常路径；L329在`True`成立时循环；L331按`not raw or len(raw) > LIMIT`分支；L332抛异常，停止当前正常路径；L334按`request["operation"] == "write"`分支；L338按`request["operation"] == "snapshot"`分支；L342抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.emit`（L308–L310）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/infrastructure/sandbox/file_session.py sha256: a62506c220432ef25aa71f291c924f46b0506687760dd86e7124cab3d9a92615 -->
+<!-- source-file: workbench/infrastructure/sandbox/file_session.py sha256: 82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc -->
 ````python
 """Parent-owned bounded file RPC; no SDK call can hold the controller past its deadline."""
 
@@ -21806,10 +21876,68 @@ from workbench.tools import clean_env, process_options
 LIMIT = 1_200_000
 
 
+PHASES = {
+    "protocol",
+    "admission",
+    "client",
+    "create",
+    "refresh",
+    "inspection",
+    "initial_upload",
+    "write",
+    "snapshot",
+}
+
+
+def failure_facts(value):
+    from workbench.infrastructure.sandbox.cleanup import FAILURE_KINDS
+
+    return (
+        {"failure_phase": value["phase"], "failure_kind": value["kind"]}
+        if (value.get("phase") in PHASES and value.get("kind") in FAILURE_KINDS)
+        else {}
+    )
+
+
+def preserve_state(path, binding, name, identifier, error, failure):
+    try:
+        value = json.loads(path.read_text()) if path.stat().st_size <= 4096 else {}
+        if (
+            value.get("binding") != binding
+            or value.get("sandbox_name") != name
+            or value.get("sandbox_id") != identifier
+        ):
+            raise ValueError("Stale cleanup state")
+    except OSError, ValueError, TypeError, AttributeError:
+        value = receipt(binding, name, identifier, "deletion_unconfirmed")
+    if error is not None and value.get("status") not in {"unconfirmed"}:
+        value.update(status="unconfirmed", reason="deletion_unconfirmed")
+    value.update(failure)
+    write_json(path, value)
+
+
+def close_pipes_bounded(process):
+    def close():
+        for pipe in (process.stdin, process.stdout):
+            try:
+                pipe.close()
+            except OSError, ValueError:
+                pass
+
+    thread = threading.Thread(target=close, daemon=True)
+    thread.start()
+    thread.join(timeout=0.2)
+    if thread.is_alive():
+        raise UnsupportedScope("File RPC pipe close exceeded bound")
+
+
 class Session:
     def __init__(self, settings, task, selection, product, deadline, path, binding):
         if not 15 < deadline - time.monotonic() <= 180:
             raise UnsupportedScope("File session requires the original bounded module deadline")
+        from workbench.capability_sandbox import verifier_policy_environment
+
+        policy_environment = verifier_policy_environment()
         self.deadline, self.work_end = deadline, deadline - 15
         self.settings, self.path, self.binding = settings, path, dict(binding)
         self.name = (
@@ -21818,6 +21946,8 @@ class Session:
             + uuid.uuid4().hex
         )
         self.identifier = None
+        self.failure = {}
+        self.windows_job = None
         self.lock, self.done, self.cancel = threading.Lock(), threading.Event(), threading.Event()
         self.closing, self.error = False, None
         self.answers = queue.Queue(maxsize=2)
@@ -21853,9 +21983,13 @@ class Session:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
-                env=clean_env(),
+                env=clean_env(policy_environment),
                 **process_options(),
             )
+            if os.name == "nt":
+                from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+                self.windows_job = WindowsJob(self.process)
             self.reader = threading.Thread(target=self.read, daemon=True)
             self.reader.start()
             self.watchdog = threading.Thread(target=self.watch, daemon=True)
@@ -21889,6 +22023,10 @@ class Session:
                         self.identifier = value["id"]
                         write_json(self.path, receipt(self.binding, self.name, self.identifier))
                 else:
+                    if value.get("error") is True:
+                        with self.lock:
+                            if not self.closing:
+                                self.failure = failure_facts(value)
                     self.answers.put(value, timeout=max(0.001, self.work_end - time.monotonic()))
         except Exception:
             try:
@@ -21951,16 +22089,20 @@ class Session:
                         if os.name == "posix":
                             # Kill the owned session before reaping its leader, including inspectors.
                             os.killpg(self.process.pid, signal.SIGKILL)
+                        elif self.windows_job is not None:
+                            self.windows_job.terminate()
                         elif self.process.poll() is None:
-                            self.process.kill()
+                            self.process.kill()  # Job setup failed before any request was sent.
                     except ProcessLookupError:
                         pass
                     self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    for pipe in (self.process.stdin, self.process.stdout):
-                        try:
-                            pipe.close()
-                        except OSError, ValueError:
-                            pass  # The reaped worker owns no remaining SDK transport.
+                    if hasattr(self, "reader"):
+                        self.reader.join(timeout=0.2)
+                        if self.reader.is_alive():
+                            raise UnsupportedScope(
+                                "File RPC pipe did not close after tree termination"
+                            )
+                    close_pipes_bounded(self.process)
                 delete_owned(
                     self.settings,
                     self.name,
@@ -21971,12 +22113,23 @@ class Session:
                 )
             except BaseException as exc:
                 self.error = exc
-                write_json(
-                    self.path,
-                    receipt(self.binding, self.name, self.identifier, "deletion_unconfirmed"),
-                )
             finally:
-                self.done.set()
+                try:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = exc
+                    preserve_state(
+                        self.path,
+                        self.binding,
+                        self.name,
+                        self.identifier,
+                        self.error,
+                        self.failure,
+                    )
+                finally:
+                    self.done.set()
         else:
             # SDK work is killed at its deadline; allow only bounded child reaping here.
             self.done.wait(max(0, self.deadline - time.monotonic()) + 3)
@@ -22012,37 +22165,159 @@ def main():
         output.write(json.dumps({"nonce": payload["nonce"], **value}) + "\n")
         output.flush()
 
-    with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        with _local_environment(
-            Settings(_env_file=None, **payload["settings"]),
-            CapabilityTaskV2.model_validate(payload["task"]),
-            payload["selection"],
-            Path(payload["product"]),
-            deadline=payload["deadline"],
-            owned_name=payload["name"],
-            external_cleanup=True,
-            on_created=lambda name, identifier: emit(
-                {"event": "created", "name": name, "id": identifier}
-            ),
-        ) as files:
-            emit({"result": True})
-            while True:
-                raw = sys.stdin.buffer.readline(LIMIT + 1)
-                if not raw or len(raw) > LIMIT:
-                    raise ValueError("File worker request ended")
-                request = json.loads(raw)
-                if request["operation"] == "write":
-                    files.write(CapabilityEdits.model_validate(request["edits"]))
-                    result = True
-                elif request["operation"] == "snapshot":
-                    result = files.snapshot(request["paths"])
-                else:
-                    raise ValueError("Unknown file-only operation")
-                emit({"result": result})
+    phase = {"value": "protocol"}
+    try:
+        with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
+            with _local_environment(
+                Settings(_env_file=None, **payload["settings"]),
+                CapabilityTaskV2.model_validate(payload["task"]),
+                payload["selection"],
+                Path(payload["product"]),
+                deadline=payload["deadline"],
+                owned_name=payload["name"],
+                external_cleanup=True,
+                on_phase=lambda value: phase.update(value=value),
+                on_created=lambda name, identifier: emit(
+                    {"event": "created", "name": name, "id": identifier}
+                ),
+            ) as files:
+                emit({"result": True})
+                while True:
+                    raw = sys.stdin.buffer.readline(LIMIT + 1)
+                    if not raw or len(raw) > LIMIT:
+                        raise ValueError("File worker request ended")
+                    request = json.loads(raw)
+                    if request["operation"] == "write":
+                        phase["value"] = "write"
+                        files.write(CapabilityEdits.model_validate(request["edits"]))
+                        result = True
+                    elif request["operation"] == "snapshot":
+                        phase["value"] = "snapshot"
+                        result = files.snapshot(request["paths"])
+                    else:
+                        raise ValueError("Unknown file-only operation")
+                    emit({"result": result})
+    except Exception as exc:
+        from workbench.infrastructure.sandbox.cleanup import failure_kind
+
+        emit({"error": True, "phase": phase["value"], "kind": failure_kind(exc)})
+        raise
 
 
 if __name__ == "__main__":
     main()
+````
+
+### `workbench/infrastructure/sandbox/windows_job.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.errors`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `BasicLimits`（L9–L20）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `IOCounters`（L23–L34）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ExtendedLimits`（L37–L45）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `WindowsJob`（L48–L88）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `WindowsJob.__init__`（L49–L78）：接收`process`、`api`。 控制顺序：L61遍历`signatures.items()`；L65按`not self.handle`分支；L66抛异常，停止当前正常路径；L70按`not self.api.SetInformationJobObject( self.handle, 9, ctypes.byref(limits), ctypes.si…`分支；L73抛异常，停止当前正常路径；L74按`not self.api.AssignProcessToJobObject(self.handle, int(process._handle))`分支；L75抛异常，停止当前正常路径；L78抛异常，停止当前正常路径。 调用`ctypes.WinDLL`、`signatures.items`、`getattr`、`self.api.CreateJobObjectW`、`UnsupportedScope`、`ExtendedLimits`、`self.api.SetInformationJobObject`、`ctypes.byref`、`ctypes.sizeof`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `WindowsJob.terminate`（L80–L82）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L81按`not self.api.TerminateJobObject(self.handle, 1)`分支；L82抛异常，停止当前正常路径。 调用`self.api.TerminateJobObject`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `WindowsJob.close`（L84–L88）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`self.handle`分支；L87按`not self.api.CloseHandle(handle)`分支；L88抛异常，停止当前正常路径。 调用`self.api.CloseHandle`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: workbench/infrastructure/sandbox/windows_job.py sha256: ab9a78c0975f66390262b39de147d11d5f4a636636f334817692167f84c4c6cd -->
+````python
+"""An owned Windows job, assigned before the trusted SDK child receives work."""
+
+import ctypes
+from ctypes import wintypes
+
+from workbench.errors import UnsupportedScope
+
+
+class BasicLimits(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_longlong),
+        ("PerJobUserTimeLimit", ctypes.c_longlong),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class IOCounters(ctypes.Structure):
+    _fields_ = [
+        (key, ctypes.c_ulonglong)
+        for key in (
+            "ReadOperationCount",
+            "WriteOperationCount",
+            "OtherOperationCount",
+            "ReadTransferCount",
+            "WriteTransferCount",
+            "OtherTransferCount",
+        )
+    ]
+
+
+class ExtendedLimits(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", BasicLimits),
+        ("IoInfo", IOCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+class WindowsJob:
+    def __init__(self, process, *, api=None):
+        self.api = api if api is not None else ctypes.WinDLL("kernel32", use_last_error=True)
+        signatures = {
+            "CreateJobObjectW": ([ctypes.c_void_p, wintypes.LPCWSTR], wintypes.HANDLE),
+            "SetInformationJobObject": (
+                [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32],
+                ctypes.c_int32,
+            ),
+            "AssignProcessToJobObject": ([wintypes.HANDLE, wintypes.HANDLE], ctypes.c_int32),
+            "TerminateJobObject": ([wintypes.HANDLE, ctypes.c_uint32], ctypes.c_int32),
+            "CloseHandle": ([wintypes.HANDLE], ctypes.c_int32),
+        }
+        for name, (args, result) in signatures.items():
+            function = getattr(self.api, name)
+            function.argtypes, function.restype = args, result
+        self.handle = self.api.CreateJobObjectW(None, None)
+        if not self.handle:
+            raise UnsupportedScope("Windows file worker job creation failed")
+        try:
+            limits = ExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if not self.api.SetInformationJobObject(
+                self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)
+            ):
+                raise UnsupportedScope("Windows file worker job configuration failed")
+            if not self.api.AssignProcessToJobObject(self.handle, int(process._handle)):
+                raise UnsupportedScope("Windows file worker job assignment failed")
+        except BaseException:
+            self.close()
+            raise
+
+    def terminate(self):
+        if not self.api.TerminateJobObject(self.handle, 1):
+            raise UnsupportedScope("Windows file worker subtree termination failed")
+
+    def close(self):
+        if self.handle:
+            handle, self.handle = self.handle, None
+            if not self.api.CloseHandle(handle):
+                raise UnsupportedScope("Windows file worker job handle closure failed")
 ````
 
 ### `workbench/interfaces/__init__.py`
@@ -169190,8 +169465,22 @@ def test_only_one_complete_handbook_is_generated():
 - `test_entire_file_sdk_lifecycle_is_supervised`（L1009–L1133）：接收`settings`、`tmp_path`、`monkeypatch`、`phase`。 源码说明：Event-blocked real SDK refresh/API transport in a real child, no external network.。 控制顺序：L1101按`phase == "success"`分支；L1102断言`environment.snapshot(task.allowed_paths) == { p: "" for p in task.allowed_paths }`；L1105按`phase == "write"`分支；L1113按`phase == "snapshot"`分支；L1115按`phase == "idle"`分支；L1116断言`environment.done.wait(12)`；L1118断言`time.monotonic() - start < 14`；L1119断言`len(cleaned) == 1 and cleaned[0][1] < start + 25`。后续分支沿下方源码相同行号继续阅读。 调用`cleanup_binding`、`monkeypatch.setattr`、`time.monotonic`、`nullcontext`、`pytest.raises`、`coding_environment`、`plan.selection.model_dump`、`environment.snapshot`、`environment.bind_candidate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_entire_file_sdk_lifecycle_is_supervised.launch`（L1065–L1070）：接收`command`、`**kwargs`。 调用`(tmp_path / "child-errors").open`、`original`、`str`、`children.append`。 返回路径：L1070的`process`。
 - `test_entire_file_sdk_lifecycle_is_supervised.cleanup`（L1075–L1084）：接收`settings`、`name`、`identifier`、`bound`、`path`、`deadline`。 控制顺序：L1080按`identifier is not None`分支；L1083按`identifier is None`分支；L1084抛异常，停止当前正常路径。 调用`cleaned.append`、`time.monotonic`、`dict`、`file_session.receipt`、`value.update`、`write_json`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_file_entrypoint_rechecks_forwarded_scope`（L1137–L1262）：接收`settings`、`tmp_path`、`monkeypatch`、`mutation`。 源码说明：Real Session/main/local-environment/browser gate; stop before SDK/network use.。 控制顺序：L1152遍历`("API_KEY", "GITHUB_TOKEN", "HTTP_PROXY", "HTTPS_PROXY")`；L1256断言`len(children) == 1 and children[0].poll() is not None`；L1257断言`marker.exists() is (mutation is None)`；L1259断言`value["failure_phase"] == ("client" if mutation is None else "admission")`；L1260断言`value["failure_kind"] in {"UnsupportedScope", "PrerequisiteError", "ValueError"}`；L1261断言`value["status"] == "unconfirmed" and value["reason"] == "create_unconfirmed"`；L1262断言`"private" not in path.read_text()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`browser.write_text`、`json.dumps`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_file_entrypoint_rechecks_forwarded_scope.launch`（L1221–L1236）：接收`command`、`**kwargs`。 控制顺序：L1223断言`env["GITHUB_SHA"] == env["REVIEWED_SHA"] == env["GITHUB_WORKFLOW_SHA"]`；L1224按`mutation == "missing"`分支；L1226按`mutation is not None`分支。 调用`env.pop`、`original`、`str`、`children.append`。 返回路径：L1236的`process`。
+- `test_real_file_entrypoint_rechecks_forwarded_scope.unresolved`（L1240–L1241）：接收`*args`。 控制顺序：L1241抛异常，停止当前正常路径。 调用`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_file_session_rejects_extra_scope_before_launch`（L1269–L1293）：接收`settings`、`tmp_path`、`monkeypatch`、`bad_scope`。 控制顺序：L1293断言`not launches and not path.exists()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`launches.append`、`cleanup_binding`、`pytest.raises`、`file_session.Session`、`plan.selection.model_dump`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence`（L1297–L1385）：接收`monkeypatch`、`mode`。 源码说明：Actual pinned SDK get/delete/error interception, only HTTP transport synthesized.。 控制顺序：L1371按`mode in {"absent", "eventual"}`分支；L1373断言`calls[-1] == ("GET", 404)`；L1383断言`("DELETE", 204) in calls`。 调用`monkeypatch.setattr`、`Daytona`、`DaytonaConfig`、`client.get`、`confirm_deleted`、`time.monotonic`、`pytest.raises`、`close_client`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence.deny`（L1309–L1310）：接收`*a`、`**k`。 控制顺序：L1310抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence.request`（L1342–L1366）：接收`method`、`url`、`**kwargs`。 控制顺序：L1344按`method == "DELETE"`分支；L1347按`state["deleted"]`分支；L1349按`mode == "late"`分支。 调用`time.sleep`、`calls.append`、`HTTPResponse`、`io.BytesIO`、`json.dumps(body).encode`、`json.dumps`。 返回路径：L1361的`HTTPResponse( status=status, body=io.BytesIO(json.dumps(body).encode() if body else b""), …`。
+- `test_windows_job_owns_subtree_and_fails_closed`（L1399–L1450）：接收`failure`。 控制顺序：L1430按`failure is None`分支；L1435断言`[name for name, _ in calls] == [ "CreateJobObjectW", "SetInformationJobObject", "Assi…`；L1442断言`calls[2][1] == (99, 7)`；L1443断言`calls[3][1] == (99, 1)`；L1449按`failure in {"SetInformationJobObject", "AssignProcessToJobObject"}`分支；L1450断言`calls[-1][0] == "CloseHandle"`。 调用`SimpleNamespace`、`Function`、`WindowsJob`、`job.terminate`、`job.close`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_job_owns_subtree_and_fails_closed.Function`（L1406–L1416）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_windows_job_owns_subtree_and_fails_closed.Function.__init__`（L1407–L1408）：接收`name`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_job_owns_subtree_and_fails_closed.Function.__call__`（L1410–L1416）：接收`*args`。 控制顺序：L1412按`self.name == "SetInformationJobObject"`分支；L1414断言`limits.BasicLimitInformation.LimitFlags == 0x2000`；L1415断言`args[1] == 9 and args[3] == ctypes.sizeof(ExtendedLimits)`。 调用`calls.append`、`ctypes.cast`、`ctypes.POINTER`、`ctypes.sizeof`。 返回路径：L1416的`0 if self.name == failure else 99 if self.name == "CreateJobObjectW" else 1`。
+- `test_native_windows_job_kills_pipe_holding_descendant`（L1454–L1507）：接收`tmp_path`。 控制顺序：L1488在`not marker.exists() and time.monotonic() < deadline`成立时循环；L1490断言`marker.exists()`；L1492断言`descendant`；L1496断言`api.WaitForSingleObject(descendant, 2000) == 0`；L1498断言`time.monotonic() - start < 4`；L1500按`job is not None`分支；L1504按`descendant`分支。 调用`subprocess.Popen`、`str`、`ctypes.WinDLL`、`WindowsJob`、`process.stdin.write`、`process.stdin.flush`、`time.monotonic`、`marker.exists`、`time.sleep`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pipe_reaping_has_independent_bound`（L1510–L1526）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1524断言`time.monotonic() - start < 1`。 调用`threading.Event`、`SimpleNamespace`、`release.wait`、`time.monotonic`、`pytest.raises`、`close_pipes_bounded`、`release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cleanup_child_exports_only_bound_failure_kind`（L1530–L1575）：接收`settings`、`tmp_path`、`monkeypatch`、`known`。 控制顺序：L1569断言`value["status"] == "unconfirmed"`；L1570断言`value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")`；L1571断言`value["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1572断言`"private" not in path.read_text()`；L1574断言`exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1575断言`exported["status"] == "unconfirmed"`。 调用`monkeypatch.setattr`、`original`、`cleanup_binding`、`pytest.raises`、`cleanup.delete_owned`、`time.monotonic`、`json.loads`、`path.read_text`、`cleanup.public_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_mini_swe_checkpoints.py sha256: bc4eb10dbeacb8f330d777b787c28af8c94cb6b8773a48883ab6e261d6a75cff -->
+<!-- source-file: tests/test_mini_swe_checkpoints.py sha256: a8153a50fe5af800bfcae0c9a70eff69b8926fbe67d7213fd061ab6af1a71cd1 -->
 ````python
 """Offline checkpoint control flow; fake proofs are never live acceptance evidence."""
 
@@ -170326,6 +170615,448 @@ with patch.object(coding,'client_for',lambda *a:client),patch.object(coding,'cap
             assert descendant.read_text().split()[2] == "Z", (
                 "Owned inspector must not survive SDK kill"
             )
+
+
+@pytest.mark.parametrize("mutation", [None, "missing", "sha", "job", "scenario", "policy"])
+def test_real_file_entrypoint_rechecks_forwarded_scope(settings, tmp_path, monkeypatch, mutation):
+    """Real Session/main/local-environment/browser gate; stop before SDK/network use."""
+    import subprocess
+    import sys
+
+    from test_capability_browser_policy import IMAGE, approved_manual
+
+    from workbench import capability_browser_isolation as isolation
+    from workbench import capability_browser_policy as policy
+    from workbench.infrastructure.sandbox import file_session
+
+    # The selector is Linux-only; exercise that exact identity on every CI controller.
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+    approved_manual(monkeypatch)
+    for key in ("API_KEY", "GITHUB_TOKEN", "HTTP_PROXY", "HTTPS_PROXY"):
+        monkeypatch.setenv(key, "private-must-not-forward")
+    browser = tmp_path / "browser.json"
+    browser.write_text(
+        json.dumps(
+            {
+                "protocol": "offline-browser-isolation-v3",
+                "passed": True,
+                "mocked": False,
+                "image": IMAGE,
+                "runtime": {"fixture_approved_runtime": True},
+                "sources": isolation.browser_source_identity(),
+                "image_sources": isolation.image_source_identity(),
+                "checks": {
+                    "kernel_and_network": dict.fromkeys(
+                        (
+                            "passed",
+                            "kernel_resource_limits",
+                            "network_none",
+                            "tmpfs_exhaustion",
+                            "pid_exhaustion",
+                            "readonly_root",
+                            "browser_build",
+                            "apparmor_enforced",
+                        ),
+                        True,
+                    ),
+                    **dict.fromkeys(
+                        (
+                            "positive",
+                            "error",
+                            "abuse",
+                            "failure_cleanup",
+                            "memory_exhaustion",
+                            "raw_syscalls",
+                        ),
+                        True,
+                    ),
+                },
+            }
+        )
+    )
+    marker = tmp_path / "admitted"
+    child = r"""
+import os,sys,socket
+from pathlib import Path
+from workbench.infrastructure.sandbox import file_session,coding
+from workbench import capability_browser_isolation as isolation, capability_browser_policy as policy
+from workbench.errors import UnsupportedScope
+browser,marker=sys.argv[1:]
+assert not any(k in os.environ for k in ('API_KEY','GITHUB_TOKEN','HTTP_PROXY','HTTPS_PROXY'))
+def deny(*a,**k):raise AssertionError('offline only')
+socket.socket.connect=deny;socket.create_connection=deny
+policy.platform.system=lambda:'Linux'
+policy.platform.machine=lambda:'x86_64'
+isolation.BROWSER_ACCEPTANCE=Path(browser)
+isolation.runtime_identity=lambda image: ({'fixture_approved_runtime':True} if policy.selected_policy() else {'policy_sha256':None,'mode':'docker-default'})
+def prerequisites(*args):
+ isolation.require_browser_acceptance('sha256:'+'a'*64)
+ Path(marker).write_text('admitted')
+ return Path(browser).parent,{}
+def stop(*args):raise UnsupportedScope('private SDK sentinel must never be exported')
+coding.capability_execution_prerequisites=prerequisites
+coding.client_for=stop
+file_session.main()
+"""
+    original = subprocess.Popen
+    children = []
+
+    def launch(command, **kwargs):
+        env = kwargs["env"]
+        assert env["GITHUB_SHA"] == env["REVIEWED_SHA"] == env["GITHUB_WORKFLOW_SHA"]
+        if mutation == "missing":
+            env.pop("CAPABILITY_BROWSER_APPROVED_POLICY")
+        elif mutation is not None:
+            key, value = {
+                "sha": ("REVIEWED_SHA", "b" * 40),
+                "job": ("GITHUB_JOB", "real-model"),
+                "scenario": ("LIVE_SCENARIO", "legacy"),
+                "policy": ("CAPABILITY_BROWSER_APPROVED_POLICY", "0" * 64),
+            }[mutation]
+            env[key] = value
+        process = original([sys.executable, "-c", child, str(browser), str(marker)], **kwargs)
+        children.append(process)
+        return process
+
+    monkeypatch.setattr(file_session.subprocess, "Popen", launch)
+
+    def unresolved(*args):
+        raise UnsupportedScope("Unknown create remains unconfirmed")
+
+    monkeypatch.setattr(file_session, "delete_owned", unresolved)
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "agent-cleanup.json"
+    with pytest.raises(UnsupportedScope):
+        file_session.Session(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            time.monotonic() + 25,
+            path,
+            binding,
+        )
+    assert len(children) == 1 and children[0].poll() is not None
+    assert marker.exists() is (mutation is None)
+    value = json.loads(path.read_text())
+    assert value["failure_phase"] == ("client" if mutation is None else "admission")
+    assert value["failure_kind"] in {"UnsupportedScope", "PrerequisiteError", "ValueError"}
+    assert value["status"] == "unconfirmed" and value["reason"] == "create_unconfirmed"
+    assert "private" not in path.read_text()
+
+
+@pytest.mark.parametrize(
+    "bad_scope",
+    [("GITHUB_JOB", "real-model"), ("GITHUB_RUN_ATTEMPT", "2"), ("REVIEWED_SHA", "b" * 40)],
+)
+def test_file_session_rejects_extra_scope_before_launch(settings, tmp_path, monkeypatch, bad_scope):
+    from test_capability_browser_policy import approved_manual
+
+    from workbench import capability_browser_policy as policy
+    from workbench.infrastructure.sandbox import file_session
+
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+    approved_manual(monkeypatch)
+    monkeypatch.setenv(*bad_scope)
+    launches = []
+    monkeypatch.setattr(file_session.subprocess, "Popen", lambda *a, **k: launches.append(True))
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "journal"
+    with pytest.raises(ValueError, match="approved Actions scope"):
+        file_session.Session(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            time.monotonic() + 25,
+            path,
+            binding,
+        )
+    assert not launches and not path.exists()
+
+
+@pytest.mark.parametrize("mode", ["absent", "eventual", "present", "forbidden", "server", "late"])
+def test_real_sdk_deletion_requires_timely_typed_absence(monkeypatch, mode):
+    """Actual pinned SDK get/delete/error interception, only HTTP transport synthesized."""
+    import io
+    import socket
+
+    from daytona import Daytona, DaytonaConfig
+    from daytona.common.errors import DaytonaAuthorizationError, DaytonaError
+    from urllib3.response import HTTPResponse
+
+    from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+    from workbench.sandbox import close_client
+
+    def deny(*a, **k):
+        raise AssertionError("offline only")
+
+    monkeypatch.setattr(socket.socket, "connect", deny)
+    monkeypatch.setattr(socket, "create_connection", deny)
+    client = Daytona(
+        DaytonaConfig(
+            api_url="http://127.0.0.1:1/api",
+            api_key="offline-fixture",
+            target="local",
+            otel_enabled=False,
+        )
+    )
+    state = {"deleted": False, "gets": 0}
+    calls = []
+    dto = {
+        "id": "owned-id",
+        "organizationId": "fixture",
+        "name": "rnd-source-agent-" + "a" * 32,
+        "user": "root",
+        "env": {},
+        "labels": {},
+        "public": False,
+        "networkBlockAll": True,
+        "target": "local",
+        "cpu": 1,
+        "gpu": 0,
+        "memory": 1,
+        "disk": 1,
+        "toolboxProxyUrl": "http://127.0.0.1:1/toolbox",
+        "state": "started",
+    }
+
+    def request(method, url, **kwargs):
+        status, body = 200, dto
+        if method == "DELETE":
+            state["deleted"] = True
+            status, body = 204, None
+        elif state["deleted"]:
+            state["gets"] += 1
+            if mode == "late":
+                time.sleep(0.25)
+            status = {
+                "absent": 404,
+                "eventual": 200 if state["gets"] == 1 else 404,
+                "present": 200,
+                "forbidden": 403,
+                "server": 500,
+                "late": 404,
+            }[mode]
+            body = dto if status == 200 else {"message": "owned fixture"}
+        calls.append((method, status))
+        return HTTPResponse(
+            status=status,
+            body=io.BytesIO(json.dumps(body).encode() if body else b""),
+            headers={"content-type": "application/json"},
+            preload_content=False,
+        )
+
+    monkeypatch.setattr(client._api_client.rest_client.pool_manager, "request", request)
+    try:
+        target = client.get(dto["name"])
+        if mode in {"absent", "eventual"}:
+            confirm_deleted(client, target, time.monotonic() + 1, 1)
+            assert calls[-1] == ("GET", 404)
+        else:
+            error = {
+                "present": TimeoutError,
+                "late": TimeoutError,
+                "forbidden": DaytonaAuthorizationError,
+                "server": DaytonaError,
+            }[mode]
+            with pytest.raises(error):
+                confirm_deleted(client, target, time.monotonic() + 0.12, 1)
+        assert ("DELETE", 204) in calls
+    finally:
+        close_client(client)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        "CreateJobObjectW",
+        "SetInformationJobObject",
+        "AssignProcessToJobObject",
+        "TerminateJobObject",
+        "CloseHandle",
+    ],
+)
+def test_windows_job_owns_subtree_and_fails_closed(failure):
+    import ctypes
+
+    from workbench.infrastructure.sandbox.windows_job import ExtendedLimits, WindowsJob
+
+    calls = []
+
+    class Function:
+        def __init__(self, name):
+            self.name = name
+
+        def __call__(self, *args):
+            calls.append((self.name, args))
+            if self.name == "SetInformationJobObject":
+                limits = ctypes.cast(args[2], ctypes.POINTER(ExtendedLimits)).contents
+                assert limits.BasicLimitInformation.LimitFlags == 0x2000
+                assert args[1] == 9 and args[3] == ctypes.sizeof(ExtendedLimits)
+            return 0 if self.name == failure else 99 if self.name == "CreateJobObjectW" else 1
+
+    api = SimpleNamespace(
+        **{
+            name: Function(name)
+            for name in (
+                "CreateJobObjectW",
+                "SetInformationJobObject",
+                "AssignProcessToJobObject",
+                "TerminateJobObject",
+                "CloseHandle",
+            )
+        }
+    )
+    if failure is None:
+        job = WindowsJob(SimpleNamespace(_handle=7), api=api)
+        job.terminate()
+        job.close()
+        job.close()
+        assert [name for name, _ in calls] == [
+            "CreateJobObjectW",
+            "SetInformationJobObject",
+            "AssignProcessToJobObject",
+            "TerminateJobObject",
+            "CloseHandle",
+        ]
+        assert calls[2][1] == (99, 7)
+        assert calls[3][1] == (99, 1)
+    else:
+        with pytest.raises(UnsupportedScope):
+            job = WindowsJob(SimpleNamespace(_handle=7), api=api)
+            job.terminate()
+            job.close()
+        if failure in {"SetInformationJobObject", "AssignProcessToJobObject"}:
+            assert calls[-1][0] == "CloseHandle"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="native Windows Job Object process-tree proof")
+def test_native_windows_job_kills_pipe_holding_descendant(tmp_path):
+    import ctypes
+    import subprocess
+    import sys
+
+    from workbench.infrastructure.sandbox.file_session import close_pipes_bounded
+    from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+    marker = tmp_path / "pid"
+    child = """import subprocess,sys
+from pathlib import Path
+sys.stdin.readline()
+p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])
+marker=Path(sys.argv[1]); temporary=marker.with_suffix('.tmp')
+temporary.write_text(str(p.pid)); temporary.replace(marker)
+print('ready',flush=True)
+p.wait()
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", child, str(marker)], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+    )
+    job = None
+    descendant = None
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int32, ctypes.c_uint32]
+    api.OpenProcess.restype = ctypes.c_void_p
+    api.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    api.WaitForSingleObject.restype = ctypes.c_uint32
+    api.CloseHandle.argtypes = [ctypes.c_void_p]
+    try:
+        job = WindowsJob(process)
+        process.stdin.write(b"start\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 10
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert marker.exists()
+        descendant = api.OpenProcess(0x00100000, False, int(marker.read_text()))
+        assert descendant
+        start = time.monotonic()
+        job.terminate()
+        process.wait(timeout=2)
+        assert api.WaitForSingleObject(descendant, 2000) == 0
+        close_pipes_bounded(process)
+        assert time.monotonic() - start < 4
+    finally:
+        if job is not None:
+            job.close()
+        else:
+            process.kill()
+        if descendant:
+            api.CloseHandle(descendant)
+        process.wait(timeout=2)
+        close_pipes_bounded(process)
+
+
+def test_pipe_reaping_has_independent_bound():
+    import threading
+
+    from workbench.infrastructure.sandbox.file_session import close_pipes_bounded
+
+    release = threading.Event()
+    process = SimpleNamespace(
+        stdin=SimpleNamespace(close=lambda: release.wait(5)),
+        stdout=SimpleNamespace(close=lambda: None),
+    )
+    start = time.monotonic()
+    try:
+        with pytest.raises(UnsupportedScope, match="pipe close exceeded bound"):
+            close_pipes_bounded(process)
+        assert time.monotonic() - start < 1
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("known", [False, True])
+def test_cleanup_child_exports_only_bound_failure_kind(settings, tmp_path, monkeypatch, known):
+    import subprocess
+    import sys
+
+    from workbench.infrastructure.sandbox import cleanup
+
+    child = r"""
+import io,json,socket
+from daytona import Daytona,DaytonaConfig
+from urllib3.response import HTTPResponse
+from workbench.infrastructure.sandbox import cleanup
+from workbench import sandbox
+def deny(*a,**k):raise AssertionError('offline only')
+socket.socket.connect=deny;socket.create_connection=deny
+client=Daytona(DaytonaConfig(api_url='http://127.0.0.1:1/api',api_key='offline-fixture',target='local',otel_enabled=False))
+def request(*a,**k):
+ return HTTPResponse(status=403,body=io.BytesIO(json.dumps({'message':'private server text must not escape'}).encode()),headers={'content-type':'application/json'},preload_content=False)
+client._api_client.rest_client.pool_manager.request=request
+sandbox.client_for=lambda *a:client
+cleanup.main()
+"""
+    original = subprocess.Popen
+    monkeypatch.setattr(
+        cleanup.subprocess,
+        "Popen",
+        lambda command, **kw: original([sys.executable, "-c", child], **kw),
+    )
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "cleanup.json"
+    with pytest.raises(UnsupportedScope):
+        cleanup.delete_owned(
+            settings,
+            "rnd-source-agent-" + "a" * 32,
+            "owned-id" if known else None,
+            binding,
+            path,
+            time.monotonic() + 10,
+        )
+    value = json.loads(path.read_text())
+    assert value["status"] == "unconfirmed"
+    assert value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")
+    assert value["cleanup_failure_kind"] == "DaytonaAuthorizationError"
+    assert "private" not in path.read_text()
+    exported = cleanup.public_receipt(path, task, plan)
+    assert exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"
+    assert exported["status"] == "unconfirmed"
 ````
 
 ### `tests/test_model_connection.py`
@@ -184476,24 +185207,25 @@ def test_each_local_group_inherits_the_explicit_entity_without_fanning_out(text)
 
 **逐个入口与控制逻辑：**
 
-- `product_plan`（L28–L30）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L30的`product, fixed_application(product)`。
-- `inspected`（L33–L43）：接收`record`。 调用`container_binding`。 返回路径：L34的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
-- `test_direct_verify_rejects_before_container_creation`（L57–L89）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L62按`mutation == "missing-profile"`分支；L64按`mutation == "descriptor-drift"`分支；L66按`mutation == "extra-descriptor"`分支；L68按`mutation == "wrong-image"`分支；L70按`mutation == "prepare-hook"`分支；L72按`mutation == "alternate-launcher"`分支；L89断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload`（L95–L133）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L132断言`result["passed"] is False and result["cleanup"] == "deleted"`；L133断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload.forbidden`（L110–L111）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command`（L147–L188）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L187断言`result["passed"] is False and result["cleanup"] == "deleted"`；L188断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L156–L157）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `complete_proof`（L191–L251）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L205的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
-- `complete_native_proof`（L254–L285）：接收`product`、`plan`。 控制顺序：L265遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L272遍历`("security_checks", "restart_security_checks")`；L284断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L285的`proof, bindings`。
-- `test_native_delivery_binds_runtime_patch_at_initial_restart_and_final`（L297–L313）：接收`product_plan`、`field`、`mutation`。 控制顺序：L304按`mutation == "missing"`分支；L306按`mutation == "stale"`分支。 调用`complete_native_proof`、`copy.deepcopy`、`value.pop`、`value["runtime_patches"][0][ "relative_path" ].replace`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_delivery_requires_both_complete_security_groups`（L318–L322）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L327–L333）：接收`product_plan`、`field`、`value`。 控制顺序：L329遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L336–L360）：接收`product_plan`。 控制顺序：L338遍历`("security_checks", "restart_security_checks")`；L339遍历`proof[field]`；L348遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L354遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_old_or_unbound_dependency_evidence_never_passes`（L377–L414）：接收`product_plan`、`mutation`。 控制顺序：L388断言`require_evidence(proof, **bindings) is proof`；L389按`mutation == "v3"`分支；L391按`mutation == "absent"`分支；L393按`mutation == "restart-absent"`分支；L395按`mutation == "final-absent"`分支；L397按`mutation == "source-drift"`分支；L399按`mutation == "offline-install-only"`分支；L401按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_receipt_flags_require_boolean_true`（L417–L432）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L420断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L426遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L446–L480）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L454断言`len(expected) == 25`；L456按`missing`分支；L460按`missing`分支；L464断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L470断言`len(native) == 40`；L471断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `absent_after_delete`（L27–L31）：接收`events`、`identifier`。 控制顺序：L30断言`identifier == IDENTIFIER and events[-1] == "deleted"`；L31抛异常，停止当前正常路径。 调用`DaytonaNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_plan`（L35–L37）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L37的`product, fixed_application(product)`。
+- `inspected`（L40–L50）：接收`record`。 调用`container_binding`。 返回路径：L41的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
+- `test_direct_verify_rejects_before_container_creation`（L64–L96）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L69按`mutation == "missing-profile"`分支；L71按`mutation == "descriptor-drift"`分支；L73按`mutation == "extra-descriptor"`分支；L75按`mutation == "wrong-image"`分支；L77按`mutation == "prepare-hook"`分支；L79按`mutation == "alternate-launcher"`分支；L96断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload`（L102–L142）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L141断言`result["passed"] is False and result["cleanup"] == "deleted"`；L142断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`absent_after_delete`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload.forbidden`（L117–L118）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command`（L156–L199）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L198断言`result["passed"] is False and result["cleanup"] == "deleted"`；L199断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L165–L166）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `complete_proof`（L202–L262）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L216的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
+- `complete_native_proof`（L265–L296）：接收`product`、`plan`。 控制顺序：L276遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L283遍历`("security_checks", "restart_security_checks")`；L295断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L296的`proof, bindings`。
+- `test_native_delivery_binds_runtime_patch_at_initial_restart_and_final`（L308–L324）：接收`product_plan`、`field`、`mutation`。 控制顺序：L315按`mutation == "missing"`分支；L317按`mutation == "stale"`分支。 调用`complete_native_proof`、`copy.deepcopy`、`value.pop`、`value["runtime_patches"][0][ "relative_path" ].replace`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_requires_both_complete_security_groups`（L329–L333）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L338–L344）：接收`product_plan`、`field`、`value`。 控制顺序：L340遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L347–L371）：接收`product_plan`。 控制顺序：L349遍历`("security_checks", "restart_security_checks")`；L350遍历`proof[field]`；L359遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L365遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_old_or_unbound_dependency_evidence_never_passes`（L388–L425）：接收`product_plan`、`mutation`。 控制顺序：L399断言`require_evidence(proof, **bindings) is proof`；L400按`mutation == "v3"`分支；L402按`mutation == "absent"`分支；L404按`mutation == "restart-absent"`分支；L406按`mutation == "final-absent"`分支；L408按`mutation == "source-drift"`分支；L410按`mutation == "offline-install-only"`分支；L412按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_receipt_flags_require_boolean_true`（L428–L443）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L431断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L437遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L457–L491）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L465断言`len(expected) == 25`；L467按`missing`分支；L471按`missing`分支；L475断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L481断言`len(native) == 40`；L482断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_readonly_dependency_admission.py sha256: 8147ccbbf05d347da186320d60d3289eb3a8c962c82e7b3352d7ef252141c15d -->
+<!-- source-file: tests/test_readonly_dependency_admission.py sha256: e8b7e274c11c889a9ca9e0e7e495761b21c9e7fa556c646168a7c07f9e9540f9 -->
 ````python
 """Fail-closed contract tests with synthetic images, never live certification."""
 
@@ -184519,6 +185251,13 @@ from workbench.filesystem import manifest, sha
 from workbench.settings import ROOT
 
 IDENTIFIER = "00000000-0000-0000-0000-000000000001"
+
+
+def absent_after_delete(events, identifier):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    assert identifier == IDENTIFIER and events[-1] == "deleted"
+    raise DaytonaNotFoundError("owned fixture absent after deletion")
 
 
 @pytest.fixture
@@ -184611,7 +185350,9 @@ def test_inspector_drift_rejects_before_source_upload(product_plan, settings, tm
         id=IDENTIFIER, fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden)
     )
     client = SimpleNamespace(
-        create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+        create=lambda *a, **k: remote,
+        delete=lambda *a, **k: events.append("deleted"),
+        get=lambda identifier: absent_after_delete(events, identifier),
     )
     settings.daytona_snapshot = "owned-fixture"
     result = sandbox._verify(
@@ -184675,7 +185416,9 @@ def test_image_dependency_failure_precedes_any_product_command(
         plan.selection.model_dump(),
         tmp_path / "proof.json",
         client=SimpleNamespace(
-            create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+            create=lambda *a, **k: remote,
+            delete=lambda *a, **k: events.append("deleted"),
+            get=lambda identifier: absent_after_delete(events, identifier),
         ),
         aggregate=True,
         profile_record=record,
@@ -242995,7 +243738,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 21948beb89ca8bf7f7c112efa3adcdf895e696a6b31e8b043a9eb4fa1b96b866 -->
+<!-- source-file: docs/modular-production-v2.md sha256: cbc53e7b4e9fa2f6313ebb9be44626193cace3eb5d2139dd7bb24860d8c4577a -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -243360,6 +244103,18 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 新增回归用真实子进程、Event阻塞及真实SDK refresh/生成API/响应解析的无网络路径，覆盖create、refresh、write、snapshot、控制器空闲和正常结束；初始25秒窗口包含进程加载，10秒工作截止后进入原15秒清理保留（较短离线窗口在并行文档生成负载下会先耗于导入，测试明确留出加载余量，生产上限不变），未扩180秒上限。未知create保留unconfirmed，已知ID精确传入清理，部分写入仍绑定预期候选。清理自身的真实SDK阻塞/硬kill及晚到状态沿用既有回归；不使用mock成功代替实际清理证明。MockTransport确认三个网关状态均不可业务修复。修复完成后交同一独立审查者复核新SHA累计diff，仍无推送、真实外部服务或dispatch。
 
 本次本地验证：相关12文件956项通过，最终进程组终止/网关状态边界9项通过；SDK监督进程在回收leader前终止整个自有进程组，离线子进程用例确认阻塞检查后代不继续运行。严格55文件集合2542通过、5个既有本地Landlock返回78失败、13个既有条件跳过；未降低强制标记。全仓Ruff及格式、diff、完整手册与779份教材一致性检查通过。上述为作者实现验证，独立复审结论另行交父线程，不提前宣称通过。
+
+### 第18轮的准入传播及Windows回收修复（本地验证，未重新派发）
+
+父线程实际读取94f21e1的真实运行38167848595/artifact11713775823：模型预留/HTTP尝试/响应均为0、checkpoint为空，agent_controller报UnsupportedScope，sla-api文件沙箱清理为unconfirmed/deletion_unconfirmed。本轮没有进入模型闭环，也没有沙箱已删除证明。正式job114554037314的always Compose down步骤成功，19:42:30—19:42:42 UTC日志明确记录10个Compose容器及2个网络Removed；该命令不删除持久卷。这只能证明此次本地测试部署停止，不能替代具体agent沙箱的typed404确认或把既有unconfirmed回执升级为deleted。
+
+代码检查及真实file_session入口离线回归确认：94f21e1新SDK子进程使用clean_env()，漏传了已验证的浏览器策略Actions scope。现仅复用verifier_policy_environment()返回的既有字段；它在创建子进程前再次验证，子进程准入仍调用原策略选择器和浏览器回执检查。没有修改策略白名单、首次dispatch、三个SHA相等、job/scenario或权限限制；API_KEY、GITHUB_TOKEN和代理环境不随该scope转发。正例真实运行Session→file_session.main→_local_environment→浏览器准入，受控客户端哨兵在准入后终止；负例删除策略或修改SHA、job、scenario、策略摘要时停在准入之前。这是scope传播证明，不是容器隔离或模型验收。旧真实子进程没有阶段诊断，故不能声称已证明上述遗漏是第18轮唯一失败原因。
+
+新增诊断只投影固定阶段和异常类型，不导出SDK消息、路径、密钥或原始HTTP正文。父进程保留create_unconfirmed、module_deadline等原有清理原因，另记file SDK失败阶段和cleanup子进程失败类型；诊断不能升级清理状态。真实锁定SDK的离线HTTP运输替身验证DELETE后的200→404最终一致性、一直200、403、500和迟到404：只有截止前类型化404可确认删除。readonly_dependency_admission夹具补齐相同get→DaytonaNotFoundError接口，原deleted断言及unknown/delete-failed负例保留。
+
+普通Python CI运行38167704467的Windows shard3真实报告refresh生命周期28.008秒，违反原14秒断言。原因是仅kill根进程后，检查后代仍持有stdout，读线程和管道close不能及时返回。Windows现在在发送工作前把SDK子进程加入自有Job Object，使用KILL_ON_JOB_CLOSE及TerminateJobObject回收该进程树；创建、配置或归属失败时不发送工作并失败关闭。不使用全局进程名扫描或提权。读线程join和管道close各有独立0.2秒回收界限。原25秒测试窗口、14秒断言、180秒生产deadline及15秒清理预留均不变。Job Object API合约与管道阻塞测试可在本机执行；新增原生Windows后代终止证明在Linux明确跳过，真实Windows是否修复仍须后续普通CI验证，不能提前宣称通过。
+
+Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
 ````
 
 ### `docs/template-platform.md`

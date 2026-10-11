@@ -13,6 +13,25 @@ from workbench.tools import clean_env, process_options
 NAME = re.compile(r"rnd-source-(?:native-)?agent-[a-f0-9]{32}")
 
 
+FAILURE_KINDS = {
+    "PrerequisiteError",
+    "UnsupportedScope",
+    "ValueError",
+    "TimeoutError",
+    "DaytonaNotFoundError",
+    "DaytonaTimeoutError",
+    "DaytonaAuthorizationError",
+    "DaytonaAuthenticationError",
+    "DaytonaError",
+    "other",
+}
+
+
+def failure_kind(exc):
+    name = type(exc).__name__
+    return name if name in FAILURE_KINDS else "other"
+
+
 def receipt(binding, name, identifier, reason="pending"):
     return {
         "binding": binding,
@@ -76,6 +95,15 @@ def delete_owned(settings, name, identifier, binding, path, deadline):
         output, _ = process.communicate(
             json.dumps(payload).encode(), timeout=max(0, end - time.monotonic())
         )
+        if not process.returncode and len(output) <= 4096:
+            diagnostic = json.loads(output)
+            if (
+                diagnostic.get("binding") == binding
+                and diagnostic.get("deleted") is False
+                and diagnostic.get("failure_kind") in FAILURE_KINDS
+            ):
+                value["cleanup_failure_kind"] = diagnostic["failure_kind"]
+                write_json(path, value)
         if late or unresolved_create:
             raise UnsupportedScope("Terminated cleanup state cannot be upgraded by a late result")
         if time.monotonic() >= end or process.returncode or len(output) > 4096:
@@ -125,7 +153,15 @@ def main():
         raise ValueError("Cleanup request too large")
     # SDK output is not protocol data and must not escape to the parent.
     with open(os.devnull, "w") as sink, contextlib.redirect_stdout(sink):
-        result = perform(json.loads(body))
+        payload = json.loads(body)
+        try:
+            result = perform(payload)
+        except Exception as exc:
+            result = {
+                "binding": payload["binding"],
+                "deleted": False,
+                "failure_kind": failure_kind(exc),
+            }
     print(json.dumps(result))
 
 
@@ -161,7 +197,15 @@ def public_receipt(path, task, plan):
             or (value["status"] == "deleted" and value["reason"] != "confirmed_absent")
         ):
             return unknown
+        extra = {}
+        from workbench.infrastructure.sandbox.file_session import PHASES
+
+        if value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS:
+            extra.update(failure_phase=value["failure_phase"], failure_kind=value["failure_kind"])
+        if value.get("cleanup_failure_kind") in FAILURE_KINDS:
+            extra["cleanup_failure_kind"] = value["cleanup_failure_kind"]
         return {
+            **extra,
             "status": value["status"],
             "reason": value["reason"],
             "binding": bound,

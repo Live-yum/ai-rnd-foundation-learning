@@ -24,6 +24,13 @@ from workbench.settings import ROOT
 IDENTIFIER = "00000000-0000-0000-0000-000000000001"
 
 
+def absent_after_delete(events, identifier):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    assert identifier == IDENTIFIER and events[-1] == "deleted"
+    raise DaytonaNotFoundError("owned fixture absent after deletion")
+
+
 @pytest.fixture
 def product_plan(tmp_path):
     product = tmp_path / "product"
@@ -114,7 +121,9 @@ def test_inspector_drift_rejects_before_source_upload(product_plan, settings, tm
         id=IDENTIFIER, fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden)
     )
     client = SimpleNamespace(
-        create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+        create=lambda *a, **k: remote,
+        delete=lambda *a, **k: events.append("deleted"),
+        get=lambda identifier: absent_after_delete(events, identifier),
     )
     settings.daytona_snapshot = "owned-fixture"
     result = sandbox._verify(
@@ -178,7 +187,9 @@ def test_image_dependency_failure_precedes_any_product_command(
         plan.selection.model_dump(),
         tmp_path / "proof.json",
         client=SimpleNamespace(
-            create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+            create=lambda *a, **k: remote,
+            delete=lambda *a, **k: events.append("deleted"),
+            get=lambda identifier: absent_after_delete(events, identifier),
         ),
         aggregate=True,
         profile_record=record,
