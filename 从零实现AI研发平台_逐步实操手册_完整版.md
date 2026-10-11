@@ -252,6 +252,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 
 55项针对性回归通过，覆盖缺模块、名称错误、HTTP404与连接失败的既有分类器→节点过滤，以及临时目录删除后summary仍保留固定事实且不泄露污染内容。再次执行两个工作流完整55文件覆盖集合，三项强制标志保持1：2539通过、5失败、13跳过；5失败仍是本地Landlock检查返回78，未关闭门禁或宣称全绿。6a4f53a AST夹具修复保留；本轮仅本地准备，等待最后矩阵终态后再推送，不盲重跑真实模型或三SQLite。
 
+### 85ce81c 导入期权限线索与受信模板数据目录修复（仅本地）
+
+父线程从真实运行38140738102的官方artifact11702909015读取：模型预留/HTTP尝试/响应均2，model_failure_receipts为空；后端启动命令退出1，HTTP502，application_startup_reported=false，startup_phase_hint=import，PermissionError及permission-denied提示，tmpfs_noexec=true。节点零健康检查、未重启，账本拒绝晋升且cleanup=deleted。提示不能证明具体模块或路径，也不能证明noexec是原因；旧候选已删除，不能还原它的实际报错路径。
+
+受信模板存在独立可复现的路径矛盾：该SLA计划批准data/application.db，冻结源码只把data父目录交给应用UID20000写入；schema.py导入时即使有PRODUCT_DATABASE_URL，仍无条件创建默认.data。消费者start.py原来只对齐两个数据库URL，没有设置PRODUCT_DATA_DIR。新增回归使用控制器生成的同一acceptance_design模板，在非root POSIX用户、只读源码目录和独立0700数据目录中实际导入schema：原环境因创建.data而PermissionError；把PRODUCT_DATA_DIR绑定到规范数据库父目录后导入成功，.data和__pycache__均未创建，源码根目录写入仍被拒绝。仅执行受信模板，不在宿主执行模型候选。
+
+最小修复限于消费者启动器：解析并规范化原SQLite文件后，同时设置PRODUCT_DATA_DIR为其父目录，覆盖不相干的环境目录。保留已有外部数据库路径兼容性，隔离运行仍由原数据库环境和文件系统规则约束。未改目录权限、UID、noexec、只读依赖树、pycache策略、scope、预算、超时或验收规则。实际隔离器已设置PYTHONDONTWRITEBYTECODE=1并使用只读锁定解释器；本次复现使用仓库锁定依赖的本地解释器和-B，不能冒充远端UID20000、挂载或Landlock运行证明。新增3例修复前全部失败，修复后消费者55项通过；真实旧候选是否触发同一缺陷仍未证明。
+
+完整执行两个workflow的55文件覆盖集合，RND_REQUIRE_NODE_TESTS、RND_REQUIRE_LANDLOCK、RND_REQUIRE_SECCOMP_BPF始终为1：2542通过、5失败、13跳过；失败仍仅是本机Landlock返回78的既有五项，跳过仍涉及原生工具树/Vite和测试数据库。Ruff及生成文档一致性检查通过。本轮只本地提交，未推送、取消、dispatch或重跑三SQLite；等待85ce81c其余CI全部终态后再由父线程决定后续，真实模型验收仍未通过。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -74686,10 +74696,10 @@ else:
 **逐个入口与控制逻辑：**
 
 - `consumer_contract`（L23–L87）：接收`selection`。 源码说明：Read controller-authored data, never a product-supplied executable command.。 控制顺序：L26按`not path.exists() and not path.is_symlink()`分支；L28按`path.is_symlink() or not path.is_file() or path.stat().st_size > 4096`分支；L29抛异常，停止当前正常路径；L33抛异常，停止当前正常路径；L45按`type(value) is not dict or set(value) != fields or type(value.get("schema")) is not i…`分支；L70抛异常，停止当前正常路径；L73按`not name or str(database) != name or database.is_absolute() or database.parent.as_pos…`分支；L86抛异常，停止当前正常路径。 调用`path.exists`、`path.is_symlink`、`path.is_file`、`path.stat`、`SystemExit`、`json.loads`、`path.read_text`、`type`、`set`等。 返回路径：L27的`None`；L87的`value`。
-- `consumer_environment`（L90–L116）：接收`contract`、`env`。 源码说明：The canonical product URL and legacy alias always identify the same DB.。 控制顺序：L100按`not url.startswith("sqlite:///") or parsed.netloc or parsed.query or parsed.fragment …`分支；L110抛异常，停止当前正常路径。 调用`ROOT.joinpath`、`PurePosixPath`、`env.get`、`default.as_posix`、`urlsplit`、`url.removeprefix`、`url.startswith`、`database.startswith`、`any`等。 返回路径：L116的`{**env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}`。
-- `main`（L119–L229）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L129按`not 1024 <= port <= 65535 or port in {2280, 55432, 55433}`分支；L131按`contract and args.init_only`分支；L132抛异常，停止当前正常路径；L136按`not contract and args.host != "127.0.0.1"`分支；L139按`contract`分支；L142按`not args.no_install`分支；L144按`not uv`分支；L145抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(ROOT / "selection.json").read_text`、`consumer_contract`、`parser.error`、`SystemExit`、`os.environ.copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `consumer_environment`（L90–L125）：接收`contract`、`env`。 源码说明：Bind database URLs and template data storage to the canonical DB.。 控制顺序：L100按`not url.startswith("sqlite:///") or parsed.netloc or parsed.query or parsed.fragment …`分支；L110抛异常，停止当前正常路径。 调用`ROOT.joinpath`、`PurePosixPath`、`env.get`、`default.as_posix`、`urlsplit`、`url.removeprefix`、`url.startswith`、`database.startswith`、`any`等。 返回路径：L120的`{ **env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url, "PRODUCT_DATA_DIR": str(path.pa…`。
+- `main`（L128–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L138按`not 1024 <= port <= 65535 or port in {2280, 55432, 55433}`分支；L140按`contract and args.init_only`分支；L141抛异常，停止当前正常路径；L145按`not contract and args.host != "127.0.0.1"`分支；L148按`contract`分支；L151按`not args.no_install`分支；L153按`not uv`分支；L154抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(ROOT / "selection.json").read_text`、`consumer_contract`、`parser.error`、`SystemExit`、`os.environ.copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: templates/product/start.py sha256: c389a27d105983325d0507ac08fbcf48620993376fc045f7402e90e8362bef73 -->
+<!-- source-file: templates/product/start.py sha256: d6d0c3268ab133e1f6ad3e284f2ad218f69090a53e8b591b46fb22a1046e8ee4 -->
 ````python
 """One local command after unzip. Creates only its own database volume; never resets data.
 
@@ -74781,7 +74791,7 @@ def consumer_contract(selection):
 
 
 def consumer_environment(contract, env):
-    """The canonical product URL and legacy alias always identify the same DB."""
+    """Bind database URLs and template data storage to the canonical DB."""
     from urllib.parse import urlsplit
 
     default = ROOT.joinpath(*PurePosixPath(contract["database_path"]).parts)
@@ -74805,8 +74815,17 @@ def consumer_environment(contract, env):
     path = Path(database)
     path = path if path.is_absolute() else ROOT / path
     path.parent.mkdir(parents=True, exist_ok=True)
-    url = "sqlite:///" + path.resolve().as_posix()
-    return {**env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}
+    path = path.resolve()
+    url = "sqlite:///" + path.as_posix()
+    # schema.py creates PRODUCT_DATA_DIR even when an explicit URL is provided.
+    # Keep that initialization inside the database directory already approved
+    # for writes, rather than falling back to .data under read-only source.
+    return {
+        **env,
+        "PRODUCT_DATABASE_URL": url,
+        "DATABASE_URL": url,
+        "PRODUCT_DATA_DIR": str(path.parent),
+    }
 
 
 def main():
@@ -132042,8 +132061,10 @@ def test_decoder_recursion_failure_is_classified_without_retaining_data(monkeypa
 - `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.bind`（L478–L479）：接收`address`。 控制顺序：L479断言`address == ("127.0.0.1", 0)`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.getsockname`（L481–L482）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L482的`("127.0.0.1", 5549)`。
 - `test_live_authored_fixture_requires_consumer_and_pre_replay_obligations`（L491–L503）：接收`tmp_path`。 控制顺序：L498断言`inspect_consumer(product, plan, required=True)`；L499断言`len(plan.obligations) == 1`；L500断言`plan.complete_source_ids == []`；L501断言`coverage_errors(plan, scope_sources([GOAL])) == []`。 调用`fixed_application`、`inspect_consumer`、`len`、`coverage_errors`、`scope_sources`、`pytest.raises`、`require_atomic_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_data_directory_follows_canonical_database_not_ambient_directory`（L507–L529）：接收`tmp_path`、`external`。 控制顺序：L526断言`environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)`；L527断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L528断言`environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()`；L529断言`not (tmp_path / "wrong-data").exists()`。 调用`product_fixture`、`runpy.run_path`、`str`、`expected_consumer`、`namespace["consumer_environment"]`、`database.as_posix`、`database.resolve`、`database.resolve().as_posix`、`(tmp_path / "wrong-data").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source`（L532–L569）：接收`tmp_path`。 控制顺序：L537按`os.name != "posix" or os.getuid() == 0`分支；L556断言`denied.returncode != 0 and "PermissionError" in denied.stderr`；L557断言`"/.data'" in denied.stderr`；L561断言`accepted.returncode == 0`；L562断言`accepted.stdout.strip() == "schema-imported"`；L563断言`product.stat().st_mode & 0o777 == 0o555`；L564断言`not (product / ".data").exists()`；L565断言`not (product / "__pycache__").exists()`。 调用`os.getuid`、`pytest.skip`、`acceptance_design`、`generate_basic`、`plan.selection.model_dump`、`prepare_consumer`、`database.parent.mkdir`、`runpy.run_path`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_consumer.py sha256: 53ee62592a5e6f91dcd12c3ccdee8703995d276ebdc561941a58b76fd99654e7 -->
+<!-- source-file: tests/test_capability_consumer.py sha256: 3e385c3ac46a7e3c6e2326c6b2db513d492240cfc5b851afa534675351dfcf1c -->
 ````python
 """Authored ZIPs exercise the consumer command, never arbitrary generated source.
 
@@ -132548,6 +132569,72 @@ def test_live_authored_fixture_requires_consumer_and_pre_replay_obligations(tmp_
     assert coverage_errors(plan, scope_sources([GOAL])) == []
     with pytest.raises(CheckFailure):
         require_atomic_consumer_evidence(product, plan, {"passed": True})
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_consumer_data_directory_follows_canonical_database_not_ambient_directory(
+    tmp_path, external
+):
+    product, plan = product_fixture(tmp_path)
+    namespace = runpy.run_path(str(product / "start.py"))
+    contract = expected_consumer(plan)
+    database = (
+        tmp_path / "external-data" / "selected.db"
+        if external
+        else product / plan.runtime.database_path
+    )
+    environment = namespace["consumer_environment"](
+        contract,
+        {
+            "PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix(),
+            "DATABASE_URL": "postgresql://unused.invalid/ambient",
+            "PRODUCT_DATA_DIR": str(tmp_path / "wrong-data"),
+        },
+    )
+    assert environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)
+    assert environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]
+    assert environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()
+    assert not (tmp_path / "wrong-data").exists()
+
+
+def test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source(tmp_path):
+    import os
+
+    from scripts.ci_live_modules import acceptance_design
+
+    if os.name != "posix" or os.getuid() == 0:
+        pytest.skip("Requires ordinary non-root POSIX directory permission enforcement")
+    selected = acceptance_design()
+    product = tmp_path / "product"
+    plan = selected.implementation
+    generate_basic(selected.baseline, product, plan.selection.model_dump())
+    prepare_consumer(product, plan)
+    database = product / plan.runtime.database_path
+    database.parent.mkdir(mode=0o700)
+    namespace = runpy.run_path(str(product / "start.py"))
+    original = clean_env({"PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix()})
+    environment = namespace["consumer_environment"](expected_consumer(plan), original)
+    # This imports controller-authored template code, never a model candidate.
+    command = [sys.executable, "-B", "-c", "import schema; print('schema-imported')"]
+    product.chmod(0o555)
+    try:
+        denied = subprocess.run(
+            command, cwd=product, env=original, capture_output=True, text=True, timeout=15
+        )
+        assert denied.returncode != 0 and "PermissionError" in denied.stderr
+        assert "/.data'" in denied.stderr
+        accepted = subprocess.run(
+            command, cwd=product, env=environment, capture_output=True, text=True, timeout=15
+        )
+        assert accepted.returncode == 0, accepted.stderr
+        assert accepted.stdout.strip() == "schema-imported"
+        assert product.stat().st_mode & 0o777 == 0o555
+        assert not (product / ".data").exists()
+        assert not (product / "__pycache__").exists()
+        with pytest.raises(PermissionError):
+            (product / "unapproved-write").write_text("must-still-be-denied")
+    finally:
+        product.chmod(0o755)
 ````
 
 ### `tests/test_capability_contest_adapter.py`
@@ -239413,7 +239500,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 4611ee1875961650c819d268e3b6e1c2a8c87de717c1a7dba631a72a0b366ad4 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 28de5a7b505e3f5d1691846d7c41b7d746561ff009541793da3da9040a170233 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -239668,6 +239755,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 验证器原本已在健康失败时采集有限startup_diagnostic，但上一版summary过滤遗漏了该段。本地仅补过滤已有数据：HTTP状态100–599、固定HTTP错误标签、受控命令退出码0–255/状态、启动上报和输出可读布尔值、固定启动阶段/异常类别提示、受限输出提示及backend/frontend目标类别。候选输出产生的提示仅是线索，不能作为验收或内核证明。继续丢弃原始输出、模块/符号文本、URL、headers、源码与凭据；不增加SDK查询、日志读取、宿主权限或scope，也不改启动命令、deadline、health条件或独立oracle。
 
 55项针对性回归通过，覆盖缺模块、名称错误、HTTP404与连接失败的既有分类器→节点过滤，以及临时目录删除后summary仍保留固定事实且不泄露污染内容。再次执行两个工作流完整55文件覆盖集合，三项强制标志保持1：2539通过、5失败、13跳过；5失败仍是本地Landlock检查返回78，未关闭门禁或宣称全绿。6a4f53a AST夹具修复保留；本轮仅本地准备，等待最后矩阵终态后再推送，不盲重跑真实模型或三SQLite。
+
+### 85ce81c 导入期权限线索与受信模板数据目录修复（仅本地）
+
+父线程从真实运行38140738102的官方artifact11702909015读取：模型预留/HTTP尝试/响应均2，model_failure_receipts为空；后端启动命令退出1，HTTP502，application_startup_reported=false，startup_phase_hint=import，PermissionError及permission-denied提示，tmpfs_noexec=true。节点零健康检查、未重启，账本拒绝晋升且cleanup=deleted。提示不能证明具体模块或路径，也不能证明noexec是原因；旧候选已删除，不能还原它的实际报错路径。
+
+受信模板存在独立可复现的路径矛盾：该SLA计划批准data/application.db，冻结源码只把data父目录交给应用UID20000写入；schema.py导入时即使有PRODUCT_DATABASE_URL，仍无条件创建默认.data。消费者start.py原来只对齐两个数据库URL，没有设置PRODUCT_DATA_DIR。新增回归使用控制器生成的同一acceptance_design模板，在非root POSIX用户、只读源码目录和独立0700数据目录中实际导入schema：原环境因创建.data而PermissionError；把PRODUCT_DATA_DIR绑定到规范数据库父目录后导入成功，.data和__pycache__均未创建，源码根目录写入仍被拒绝。仅执行受信模板，不在宿主执行模型候选。
+
+最小修复限于消费者启动器：解析并规范化原SQLite文件后，同时设置PRODUCT_DATA_DIR为其父目录，覆盖不相干的环境目录。保留已有外部数据库路径兼容性，隔离运行仍由原数据库环境和文件系统规则约束。未改目录权限、UID、noexec、只读依赖树、pycache策略、scope、预算、超时或验收规则。实际隔离器已设置PYTHONDONTWRITEBYTECODE=1并使用只读锁定解释器；本次复现使用仓库锁定依赖的本地解释器和-B，不能冒充远端UID20000、挂载或Landlock运行证明。新增3例修复前全部失败，修复后消费者55项通过；真实旧候选是否触发同一缺陷仍未证明。
+
+完整执行两个workflow的55文件覆盖集合，RND_REQUIRE_NODE_TESTS、RND_REQUIRE_LANDLOCK、RND_REQUIRE_SECCOMP_BPF始终为1：2542通过、5失败、13跳过；失败仍仅是本机Landlock返回78的既有五项，跳过仍涉及原生工具树/Vite和测试数据库。Ruff及生成文档一致性检查通过。本轮只本地提交，未推送、取消、dispatch或重跑三SQLite；等待85ce81c其余CI全部终态后再由父线程决定后续，真实模型验收仍未通过。
 ````
 
 ### `docs/template-platform.md`

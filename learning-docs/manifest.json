@@ -1114,8 +1114,8 @@
     },
     {
       "path": "templates/product/start.py",
-      "bytes": 9163,
-      "sha256": "c389a27d105983325d0507ac08fbcf48620993376fc045f7402e90e8362bef73",
+      "bytes": 9484,
+      "sha256": "d6d0c3268ab133e1f6ad3e284f2ad218f69090a53e8b591b46fb22a1046e8ee4",
       "stage": "05-product",
       "parts": [
         "05-product/sources/templates__product__start_py--001.md"
@@ -4796,8 +4796,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 39941,
-      "sha256": "4611ee1875961650c819d268e3b6e1c2a8c87de717c1a7dba631a72a0b366ad4",
+      "bytes": 42468,
+      "sha256": "28de5a7b505e3f5d1691846d7c41b7d746561ff009541793da3da9040a170233",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5493,8 +5493,8 @@
     },
     {
       "path": "tests/test_capability_consumer.py",
-      "bytes": 19413,
-      "sha256": "53ee62592a5e6f91dcd12c3ccdee8703995d276ebdc561941a58b76fd99654e7",
+      "bytes": 22341,
+      "sha256": "3e385c3ac46a7e3c6e2326c6b2db513d492240cfc5b851afa534675351dfcf1c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_consumer_py--001.md"

@@ -501,3 +501,69 @@ def test_live_authored_fixture_requires_consumer_and_pre_replay_obligations(tmp_
     assert coverage_errors(plan, scope_sources([GOAL])) == []
     with pytest.raises(CheckFailure):
         require_atomic_consumer_evidence(product, plan, {"passed": True})
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_consumer_data_directory_follows_canonical_database_not_ambient_directory(
+    tmp_path, external
+):
+    product, plan = product_fixture(tmp_path)
+    namespace = runpy.run_path(str(product / "start.py"))
+    contract = expected_consumer(plan)
+    database = (
+        tmp_path / "external-data" / "selected.db"
+        if external
+        else product / plan.runtime.database_path
+    )
+    environment = namespace["consumer_environment"](
+        contract,
+        {
+            "PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix(),
+            "DATABASE_URL": "postgresql://unused.invalid/ambient",
+            "PRODUCT_DATA_DIR": str(tmp_path / "wrong-data"),
+        },
+    )
+    assert environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)
+    assert environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]
+    assert environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()
+    assert not (tmp_path / "wrong-data").exists()
+
+
+def test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source(tmp_path):
+    import os
+
+    from scripts.ci_live_modules import acceptance_design
+
+    if os.name != "posix" or os.getuid() == 0:
+        pytest.skip("Requires ordinary non-root POSIX directory permission enforcement")
+    selected = acceptance_design()
+    product = tmp_path / "product"
+    plan = selected.implementation
+    generate_basic(selected.baseline, product, plan.selection.model_dump())
+    prepare_consumer(product, plan)
+    database = product / plan.runtime.database_path
+    database.parent.mkdir(mode=0o700)
+    namespace = runpy.run_path(str(product / "start.py"))
+    original = clean_env({"PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix()})
+    environment = namespace["consumer_environment"](expected_consumer(plan), original)
+    # This imports controller-authored template code, never a model candidate.
+    command = [sys.executable, "-B", "-c", "import schema; print('schema-imported')"]
+    product.chmod(0o555)
+    try:
+        denied = subprocess.run(
+            command, cwd=product, env=original, capture_output=True, text=True, timeout=15
+        )
+        assert denied.returncode != 0 and "PermissionError" in denied.stderr
+        assert "/.data'" in denied.stderr
+        accepted = subprocess.run(
+            command, cwd=product, env=environment, capture_output=True, text=True, timeout=15
+        )
+        assert accepted.returncode == 0, accepted.stderr
+        assert accepted.stdout.strip() == "schema-imported"
+        assert product.stat().st_mode & 0o777 == 0o555
+        assert not (product / ".data").exists()
+        assert not (product / "__pycache__").exists()
+        with pytest.raises(PermissionError):
+            (product / "unapproved-write").write_text("must-still-be-denied")
+    finally:
+        product.chmod(0o755)

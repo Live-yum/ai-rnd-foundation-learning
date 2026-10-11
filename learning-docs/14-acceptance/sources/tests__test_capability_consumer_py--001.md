@@ -40,14 +40,16 @@
 - `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.bind`（L478–L479）：接收`address`。 控制顺序：L479断言`address == ("127.0.0.1", 0)`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.getsockname`（L481–L482）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L482的`("127.0.0.1", 5549)`。
 - `test_live_authored_fixture_requires_consumer_and_pre_replay_obligations`（L491–L503）：接收`tmp_path`。 控制顺序：L498断言`inspect_consumer(product, plan, required=True)`；L499断言`len(plan.obligations) == 1`；L500断言`plan.complete_source_ids == []`；L501断言`coverage_errors(plan, scope_sources([GOAL])) == []`。 调用`fixed_application`、`inspect_consumer`、`len`、`coverage_errors`、`scope_sources`、`pytest.raises`、`require_atomic_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_data_directory_follows_canonical_database_not_ambient_directory`（L507–L529）：接收`tmp_path`、`external`。 控制顺序：L526断言`environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)`；L527断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L528断言`environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()`；L529断言`not (tmp_path / "wrong-data").exists()`。 调用`product_fixture`、`runpy.run_path`、`str`、`expected_consumer`、`namespace["consumer_environment"]`、`database.as_posix`、`database.resolve`、`database.resolve().as_posix`、`(tmp_path / "wrong-data").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source`（L532–L569）：接收`tmp_path`。 控制顺序：L537按`os.name != "posix" or os.getuid() == 0`分支；L556断言`denied.returncode != 0 and "PermissionError" in denied.stderr`；L557断言`"/.data'" in denied.stderr`；L561断言`accepted.returncode == 0`；L562断言`accepted.stdout.strip() == "schema-imported"`；L563断言`product.stat().st_mode & 0o777 == 0o555`；L564断言`not (product / ".data").exists()`；L565断言`not (product / "__pycache__").exists()`。 调用`os.getuid`、`pytest.skip`、`acceptance_design`、`generate_basic`、`plan.selection.model_dump`、`prepare_consumer`、`database.parent.mkdir`、`runpy.run_path`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_consumer.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L503。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_consumer.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L569。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19413`。本段原文以LF换行结束。
+本段原始字节数：`22341`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_consumer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "53ee62592a5e6f91dcd12c3ccdee8703995d276ebdc561941a58b76fd99654e7"} -->
+<!-- learning-source: {"path": "tests/test_capability_consumer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3e385c3ac46a7e3c6e2326c6b2db513d492240cfc5b851afa534675351dfcf1c"} -->
 ````python
 # tests/test_capability_consumer.py
 """Authored ZIPs exercise the consumer command, never arbitrary generated source.
@@ -553,4 +555,70 @@ def test_live_authored_fixture_requires_consumer_and_pre_replay_obligations(tmp_
     assert coverage_errors(plan, scope_sources([GOAL])) == []
     with pytest.raises(CheckFailure):
         require_atomic_consumer_evidence(product, plan, {"passed": True})
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_consumer_data_directory_follows_canonical_database_not_ambient_directory(
+    tmp_path, external
+):
+    product, plan = product_fixture(tmp_path)
+    namespace = runpy.run_path(str(product / "start.py"))
+    contract = expected_consumer(plan)
+    database = (
+        tmp_path / "external-data" / "selected.db"
+        if external
+        else product / plan.runtime.database_path
+    )
+    environment = namespace["consumer_environment"](
+        contract,
+        {
+            "PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix(),
+            "DATABASE_URL": "postgresql://unused.invalid/ambient",
+            "PRODUCT_DATA_DIR": str(tmp_path / "wrong-data"),
+        },
+    )
+    assert environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)
+    assert environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]
+    assert environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()
+    assert not (tmp_path / "wrong-data").exists()
+
+
+def test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source(tmp_path):
+    import os
+
+    from scripts.ci_live_modules import acceptance_design
+
+    if os.name != "posix" or os.getuid() == 0:
+        pytest.skip("Requires ordinary non-root POSIX directory permission enforcement")
+    selected = acceptance_design()
+    product = tmp_path / "product"
+    plan = selected.implementation
+    generate_basic(selected.baseline, product, plan.selection.model_dump())
+    prepare_consumer(product, plan)
+    database = product / plan.runtime.database_path
+    database.parent.mkdir(mode=0o700)
+    namespace = runpy.run_path(str(product / "start.py"))
+    original = clean_env({"PRODUCT_DATABASE_URL": "sqlite:///" + database.as_posix()})
+    environment = namespace["consumer_environment"](expected_consumer(plan), original)
+    # This imports controller-authored template code, never a model candidate.
+    command = [sys.executable, "-B", "-c", "import schema; print('schema-imported')"]
+    product.chmod(0o555)
+    try:
+        denied = subprocess.run(
+            command, cwd=product, env=original, capture_output=True, text=True, timeout=15
+        )
+        assert denied.returncode != 0 and "PermissionError" in denied.stderr
+        assert "/.data'" in denied.stderr
+        accepted = subprocess.run(
+            command, cwd=product, env=environment, capture_output=True, text=True, timeout=15
+        )
+        assert accepted.returncode == 0, accepted.stderr
+        assert accepted.stdout.strip() == "schema-imported"
+        assert product.stat().st_mode & 0o777 == 0o555
+        assert not (product / ".data").exists()
+        assert not (product / "__pycache__").exists()
+        with pytest.raises(PermissionError):
+            (product / "unapproved-write").write_text("must-still-be-denied")
+    finally:
+        product.chmod(0o755)
 ````

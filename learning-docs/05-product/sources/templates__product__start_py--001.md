@@ -14,16 +14,16 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `consumer_contract`（L23–L87）：接收`selection`。 源码说明：Read controller-authored data, never a product-supplied executable command.。 控制顺序：L26按`not path.exists() and not path.is_symlink()`分支；L28按`path.is_symlink() or not path.is_file() or path.stat().st_size > 4096`分支；L29抛异常，停止当前正常路径；L33抛异常，停止当前正常路径；L45按`type(value) is not dict or set(value) != fields or type(value.get("schema")) is not i…`分支；L70抛异常，停止当前正常路径；L73按`not name or str(database) != name or database.is_absolute() or database.parent.as_pos…`分支；L86抛异常，停止当前正常路径。 调用`path.exists`、`path.is_symlink`、`path.is_file`、`path.stat`、`SystemExit`、`json.loads`、`path.read_text`、`type`、`set`等。 返回路径：L27的`None`；L87的`value`。
-- `consumer_environment`（L90–L116）：接收`contract`、`env`。 源码说明：The canonical product URL and legacy alias always identify the same DB.。 控制顺序：L100按`not url.startswith("sqlite:///") or parsed.netloc or parsed.query or parsed.fragment …`分支；L110抛异常，停止当前正常路径。 调用`ROOT.joinpath`、`PurePosixPath`、`env.get`、`default.as_posix`、`urlsplit`、`url.removeprefix`、`url.startswith`、`database.startswith`、`any`等。 返回路径：L116的`{**env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}`。
-- `main`（L119–L229）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L129按`not 1024 <= port <= 65535 or port in {2280, 55432, 55433}`分支；L131按`contract and args.init_only`分支；L132抛异常，停止当前正常路径；L136按`not contract and args.host != "127.0.0.1"`分支；L139按`contract`分支；L142按`not args.no_install`分支；L144按`not uv`分支；L145抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(ROOT / "selection.json").read_text`、`consumer_contract`、`parser.error`、`SystemExit`、`os.environ.copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `consumer_environment`（L90–L125）：接收`contract`、`env`。 源码说明：Bind database URLs and template data storage to the canonical DB.。 控制顺序：L100按`not url.startswith("sqlite:///") or parsed.netloc or parsed.query or parsed.fragment …`分支；L110抛异常，停止当前正常路径。 调用`ROOT.joinpath`、`PurePosixPath`、`env.get`、`default.as_posix`、`urlsplit`、`url.removeprefix`、`url.startswith`、`database.startswith`、`any`等。 返回路径：L120的`{ **env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url, "PRODUCT_DATA_DIR": str(path.pa…`。
+- `main`（L128–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L138按`not 1024 <= port <= 65535 or port in {2280, 55432, 55433}`分支；L140按`contract and args.init_only`分支；L141抛异常，停止当前正常路径；L145按`not contract and args.host != "127.0.0.1"`分支；L148按`contract`分支；L151按`not args.no_install`分支；L153按`not uv`分支；L154抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(ROOT / "selection.json").read_text`、`consumer_contract`、`parser.error`、`SystemExit`、`os.environ.copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `templates/product/start.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L233。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `templates/product/start.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L242。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9163`。本段原文以LF换行结束。
+本段原始字节数：`9484`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "templates/product/start.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c389a27d105983325d0507ac08fbcf48620993376fc045f7402e90e8362bef73"} -->
+<!-- learning-source: {"path": "templates/product/start.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d6d0c3268ab133e1f6ad3e284f2ad218f69090a53e8b591b46fb22a1046e8ee4"} -->
 ````python
 # templates/product/start.py
 """One local command after unzip. Creates only its own database volume; never resets data.
@@ -116,7 +116,7 @@ def consumer_contract(selection):
 
 
 def consumer_environment(contract, env):
-    """The canonical product URL and legacy alias always identify the same DB."""
+    """Bind database URLs and template data storage to the canonical DB."""
     from urllib.parse import urlsplit
 
     default = ROOT.joinpath(*PurePosixPath(contract["database_path"]).parts)
@@ -140,8 +140,17 @@ def consumer_environment(contract, env):
     path = Path(database)
     path = path if path.is_absolute() else ROOT / path
     path.parent.mkdir(parents=True, exist_ok=True)
-    url = "sqlite:///" + path.resolve().as_posix()
-    return {**env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}
+    path = path.resolve()
+    url = "sqlite:///" + path.as_posix()
+    # schema.py creates PRODUCT_DATA_DIR even when an explicit URL is provided.
+    # Keep that initialization inside the database directory already approved
+    # for writes, rather than falling back to .data under read-only source.
+    return {
+        **env,
+        "PRODUCT_DATABASE_URL": url,
+        "DATABASE_URL": url,
+        "PRODUCT_DATA_DIR": str(path.parent),
+    }
 
 
 def main():
