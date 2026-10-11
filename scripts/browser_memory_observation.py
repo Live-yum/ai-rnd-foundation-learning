@@ -40,13 +40,20 @@ def _text(directory, name):
 
 def read_cgroup(container_id):
     """Only the two exact Docker cgroup layouts; no process or parent-group scan."""
+    return read_cgroup_observation(container_id)[0]
+
+
+def read_cgroup_observation(container_id):
+    """Classify the same bounded reads, without extra probes or exception text."""
     if type(container_id) is not str or not re.fullmatch(r"[a-f0-9]{64}", container_id):
-        return None
+        return None, "invalid_identity"
     if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
-        return None
+        return None, "unsupported_host"
     found = []
+    unavailable = []
     for parts in (("system.slice", f"docker-{container_id}.scope"), ("docker", container_id)):
         opened = []
+        stage = "group"
         try:
             fd = os.open(CGROUP_ROOT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             opened.append(fd)
@@ -54,6 +61,7 @@ def read_cgroup(container_id):
                 fd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
                 opened.append(fd)
             identity = (os.fstat(fd).st_dev, os.fstat(fd).st_ino)
+            stage = "counters"
             limit = _text(fd, "memory.max")
             values = {
                 "memory_max": None if limit == "max" else _number(limit),
@@ -75,12 +83,28 @@ def read_cgroup(container_id):
                 raise ValueError("Missing counters")
             values["events_local"] = counters
             found.append((identity, values))
+        except PermissionError:
+            unavailable.append("permission_denied")
+        except FileNotFoundError:
+            unavailable.append("group_absent" if stage == "group" else "counter_missing")
         except OSError, ValueError:
-            pass
+            unavailable.append("invalid_counter_or_path")
         finally:
             for fd in reversed(opened):
                 os.close(fd)
-    return found[0] if len(found) == 1 else None
+    if len(found) == 1:
+        return found[0], "available"
+    if len(found) > 1:
+        return None, "ambiguous_layout"
+    for reason in (
+        "permission_denied",
+        "invalid_counter_or_path",
+        "counter_missing",
+        "group_absent",
+    ):
+        if reason in unavailable:
+            return None, reason
+    return None, "unavailable"
 
 
 def counter_delta(before, after):
@@ -173,16 +197,18 @@ class MemoryObservation:
         self.identity = None
         self.identity_changed = False
         self.before = self.first = self.last = None
+        self.before_status = self.last_read_status = "not_sampled"
         self.samples = 0
         self.since = time.time()
 
     def sample(self):
-        observed = read_cgroup(self.container_id)
+        observed, self.last_read_status = read_cgroup_observation(self.container_id)
         if observed is None:
             return None
         identity, values = observed
         if self.identity is not None and self.identity != identity:
             self.identity_changed = True
+            self.last_read_status = "identity_changed"
             return None
         self.identity = identity
         self.samples += 1
@@ -196,6 +222,7 @@ class MemoryObservation:
             return
         try:
             self.before = self.sample()
+            self.before_status = self.last_read_status
             self.thread = threading.Thread(target=self.poll, daemon=True)
             self.thread.start()
         except Exception:
@@ -223,6 +250,7 @@ class MemoryObservation:
             # Never delay cleanup with joins, extra reads or Docker queries
             # when the original inspection has not confirmed termination.
             after = self.sample() if stopped else None
+            after_status = self.last_read_status if stopped else "termination_not_confirmed"
             until = time.time()
             try:
                 events = (
@@ -238,7 +266,14 @@ class MemoryObservation:
                 "identity_changed": self.identity_changed,
                 "sample_count": self.samples,
                 "pre_start": self.before,
+                "pre_start_status": self.before_status,
                 "post_start_return": after,
+                "post_start_return_status": after_status,
+                # Legacy key retained; this read follows the original state
+                # inspection and thread join, not the start command return.
+                "post_start_return_stage": "after_termination_inspect"
+                if stopped
+                else "not_sampled",
                 "first_observed": self.first,
                 "last_observed": self.last,
                 "pre_post_delta": None

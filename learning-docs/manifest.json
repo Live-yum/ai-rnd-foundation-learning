@@ -4823,8 +4823,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 50892,
-      "sha256": "74869b84cf1d6c31d5a3a4943929e96d5657cc51ab69f82b66642fea49e5c7ae",
+      "bytes": 54688,
+      "sha256": "c61fb278bbb9870d043e0b44452214c33126a574fe0b6938b25879469527bd8b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -4913,8 +4913,8 @@
     },
     {
       "path": "scripts/browser_memory_observation.py",
-      "bytes": 8859,
-      "sha256": "3d282f5cefc34c1c460d10847135f3850e417f89287545dc177b77e605b645e7",
+      "bytes": 10423,
+      "sha256": "e744a3ee96bd3a3eafb364045513cb6c097aa29e9ce563aa4979868251ea6e0d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__browser_memory_observation_py--001.md"
@@ -5384,8 +5384,8 @@
     },
     {
       "path": "tests/test_browser_memory_observation.py",
-      "bytes": 8512,
-      "sha256": "aa68851b935fb58e4e0a19139a190d63a6dbe11a55dbe0833cdfc4ae488792ec",
+      "bytes": 12587,
+      "sha256": "abc8819f87960da74d04081404193f8091984eef007a6c04965c80af713b16f9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_browser_memory_observation_py--001.md"

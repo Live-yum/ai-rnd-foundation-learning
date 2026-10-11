@@ -15,35 +15,39 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `group`（L16–L30）：接收`root`、`identifier`、`layout`。 控制顺序：L23遍历`{ "memory.max": "805306368", "memory.current": "4096", "memory.pe…`。 调用`path.mkdir`、`{ "memory.max": "805306368", "memory.current": "4096", "memory.pe…`、`(path / name).write_text`。 返回路径：L30的`path`。
-- `test_reads_only_exact_owned_group_and_bounded_numbers`（L35–L53）：接收`tmp_path`、`monkeypatch`、`layout`。 控制顺序：L42断言`identity`；L43断言`facts == { "memory_max": 805306368, "memory_unbounded": False, "memory_current": 4096…`；L50断言`{p.name: p.read_bytes() for p in owned.iterdir()} == before_bytes`；L51断言`"private" not in json.dumps(facts)`；L53断言`observe.read_cgroup(IDENTIFIER)[1]["memory_peak"] is None`。 调用`monkeypatch.setattr`、`group`、`(unrelated / "memory.max").write_text`、`p.read_bytes`、`owned.iterdir`、`observe.read_cgroup`、`json.dumps`、`(owned / "memory.peak").unlink`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_bad_or_ambiguous_cgroup_reads_are_unavailable`（L60–L80）：接收`tmp_path`、`monkeypatch`、`fault`。 控制顺序：L63按`fault == "symlink"`分支；L66按`fault == "oversize"`分支；L68按`fault == "negative"`分支；L70按`fault == "missing"`分支；L72按`fault == "duplicate"`分支；L74按`fault == "two_groups"`分支；L80断言`observe.read_cgroup(IDENTIFIER) is None`。 调用`monkeypatch.setattr`、`group`、`(path / "memory.max").unlink`、`(path / "memory.max").symlink_to`、`(path / "memory.max").write_text`、`(path / "memory.current").write_text`、`(path / "memory.events.local").unlink`、`(path / "memory.events.local").write_text`、`(_ for _ in ()).throw`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_identity_never_reads_files_or_docker`（L84–L92）：接收`monkeypatch`、`identifier`。 控制顺序：L91断言`observe.read_cgroup(identifier) is None`；L92断言`observe.docker_events(["docker"], identifier, 1, 2) is None`。 调用`monkeypatch.setattr`、`pytest.fail`、`observe.read_cgroup`、`observe.docker_events`、`pytest.mark.parametrize`、`OTHER.upper`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_docker_events_have_exact_filters_and_no_private_output`（L98–L126）：接收`monkeypatch`、`identity`、`action`。 控制顺序：L121断言`value == ( [{"action": "oom", "time_nano": 100}] if identity == IDENTIFIER and action…`；L126断言`"private" not in json.dumps(value)`。 调用`monkeypatch.setattr`、`observe.docker_events`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_docker_events_have_exact_filters_and_no_private_output.run`（L99–L117）：接收`args`、`**kwargs`。 控制顺序：L100断言`args[:2] == ["docker", "events"]`；L101遍历`( "type=container", "container=" + IDENTIFIER, "event=oom", "even…`；L108断言`value in args`；L109断言`kwargs["timeout"] == 2`；L110断言`"logs" not in args and "exec" not in args`。 调用`SimpleNamespace`、`json.dumps( {"id": identity, "action": action, "time_nano": 100, …`、`json.dumps`。 返回路径：L111的`SimpleNamespace( returncode=0, stdout=json.dumps( {"id": identity, "action": action, "time…`。
-- `test_missing_baseline_and_replaced_group_never_fabricate_delta`（L130–L147）：接收`tmp_path`、`monkeypatch`。 控制顺序：L136断言`observer.sample() is None`；L142断言`result["pre_start"] is None and result["pre_post_delta"] is None`；L143断言`result["observed_delta"] == {"max": 1, "oom": 1, "oom_kill": 1, "oom_group_kill": 0}`；L146断言`result["identity_changed"] is True`；L147断言`result["pre_post_delta"] is result["observed_delta"] is None`。 调用`monkeypatch.setattr`、`observe.MemoryObservation`、`observer.sample`、`group`、`(path / "memory.events.local").write_text`、`observer.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_mismatched_container_name_disables_all_observation`（L150–L157）：接收`monkeypatch`。 控制顺序：L157断言`observer.finish() == {"available": False}`。 调用`monkeypatch.setattr`、`pytest.fail`、`observe.MemoryObservation`、`observer.start`、`observer.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_counter_reset_and_missing_sample_have_no_delta`（L160–L162）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L161断言`observe.counter_delta(None, None) is None`；L162断言`observe.counter_delta({"events_local": {"oom": 2}}, {"events_local": {"oom": 1}}) is …`。 调用`observe.counter_delta`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_observation_failure_cannot_replace_original_verdict`（L166–L187）：接收`monkeypatch`、`failure`。 控制顺序：L183抛异常，停止当前正常路径；L184断言`captured.value is original and facts == {"available": False}`；L187断言`facts == {"available": False}`。 调用`monkeypatch.setattr`、`RuntimeError`、`pytest.raises`、`observe.observe_memory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_observation_failure_cannot_replace_original_verdict.Broken`（L167–L177）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_observation_failure_cannot_replace_original_verdict.Broken.__init__`（L168–L170）：接收`*args`。 控制顺序：L169按`failure == "constructor"`分支；L170抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_observation_failure_cannot_replace_original_verdict.Broken.start`（L172–L174）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173按`failure == "start"`分支；L174抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_observation_failure_cannot_replace_original_verdict.Broken.finish`（L176–L177）：接收`**kwargs`。 控制顺序：L177抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_poll_has_finite_sampling_budget`（L190–L199）：接收`monkeypatch`。 控制顺序：L199断言`ticks == [0.1] * 300`。 调用`observe.MemoryObservation`、`SimpleNamespace`、`ticks.append`、`monkeypatch.setattr`、`observer.poll`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events`（L202–L215）：接收`monkeypatch`。 控制顺序：L212断言`observer.stop.is_set()`；L213断言`facts["available"] is False and facts["post_start_return"] is facts["docker_events"] …`。 调用`observe.MemoryObservation`、`SimpleNamespace`、`pytest.fail`、`monkeypatch.setattr`、`observer.finish`、`observer.stop.is_set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `group`（L17–L31）：接收`root`、`identifier`、`layout`。 控制顺序：L24遍历`{ "memory.max": "805306368", "memory.current": "4096", "memory.pe…`。 调用`path.mkdir`、`{ "memory.max": "805306368", "memory.current": "4096", "memory.pe…`、`(path / name).write_text`。 返回路径：L31的`path`。
+- `test_reads_only_exact_owned_group_and_bounded_numbers`（L36–L54）：接收`tmp_path`、`monkeypatch`、`layout`。 控制顺序：L43断言`identity`；L44断言`facts == { "memory_max": 805306368, "memory_unbounded": False, "memory_current": 4096…`；L51断言`{p.name: p.read_bytes() for p in owned.iterdir()} == before_bytes`；L52断言`"private" not in json.dumps(facts)`；L54断言`observe.read_cgroup(IDENTIFIER)[1]["memory_peak"] is None`。 调用`monkeypatch.setattr`、`group`、`(unrelated / "memory.max").write_text`、`p.read_bytes`、`owned.iterdir`、`observe.read_cgroup`、`json.dumps`、`(owned / "memory.peak").unlink`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_bad_or_ambiguous_cgroup_reads_are_unavailable`（L61–L81）：接收`tmp_path`、`monkeypatch`、`fault`。 控制顺序：L64按`fault == "symlink"`分支；L67按`fault == "oversize"`分支；L69按`fault == "negative"`分支；L71按`fault == "missing"`分支；L73按`fault == "duplicate"`分支；L75按`fault == "two_groups"`分支；L81断言`observe.read_cgroup(IDENTIFIER) is None`。 调用`monkeypatch.setattr`、`group`、`(path / "memory.max").unlink`、`(path / "memory.max").symlink_to`、`(path / "memory.max").write_text`、`(path / "memory.current").write_text`、`(path / "memory.events.local").unlink`、`(path / "memory.events.local").write_text`、`(_ for _ in ()).throw`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_identity_never_reads_files_or_docker`（L85–L93）：接收`monkeypatch`、`identifier`。 控制顺序：L92断言`observe.read_cgroup(identifier) is None`；L93断言`observe.docker_events(["docker"], identifier, 1, 2) is None`。 调用`monkeypatch.setattr`、`pytest.fail`、`observe.read_cgroup`、`observe.docker_events`、`pytest.mark.parametrize`、`OTHER.upper`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_docker_events_have_exact_filters_and_no_private_output`（L99–L127）：接收`monkeypatch`、`identity`、`action`。 控制顺序：L122断言`value == ( [{"action": "oom", "time_nano": 100}] if identity == IDENTIFIER and action…`；L127断言`"private" not in json.dumps(value)`。 调用`monkeypatch.setattr`、`observe.docker_events`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_docker_events_have_exact_filters_and_no_private_output.run`（L100–L118）：接收`args`、`**kwargs`。 控制顺序：L101断言`args[:2] == ["docker", "events"]`；L102遍历`( "type=container", "container=" + IDENTIFIER, "event=oom", "even…`；L109断言`value in args`；L110断言`kwargs["timeout"] == 2`；L111断言`"logs" not in args and "exec" not in args`。 调用`SimpleNamespace`、`json.dumps( {"id": identity, "action": action, "time_nano": 100, …`、`json.dumps`。 返回路径：L112的`SimpleNamespace( returncode=0, stdout=json.dumps( {"id": identity, "action": action, "time…`。
+- `test_missing_baseline_and_replaced_group_never_fabricate_delta`（L131–L148）：接收`tmp_path`、`monkeypatch`。 控制顺序：L137断言`observer.sample() is None`；L143断言`result["pre_start"] is None and result["pre_post_delta"] is None`；L144断言`result["observed_delta"] == {"max": 1, "oom": 1, "oom_kill": 1, "oom_group_kill": 0}`；L147断言`result["identity_changed"] is True`；L148断言`result["pre_post_delta"] is result["observed_delta"] is None`。 调用`monkeypatch.setattr`、`observe.MemoryObservation`、`observer.sample`、`group`、`(path / "memory.events.local").write_text`、`observer.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mismatched_container_name_disables_all_observation`（L151–L158）：接收`monkeypatch`。 控制顺序：L158断言`observer.finish() == {"available": False}`。 调用`monkeypatch.setattr`、`pytest.fail`、`observe.MemoryObservation`、`observer.start`、`observer.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_counter_reset_and_missing_sample_have_no_delta`（L161–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`observe.counter_delta(None, None) is None`；L163断言`observe.counter_delta({"events_local": {"oom": 2}}, {"events_local": {"oom": 1}}) is …`。 调用`observe.counter_delta`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_observation_failure_cannot_replace_original_verdict`（L167–L188）：接收`monkeypatch`、`failure`。 控制顺序：L184抛异常，停止当前正常路径；L185断言`captured.value is original and facts == {"available": False}`；L188断言`facts == {"available": False}`。 调用`monkeypatch.setattr`、`RuntimeError`、`pytest.raises`、`observe.observe_memory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_observation_failure_cannot_replace_original_verdict.Broken`（L168–L178）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_observation_failure_cannot_replace_original_verdict.Broken.__init__`（L169–L171）：接收`*args`。 控制顺序：L170按`failure == "constructor"`分支；L171抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_observation_failure_cannot_replace_original_verdict.Broken.start`（L173–L175）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L174按`failure == "start"`分支；L175抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_observation_failure_cannot_replace_original_verdict.Broken.finish`（L177–L178）：接收`**kwargs`。 控制顺序：L178抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_poll_has_finite_sampling_budget`（L191–L200）：接收`monkeypatch`。 控制顺序：L200断言`ticks == [0.1] * 300`。 调用`observe.MemoryObservation`、`SimpleNamespace`、`ticks.append`、`monkeypatch.setattr`、`observer.poll`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events`（L203–L220）：接收`monkeypatch`。 控制顺序：L216断言`observer.stop.is_set()`；L217断言`facts["available"] is False and facts["post_start_return"] is facts["docker_events"] …`；L220断言`facts["post_start_return_status"] == "termination_not_confirmed"`。 调用`observe.MemoryObservation`、`SimpleNamespace`、`pytest.fail`、`monkeypatch.setattr`、`observer.finish`、`observer.stop.is_set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_container_cgroup_lifecycle_explains_missing_endpoints_without_fabricating_oom`（L226–L279）：接收`tmp_path`、`monkeypatch`、`before_exists`、`removed_at_exit`。 控制顺序：L247按`path`分支；L257断言`observer.before_status == ("available" if before_exists else "group_absent")`；L258按`path is None`分支；L267按`removed_at_exit`分支；L270抛异常，停止当前正常路径；L271断言`captured.value is original`；L272断言`facts["pre_start_status"] == ("available" if before_exists else "group_absent")`；L273断言`facts["post_start_return_status"] == ("group_absent" if removed_at_exit else "availab…`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`SimpleNamespace`、`group`、`counters`、`observe.MemoryObservation`、`RuntimeError`、`pytest.raises`、`observe.observe_memory`、`observer.sample`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_container_cgroup_lifecycle_explains_missing_endpoints_without_fabricating_oom.counters`（L241–L244）：接收`path`、`maximum`。 调用`(path / "memory.events.local").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_sample_reasons_are_finite_without_exception_or_path_text`（L293–L312）：接收`tmp_path`、`monkeypatch`、`fault`、`expected`。 控制顺序：L297按`fault != "absent"`分支；L299按`fault == "missing_counter"`分支；L301按`fault == "bad_counter"`分支；L303按`fault == "ambiguous"`分支；L311断言`observe.read_cgroup_observation(IDENTIFIER) == (None, expected)`；L312断言`observe.read_cgroup(IDENTIFIER) is None`。 调用`monkeypatch.setattr`、`group`、`(path / "memory.current").unlink`、`(path / "memory.events.local").write_text`、`(_ for _ in ()).throw`、`PermissionError`、`observe.read_cgroup_observation`、`observe.read_cgroup`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_browser_memory_observation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L215。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_browser_memory_observation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L312。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8512`。本段原文以LF换行结束。
+本段原始字节数：`12587`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_browser_memory_observation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "aa68851b935fb58e4e0a19139a190d63a6dbe11a55dbe0833cdfc4ae488792ec"} -->
+<!-- learning-source: {"path": "tests/test_browser_memory_observation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "abc8819f87960da74d04081404193f8091984eef007a6c04965c80af713b16f9"} -->
 ````python
 # tests/test_browser_memory_observation.py
 """Read-only fixtures only; these are not cgroup enforcement certification."""
 
 import json
+import shutil
 import sys
 from types import SimpleNamespace
 
@@ -249,6 +253,9 @@ def test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events(monkey
     observer.thread = SimpleNamespace(join=lambda **k: pytest.fail("must not delay cleanup"))
     monkeypatch.setattr(observe, "read_cgroup", lambda *a: pytest.fail("extra read before cleanup"))
     monkeypatch.setattr(
+        observe, "read_cgroup_observation", lambda *a: pytest.fail("extra read before cleanup")
+    )
+    monkeypatch.setattr(
         observe, "docker_events", lambda *a: pytest.fail("extra event query before cleanup")
     )
     facts = observer.finish(stopped=False)
@@ -256,4 +263,97 @@ def test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events(monkey
     assert (
         facts["available"] is False and facts["post_start_return"] is facts["docker_events"] is None
     )
+    assert facts["post_start_return_status"] == "termination_not_confirmed"
+
+
+@pytest.mark.parametrize("before_exists", [False, True])
+@pytest.mark.parametrize("removed_at_exit", [False, True])
+@LINUX_COUNTERS
+def test_container_cgroup_lifecycle_explains_missing_endpoints_without_fabricating_oom(
+    tmp_path, monkeypatch, before_exists, removed_at_exit
+):
+    monkeypatch.setattr(observe, "CGROUP_ROOT", tmp_path)
+    monkeypatch.setattr(observe, "docker_events", lambda *a: [{"action": "die", "time_nano": 10}])
+    monkeypatch.setattr(
+        observe.threading,
+        "Thread",
+        lambda **k: SimpleNamespace(
+            start=lambda: None,
+            join=lambda **k: None,
+            is_alive=lambda: False,
+        ),
+    )
+
+    def counters(path, maximum):
+        (path / "memory.events.local").write_text(
+            f"max {maximum}\noom 0\noom_kill 0\noom_group_kill 0\n"
+        )
+
+    path = group(tmp_path) if before_exists else None
+    if path:
+        counters(path, 0)
+    observer = observe.MemoryObservation(
+        [{"Id": IDENTIFIER, "Name": "/owned"}], "owned", ["docker"]
+    )
+    monkeypatch.setattr(observe, "MemoryObservation", lambda *a: observer)
+    original = RuntimeError("original strict OOMKilled gate rejection")
+    with pytest.raises(RuntimeError) as captured:
+        with observe.observe_memory([], "owned", ["docker"]) as facts:
+            # The sample preceding docker start cannot see an uncreated group.
+            assert observer.before_status == ("available" if before_exists else "group_absent")
+            if path is None:
+                path = group(tmp_path)
+                counters(path, 0)
+            observer.sample()
+            counters(path, 1)
+            (path / "memory.peak").write_text("805306368")
+            observer.sample()
+            # Runtime teardown may remove the exact group before our inspect
+            # and before the test harness's later docker rm cleanup.
+            if removed_at_exit:
+                shutil.rmtree(path)
+            facts["container_stopped"] = True
+            raise original
+    assert captured.value is original
+    assert facts["pre_start_status"] == ("available" if before_exists else "group_absent")
+    assert facts["post_start_return_status"] == ("group_absent" if removed_at_exit else "available")
+    assert facts["post_start_return_stage"] == "after_termination_inspect"
+    assert (facts["pre_start"] is None) is (not before_exists)
+    assert (facts["post_start_return"] is None) is removed_at_exit
+    assert facts["observed_delta"] == {"max": 1, "oom": 0, "oom_kill": 0, "oom_group_kill": 0}
+    assert (facts["pre_post_delta"] is not None) is (before_exists and not removed_at_exit)
+    assert facts["last_observed"]["memory_peak"] == 805306368
+
+
+@pytest.mark.parametrize(
+    "fault,expected",
+    [
+        ("absent", "group_absent"),
+        ("missing_counter", "counter_missing"),
+        ("denied", "permission_denied"),
+        ("bad_counter", "invalid_counter_or_path"),
+        ("ambiguous", "ambiguous_layout"),
+    ],
+)
+@LINUX_COUNTERS
+def test_missing_sample_reasons_are_finite_without_exception_or_path_text(
+    tmp_path, monkeypatch, fault, expected
+):
+    monkeypatch.setattr(observe, "CGROUP_ROOT", tmp_path)
+    if fault != "absent":
+        path = group(tmp_path)
+        if fault == "missing_counter":
+            (path / "memory.current").unlink()
+        elif fault == "bad_counter":
+            (path / "memory.events.local").write_text("private-path-secret")
+        elif fault == "ambiguous":
+            group(tmp_path, layout="cgroupfs")
+        else:
+            monkeypatch.setattr(
+                observe.os,
+                "open",
+                lambda *a, **k: (_ for _ in ()).throw(PermissionError("private-path-secret")),
+            )
+    assert observe.read_cgroup_observation(IDENTIFIER) == (None, expected)
+    assert observe.read_cgroup(IDENTIFIER) is None
 ````

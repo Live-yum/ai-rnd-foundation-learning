@@ -1,6 +1,7 @@
 """Read-only fixtures only; these are not cgroup enforcement certification."""
 
 import json
+import shutil
 import sys
 from types import SimpleNamespace
 
@@ -206,6 +207,9 @@ def test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events(monkey
     observer.thread = SimpleNamespace(join=lambda **k: pytest.fail("must not delay cleanup"))
     monkeypatch.setattr(observe, "read_cgroup", lambda *a: pytest.fail("extra read before cleanup"))
     monkeypatch.setattr(
+        observe, "read_cgroup_observation", lambda *a: pytest.fail("extra read before cleanup")
+    )
+    monkeypatch.setattr(
         observe, "docker_events", lambda *a: pytest.fail("extra event query before cleanup")
     )
     facts = observer.finish(stopped=False)
@@ -213,3 +217,96 @@ def test_unconfirmed_stop_never_delays_cleanup_with_extra_reads_or_events(monkey
     assert (
         facts["available"] is False and facts["post_start_return"] is facts["docker_events"] is None
     )
+    assert facts["post_start_return_status"] == "termination_not_confirmed"
+
+
+@pytest.mark.parametrize("before_exists", [False, True])
+@pytest.mark.parametrize("removed_at_exit", [False, True])
+@LINUX_COUNTERS
+def test_container_cgroup_lifecycle_explains_missing_endpoints_without_fabricating_oom(
+    tmp_path, monkeypatch, before_exists, removed_at_exit
+):
+    monkeypatch.setattr(observe, "CGROUP_ROOT", tmp_path)
+    monkeypatch.setattr(observe, "docker_events", lambda *a: [{"action": "die", "time_nano": 10}])
+    monkeypatch.setattr(
+        observe.threading,
+        "Thread",
+        lambda **k: SimpleNamespace(
+            start=lambda: None,
+            join=lambda **k: None,
+            is_alive=lambda: False,
+        ),
+    )
+
+    def counters(path, maximum):
+        (path / "memory.events.local").write_text(
+            f"max {maximum}\noom 0\noom_kill 0\noom_group_kill 0\n"
+        )
+
+    path = group(tmp_path) if before_exists else None
+    if path:
+        counters(path, 0)
+    observer = observe.MemoryObservation(
+        [{"Id": IDENTIFIER, "Name": "/owned"}], "owned", ["docker"]
+    )
+    monkeypatch.setattr(observe, "MemoryObservation", lambda *a: observer)
+    original = RuntimeError("original strict OOMKilled gate rejection")
+    with pytest.raises(RuntimeError) as captured:
+        with observe.observe_memory([], "owned", ["docker"]) as facts:
+            # The sample preceding docker start cannot see an uncreated group.
+            assert observer.before_status == ("available" if before_exists else "group_absent")
+            if path is None:
+                path = group(tmp_path)
+                counters(path, 0)
+            observer.sample()
+            counters(path, 1)
+            (path / "memory.peak").write_text("805306368")
+            observer.sample()
+            # Runtime teardown may remove the exact group before our inspect
+            # and before the test harness's later docker rm cleanup.
+            if removed_at_exit:
+                shutil.rmtree(path)
+            facts["container_stopped"] = True
+            raise original
+    assert captured.value is original
+    assert facts["pre_start_status"] == ("available" if before_exists else "group_absent")
+    assert facts["post_start_return_status"] == ("group_absent" if removed_at_exit else "available")
+    assert facts["post_start_return_stage"] == "after_termination_inspect"
+    assert (facts["pre_start"] is None) is (not before_exists)
+    assert (facts["post_start_return"] is None) is removed_at_exit
+    assert facts["observed_delta"] == {"max": 1, "oom": 0, "oom_kill": 0, "oom_group_kill": 0}
+    assert (facts["pre_post_delta"] is not None) is (before_exists and not removed_at_exit)
+    assert facts["last_observed"]["memory_peak"] == 805306368
+
+
+@pytest.mark.parametrize(
+    "fault,expected",
+    [
+        ("absent", "group_absent"),
+        ("missing_counter", "counter_missing"),
+        ("denied", "permission_denied"),
+        ("bad_counter", "invalid_counter_or_path"),
+        ("ambiguous", "ambiguous_layout"),
+    ],
+)
+@LINUX_COUNTERS
+def test_missing_sample_reasons_are_finite_without_exception_or_path_text(
+    tmp_path, monkeypatch, fault, expected
+):
+    monkeypatch.setattr(observe, "CGROUP_ROOT", tmp_path)
+    if fault != "absent":
+        path = group(tmp_path)
+        if fault == "missing_counter":
+            (path / "memory.current").unlink()
+        elif fault == "bad_counter":
+            (path / "memory.events.local").write_text("private-path-secret")
+        elif fault == "ambiguous":
+            group(tmp_path, layout="cgroupfs")
+        else:
+            monkeypatch.setattr(
+                observe.os,
+                "open",
+                lambda *a, **k: (_ for _ in ()).throw(PermissionError("private-path-secret")),
+            )
+    assert observe.read_cgroup_observation(IDENTIFIER) == (None, expected)
+    assert observe.read_cgroup(IDENTIFIER) is None

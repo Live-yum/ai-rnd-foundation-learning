@@ -289,3 +289,17 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 离线使用真实Yarn4.13.0及禁止网络的合成项目验证成功/退出7两条路径，观察器前后接受结果一致且三份输入文件逐字节不变；另用31秒合成脚本验证真实30秒等待快照及正常结束。Node钩子回归覆盖挂起、原异常对象、原返回码、日志写失败、只执行一次、不读额外脚本/环境信息和非安装脚本不拦截；解析器覆盖污染、非法数值、会话隔离和缺失输出，构建回归保留2400秒、原ToolFailure对象和失败禁止镜像检查。实际包/构建仍未复现，不据此宣称停滞已修复。仅本地准备，是否发布及下一次有界构建由父线程审阅后协调；未推送、取消、dispatch或重跑三案。
 
 验证结果：相关原有及新增离线测试116项通过，精确artifact路径补充回归另1项通过（合计117）；其中真实Yarn4.13.0三项均实际执行，未按缺工具跳过。完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1：2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。没有进行Docker/API昂贵复现，也没有真实模型调用；本地主机与真实Actions环境边界保留。Node语法、Ruff、diff及两套生成文档一致性检查通过。
+
+### e2c9dda PG内存端点读数缺失的生命周期核查（仅本地）
+
+父线程监控实际读取PG运行38154312061/artifact11708021591：memory_exhaustion，exit137、Running=false、Status=exited、OOMKilled=false、timeout=false；3次采样memory.max=805306368，最后peak=805306368，observed_delta.max=1，oom/oom_kill/oom_group_kill均0，仅Docker die；pre_start、post_start_return、pre_post_delta仍null。可确认采样时触及内存上限，不能证明整个终止区间的OOM原因或认定严格门禁误报。并行真实mini-SWE38154524202仍在镜像构建，不能混用其结论。
+
+调用顺序已从源码核对：docker create及原检查→observe_memory.start中的一次前置采样→启动100ms轮询线程→docker start -a→原终止状态inspect及OOMKilled/Running判定→observe_memory.finish中停止/最多0.5秒join采样线程→再读一次cgroup→原docker rm清理。post_start_return这个历史字段并非紧贴start返回读取，而是在终止inspect之后。Docker create只准备未启动容器（[官方说明](https://docs.docker.com/reference/cli/docker/container/create/)）；无活进程的cgroup可被移除（[内核说明](https://docs.kernel.org/admin-guide/cgroup-v2.html#processes)），容器记录仍可inspect不代表组目录仍在。这个生命周期模型解释了端点采样窗口为何可能落在组尚未出现/已经消失的区间，而不是断言本次未保存的errno必然为ENOENT。
+
+发现的确定诊断缺陷是原读取器把目录缺失、计数文件缺失、权限拒绝、非法内容/路径及布局歧义全合并为None。最小修复只对同一次既有读取分类：group_absent/counter_missing/permission_denied/invalid_counter_or_path/ambiguous_layout等固定枚举；保留原read_cgroup接口及全部路径、O_NOFOLLOW、数字/字节上限、设备/inode身份和布局规则。sidecar新增pre_start_status、post_start_return_status及post_start_return_stage，准确标记after_termination_inspect；未确认停止则not_sampled，仍不额外读取、join或查询Docker。不输出异常文本、errno上下文、原始路径、环境或其他组内容。
+
+四种离线组目录生命周期组合证明：前置目录不存在及退出时目录被移除可同时造成两端null，而first/last仍保留触限样本及max增量；任一端缺失时pre_post_delta继续null。不是把first_observed重命名为基线，不预设零计数，也不把observed_delta提升为全区间证明。权限/缺文件/坏计数/歧义另有负例，原异常对象和严格失败保持不变。没有修改压力程序、768MiB上限、30秒超时、100ms/300次采样、终止inspect顺序、OOMKilled必须为true且Running为false的条件，未扫描进程或父cgroup、未持有或创建额外组、未冻结进程或增加权限。
+
+本轮改动是缺失原因与阶段的准确标注，不能保证取得完整生命周期端点；要保证启动前压力基线及退出前最终计数，需要另外设计可审核的生命周期同步协议，当前没有实施这种压力时序变化。不能据此宣称PG隔离证明已通过或本轮终止原因已确定。执行环境断开通知后，已在原/workspace工作区实际验证读写与Python执行成功；未切换环境绕过权限。仅本地准备，等待父线程安排，未推送、取消或重跑。
+
+验证：相关生命周期、OOM诊断、原主回执生产者→原消费者及策略回归189项通过；完整55文件集合保留三项强制标志，2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或测试数据库条件跳过。Ruff、diff及完整手册/774份教材一致性检查通过。没有取得新的真实cgroup/OOM证据，不冒充真实内核隔离验证。
