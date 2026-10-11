@@ -15,21 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `failure_diagnostic`（L32–L79）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L72在`frame is not None`成立时循环；L74按`stage is not None`分支；L77按`type(exc) is ContainerInspectionRejected`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`。 返回路径：L79的`result`。
-- `require`（L82–L84）：接收`condition`、`code`。 控制顺序：L83按`not condition`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L87–L140）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L117按`billing == "declared_free"`分支；L127抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L128的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L143–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L150遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L185的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L188–L224）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L197的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L227–L347）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L268遍历`plan.tasks`；L343按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L328的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L350–L391）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L365按`not args.preflight`分支；L389抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_diagnostic`（L32–L83）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L74在`frame is not None`成立时循环；L76按`stage is not None`分支；L79按`type(exc) is ContainerInspectionRejected`分支；L81按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L83的`result`。
+- `require`（L86–L88）：接收`condition`、`code`。 控制顺序：L87按`not condition`分支；L88抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L91–L144）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L121按`billing == "declared_free"`分支；L131抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L132的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L147–L189）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L154遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L189的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L192–L228）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L201的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L231–L351）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L272遍历`plan.tasks`；L347按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L332的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L354–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`not args.preflight`分支；L393抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L395。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L399。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16403`。本段原文以LF换行结束。
+本段原始字节数：`16623`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ae3b41a1242ca1c945beef26254fee33d633b279091ef739215f79e462e51f5d"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -66,6 +66,7 @@ REPORT = ROOT / "reports/live-modules/summary.json"
 def failure_diagnostic(exc):
     """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
     from workbench.capability_isolation import ContainerInspectionRejected
+    from workbench.coding.candidates import CandidateFileSetError
 
     stages = {
         "scripts/ci_live_modules.py": "acceptance_controller",
@@ -96,6 +97,7 @@ def failure_diagnostic(exc):
             "ModelFailure",
             "IsolationUnavailable",
             "ContainerInspectionRejected",
+            "CandidateFileSetError",
             "DaytonaError",
             "DaytonaNotFoundError",
         )
@@ -110,6 +112,8 @@ def failure_diagnostic(exc):
         frame = frame.tb_next
     if type(exc) is ContainerInspectionRejected:
         result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    if type(exc) is CandidateFileSetError:
+        result["candidate_files"] = CandidateFileSetError.diagnostic(exc)
     return result
 
 

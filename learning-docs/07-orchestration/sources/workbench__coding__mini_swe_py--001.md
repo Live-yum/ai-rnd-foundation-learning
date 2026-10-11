@@ -17,17 +17,17 @@
 
 - `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
 - `run_agent`（L34–L84）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L72的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
-- `_run`（L87–L289）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L161在`True`成立时循环；L163按`remaining <= 0`分支；L164抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L282的`edits`。
-- `_run.read_lines`（L131–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L132在`True`成立时循环；L138按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L144–L149）：接收`value`。 控制顺序：L146按`len(raw) > LIMIT`分支；L147抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run`（L87–L293）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L162在`True`成立时循环；L164按`remaining <= 0`分支；L165抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L286的`edits`。
+- `_run.read_lines`（L132–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133在`True`成立时循环；L139按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L145–L150）：接收`value`。 控制顺序：L147按`len(raw) > LIMIT`分支；L148抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L289。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L293。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13080`。本段原文以LF换行结束。
+本段原始字节数：`13586`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "25239679e33dd688f6c1d39c57112bdc22eee4efb9cd0f13d8a0364c2d605419"} -->
+<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5"} -->
 ````python
 # workbench/coding/mini_swe.py
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
@@ -45,7 +45,7 @@ from filelock import FileLock
 
 from workbench.coding.candidates import apply_candidate
 from workbench.coding.diff_guard import snapshot_edits
-from workbench.coding.ports import AgentTurn
+from workbench.coding.ports import AgentTurn, approved_turn_schema
 from workbench.core.contracts import digest
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, manifest, write_json
@@ -147,6 +147,7 @@ def _run(
     factory = environment_factory or coding_environment
     current = product
     edits_count = 0
+    turn_schema = approved_turn_schema(task)
     with factory(settings, task, plan.selection.model_dump(), product) as environment:
         with tempfile.TemporaryDirectory(prefix="rnd-mini-worker-") as cwd:
             process = subprocess.Popen(
@@ -265,9 +266,12 @@ def _run(
                         turn = bounded_gateway.complete(
                             run_id,
                             f"coding:mini_swe:{identity}:{step}",
-                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。",
+                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。"
+                            "每次edit必须完整返回task.allowed_paths中的全部文件，每个路径恰好一次，不能只返回变化文件。"
+                            "未修改文件也须原样返回完整content；before_sha256必须使用当前context对应sha256，"
+                            "新文件使用null。不得省略、重复或添加未批准路径；不要将部分完成的任务标记为submit。",
                             request,
-                            AgentTurn,
+                            turn_schema,
                         )
                         send({"result": turn.model_dump()})
                         step += 1

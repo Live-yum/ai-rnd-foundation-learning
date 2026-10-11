@@ -19,6 +19,25 @@ class AgentTurn(Contract):
         return self
 
 
+def approved_turn_schema(task):
+    """Bind the existing gateway's bounded schema repair to this exact task."""
+    approved = frozenset(task.allowed_paths)
+
+    class ApprovedAgentTurn(AgentTurn):
+        @model_validator(mode="after")
+        def approved_files(self):
+            if self.operation == "edit":
+                names = [edit.path for edit in self.edits.files]
+                if set(names) != approved or len({name.casefold() for name in names}) != len(names):
+                    raise ValueError(
+                        "edit.files must contain every approved task.allowed_paths file exactly once, "
+                        "including unchanged files; no extra paths or case-insensitive duplicates"
+                    )
+            return self
+
+    return ApprovedAgentTurn
+
+
 class AgentBudget(Contract):
     max_requests: int = Field(default=16, ge=1, le=64, strict=True)
     max_tokens: int = Field(default=200000, ge=1, le=2000000, strict=True)

@@ -32,6 +32,7 @@ REPORT = ROOT / "reports/live-modules/summary.json"
 def failure_diagnostic(exc):
     """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
     from workbench.capability_isolation import ContainerInspectionRejected
+    from workbench.coding.candidates import CandidateFileSetError
 
     stages = {
         "scripts/ci_live_modules.py": "acceptance_controller",
@@ -62,6 +63,7 @@ def failure_diagnostic(exc):
             "ModelFailure",
             "IsolationUnavailable",
             "ContainerInspectionRejected",
+            "CandidateFileSetError",
             "DaytonaError",
             "DaytonaNotFoundError",
         )
@@ -76,6 +78,8 @@ def failure_diagnostic(exc):
         frame = frame.tb_next
     if type(exc) is ContainerInspectionRejected:
         result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    if type(exc) is CandidateFileSetError:
+        result["candidate_files"] = CandidateFileSetError.diagnostic(exc)
     return result
 
 

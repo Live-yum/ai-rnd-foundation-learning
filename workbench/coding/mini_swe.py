@@ -13,7 +13,7 @@ from filelock import FileLock
 
 from workbench.coding.candidates import apply_candidate
 from workbench.coding.diff_guard import snapshot_edits
-from workbench.coding.ports import AgentTurn
+from workbench.coding.ports import AgentTurn, approved_turn_schema
 from workbench.core.contracts import digest
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, manifest, write_json
@@ -115,6 +115,7 @@ def _run(
     factory = environment_factory or coding_environment
     current = product
     edits_count = 0
+    turn_schema = approved_turn_schema(task)
     with factory(settings, task, plan.selection.model_dump(), product) as environment:
         with tempfile.TemporaryDirectory(prefix="rnd-mini-worker-") as cwd:
             process = subprocess.Popen(
@@ -233,9 +234,12 @@ def _run(
                         turn = bounded_gateway.complete(
                             run_id,
                             f"coding:mini_swe:{identity}:{step}",
-                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。",
+                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。"
+                            "每次edit必须完整返回task.allowed_paths中的全部文件，每个路径恰好一次，不能只返回变化文件。"
+                            "未修改文件也须原样返回完整content；before_sha256必须使用当前context对应sha256，"
+                            "新文件使用null。不得省略、重复或添加未批准路径；不要将部分完成的任务标记为submit。",
                             request,
-                            AgentTurn,
+                            turn_schema,
                         )
                         send({"result": turn.model_dump()})
                         step += 1

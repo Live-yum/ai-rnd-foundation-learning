@@ -20,14 +20,18 @@
 - `test_candidate_is_separate_and_replay_is_hash_bound`（L28–L47）：接收`tmp_path`。 控制顺序：L38断言`receipt["host_execution"] is False`；L39断言`(product / "app.py").read_text() == "original\n"`；L40断言`"never import" in (candidate / "app.py").read_text()`；L41断言`apply_candidate(product, value, task(["app.py"]), {"template": "python-basic"}, candi…`。 调用`product.mkdir`、`(product / "app.py").write_text`、`sha`、`edits`、`apply_candidate`、`task`、`(product / "app.py").read_text`、`(candidate / "app.py").read_text`、`(candidate / "app.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_protected_paths_cannot_be_approved_by_model`（L61–L68）：接收`tmp_path`、`path`。 控制顺序：L68断言`not (tmp_path / "candidate").exists()`。 调用`product.mkdir`、`pytest.raises`、`apply_candidate`、`edits`、`task`、`(tmp_path / "candidate").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_and_extra_edits_fail_before_copy`（L71–L90）：接收`tmp_path`。 调用`product.mkdir`、`(product / "app.py").write_text`、`pytest.raises`、`apply_candidate`、`edits`、`task`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths`（L102–L147）：接收`tmp_path`、`names`、`missing`、`extra`、`duplicates`。 控制顺序：L125断言`[ edit.path for edit in action.edits.files ] == names`；L138断言`diagnostic["candidate_files"] == { "approved_count": 2, "returned_count": len(names),…`；L145断言`"private" not in json.dumps(diagnostic)`；L146断言`not destination.exists()`；L147断言`(product / "app.py").read_text() == "# private unchanged source\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`pytest.raises`、`apply_candidate`、`task`、`failure_diagnostic`、`len`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L150–L177）：接收`tmp_path`。 控制顺序：L176断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L177断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`、`(candidate / "sla.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L190–L245）：接收`store`、`names`、`repair`。 控制顺序：L234按`repair`分支；L238断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L242断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L244断言`"every approved" in repair_message`；L245断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L207–L229）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L217的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
 
 </details>
 
-**创建路径：** `tests/test_capability_editing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L90。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_editing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L245。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2866`。本段原文以LF换行结束。
+本段原始字节数：`8066`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "af027f0d03d6a53b1a238b9ca52838ef55ddab045455128ff235d5dd186bc583"} -->
+<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781"} -->
 ````python
 # tests/test_capability_editing.py
 """Candidate editing must not mutate baselines or execute product code."""
@@ -120,4 +124,159 @@ def test_stale_and_extra_edits_fail_before_copy(tmp_path):
             {"template": "python-basic"},
             tmp_path / "candidate",
         )
+
+
+@pytest.mark.parametrize(
+    "names,missing,extra,duplicates",
+    [
+        (["app.py"], 1, 0, 0),
+        (["app.py", "app.py"], 1, 0, 1),
+        (["app.py", "sla.py", "private.py"], 0, 1, 0),
+        (["app.py", "App.py", "sla.py"], 0, 1, 1),
+    ],
+)
+def test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths(
+    tmp_path, names, missing, extra, duplicates
+):
+    import json
+
+    from scripts.ci_live_modules import failure_diagnostic
+    from workbench.coding.candidates import CandidateFileSetError
+    from workbench.coding.ports import AgentTurn
+
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "app.py").write_text("# private unchanged source\n")
+    action = AgentTurn.model_validate(
+        {
+            "operation": "edit",
+            "edits": {
+                "explanation": "private model explanation",
+                "files": [
+                    {"path": name, "content": "# private generated source"} for name in names
+                ],
+            },
+        }
+    )
+    assert [
+        edit.path for edit in action.edits.files
+    ] == names  # Adapter preserves order/duplicates.
+    destination = tmp_path / "candidate"
+    with pytest.raises(CandidateFileSetError) as captured:
+        apply_candidate(
+            product,
+            action.edits,
+            task(["app.py", "sla.py"]),
+            {"template": "python-basic"},
+            destination,
+        )
+    diagnostic = failure_diagnostic(captured.value)
+    assert diagnostic["candidate_files"] == {
+        "approved_count": 2,
+        "returned_count": len(names),
+        "missing_count": missing,
+        "unapproved_count": extra,
+        "casefold_duplicate_count": duplicates,
+    }
+    assert "private" not in json.dumps(diagnostic)
+    assert not destination.exists()
+    assert (product / "app.py").read_text() == "# private unchanged source\n"
+
+
+def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
+    from workbench.coding.ports import AgentTurn
+
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "app.py").write_text("# preserved\n")
+    action = AgentTurn.model_validate(
+        {
+            "operation": "edit",
+            "edits": {
+                "explanation": "authored full-set action",
+                "files": [
+                    {
+                        "path": "app.py",
+                        "content": "# preserved\n",
+                        "before_sha256": sha(product / "app.py"),
+                    },
+                    {"path": "sla.py", "content": "# new business file\n", "before_sha256": None},
+                ],
+            },
+        }
+    )
+    candidate = tmp_path / "candidate"
+    apply_candidate(
+        product, action.edits, task(["app.py", "sla.py"]), {"template": "python-basic"}, candidate
+    )
+    assert (candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()
+    assert (candidate / "sla.py").read_text() == "# new business file\n"
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["app.py"],
+        ["app.py", "app.py"],
+        ["app.py", "sla.py", "private.py"],
+        ["app.py", "App.py", "sla.py"],
+    ],
+)
+@pytest.mark.parametrize("repair", [True, False])
+def test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts(
+    store, names, repair
+):
+    import json
+
+    import httpx
+    from conftest import new_run
+    from test_llm import gateway
+
+    from scripts.ci_live_modules import acceptance_design
+    from workbench.coding.ports import approved_turn_schema
+    from workbench.llm import ModelFailure
+
+    calls = []
+    approved = acceptance_design().implementation.tasks[0]
+    store.settings.max_model_calls = 2
+
+    def respond(request):
+        calls.append(json.loads(request.content))
+        paths = approved.allowed_paths if repair and len(calls) == 2 else names
+        turn = {
+            "operation": "edit",
+            "edits": {
+                "explanation": "offline",
+                "files": [{"path": name, "content": "# fixture\n"} for name in paths],
+            },
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(turn),
+                        }
+                    }
+                ]
+            },
+        )
+
+    model = gateway(store, respond)
+    run = new_run(store)
+    schema = approved_turn_schema(approved)
+    if repair:
+        result = model.complete(
+            run, "coding:approved-edit", "return full approved files", {}, schema
+        )
+        assert [edit.path for edit in result.edits.files] == approved.allowed_paths
+    else:
+        with pytest.raises(ModelFailure):
+            model.complete(run, "coding:approved-edit", "return full approved files", {}, schema)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    repair_message = calls[1]["messages"][-1]["content"]
+    assert "every approved" in repair_message
+    assert "private.py" not in repair_message and "# fixture" not in repair_message
 ````

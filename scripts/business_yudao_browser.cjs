@@ -147,7 +147,6 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       const width = Math.ceil(size.width), height = Math.ceil(size.height);
       assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
         'Native screenshot surface exceeds the bounded capture scope');
-      attempts += 1;
       const viewport = page.viewportSize() || metrics.cssVisualViewport;
       const viewportWidth = viewport.width ?? viewport.clientWidth;
       const viewportHeight = viewport.height ?? viewport.clientHeight;
@@ -156,9 +155,13 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // layout/hover state. Preserve full-document capture only when needed.
       const fitsViewport = width <= viewportWidth && height <= viewportHeight;
       const pixelsStarted = Date.now();
-      const captured = await bounded(() => session.send('Page.captureScreenshot', {
-        format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
-      }), phase);
+      const captured = await bounded(() => {
+        // Count only requests actually issued after the shared deadline check.
+        attempts += 1;
+        return session.send('Page.captureScreenshot', {
+          format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
+        });
+      }, phase);
       timing.pixels_ms += Date.now() - pixelsStarted;
       phase = 'post-capture-readiness';
       const after = await sample();

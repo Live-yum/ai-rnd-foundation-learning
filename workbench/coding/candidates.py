@@ -10,6 +10,33 @@ from workbench.feature_planning import PlannedModule, module_path_errors
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, write_json
 
 
+class CandidateFileSetError(ValueError):
+    """An invalid action, with bounded structural facts and no model-authored paths."""
+
+    def __init__(self, names, approved):
+        super().__init__("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        self._counts = {
+            "approved_count": len(approved),
+            "returned_count": len(names),
+            "missing_count": len(set(approved) - set(names)),
+            "unapproved_count": len(set(names) - set(approved)),
+            "casefold_duplicate_count": len(names) - len({name.casefold() for name in names}),
+        }
+
+    def diagnostic(self):
+        return {
+            key: value if type(value) is int and 0 <= value <= 64 else None
+            for key in (
+                "approved_count",
+                "returned_count",
+                "missing_count",
+                "unapproved_count",
+                "casefold_duplicate_count",
+            )
+            for value in [self._counts.get(key)]
+        }
+
+
 def task_path_errors(task, selection):
     module = PlannedModule(
         **task.model_dump(include=set(PlannedModule.model_fields) - {"version"}),
@@ -47,7 +74,7 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
         raise ValueError("；".join(errors))
     names = [edit.path for edit in edits.files]
     if len({name.casefold() for name in names}) != len(names) or set(names) != set(task.files):
-        raise ValueError("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        raise CandidateFileSetError(names, task.files)
     original = manifest(product)
     folded = {name.casefold(): name for name in original}
     if sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000:

@@ -15,17 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `task_path_errors`（L13–L31）：接收`task`、`selection`。 控制顺序：L21遍历`task.files`；L23按`name.startswith(("workbench/", "tools/", "scripts/")) or Path(name).name in { "approv…`分支。 调用`PlannedModule`、`task.model_dump`、`set`、`module_path_errors`、`source_path`、`name.startswith`、`Path`、`errors.append`。 返回路径：L31的`errors`。
-- `copy_source`（L34–L40）：接收`source`、`destination`。 控制顺序：L37遍历`files(source)`。 调用`Path`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `apply_candidate`（L43–L140）：接收`product`、`edits`、`task`、`selection`、`destination`、`settings`。 控制顺序：L46按`errors`分支；L47抛异常，停止当前正常路径；L49按`len({name.casefold() for name in names}) != len(names) or set(names) != set(task.file…`分支；L50抛异常，停止当前正常路径；L53按`sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000`分支；L54抛异常，停止当前正常路径；L56遍历`edits.files`；L58按`folded.get(edit.path.casefold(), edit.path) != edit.path`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`task_path_errors`、`ValueError`、`"；".join`、`len`、`name.casefold`、`set`、`manifest`、`sum`等。 返回路径：L72的`saved`；L140的`receipt`。
+- `CandidateFileSetError`（L13–L37）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CandidateFileSetError.__init__`（L16–L24）：接收`names`、`approved`。 调用`super().__init__`、`super`、`len`、`set`、`name.casefold`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CandidateFileSetError.diagnostic`（L26–L37）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`type`、`self._counts.get`。 返回路径：L27的`{ key: value if type(value) is int and 0 <= value <= 64 else None for key in ( "approved_c…`。
+- `task_path_errors`（L40–L58）：接收`task`、`selection`。 控制顺序：L48遍历`task.files`；L50按`name.startswith(("workbench/", "tools/", "scripts/")) or Path(name).name in { "approv…`分支。 调用`PlannedModule`、`task.model_dump`、`set`、`module_path_errors`、`source_path`、`name.startswith`、`Path`、`errors.append`。 返回路径：L58的`errors`。
+- `copy_source`（L61–L67）：接收`source`、`destination`。 控制顺序：L64遍历`files(source)`。 调用`Path`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `apply_candidate`（L70–L167）：接收`product`、`edits`、`task`、`selection`、`destination`、`settings`。 控制顺序：L73按`errors`分支；L74抛异常，停止当前正常路径；L76按`len({name.casefold() for name in names}) != len(names) or set(names) != set(task.file…`分支；L77抛异常，停止当前正常路径；L80按`sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000`分支；L81抛异常，停止当前正常路径；L83遍历`edits.files`；L85按`folded.get(edit.path.casefold(), edit.path) != edit.path`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`task_path_errors`、`ValueError`、`"；".join`、`len`、`name.casefold`、`set`、`CandidateFileSetError`、`manifest`等。 返回路径：L99的`saved`；L167的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/coding/candidates.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L140。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/candidates.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L167。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6371`。本段原文以LF换行结束。
+本段原始字节数：`7342`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a8cfa4f3ffbb9c1556fa8bd17bc39e401dee8c5e15a5f831fde29e032b37809d"} -->
+<!-- learning-source: {"path": "workbench/coding/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1985a970cea897b393cc3ab367ed07438472b69fdb89d530efa75809c72c0b6e"} -->
 ````python
 # workbench/coding/candidates.py
 """Transactional, reviewed business-file edits. Never execute product code on the host."""
@@ -38,6 +41,33 @@ from workbench.capability_contracts import source_path
 from workbench.domain import digest
 from workbench.feature_planning import PlannedModule, module_path_errors
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, write_json
+
+
+class CandidateFileSetError(ValueError):
+    """An invalid action, with bounded structural facts and no model-authored paths."""
+
+    def __init__(self, names, approved):
+        super().__init__("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        self._counts = {
+            "approved_count": len(approved),
+            "returned_count": len(names),
+            "missing_count": len(set(approved) - set(names)),
+            "unapproved_count": len(set(names) - set(approved)),
+            "casefold_duplicate_count": len(names) - len({name.casefold() for name in names}),
+        }
+
+    def diagnostic(self):
+        return {
+            key: value if type(value) is int and 0 <= value <= 64 else None
+            for key in (
+                "approved_count",
+                "returned_count",
+                "missing_count",
+                "unapproved_count",
+                "casefold_duplicate_count",
+            )
+            for value in [self._counts.get(key)]
+        }
 
 
 def task_path_errors(task, selection):
@@ -77,7 +107,7 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
         raise ValueError("；".join(errors))
     names = [edit.path for edit in edits.files]
     if len({name.casefold() for name in names}) != len(names) or set(names) != set(task.files):
-        raise ValueError("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        raise CandidateFileSetError(names, task.files)
     original = manifest(product)
     folded = {name.casefold(): name for name in original}
     if sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000:

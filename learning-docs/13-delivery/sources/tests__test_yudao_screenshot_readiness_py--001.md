@@ -19,14 +19,15 @@
 - `test_capture_failure_summary_rejects_missing_malformed_or_oversized_data`（L302–L306）：接收`tmp_path`、`raw`。 控制顺序：L304按`raw is not None`分支；L306断言`_capture_failure_summary(path) == {"available": False}`。 调用`path.write_bytes`、`_capture_failure_summary`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_fixture_failure_prints_sanitized_capture_summary`（L309–L332）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L329断言`capsys.readouterr().out == ( 'Native screenshot capture summary: {"available": true, …`。 调用`monkeypatch.setenv`、`str`、`monkeypatch.setattr`、`pytest.raises`、`test_native_pixels_require_visible_fonts_and_stable_business_cont…`、`capsys.readouterr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_fixture_failure_prints_sanitized_capture_summary.fail_driver`（L312–L322）：接收`*args`。 控制顺序：L322抛异常，停止当前正常路径。 调用`(tmp_path / "capture.png.capture.json").write_text`、`json.dumps`、`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_attempt_counts_only_issued_requests_at_deadline`（L336–L383）：接收`tmp_path`、`boundary`。 源码说明：Deterministic clock/CDP unit test; real pixel assertions remain unchanged.。 控制顺序：L344按`not node`分支。 调用`shutil.which`、`pytest.skip`、`run_command`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_yudao_screenshot_readiness.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L332。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_yudao_screenshot_readiness.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L383。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17966`。本段原文以LF换行结束。
+本段原始字节数：`20079`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_yudao_screenshot_readiness.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a64f175383669dcfa887085fe485aed93d73fef395dc74e83c7612e561cc4d11"} -->
+<!-- learning-source: {"path": "tests/test_yudao_screenshot_readiness.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "24ed012f8721ff88e49ddcd27602694c5556623b16d554253a6ce403a15e9190"} -->
 ````python
 # tests/test_yudao_screenshot_readiness.py
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
@@ -360,5 +361,56 @@ def test_fixture_failure_prints_sanitized_capture_summary(tmp_path, monkeypatch,
     assert capsys.readouterr().out == (
         'Native screenshot capture summary: {"available": true, '
         '"capture_attempts": 2, "phase": "native-pixel-capture"}\n'
+    )
+
+
+@pytest.mark.parametrize("boundary", ["before-send", "in-flight"])
+def test_capture_attempt_counts_only_issued_requests_at_deadline(tmp_path, boundary):
+    """Deterministic clock/CDP unit test; real pixel assertions remain unchanged."""
+    import shutil
+
+    from workbench.settings import ROOT
+    from workbench.tools import run_command
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+    driver = r"""
+const assert=require('node:assert/strict'), fs=require('node:fs');
+const [modulePath,file,boundary]=process.argv.slice(1);
+const {captureNativeScreenshot}=require(modulePath);
+let now=0, issued=0, detached=false;
+const originalNow=Date.now;Date.now=()=>now;
+const state={ready:true,signature:'stable',fonts:[],font_faces:[],visible_text_nodes:1,images_ready:true};
+const session={detach:async()=>{detached=true;},send:async name=>{
+ if(name==='Page.getLayoutMetrics')return {cssContentSize:{width:700,height:400}};
+ assert.equal(name,'Page.captureScreenshot');issued++;now=1001;
+ throw new Error('Native screenshot native-pixel-capture did not become ready');
+}};
+const page={evaluate:async()=>state,locator:()=>({first:()=>({waitFor:async()=>{}})}),
+ context:()=>({newCDPSession:async()=>session}),viewportSize:()=>{
+  if(boundary==='before-send')now=1001;
+  return {width:700,height:400};
+ }};
+(async()=>{try{
+ await assert.rejects(captureNativeScreenshot(page,file,50,1000),/native-pixel-capture did not become ready/);
+ const diagnostic=JSON.parse(fs.readFileSync(file+'.capture.json','utf8'));
+ assert.equal(issued,boundary==='before-send'?0:1);
+ assert.equal(diagnostic.capture_attempts,issued);
+ assert.equal(diagnostic.phase,'native-pixel-capture');
+ assert(!fs.existsSync(file));assert(detached);
+}finally{Date.now=originalNow;}})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    run_command(
+        [
+            node,
+            "-e",
+            driver,
+            str(ROOT / "scripts/business_yudao_browser.cjs"),
+            str(tmp_path / "capture.png"),
+            boundary,
+        ],
+        ROOT,
+        timeout=10,
     )
 ````

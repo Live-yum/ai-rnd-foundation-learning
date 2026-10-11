@@ -17,18 +17,21 @@
 
 - `AgentTurn`（L11–L19）：继承`Contract`。声明的数据项为`operation`、`edits`；类型约束/数据库列参数以完整定义为准。
 - `AgentTurn.action_shape`（L16–L19）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17按`(self.operation == "edit") != (self.edits is not None)`分支；L18抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L19的`self`。
-- `AgentBudget`（L22–L26）：继承`Contract`。声明的数据项为`max_requests`、`max_tokens`、`max_cost_usd`、`timeout_seconds`；类型约束/数据库列参数以完整定义为准。
-- `CodingEnvironment`（L29–L31）：继承`Protocol`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `CodingEnvironment.write`（L30–L30）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CodingEnvironment.snapshot`（L31–L31）：接收`paths`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `approved_turn_schema`（L22–L38）：接收`task`。 源码说明：Bind the existing gateway's bounded schema repair to this exact task.。 调用`frozenset`。 返回路径：L38的`ApprovedAgentTurn`。
+- `approved_turn_schema.ApprovedAgentTurn`（L26–L36）：继承`AgentTurn`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `approved_turn_schema.ApprovedAgentTurn.approved_files`（L28–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L29按`self.operation == "edit"`分支；L31按`set(names) != approved or len({name.casefold() for name in names}) != len(names)`分支；L32抛异常，停止当前正常路径。 调用`set`、`len`、`name.casefold`、`ValueError`、`model_validator`。 返回路径：L36的`self`。
+- `AgentBudget`（L41–L45）：继承`Contract`。声明的数据项为`max_requests`、`max_tokens`、`max_cost_usd`、`timeout_seconds`；类型约束/数据库列参数以完整定义为准。
+- `CodingEnvironment`（L48–L50）：继承`Protocol`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CodingEnvironment.write`（L49–L49）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CodingEnvironment.snapshot`（L50–L50）：接收`paths`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/coding/ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L31。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L50。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1076`。本段原文以LF换行结束。
+本段原始字节数：`1873`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e5e041354c369469496b63eb08b61d2aad269d440725e90f8d6bb1e9afe8798b"} -->
+<!-- learning-source: {"path": "workbench/coding/ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "88398ec8b0e550f00d8550b4746d53405646212851aeabcb17117b1f19f233d6"} -->
 ````python
 # workbench/coding/ports.py
 """Reviewed agent actions are data; neither commands nor verifier replacements."""
@@ -50,6 +53,25 @@ class AgentTurn(Contract):
         if (self.operation == "edit") != (self.edits is not None):
             raise ValueError("edit requires files; submit cannot smuggle edits")
         return self
+
+
+def approved_turn_schema(task):
+    """Bind the existing gateway's bounded schema repair to this exact task."""
+    approved = frozenset(task.allowed_paths)
+
+    class ApprovedAgentTurn(AgentTurn):
+        @model_validator(mode="after")
+        def approved_files(self):
+            if self.operation == "edit":
+                names = [edit.path for edit in self.edits.files]
+                if set(names) != approved or len({name.casefold() for name in names}) != len(names):
+                    raise ValueError(
+                        "edit.files must contain every approved task.allowed_paths file exactly once, "
+                        "including unchanged files; no extra paths or case-insensitive duplicates"
+                    )
+            return self
+
+    return ApprovedAgentTurn
 
 
 class AgentBudget(Contract):

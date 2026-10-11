@@ -1359,8 +1359,8 @@
     },
     {
       "path": "workbench/coding/candidates.py",
-      "bytes": 6371,
-      "sha256": "a8cfa4f3ffbb9c1556fa8bd17bc39e401dee8c5e15a5f831fde29e032b37809d",
+      "bytes": 7342,
+      "sha256": "1985a970cea897b393cc3ab367ed07438472b69fdb89d530efa75809c72c0b6e",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__candidates_py--001.md"
@@ -1377,8 +1377,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 13080,
-      "sha256": "25239679e33dd688f6c1d39c57112bdc22eee4efb9cd0f13d8a0364c2d605419",
+      "bytes": 13586,
+      "sha256": "9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -1386,8 +1386,8 @@
     },
     {
       "path": "workbench/coding/ports.py",
-      "bytes": 1076,
-      "sha256": "e5e041354c369469496b63eb08b61d2aad269d440725e90f8d6bb1e9afe8798b",
+      "bytes": 1873,
+      "sha256": "88398ec8b0e550f00d8550b4746d53405646212851aeabcb17117b1f19f233d6",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__ports_py--001.md"
@@ -2046,8 +2046,8 @@
     },
     {
       "path": "scripts/business_yudao_browser.cjs",
-      "bytes": 40804,
-      "sha256": "9c0735e9164f6a54f8c906319af690a2c5059712859da41d5f499b6426057ce0",
+      "bytes": 40916,
+      "sha256": "e9bae0b798476184f8dd19051c5a7b7d7e99dd3159f8596bb37f4f13c6749dec",
       "stage": "09-native",
       "parts": [
         "09-native/sources/scripts__business_yudao_browser_cjs--001.md"
@@ -4472,8 +4472,8 @@
     },
     {
       "path": "tests/test_yudao_screenshot_readiness.py",
-      "bytes": 17966,
-      "sha256": "a64f175383669dcfa887085fe485aed93d73fef395dc74e83c7612e561cc4d11",
+      "bytes": 20079,
+      "sha256": "24ed012f8721ff88e49ddcd27602694c5556623b16d554253a6ce403a15e9190",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_yudao_screenshot_readiness_py--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 20714,
-      "sha256": "75d7355c936ac0d67e4069c9e851d9f11af81e4d4067e7ce55c08478a753eb5f",
+      "bytes": 22670,
+      "sha256": "a0ce99b6009fe0e27736969db425c904e98feaf5f2f18d61351bed29a06e04d2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5093,8 +5093,8 @@
     },
     {
       "path": "scripts/ci_live_modules.py",
-      "bytes": 16403,
-      "sha256": "980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4",
+      "bytes": 16623,
+      "sha256": "ae3b41a1242ca1c945beef26254fee33d633b279091ef739215f79e462e51f5d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
@@ -5484,8 +5484,8 @@
     },
     {
       "path": "tests/test_capability_editing.py",
-      "bytes": 2866,
-      "sha256": "af027f0d03d6a53b1a238b9ca52838ef55ddab045455128ff235d5dd186bc583",
+      "bytes": 8066,
+      "sha256": "39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_editing_py--001.md"

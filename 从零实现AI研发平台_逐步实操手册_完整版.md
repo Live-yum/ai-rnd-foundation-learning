@@ -169,6 +169,12 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 原 Runner patch、单一准确 bridge 检查、`network_block_all=true`、私有沙箱、资源限制、控制用户、产品执行守卫及全部隔离正反例均保持不变。既有控制通道只传输批准业务文件，编码阶段不执行产品代码；后续产品执行仍必须经独立验证器与出口阻断守卫，不将控制 bridge 解释为任意网络授权。离线测试先复现原拒绝，再验证正确配置可通过真实检查器；旧前缀、额外网络、缺失配额和出口标志失效仍在上传前失败并删除沙箱。上述为模拟 Docker/SDK 事实上的离线配置证据，实际隔离及模型终态必须由新 SHA 的 Actions 再验证；本线程未 dispatch。
 
+`81c0638` 的运行 `38119017832` 已越过该网络准入并发生3次模型调用预留、HTTP尝试和响应；artifact `11695510530` 随后在候选应用的完整唯一文件集合守卫失败。这不证明双模块或ZIP验收通过。现存回执没有返回路径的结构计数，不能断言具体为遗漏、重复或越界，也不能从3次请求推断已完成哪个模块。适配器离线测试确认文件列表不会被删减或去重，缺失的批准文件不会自动补齐。
+
+此前网关仅校验通用AgentTurn，当前任务集合错误直到候选应用才被发现，错过了既有有界结构化修复流程。响应合同现在绑定当前批准任务：每次edit包含全部批准路径（含未改动文件），每个恰好一次，且不允许大小写重复或额外路径；同一约束在候选应用处继续独立检查。使用网关原有最多两次尝试和原预算，不增加调用、步骤或费用额度。模型指令明确完整文件与当前前像要求；不会以自动补文件掩盖未完成任务，语义完成仍由独立验收决定。失败摘要仅新增批准/返回/缺失/未批准/大小写重复数量，不含路径、源码或模型解释。离线mock transport验证错误集合可以在第二次完整响应后通过，连续错误严格在两次内失败。
+
+同head的Windows截图负例失败（Python运行 `38118890653`，job `114409440268`）是诊断计数4与实际截图请求3不一致：计数递增在共享截止时间检查之前，临界时刻会记录未发送的请求。计数现移到受截止时间保护的CDP发送操作内。可控时钟测试先复现旧代码未发送却计1次，再确认修复为0；已发送但失败仍计1次。漂移/字体/像素断言、总截止时间、不输出不稳定成功截图等要求不变。当前本地缺少Chromium，官方安装端点返回403 Domain forbidden，未绕过；真实像素负例仍须由CI验证。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -16272,11 +16278,14 @@ def code_rules(run_id, plan, product, gateway, attempt, error=""):
 
 **逐个入口与控制逻辑：**
 
-- `task_path_errors`（L13–L31）：接收`task`、`selection`。 控制顺序：L21遍历`task.files`；L23按`name.startswith(("workbench/", "tools/", "scripts/")) or Path(name).name in { "approv…`分支。 调用`PlannedModule`、`task.model_dump`、`set`、`module_path_errors`、`source_path`、`name.startswith`、`Path`、`errors.append`。 返回路径：L31的`errors`。
-- `copy_source`（L34–L40）：接收`source`、`destination`。 控制顺序：L37遍历`files(source)`。 调用`Path`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `apply_candidate`（L43–L140）：接收`product`、`edits`、`task`、`selection`、`destination`、`settings`。 控制顺序：L46按`errors`分支；L47抛异常，停止当前正常路径；L49按`len({name.casefold() for name in names}) != len(names) or set(names) != set(task.file…`分支；L50抛异常，停止当前正常路径；L53按`sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000`分支；L54抛异常，停止当前正常路径；L56遍历`edits.files`；L58按`folded.get(edit.path.casefold(), edit.path) != edit.path`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`task_path_errors`、`ValueError`、`"；".join`、`len`、`name.casefold`、`set`、`manifest`、`sum`等。 返回路径：L72的`saved`；L140的`receipt`。
+- `CandidateFileSetError`（L13–L37）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CandidateFileSetError.__init__`（L16–L24）：接收`names`、`approved`。 调用`super().__init__`、`super`、`len`、`set`、`name.casefold`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CandidateFileSetError.diagnostic`（L26–L37）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`type`、`self._counts.get`。 返回路径：L27的`{ key: value if type(value) is int and 0 <= value <= 64 else None for key in ( "approved_c…`。
+- `task_path_errors`（L40–L58）：接收`task`、`selection`。 控制顺序：L48遍历`task.files`；L50按`name.startswith(("workbench/", "tools/", "scripts/")) or Path(name).name in { "approv…`分支。 调用`PlannedModule`、`task.model_dump`、`set`、`module_path_errors`、`source_path`、`name.startswith`、`Path`、`errors.append`。 返回路径：L58的`errors`。
+- `copy_source`（L61–L67）：接收`source`、`destination`。 控制顺序：L64遍历`files(source)`。 调用`Path`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `apply_candidate`（L70–L167）：接收`product`、`edits`、`task`、`selection`、`destination`、`settings`。 控制顺序：L73按`errors`分支；L74抛异常，停止当前正常路径；L76按`len({name.casefold() for name in names}) != len(names) or set(names) != set(task.file…`分支；L77抛异常，停止当前正常路径；L80按`sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000`分支；L81抛异常，停止当前正常路径；L83遍历`edits.files`；L85按`folded.get(edit.path.casefold(), edit.path) != edit.path`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`task_path_errors`、`ValueError`、`"；".join`、`len`、`name.casefold`、`set`、`CandidateFileSetError`、`manifest`等。 返回路径：L99的`saved`；L167的`receipt`。
 
-<!-- source-file: workbench/coding/candidates.py sha256: a8cfa4f3ffbb9c1556fa8bd17bc39e401dee8c5e15a5f831fde29e032b37809d -->
+<!-- source-file: workbench/coding/candidates.py sha256: 1985a970cea897b393cc3ab367ed07438472b69fdb89d530efa75809c72c0b6e -->
 ````python
 """Transactional, reviewed business-file edits. Never execute product code on the host."""
 
@@ -16288,6 +16297,33 @@ from workbench.capability_contracts import source_path
 from workbench.domain import digest
 from workbench.feature_planning import PlannedModule, module_path_errors
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, write_json
+
+
+class CandidateFileSetError(ValueError):
+    """An invalid action, with bounded structural facts and no model-authored paths."""
+
+    def __init__(self, names, approved):
+        super().__init__("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        self._counts = {
+            "approved_count": len(approved),
+            "returned_count": len(names),
+            "missing_count": len(set(approved) - set(names)),
+            "unapproved_count": len(set(names) - set(approved)),
+            "casefold_duplicate_count": len(names) - len({name.casefold() for name in names}),
+        }
+
+    def diagnostic(self):
+        return {
+            key: value if type(value) is int and 0 <= value <= 64 else None
+            for key in (
+                "approved_count",
+                "returned_count",
+                "missing_count",
+                "unapproved_count",
+                "casefold_duplicate_count",
+            )
+            for value in [self._counts.get(key)]
+        }
 
 
 def task_path_errors(task, selection):
@@ -16327,7 +16363,7 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
         raise ValueError("；".join(errors))
     names = [edit.path for edit in edits.files]
     if len({name.casefold() for name in names}) != len(names) or set(names) != set(task.files):
-        raise ValueError("候选必须且只能修改当前已批准节点的全部文件，每个文件恰好一次")
+        raise CandidateFileSetError(names, task.files)
     original = manifest(product)
     folded = {name.casefold(): name for name in original}
     if sum(len(edit.content.encode("utf-8")) for edit in edits.files) > 1_000_000:
@@ -16482,11 +16518,11 @@ def snapshot_edits(product, snapshot, task, selection):
 
 - `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
 - `run_agent`（L34–L84）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L72的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
-- `_run`（L87–L289）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L161在`True`成立时循环；L163按`remaining <= 0`分支；L164抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L282的`edits`。
-- `_run.read_lines`（L131–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L132在`True`成立时循环；L138按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L144–L149）：接收`value`。 控制顺序：L146按`len(raw) > LIMIT`分支；L147抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run`（L87–L293）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L162在`True`成立时循环；L164按`remaining <= 0`分支；L165抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L286的`edits`。
+- `_run.read_lines`（L132–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133在`True`成立时循环；L139按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L145–L150）：接收`value`。 控制顺序：L147按`len(raw) > LIMIT`分支；L148抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: 25239679e33dd688f6c1d39c57112bdc22eee4efb9cd0f13d8a0364c2d605419 -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: 9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -16503,7 +16539,7 @@ from filelock import FileLock
 
 from workbench.coding.candidates import apply_candidate
 from workbench.coding.diff_guard import snapshot_edits
-from workbench.coding.ports import AgentTurn
+from workbench.coding.ports import AgentTurn, approved_turn_schema
 from workbench.core.contracts import digest
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, manifest, write_json
@@ -16605,6 +16641,7 @@ def _run(
     factory = environment_factory or coding_environment
     current = product
     edits_count = 0
+    turn_schema = approved_turn_schema(task)
     with factory(settings, task, plan.selection.model_dump(), product) as environment:
         with tempfile.TemporaryDirectory(prefix="rnd-mini-worker-") as cwd:
             process = subprocess.Popen(
@@ -16723,9 +16760,12 @@ def _run(
                         turn = bounded_gateway.complete(
                             run_id,
                             f"coding:mini_swe:{identity}:{step}",
-                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。",
+                            "只编辑批准业务文件，返回edit；完成后返回submit。禁止shell、依赖、迁移、平台或验收器修改。"
+                            "每次edit必须完整返回task.allowed_paths中的全部文件，每个路径恰好一次，不能只返回变化文件。"
+                            "未修改文件也须原样返回完整content；before_sha256必须使用当前context对应sha256，"
+                            "新文件使用null。不得省略、重复或添加未批准路径；不要将部分完成的任务标记为submit。",
                             request,
-                            AgentTurn,
+                            turn_schema,
                         )
                         send({"result": turn.model_dump()})
                         step += 1
@@ -16793,12 +16833,15 @@ def _run(
 
 - `AgentTurn`（L11–L19）：继承`Contract`。声明的数据项为`operation`、`edits`；类型约束/数据库列参数以完整定义为准。
 - `AgentTurn.action_shape`（L16–L19）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17按`(self.operation == "edit") != (self.edits is not None)`分支；L18抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L19的`self`。
-- `AgentBudget`（L22–L26）：继承`Contract`。声明的数据项为`max_requests`、`max_tokens`、`max_cost_usd`、`timeout_seconds`；类型约束/数据库列参数以完整定义为准。
-- `CodingEnvironment`（L29–L31）：继承`Protocol`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `CodingEnvironment.write`（L30–L30）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CodingEnvironment.snapshot`（L31–L31）：接收`paths`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `approved_turn_schema`（L22–L38）：接收`task`。 源码说明：Bind the existing gateway's bounded schema repair to this exact task.。 调用`frozenset`。 返回路径：L38的`ApprovedAgentTurn`。
+- `approved_turn_schema.ApprovedAgentTurn`（L26–L36）：继承`AgentTurn`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `approved_turn_schema.ApprovedAgentTurn.approved_files`（L28–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L29按`self.operation == "edit"`分支；L31按`set(names) != approved or len({name.casefold() for name in names}) != len(names)`分支；L32抛异常，停止当前正常路径。 调用`set`、`len`、`name.casefold`、`ValueError`、`model_validator`。 返回路径：L36的`self`。
+- `AgentBudget`（L41–L45）：继承`Contract`。声明的数据项为`max_requests`、`max_tokens`、`max_cost_usd`、`timeout_seconds`；类型约束/数据库列参数以完整定义为准。
+- `CodingEnvironment`（L48–L50）：继承`Protocol`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CodingEnvironment.write`（L49–L49）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CodingEnvironment.snapshot`（L50–L50）：接收`paths`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/ports.py sha256: e5e041354c369469496b63eb08b61d2aad269d440725e90f8d6bb1e9afe8798b -->
+<!-- source-file: workbench/coding/ports.py sha256: 88398ec8b0e550f00d8550b4746d53405646212851aeabcb17117b1f19f233d6 -->
 ````python
 """Reviewed agent actions are data; neither commands nor verifier replacements."""
 
@@ -16819,6 +16862,25 @@ class AgentTurn(Contract):
         if (self.operation == "edit") != (self.edits is not None):
             raise ValueError("edit requires files; submit cannot smuggle edits")
         return self
+
+
+def approved_turn_schema(task):
+    """Bind the existing gateway's bounded schema repair to this exact task."""
+    approved = frozenset(task.allowed_paths)
+
+    class ApprovedAgentTurn(AgentTurn):
+        @model_validator(mode="after")
+        def approved_files(self):
+            if self.operation == "edit":
+                names = [edit.path for edit in self.edits.files]
+                if set(names) != approved or len({name.casefold() for name in names}) != len(names):
+                    raise ValueError(
+                        "edit.files must contain every approved task.allowed_paths file exactly once, "
+                        "including unchanged files; no extra paths or case-insensitive duplicates"
+                    )
+            return self
+
+    return ApprovedAgentTurn
 
 
 class AgentBudget(Contract):
@@ -132232,8 +132294,12 @@ def test_business_proof_rejects_incomplete_or_self_reported_results(mutation):
 - `test_candidate_is_separate_and_replay_is_hash_bound`（L28–L47）：接收`tmp_path`。 控制顺序：L38断言`receipt["host_execution"] is False`；L39断言`(product / "app.py").read_text() == "original\n"`；L40断言`"never import" in (candidate / "app.py").read_text()`；L41断言`apply_candidate(product, value, task(["app.py"]), {"template": "python-basic"}, candi…`。 调用`product.mkdir`、`(product / "app.py").write_text`、`sha`、`edits`、`apply_candidate`、`task`、`(product / "app.py").read_text`、`(candidate / "app.py").read_text`、`(candidate / "app.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_protected_paths_cannot_be_approved_by_model`（L61–L68）：接收`tmp_path`、`path`。 控制顺序：L68断言`not (tmp_path / "candidate").exists()`。 调用`product.mkdir`、`pytest.raises`、`apply_candidate`、`edits`、`task`、`(tmp_path / "candidate").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_and_extra_edits_fail_before_copy`（L71–L90）：接收`tmp_path`。 调用`product.mkdir`、`(product / "app.py").write_text`、`pytest.raises`、`apply_candidate`、`edits`、`task`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths`（L102–L147）：接收`tmp_path`、`names`、`missing`、`extra`、`duplicates`。 控制顺序：L125断言`[ edit.path for edit in action.edits.files ] == names`；L138断言`diagnostic["candidate_files"] == { "approved_count": 2, "returned_count": len(names),…`；L145断言`"private" not in json.dumps(diagnostic)`；L146断言`not destination.exists()`；L147断言`(product / "app.py").read_text() == "# private unchanged source\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`pytest.raises`、`apply_candidate`、`task`、`failure_diagnostic`、`len`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L150–L177）：接收`tmp_path`。 控制顺序：L176断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L177断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`、`(candidate / "sla.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L190–L245）：接收`store`、`names`、`repair`。 控制顺序：L234按`repair`分支；L238断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L242断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L244断言`"every approved" in repair_message`；L245断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L207–L229）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L217的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
 
-<!-- source-file: tests/test_capability_editing.py sha256: af027f0d03d6a53b1a238b9ca52838ef55ddab045455128ff235d5dd186bc583 -->
+<!-- source-file: tests/test_capability_editing.py sha256: 39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781 -->
 ````python
 """Candidate editing must not mutate baselines or execute product code."""
 
@@ -132325,6 +132391,161 @@ def test_stale_and_extra_edits_fail_before_copy(tmp_path):
             {"template": "python-basic"},
             tmp_path / "candidate",
         )
+
+
+@pytest.mark.parametrize(
+    "names,missing,extra,duplicates",
+    [
+        (["app.py"], 1, 0, 0),
+        (["app.py", "app.py"], 1, 0, 1),
+        (["app.py", "sla.py", "private.py"], 0, 1, 0),
+        (["app.py", "App.py", "sla.py"], 0, 1, 1),
+    ],
+)
+def test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths(
+    tmp_path, names, missing, extra, duplicates
+):
+    import json
+
+    from scripts.ci_live_modules import failure_diagnostic
+    from workbench.coding.candidates import CandidateFileSetError
+    from workbench.coding.ports import AgentTurn
+
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "app.py").write_text("# private unchanged source\n")
+    action = AgentTurn.model_validate(
+        {
+            "operation": "edit",
+            "edits": {
+                "explanation": "private model explanation",
+                "files": [
+                    {"path": name, "content": "# private generated source"} for name in names
+                ],
+            },
+        }
+    )
+    assert [
+        edit.path for edit in action.edits.files
+    ] == names  # Adapter preserves order/duplicates.
+    destination = tmp_path / "candidate"
+    with pytest.raises(CandidateFileSetError) as captured:
+        apply_candidate(
+            product,
+            action.edits,
+            task(["app.py", "sla.py"]),
+            {"template": "python-basic"},
+            destination,
+        )
+    diagnostic = failure_diagnostic(captured.value)
+    assert diagnostic["candidate_files"] == {
+        "approved_count": 2,
+        "returned_count": len(names),
+        "missing_count": missing,
+        "unapproved_count": extra,
+        "casefold_duplicate_count": duplicates,
+    }
+    assert "private" not in json.dumps(diagnostic)
+    assert not destination.exists()
+    assert (product / "app.py").read_text() == "# private unchanged source\n"
+
+
+def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
+    from workbench.coding.ports import AgentTurn
+
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "app.py").write_text("# preserved\n")
+    action = AgentTurn.model_validate(
+        {
+            "operation": "edit",
+            "edits": {
+                "explanation": "authored full-set action",
+                "files": [
+                    {
+                        "path": "app.py",
+                        "content": "# preserved\n",
+                        "before_sha256": sha(product / "app.py"),
+                    },
+                    {"path": "sla.py", "content": "# new business file\n", "before_sha256": None},
+                ],
+            },
+        }
+    )
+    candidate = tmp_path / "candidate"
+    apply_candidate(
+        product, action.edits, task(["app.py", "sla.py"]), {"template": "python-basic"}, candidate
+    )
+    assert (candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()
+    assert (candidate / "sla.py").read_text() == "# new business file\n"
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ["app.py"],
+        ["app.py", "app.py"],
+        ["app.py", "sla.py", "private.py"],
+        ["app.py", "App.py", "sla.py"],
+    ],
+)
+@pytest.mark.parametrize("repair", [True, False])
+def test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts(
+    store, names, repair
+):
+    import json
+
+    import httpx
+    from conftest import new_run
+    from test_llm import gateway
+
+    from scripts.ci_live_modules import acceptance_design
+    from workbench.coding.ports import approved_turn_schema
+    from workbench.llm import ModelFailure
+
+    calls = []
+    approved = acceptance_design().implementation.tasks[0]
+    store.settings.max_model_calls = 2
+
+    def respond(request):
+        calls.append(json.loads(request.content))
+        paths = approved.allowed_paths if repair and len(calls) == 2 else names
+        turn = {
+            "operation": "edit",
+            "edits": {
+                "explanation": "offline",
+                "files": [{"path": name, "content": "# fixture\n"} for name in paths],
+            },
+        }
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(turn),
+                        }
+                    }
+                ]
+            },
+        )
+
+    model = gateway(store, respond)
+    run = new_run(store)
+    schema = approved_turn_schema(approved)
+    if repair:
+        result = model.complete(
+            run, "coding:approved-edit", "return full approved files", {}, schema
+        )
+        assert [edit.path for edit in result.edits.files] == approved.allowed_paths
+    else:
+        with pytest.raises(ModelFailure):
+            model.complete(run, "coding:approved-edit", "return full approved files", {}, schema)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    repair_message = calls[1]["messages"][-1]["content"]
+    assert "every approved" in repair_message
+    assert "private.py" not in repair_message and "# fixture" not in repair_message
 ````
 
 ### `tests/test_capability_execution_gate.py`
@@ -191392,8 +191613,9 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
 - `test_capture_failure_summary_rejects_missing_malformed_or_oversized_data`（L302–L306）：接收`tmp_path`、`raw`。 控制顺序：L304按`raw is not None`分支；L306断言`_capture_failure_summary(path) == {"available": False}`。 调用`path.write_bytes`、`_capture_failure_summary`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_fixture_failure_prints_sanitized_capture_summary`（L309–L332）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L329断言`capsys.readouterr().out == ( 'Native screenshot capture summary: {"available": true, …`。 调用`monkeypatch.setenv`、`str`、`monkeypatch.setattr`、`pytest.raises`、`test_native_pixels_require_visible_fonts_and_stable_business_cont…`、`capsys.readouterr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_fixture_failure_prints_sanitized_capture_summary.fail_driver`（L312–L322）：接收`*args`。 控制顺序：L322抛异常，停止当前正常路径。 调用`(tmp_path / "capture.png.capture.json").write_text`、`json.dumps`、`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_attempt_counts_only_issued_requests_at_deadline`（L336–L383）：接收`tmp_path`、`boundary`。 源码说明：Deterministic clock/CDP unit test; real pixel assertions remain unchanged.。 控制顺序：L344按`not node`分支。 调用`shutil.which`、`pytest.skip`、`run_command`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: a64f175383669dcfa887085fe485aed93d73fef395dc74e83c7612e561cc4d11 -->
+<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: 24ed012f8721ff88e49ddcd27602694c5556623b16d554253a6ce403a15e9190 -->
 ````python
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
@@ -191726,6 +191948,57 @@ def test_fixture_failure_prints_sanitized_capture_summary(tmp_path, monkeypatch,
     assert capsys.readouterr().out == (
         'Native screenshot capture summary: {"available": true, '
         '"capture_attempts": 2, "phase": "native-pixel-capture"}\n'
+    )
+
+
+@pytest.mark.parametrize("boundary", ["before-send", "in-flight"])
+def test_capture_attempt_counts_only_issued_requests_at_deadline(tmp_path, boundary):
+    """Deterministic clock/CDP unit test; real pixel assertions remain unchanged."""
+    import shutil
+
+    from workbench.settings import ROOT
+    from workbench.tools import run_command
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+    driver = r"""
+const assert=require('node:assert/strict'), fs=require('node:fs');
+const [modulePath,file,boundary]=process.argv.slice(1);
+const {captureNativeScreenshot}=require(modulePath);
+let now=0, issued=0, detached=false;
+const originalNow=Date.now;Date.now=()=>now;
+const state={ready:true,signature:'stable',fonts:[],font_faces:[],visible_text_nodes:1,images_ready:true};
+const session={detach:async()=>{detached=true;},send:async name=>{
+ if(name==='Page.getLayoutMetrics')return {cssContentSize:{width:700,height:400}};
+ assert.equal(name,'Page.captureScreenshot');issued++;now=1001;
+ throw new Error('Native screenshot native-pixel-capture did not become ready');
+}};
+const page={evaluate:async()=>state,locator:()=>({first:()=>({waitFor:async()=>{}})}),
+ context:()=>({newCDPSession:async()=>session}),viewportSize:()=>{
+  if(boundary==='before-send')now=1001;
+  return {width:700,height:400};
+ }};
+(async()=>{try{
+ await assert.rejects(captureNativeScreenshot(page,file,50,1000),/native-pixel-capture did not become ready/);
+ const diagnostic=JSON.parse(fs.readFileSync(file+'.capture.json','utf8'));
+ assert.equal(issued,boundary==='before-send'?0:1);
+ assert.equal(diagnostic.capture_attempts,issued);
+ assert.equal(diagnostic.phase,'native-pixel-capture');
+ assert(!fs.existsSync(file));assert(detached);
+}finally{Date.now=originalNow;}})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    run_command(
+        [
+            node,
+            "-e",
+            driver,
+            str(ROOT / "scripts/business_yudao_browser.cjs"),
+            str(tmp_path / "capture.png"),
+            boundary,
+        ],
+        ROOT,
+        timeout=10,
     )
 ````
 
@@ -193062,7 +193335,7 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 9c0735e9164f6a54f8c906319af690a2c5059712859da41d5f499b6426057ce0 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: e9bae0b798476184f8dd19051c5a7b7d7e99dd3159f8596bb37f4f13c6749dec -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -193213,7 +193486,6 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       const width = Math.ceil(size.width), height = Math.ceil(size.height);
       assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
         'Native screenshot surface exceeds the bounded capture scope');
-      attempts += 1;
       const viewport = page.viewportSize() || metrics.cssVisualViewport;
       const viewportWidth = viewport.width ?? viewport.clientWidth;
       const viewportHeight = viewport.height ?? viewport.clientHeight;
@@ -193222,9 +193494,13 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // layout/hover state. Preserve full-document capture only when needed.
       const fitsViewport = width <= viewportWidth && height <= viewportHeight;
       const pixelsStarted = Date.now();
-      const captured = await bounded(() => session.send('Page.captureScreenshot', {
-        format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
-      }), phase);
+      const captured = await bounded(() => {
+        // Count only requests actually issued after the shared deadline check.
+        attempts += 1;
+        return session.send('Page.captureScreenshot', {
+          format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
+        });
+      }, phase);
       timing.pixels_ms += Date.now() - pixelsStarted;
       phase = 'post-capture-readiness';
       const after = await sample();
@@ -199734,15 +200010,15 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `failure_diagnostic`（L32–L79）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L72在`frame is not None`成立时循环；L74按`stage is not None`分支；L77按`type(exc) is ContainerInspectionRejected`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`。 返回路径：L79的`result`。
-- `require`（L82–L84）：接收`condition`、`code`。 控制顺序：L83按`not condition`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L87–L140）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L117按`billing == "declared_free"`分支；L127抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L128的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L143–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L150遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L185的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L188–L224）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L197的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L227–L347）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L268遍历`plan.tasks`；L343按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L328的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L350–L391）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L365按`not args.preflight`分支；L389抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_diagnostic`（L32–L83）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L74在`frame is not None`成立时循环；L76按`stage is not None`分支；L79按`type(exc) is ContainerInspectionRejected`分支；L81按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L83的`result`。
+- `require`（L86–L88）：接收`condition`、`code`。 控制顺序：L87按`not condition`分支；L88抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L91–L144）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L121按`billing == "declared_free"`分支；L131抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L132的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L147–L189）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L154遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L189的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L192–L228）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L201的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L231–L351）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L272遍历`plan.tasks`；L347按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L332的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L354–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`not args.preflight`分支；L393抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_live_modules.py sha256: 980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4 -->
+<!-- source-file: scripts/ci_live_modules.py sha256: ae3b41a1242ca1c945beef26254fee33d633b279091ef739215f79e462e51f5d -->
 ````python
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
 
@@ -199778,6 +200054,7 @@ REPORT = ROOT / "reports/live-modules/summary.json"
 def failure_diagnostic(exc):
     """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
     from workbench.capability_isolation import ContainerInspectionRejected
+    from workbench.coding.candidates import CandidateFileSetError
 
     stages = {
         "scripts/ci_live_modules.py": "acceptance_controller",
@@ -199808,6 +200085,7 @@ def failure_diagnostic(exc):
             "ModelFailure",
             "IsolationUnavailable",
             "ContainerInspectionRejected",
+            "CandidateFileSetError",
             "DaytonaError",
             "DaytonaNotFoundError",
         )
@@ -199822,6 +200100,8 @@ def failure_diagnostic(exc):
         frame = frame.tb_next
     if type(exc) is ContainerInspectionRejected:
         result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    if type(exc) is CandidateFileSetError:
+        result["candidate_files"] = CandidateFileSetError.diagnostic(exc)
     return result
 
 
@@ -237168,7 +237448,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 75d7355c936ac0d67e4069c9e851d9f11af81e4d4067e7ce55c08478a753eb5f -->
+<!-- source-file: docs/modular-production-v2.md sha256: a0ce99b6009fe0e27736969db425c904e98feaf5f2f18d61351bed29a06e04d2 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -237340,6 +237620,12 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 后续诊断运行 `38117555376`（`d3bf4c9`，artifact `11694582817`）明确在容器检查处被 `sandbox_network` 拒绝：`network_mode=bridge`、`network_count=1`、`runner_bridge_attached=true`，模型调用预留/HTTP尝试/响应仍全部为0。原因是编码器使用 `rnd-agent-` 名称，而已批准 Runner 的网络与资源限制仅在 `rnd-source-` 分支启用；独立验证器已经使用该严格前缀。编码器现使用 `rnd-source-agent-`（原生选择使用既有 `rnd-source-native-` 前缀），使创建配置进入原严格分支，不删除或放宽检查。
 
 原 Runner patch、单一准确 bridge 检查、`network_block_all=true`、私有沙箱、资源限制、控制用户、产品执行守卫及全部隔离正反例均保持不变。既有控制通道只传输批准业务文件，编码阶段不执行产品代码；后续产品执行仍必须经独立验证器与出口阻断守卫，不将控制 bridge 解释为任意网络授权。离线测试先复现原拒绝，再验证正确配置可通过真实检查器；旧前缀、额外网络、缺失配额和出口标志失效仍在上传前失败并删除沙箱。上述为模拟 Docker/SDK 事实上的离线配置证据，实际隔离及模型终态必须由新 SHA 的 Actions 再验证；本线程未 dispatch。
+
+`81c0638` 的运行 `38119017832` 已越过该网络准入并发生3次模型调用预留、HTTP尝试和响应；artifact `11695510530` 随后在候选应用的完整唯一文件集合守卫失败。这不证明双模块或ZIP验收通过。现存回执没有返回路径的结构计数，不能断言具体为遗漏、重复或越界，也不能从3次请求推断已完成哪个模块。适配器离线测试确认文件列表不会被删减或去重，缺失的批准文件不会自动补齐。
+
+此前网关仅校验通用AgentTurn，当前任务集合错误直到候选应用才被发现，错过了既有有界结构化修复流程。响应合同现在绑定当前批准任务：每次edit包含全部批准路径（含未改动文件），每个恰好一次，且不允许大小写重复或额外路径；同一约束在候选应用处继续独立检查。使用网关原有最多两次尝试和原预算，不增加调用、步骤或费用额度。模型指令明确完整文件与当前前像要求；不会以自动补文件掩盖未完成任务，语义完成仍由独立验收决定。失败摘要仅新增批准/返回/缺失/未批准/大小写重复数量，不含路径、源码或模型解释。离线mock transport验证错误集合可以在第二次完整响应后通过，连续错误严格在两次内失败。
+
+同head的Windows截图负例失败（Python运行 `38118890653`，job `114409440268`）是诊断计数4与实际截图请求3不一致：计数递增在共享截止时间检查之前，临界时刻会记录未发送的请求。计数现移到受截止时间保护的CDP发送操作内。可控时钟测试先复现旧代码未发送却计1次，再确认修复为0；已发送但失败仍计1次。漂移/字体/像素断言、总截止时间、不输出不稳定成功截图等要求不变。当前本地缺少Chromium，官方安装端点返回403 Domain forbidden，未绕过；真实像素负例仍须由CI验证。
 ````
 
 ### `docs/template-platform.md`
