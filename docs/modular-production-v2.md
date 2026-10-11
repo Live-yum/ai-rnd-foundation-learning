@@ -373,3 +373,5 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 普通Python CI运行38167704467的Windows shard3真实报告refresh生命周期28.008秒，违反原14秒断言。原因是仅kill根进程后，检查后代仍持有stdout，读线程和管道close不能及时返回。Windows现在在发送工作前把SDK子进程加入自有Job Object，使用KILL_ON_JOB_CLOSE及TerminateJobObject回收该进程树；创建、配置或归属失败时不发送工作并失败关闭。不使用全局进程名扫描或提权。读线程join和管道close各有独立0.2秒回收界限。原25秒测试窗口、14秒断言、180秒生产deadline及15秒清理预留均不变。Job Object API合约与管道阻塞测试可在本机执行；新增原生Windows后代终止证明在Linux明确跳过，真实Windows是否修复仍须后续普通CI验证，不能提前宣称通过。
 
 Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
+
+独立审查e384194另复现一项P2：reader或pipe本地回收失败时，已回收SDK进程且仍有14.8秒清理预算，却跳过已知沙箱删除。该版本未推送。修复把本地回收和远端删除错误分开处理，先尝试Windows Job关闭，再无论本地回收结果如何都按原deadline调用owned cleanup；保留首次错误，最终仍拒绝候选及保持unconfirmed。两个故障注入回归要求原沙箱ID及原deadline恰好传入一次删除，即使删除替身写入成功回执，本地回收失败也不能因此晋升为正常成功。此项修复须再交同一独立审查者确认，不把作者测试等同独立复审。

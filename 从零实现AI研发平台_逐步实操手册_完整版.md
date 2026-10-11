@@ -374,6 +374,8 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 
 Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
 
+独立审查e384194另复现一项P2：reader或pipe本地回收失败时，已回收SDK进程且仍有14.8秒清理预算，却跳过已知沙箱删除。该版本未推送。修复把本地回收和远端删除错误分开处理，先尝试Windows Job关闭，再无论本地回收结果如何都按原deadline调用owned cleanup；保留首次错误，最终仍拒绝候选及保持unconfirmed。两个故障注入回归要求原沙箱ID及原deadline恰好传入一次删除，即使删除替身写入成功回执，本地回收失败也不能因此晋升为正常成功。此项修复须再交同一独立审查者确认，不把作者测试等同独立复审。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -21838,7 +21840,7 @@ class CheckpointDeadline:
 - `preserve_state`（L46–L60）：接收`path`、`binding`、`name`、`identifier`、`error`、`failure`。 控制顺序：L49按`value.get("binding") != binding or value.get("sandbox_name") != name or value.get("sa…`分支；L54抛异常，停止当前正常路径；L57按`error is not None and value.get("status") not in {"unconfirmed"}`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`value.get`、`ValueError`、`receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `close_pipes_bounded`（L63–L75）：接收`process`。 控制顺序：L74按`thread.is_alive()`分支；L75抛异常，停止当前正常路径。 调用`threading.Thread`、`thread.start`、`thread.join`、`thread.is_alive`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `close_pipes_bounded.close`（L64–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65遍历`(process.stdin, process.stdout)`。 调用`pipe.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session`（L78–L281）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Session`（L78–L289）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Session.__init__`（L79–L145）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L80按`not 15 < deadline - time.monotonic() <= 180`分支；L81抛异常，停止当前正常路径；L133按`os.name == "nt"`分支；L145抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`verifier_policy_environment`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.read`（L147–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149在`True`成立时循环；L151按`not raw or len(raw) > LIMIT`分支；L152抛异常，停止当前正常路径；L154按`value.get("nonce") != self.binding["nonce"]`分支；L155抛异常，停止当前正常路径；L156按`value.get("event") == "created"`分支；L158按`self.closing or time.monotonic() >= self.work_end`分支；L160按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.send`（L181–L186）：接收`value`。 控制顺序：L183按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L184抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -21847,12 +21849,12 @@ class CheckpointDeadline:
 - `Session.write`（L209–L211）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.snapshot`（L213–L215）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L215的`self.receive()`。
 - `Session.watch`（L217–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.finish`（L224–L281）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L231按`self.process is not None`分支；L233按`os.name == "posix"`分支；L236按`self.windows_job is not None`分支；L238按`self.process.poll() is None`分支；L243按`hasattr(self, "reader")`分支；L245按`self.reader.is_alive()`分支；L246抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `supervised_environment`（L285–L292）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `main`（L295–L348）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303按`len(body) > LIMIT`分支；L304抛异常，停止当前正常路径；L329在`True`成立时循环；L331按`not raw or len(raw) > LIMIT`分支；L332抛异常，停止当前正常路径；L334按`request["operation"] == "write"`分支；L338按`request["operation"] == "snapshot"`分支；L342抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.emit`（L308–L310）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.finish`（L224–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L232按`self.process is not None`分支；L234按`os.name == "posix"`分支；L237按`self.windows_job is not None`分支；L239按`self.process.poll() is None`分支；L246按`hasattr(self, "reader")`分支；L248按`self.reader.is_alive()`分支；L249抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `supervised_environment`（L293–L300）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `main`（L303–L356）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311按`len(body) > LIMIT`分支；L312抛异常，停止当前正常路径；L337在`True`成立时循环；L339按`not raw or len(raw) > LIMIT`分支；L340抛异常，停止当前正常路径；L342按`request["operation"] == "write"`分支；L346按`request["operation"] == "snapshot"`分支；L350抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.emit`（L316–L318）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/infrastructure/sandbox/file_session.py sha256: 82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc -->
+<!-- source-file: workbench/infrastructure/sandbox/file_session.py sha256: 0175ee90626e0f5c3ccbf0ebfd52a65a6f5c8bc023724a2fec565558cb58f9c6 -->
 ````python
 """Parent-owned bounded file RPC; no SDK call can hold the controller past its deadline."""
 
@@ -22084,25 +22086,38 @@ class Session:
         if owner:
             self.cancel.set()
             try:
-                if self.process is not None:
-                    try:
-                        if os.name == "posix":
-                            # Kill the owned session before reaping its leader, including inspectors.
-                            os.killpg(self.process.pid, signal.SIGKILL)
-                        elif self.windows_job is not None:
-                            self.windows_job.terminate()
-                        elif self.process.poll() is None:
-                            self.process.kill()  # Job setup failed before any request was sent.
-                    except ProcessLookupError:
-                        pass
-                    self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    if hasattr(self, "reader"):
-                        self.reader.join(timeout=0.2)
-                        if self.reader.is_alive():
-                            raise UnsupportedScope(
-                                "File RPC pipe did not close after tree termination"
-                            )
-                    close_pipes_bounded(self.process)
+                try:
+                    if self.process is not None:
+                        try:
+                            if os.name == "posix":
+                                # Kill the owned session before reaping its leader, including inspectors.
+                                os.killpg(self.process.pid, signal.SIGKILL)
+                            elif self.windows_job is not None:
+                                self.windows_job.terminate()
+                            elif self.process.poll() is None:
+                                self.process.kill()  # Job setup failed before any request was sent.
+                        except ProcessLookupError:
+                            pass
+                        self.process.wait(
+                            timeout=max(0.001, min(2, self.deadline - time.monotonic()))
+                        )
+                        if hasattr(self, "reader"):
+                            self.reader.join(timeout=0.2)
+                            if self.reader.is_alive():
+                                raise UnsupportedScope(
+                                    "File RPC pipe did not close after tree termination"
+                                )
+                        close_pipes_bounded(self.process)
+                except BaseException as exc:
+                    self.error = exc
+                finally:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = self.error or exc
+                # A local reaping error must not suppress the owned remote deletion attempt.
+                # Both paths retain the original deadline; local failure still rejects the run.
                 delete_owned(
                     self.settings,
                     self.name,
@@ -22112,14 +22127,9 @@ class Session:
                     self.deadline,
                 )
             except BaseException as exc:
-                self.error = exc
+                self.error = self.error or exc
             finally:
                 try:
-                    if self.windows_job is not None:
-                        try:
-                            self.windows_job.close()
-                        except BaseException as exc:
-                            self.error = exc
                     preserve_state(
                         self.path,
                         self.binding,
@@ -169479,8 +169489,11 @@ def test_only_one_complete_handbook_is_generated():
 - `test_native_windows_job_kills_pipe_holding_descendant`（L1454–L1507）：接收`tmp_path`。 控制顺序：L1488在`not marker.exists() and time.monotonic() < deadline`成立时循环；L1490断言`marker.exists()`；L1492断言`descendant`；L1496断言`api.WaitForSingleObject(descendant, 2000) == 0`；L1498断言`time.monotonic() - start < 4`；L1500按`job is not None`分支；L1504按`descendant`分支。 调用`subprocess.Popen`、`str`、`ctypes.WinDLL`、`WindowsJob`、`process.stdin.write`、`process.stdin.flush`、`time.monotonic`、`marker.exists`、`time.sleep`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_pipe_reaping_has_independent_bound`（L1510–L1526）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1524断言`time.monotonic() - start < 1`。 调用`threading.Event`、`SimpleNamespace`、`release.wait`、`time.monotonic`、`pytest.raises`、`close_pipes_bounded`、`release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_cleanup_child_exports_only_bound_failure_kind`（L1530–L1575）：接收`settings`、`tmp_path`、`monkeypatch`、`known`。 控制顺序：L1569断言`value["status"] == "unconfirmed"`；L1570断言`value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")`；L1571断言`value["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1572断言`"private" not in path.read_text()`；L1574断言`exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1575断言`exported["status"] == "unconfirmed"`。 调用`monkeypatch.setattr`、`original`、`cleanup_binding`、`pytest.raises`、`cleanup.delete_owned`、`time.monotonic`、`json.loads`、`path.read_text`、`cleanup.public_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion`（L1579–L1653）：接收`tmp_path`、`monkeypatch`、`phase`。 控制顺序：L1604按`os.name == "nt"`分支；L1635按`phase == "pipe"`分支；L1643断言`process.poll() is not None and session.deadline - time.monotonic() > 10`；L1644断言`calls == [session.identifier]`；L1646断言`value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"`；L1647断言`session.done.is_set()`；L1650按`hasattr(session, "reader")`分支。 调用`subprocess.Popen`、`process_options`、`file_session.Session.__new__`、`time.monotonic`、`threading.Lock`、`threading.Event`、`WindowsJob`、`SimpleNamespace`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.deletion`（L1618–L1624）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L1619断言`identifier == session.identifier and binding == session.binding`；L1620断言`deadline == session.deadline and time.monotonic() < deadline`。 调用`time.monotonic`、`calls.append`、`file_session.receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.blocked_close`（L1626–L1632）：接收`_`。 调用`original_close`、`SimpleNamespace`、`release.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_mini_swe_checkpoints.py sha256: a8153a50fe5af800bfcae0c9a70eff69b8926fbe67d7213fd061ab6af1a71cd1 -->
+<!-- source-file: tests/test_mini_swe_checkpoints.py sha256: e590a75672380113d4b440d7c247cd747fa4cfd58e851778ec06a1442f874a69 -->
 ````python
 """Offline checkpoint control flow; fake proofs are never live acceptance evidence."""
 
@@ -171057,6 +171070,84 @@ cleanup.main()
     exported = cleanup.public_receipt(path, task, plan)
     assert exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"
     assert exported["status"] == "unconfirmed"
+
+
+@pytest.mark.parametrize("phase", ["reader", "pipe"])
+def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch, phase):
+    import subprocess
+    import sys
+    import threading
+
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import file_session
+    from workbench.tools import process_options
+
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time;time.sleep(30)"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        **process_options(),
+    )
+    session = file_session.Session.__new__(file_session.Session)
+    session.process = process
+    session.deadline = time.monotonic() + 15
+    session.lock, session.done, session.cancel = (
+        threading.Lock(),
+        threading.Event(),
+        threading.Event(),
+    )
+    session.closing, session.error, session.failure = False, None, {}
+    session.windows_job = None
+    if os.name == "nt":
+        from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+        session.windows_job = WindowsJob(process)
+    session.settings = SimpleNamespace()
+    session.path = tmp_path / "cleanup.json"
+    _, _, session.binding = cleanup_binding()
+    session.name, session.identifier = "rnd-source-agent-" + "e" * 32, "known-owned-id"
+    write_json(
+        session.path, file_session.receipt(session.binding, session.name, session.identifier)
+    )
+    release, calls = threading.Event(), []
+    original_close = file_session.close_pipes_bounded
+
+    def deletion(settings, name, identifier, binding, path, deadline):
+        assert identifier == session.identifier and binding == session.binding
+        assert deadline == session.deadline and time.monotonic() < deadline
+        calls.append(identifier)
+        value = file_session.receipt(binding, name, identifier)
+        value.update(status="deleted", reason="confirmed_absent")
+        write_json(path, value)  # Mock remote absence cannot hide a local reaping failure.
+
+    def blocked_close(_):
+        original_close(
+            SimpleNamespace(
+                stdin=SimpleNamespace(close=lambda: release.wait(5)),
+                stdout=SimpleNamespace(close=lambda: None),
+            )
+        )
+
+    monkeypatch.setattr(file_session, "delete_owned", deletion)
+    if phase == "pipe":
+        monkeypatch.setattr(file_session, "close_pipes_bounded", blocked_close)
+    else:
+        session.reader = threading.Thread(target=lambda: release.wait(5), daemon=True)
+        session.reader.start()
+    try:
+        with pytest.raises(UnsupportedScope):
+            session.finish()
+        assert process.poll() is not None and session.deadline - time.monotonic() > 10
+        assert calls == [session.identifier]
+        value = json.loads(session.path.read_text())
+        assert value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"
+        assert session.done.is_set()
+    finally:
+        release.set()
+        if hasattr(session, "reader"):
+            session.reader.join(1)
+        process.wait(timeout=2)
+        original_close(process)
 ````
 
 ### `tests/test_model_connection.py`
@@ -243738,7 +243829,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: cbc53e7b4e9fa2f6313ebb9be44626193cace3eb5d2139dd7bb24860d8c4577a -->
+<!-- source-file: docs/modular-production-v2.md sha256: 6ea30d2db5df106b429673971eb6bce27315c6d84cd18d5f38bd89f151dc5423 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -244115,6 +244206,8 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 普通Python CI运行38167704467的Windows shard3真实报告refresh生命周期28.008秒，违反原14秒断言。原因是仅kill根进程后，检查后代仍持有stdout，读线程和管道close不能及时返回。Windows现在在发送工作前把SDK子进程加入自有Job Object，使用KILL_ON_JOB_CLOSE及TerminateJobObject回收该进程树；创建、配置或归属失败时不发送工作并失败关闭。不使用全局进程名扫描或提权。读线程join和管道close各有独立0.2秒回收界限。原25秒测试窗口、14秒断言、180秒生产deadline及15秒清理预留均不变。Job Object API合约与管道阻塞测试可在本机执行；新增原生Windows后代终止证明在Linux明确跳过，真实Windows是否修复仍须后续普通CI验证，不能提前宣称通过。
 
 Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
+
+独立审查e384194另复现一项P2：reader或pipe本地回收失败时，已回收SDK进程且仍有14.8秒清理预算，却跳过已知沙箱删除。该版本未推送。修复把本地回收和远端删除错误分开处理，先尝试Windows Job关闭，再无论本地回收结果如何都按原deadline调用owned cleanup；保留首次错误，最终仍拒绝候选及保持unconfirmed。两个故障注入回归要求原沙箱ID及原deadline恰好传入一次删除，即使删除替身写入成功回执，本地回收失败也不能因此晋升为正常成功。此项修复须再交同一独立审查者确认，不把作者测试等同独立复审。
 ````
 
 ### `docs/template-platform.md`

@@ -4184,8 +4184,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/file_session.py",
-      "bytes": 13552,
-      "sha256": "82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc",
+      "bytes": 14027,
+      "sha256": "0175ee90626e0f5c3ccbf0ebfd52a65a6f5c8bc023724a2fec565558cb58f9c6",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__file_session_py--001.md"
@@ -4859,8 +4859,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 73500,
-      "sha256": "cbc53e7b4e9fa2f6313ebb9be44626193cace3eb5d2139dd7bb24860d8c4577a",
+      "bytes": 74169,
+      "sha256": "6ea30d2db5df106b429673971eb6bce27315c6d84cd18d5f38bd89f151dc5423",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -6169,8 +6169,8 @@
     },
     {
       "path": "tests/test_mini_swe_checkpoints.py",
-      "bytes": 58857,
-      "sha256": "a8153a50fe5af800bfcae0c9a70eff69b8926fbe67d7213fd061ab6af1a71cd1",
+      "bytes": 61960,
+      "sha256": "e590a75672380113d4b440d7c247cd747fa4cfd58e851778ec06a1442f874a69",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md",

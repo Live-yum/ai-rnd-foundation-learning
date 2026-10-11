@@ -38,14 +38,17 @@
 - `test_native_windows_job_kills_pipe_holding_descendant`（L1454–L1507）：接收`tmp_path`。 控制顺序：L1488在`not marker.exists() and time.monotonic() < deadline`成立时循环；L1490断言`marker.exists()`；L1492断言`descendant`；L1496断言`api.WaitForSingleObject(descendant, 2000) == 0`；L1498断言`time.monotonic() - start < 4`；L1500按`job is not None`分支；L1504按`descendant`分支。 调用`subprocess.Popen`、`str`、`ctypes.WinDLL`、`WindowsJob`、`process.stdin.write`、`process.stdin.flush`、`time.monotonic`、`marker.exists`、`time.sleep`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_pipe_reaping_has_independent_bound`（L1510–L1526）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1524断言`time.monotonic() - start < 1`。 调用`threading.Event`、`SimpleNamespace`、`release.wait`、`time.monotonic`、`pytest.raises`、`close_pipes_bounded`、`release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_cleanup_child_exports_only_bound_failure_kind`（L1530–L1575）：接收`settings`、`tmp_path`、`monkeypatch`、`known`。 控制顺序：L1569断言`value["status"] == "unconfirmed"`；L1570断言`value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")`；L1571断言`value["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1572断言`"private" not in path.read_text()`；L1574断言`exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1575断言`exported["status"] == "unconfirmed"`。 调用`monkeypatch.setattr`、`original`、`cleanup_binding`、`pytest.raises`、`cleanup.delete_owned`、`time.monotonic`、`json.loads`、`path.read_text`、`cleanup.public_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion`（L1579–L1653）：接收`tmp_path`、`monkeypatch`、`phase`。 控制顺序：L1604按`os.name == "nt"`分支；L1635按`phase == "pipe"`分支；L1643断言`process.poll() is not None and session.deadline - time.monotonic() > 10`；L1644断言`calls == [session.identifier]`；L1646断言`value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"`；L1647断言`session.done.is_set()`；L1650按`hasattr(session, "reader")`分支。 调用`subprocess.Popen`、`process_options`、`file_session.Session.__new__`、`time.monotonic`、`threading.Lock`、`threading.Event`、`WindowsJob`、`SimpleNamespace`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.deletion`（L1618–L1624）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L1619断言`identifier == session.identifier and binding == session.binding`；L1620断言`deadline == session.deadline and time.monotonic() < deadline`。 调用`time.monotonic`、`calls.append`、`file_session.receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.blocked_close`（L1626–L1632）：接收`_`。 调用`original_close`、`SimpleNamespace`、`release.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 2 段**。本段覆盖源文件 L896–L1575。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 2 段**。本段覆盖源文件 L896–L1653。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26263`。本段原文以LF换行结束。
+本段原始字节数：`29366`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "8cc42d782f9489d8d7e8170b72e87541d77e04ddb2f6757a5c3fbbae35025633"} -->
+<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "57ba8e3cc17390a880694339675a69bd6af4d22ce549a92e3ee5d7ae04fc4b7d"} -->
 ````python
 # tests/test_mini_swe_checkpoints.py
     def run():
@@ -728,4 +731,82 @@ cleanup.main()
     exported = cleanup.public_receipt(path, task, plan)
     assert exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"
     assert exported["status"] == "unconfirmed"
+
+
+@pytest.mark.parametrize("phase", ["reader", "pipe"])
+def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch, phase):
+    import subprocess
+    import sys
+    import threading
+
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import file_session
+    from workbench.tools import process_options
+
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time;time.sleep(30)"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        **process_options(),
+    )
+    session = file_session.Session.__new__(file_session.Session)
+    session.process = process
+    session.deadline = time.monotonic() + 15
+    session.lock, session.done, session.cancel = (
+        threading.Lock(),
+        threading.Event(),
+        threading.Event(),
+    )
+    session.closing, session.error, session.failure = False, None, {}
+    session.windows_job = None
+    if os.name == "nt":
+        from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+        session.windows_job = WindowsJob(process)
+    session.settings = SimpleNamespace()
+    session.path = tmp_path / "cleanup.json"
+    _, _, session.binding = cleanup_binding()
+    session.name, session.identifier = "rnd-source-agent-" + "e" * 32, "known-owned-id"
+    write_json(
+        session.path, file_session.receipt(session.binding, session.name, session.identifier)
+    )
+    release, calls = threading.Event(), []
+    original_close = file_session.close_pipes_bounded
+
+    def deletion(settings, name, identifier, binding, path, deadline):
+        assert identifier == session.identifier and binding == session.binding
+        assert deadline == session.deadline and time.monotonic() < deadline
+        calls.append(identifier)
+        value = file_session.receipt(binding, name, identifier)
+        value.update(status="deleted", reason="confirmed_absent")
+        write_json(path, value)  # Mock remote absence cannot hide a local reaping failure.
+
+    def blocked_close(_):
+        original_close(
+            SimpleNamespace(
+                stdin=SimpleNamespace(close=lambda: release.wait(5)),
+                stdout=SimpleNamespace(close=lambda: None),
+            )
+        )
+
+    monkeypatch.setattr(file_session, "delete_owned", deletion)
+    if phase == "pipe":
+        monkeypatch.setattr(file_session, "close_pipes_bounded", blocked_close)
+    else:
+        session.reader = threading.Thread(target=lambda: release.wait(5), daemon=True)
+        session.reader.start()
+    try:
+        with pytest.raises(UnsupportedScope):
+            session.finish()
+        assert process.poll() is not None and session.deadline - time.monotonic() > 10
+        assert calls == [session.identifier]
+        value = json.loads(session.path.read_text())
+        assert value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"
+        assert session.done.is_set()
+    finally:
+        release.set()
+        if hasattr(session, "reader"):
+            session.reader.join(1)
+        process.wait(timeout=2)
+        original_close(process)
 ````

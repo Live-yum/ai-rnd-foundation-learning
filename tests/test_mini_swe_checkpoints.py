@@ -1573,3 +1573,81 @@ cleanup.main()
     exported = cleanup.public_receipt(path, task, plan)
     assert exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"
     assert exported["status"] == "unconfirmed"
+
+
+@pytest.mark.parametrize("phase", ["reader", "pipe"])
+def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch, phase):
+    import subprocess
+    import sys
+    import threading
+
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import file_session
+    from workbench.tools import process_options
+
+    process = subprocess.Popen(
+        [sys.executable, "-c", "import time;time.sleep(30)"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        **process_options(),
+    )
+    session = file_session.Session.__new__(file_session.Session)
+    session.process = process
+    session.deadline = time.monotonic() + 15
+    session.lock, session.done, session.cancel = (
+        threading.Lock(),
+        threading.Event(),
+        threading.Event(),
+    )
+    session.closing, session.error, session.failure = False, None, {}
+    session.windows_job = None
+    if os.name == "nt":
+        from workbench.infrastructure.sandbox.windows_job import WindowsJob
+
+        session.windows_job = WindowsJob(process)
+    session.settings = SimpleNamespace()
+    session.path = tmp_path / "cleanup.json"
+    _, _, session.binding = cleanup_binding()
+    session.name, session.identifier = "rnd-source-agent-" + "e" * 32, "known-owned-id"
+    write_json(
+        session.path, file_session.receipt(session.binding, session.name, session.identifier)
+    )
+    release, calls = threading.Event(), []
+    original_close = file_session.close_pipes_bounded
+
+    def deletion(settings, name, identifier, binding, path, deadline):
+        assert identifier == session.identifier and binding == session.binding
+        assert deadline == session.deadline and time.monotonic() < deadline
+        calls.append(identifier)
+        value = file_session.receipt(binding, name, identifier)
+        value.update(status="deleted", reason="confirmed_absent")
+        write_json(path, value)  # Mock remote absence cannot hide a local reaping failure.
+
+    def blocked_close(_):
+        original_close(
+            SimpleNamespace(
+                stdin=SimpleNamespace(close=lambda: release.wait(5)),
+                stdout=SimpleNamespace(close=lambda: None),
+            )
+        )
+
+    monkeypatch.setattr(file_session, "delete_owned", deletion)
+    if phase == "pipe":
+        monkeypatch.setattr(file_session, "close_pipes_bounded", blocked_close)
+    else:
+        session.reader = threading.Thread(target=lambda: release.wait(5), daemon=True)
+        session.reader.start()
+    try:
+        with pytest.raises(UnsupportedScope):
+            session.finish()
+        assert process.poll() is not None and session.deadline - time.monotonic() > 10
+        assert calls == [session.identifier]
+        value = json.loads(session.path.read_text())
+        assert value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"
+        assert session.done.is_set()
+    finally:
+        release.set()
+        if hasattr(session, "reader"):
+            session.reader.join(1)
+        process.wait(timeout=2)
+        original_close(process)

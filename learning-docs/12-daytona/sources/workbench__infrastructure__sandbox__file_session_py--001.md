@@ -19,7 +19,7 @@
 - `preserve_state`（L46–L60）：接收`path`、`binding`、`name`、`identifier`、`error`、`failure`。 控制顺序：L49按`value.get("binding") != binding or value.get("sandbox_name") != name or value.get("sa…`分支；L54抛异常，停止当前正常路径；L57按`error is not None and value.get("status") not in {"unconfirmed"}`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`value.get`、`ValueError`、`receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `close_pipes_bounded`（L63–L75）：接收`process`。 控制顺序：L74按`thread.is_alive()`分支；L75抛异常，停止当前正常路径。 调用`threading.Thread`、`thread.start`、`thread.join`、`thread.is_alive`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `close_pipes_bounded.close`（L64–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65遍历`(process.stdin, process.stdout)`。 调用`pipe.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session`（L78–L281）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Session`（L78–L289）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Session.__init__`（L79–L145）：接收`settings`、`task`、`selection`、`product`、`deadline`、`path`、`binding`。 控制顺序：L80按`not 15 < deadline - time.monotonic() <= 180`分支；L81抛异常，停止当前正常路径；L133按`os.name == "nt"`分支；L145抛异常，停止当前正常路径。 调用`time.monotonic`、`UnsupportedScope`、`verifier_policy_environment`、`dict`、`uuid.uuid4`、`threading.Lock`、`threading.Event`、`queue.Queue`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.read`（L147–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149在`True`成立时循环；L151按`not raw or len(raw) > LIMIT`分支；L152抛异常，停止当前正常路径；L154按`value.get("nonce") != self.binding["nonce"]`分支；L155抛异常，停止当前正常路径；L156按`value.get("event") == "created"`分支；L158按`self.closing or time.monotonic() >= self.work_end`分支；L160按`self.identifier is not None or value.get("name") != self.name or type(value.get("id")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.process.stdout.readline`、`len`、`ValueError`、`json.loads`、`value.get`、`time.monotonic`、`type`、`write_json`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.send`（L181–L186）：接收`value`。 控制顺序：L183按`len(raw) > LIMIT or time.monotonic() >= self.work_end`分支；L184抛异常，停止当前正常路径。 调用`json.dumps(value).encode`、`json.dumps`、`len`、`time.monotonic`、`UnsupportedScope`、`self.process.stdin.write`、`self.process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -28,18 +28,18 @@
 - `Session.write`（L209–L211）：接收`edits`。 调用`self.send`、`edits.model_dump`、`self.receive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Session.snapshot`（L213–L215）：接收`paths`。 调用`self.send`、`self.receive`。 返回路径：L215的`self.receive()`。
 - `Session.watch`（L217–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218按`not self.cancel.wait(max(0, self.work_end - time.monotonic()))`分支。 调用`self.cancel.wait`、`max`、`time.monotonic`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Session.finish`（L224–L281）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L231按`self.process is not None`分支；L233按`os.name == "posix"`分支；L236按`self.windows_job is not None`分支；L238按`self.process.poll() is None`分支；L243按`hasattr(self, "reader")`分支；L245按`self.reader.is_alive()`分支；L246抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `supervised_environment`（L285–L292）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `main`（L295–L348）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303按`len(body) > LIMIT`分支；L304抛异常，停止当前正常路径；L329在`True`成立时循环；L331按`not raw or len(raw) > LIMIT`分支；L332抛异常，停止当前正常路径；L334按`request["operation"] == "write"`分支；L338按`request["operation"] == "snapshot"`分支；L342抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.emit`（L308–L310）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Session.finish`（L224–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`owner`分支；L232按`self.process is not None`分支；L234按`os.name == "posix"`分支；L237按`self.windows_job is not None`分支；L239按`self.process.poll() is None`分支；L246按`hasattr(self, "reader")`分支；L248按`self.reader.is_alive()`分支；L249抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.cancel.set`、`os.killpg`、`self.windows_job.terminate`、`self.process.poll`、`self.process.kill`、`self.process.wait`、`max`、`min`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `supervised_environment`（L293–L300）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 调用`Session`、`session.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `main`（L303–L356）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311按`len(body) > LIMIT`分支；L312抛异常，停止当前正常路径；L337在`True`成立时循环；L339按`not raw or len(raw) > LIMIT`分支；L340抛异常，停止当前正常路径；L342按`request["operation"] == "write"`分支；L346按`request["operation"] == "snapshot"`分支；L350抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`sys.stdin.buffer.readline`、`len`、`ValueError`、`json.loads`、`open`、`contextlib.redirect_stdout`、`_local_environment`、`Settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.emit`（L316–L318）：接收`value`。 调用`output.write`、`json.dumps`、`output.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/file_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L352。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/file_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L360。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13552`。本段原文以LF换行结束。
+本段原始字节数：`14027`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "82a068807682f0d036ceeca9ec4d3fab92b0ef99a317815bf23e5ade6a23b6bc"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0175ee90626e0f5c3ccbf0ebfd52a65a6f5c8bc023724a2fec565558cb58f9c6"} -->
 ````python
 # workbench/infrastructure/sandbox/file_session.py
 """Parent-owned bounded file RPC; no SDK call can hold the controller past its deadline."""
@@ -272,25 +272,38 @@ class Session:
         if owner:
             self.cancel.set()
             try:
-                if self.process is not None:
-                    try:
-                        if os.name == "posix":
-                            # Kill the owned session before reaping its leader, including inspectors.
-                            os.killpg(self.process.pid, signal.SIGKILL)
-                        elif self.windows_job is not None:
-                            self.windows_job.terminate()
-                        elif self.process.poll() is None:
-                            self.process.kill()  # Job setup failed before any request was sent.
-                    except ProcessLookupError:
-                        pass
-                    self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    if hasattr(self, "reader"):
-                        self.reader.join(timeout=0.2)
-                        if self.reader.is_alive():
-                            raise UnsupportedScope(
-                                "File RPC pipe did not close after tree termination"
-                            )
-                    close_pipes_bounded(self.process)
+                try:
+                    if self.process is not None:
+                        try:
+                            if os.name == "posix":
+                                # Kill the owned session before reaping its leader, including inspectors.
+                                os.killpg(self.process.pid, signal.SIGKILL)
+                            elif self.windows_job is not None:
+                                self.windows_job.terminate()
+                            elif self.process.poll() is None:
+                                self.process.kill()  # Job setup failed before any request was sent.
+                        except ProcessLookupError:
+                            pass
+                        self.process.wait(
+                            timeout=max(0.001, min(2, self.deadline - time.monotonic()))
+                        )
+                        if hasattr(self, "reader"):
+                            self.reader.join(timeout=0.2)
+                            if self.reader.is_alive():
+                                raise UnsupportedScope(
+                                    "File RPC pipe did not close after tree termination"
+                                )
+                        close_pipes_bounded(self.process)
+                except BaseException as exc:
+                    self.error = exc
+                finally:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = self.error or exc
+                # A local reaping error must not suppress the owned remote deletion attempt.
+                # Both paths retain the original deadline; local failure still rejects the run.
                 delete_owned(
                     self.settings,
                     self.name,
@@ -300,14 +313,9 @@ class Session:
                     self.deadline,
                 )
             except BaseException as exc:
-                self.error = exc
+                self.error = self.error or exc
             finally:
                 try:
-                    if self.windows_job is not None:
-                        try:
-                            self.windows_job.close()
-                        except BaseException as exc:
-                            self.error = exc
                     preserve_state(
                         self.path,
                         self.binding,

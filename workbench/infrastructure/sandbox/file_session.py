@@ -228,25 +228,38 @@ class Session:
         if owner:
             self.cancel.set()
             try:
-                if self.process is not None:
-                    try:
-                        if os.name == "posix":
-                            # Kill the owned session before reaping its leader, including inspectors.
-                            os.killpg(self.process.pid, signal.SIGKILL)
-                        elif self.windows_job is not None:
-                            self.windows_job.terminate()
-                        elif self.process.poll() is None:
-                            self.process.kill()  # Job setup failed before any request was sent.
-                    except ProcessLookupError:
-                        pass
-                    self.process.wait(timeout=max(0.001, min(2, self.deadline - time.monotonic())))
-                    if hasattr(self, "reader"):
-                        self.reader.join(timeout=0.2)
-                        if self.reader.is_alive():
-                            raise UnsupportedScope(
-                                "File RPC pipe did not close after tree termination"
-                            )
-                    close_pipes_bounded(self.process)
+                try:
+                    if self.process is not None:
+                        try:
+                            if os.name == "posix":
+                                # Kill the owned session before reaping its leader, including inspectors.
+                                os.killpg(self.process.pid, signal.SIGKILL)
+                            elif self.windows_job is not None:
+                                self.windows_job.terminate()
+                            elif self.process.poll() is None:
+                                self.process.kill()  # Job setup failed before any request was sent.
+                        except ProcessLookupError:
+                            pass
+                        self.process.wait(
+                            timeout=max(0.001, min(2, self.deadline - time.monotonic()))
+                        )
+                        if hasattr(self, "reader"):
+                            self.reader.join(timeout=0.2)
+                            if self.reader.is_alive():
+                                raise UnsupportedScope(
+                                    "File RPC pipe did not close after tree termination"
+                                )
+                        close_pipes_bounded(self.process)
+                except BaseException as exc:
+                    self.error = exc
+                finally:
+                    if self.windows_job is not None:
+                        try:
+                            self.windows_job.close()
+                        except BaseException as exc:
+                            self.error = self.error or exc
+                # A local reaping error must not suppress the owned remote deletion attempt.
+                # Both paths retain the original deadline; local failure still rejects the run.
                 delete_owned(
                     self.settings,
                     self.name,
@@ -256,14 +269,9 @@ class Session:
                     self.deadline,
                 )
             except BaseException as exc:
-                self.error = exc
+                self.error = self.error or exc
             finally:
                 try:
-                    if self.windows_job is not None:
-                        try:
-                            self.windows_job.close()
-                        except BaseException as exc:
-                            self.error = exc
                     preserve_state(
                         self.path,
                         self.binding,
