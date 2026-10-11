@@ -77,6 +77,18 @@ def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_faile
     }
 
 
+def write_memory_diagnostic(observation):
+    """Optional sidecar, never part of the exact-schema acceptance receipt."""
+    try:
+        write_json(
+            ROOT / "reports/capability-browser-memory-diagnostic.json",
+            {"memory_observation": observation},
+        )
+    except Exception:
+        # Diagnostic persistence must not replace the original proof or failure.
+        pass
+
+
 def main():
     image = browser_image_identity()
     report = {
@@ -91,6 +103,8 @@ def main():
     }
     output = ROOT / "reports/capability-browser-isolation.json"
     write_json(output, report)
+    observation = None
+    write_memory_diagnostic(observation)
     name = "rnd-browser-" + uuid.uuid4().hex
     server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -129,7 +143,6 @@ def main():
         inspection = json.loads(run([*DOCKER, "inspect", name]))
         require_worker_inspection(inspection, image)
         with observe_memory(inspection, name, DOCKER) as observation:
-            report["memory_observation"] = observation
             try:
                 oom_run = subprocess.run(
                     [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
@@ -193,6 +206,7 @@ def main():
         )
         server.shutdown()
         server.server_close()
+        write_memory_diagnostic(observation)
         write_json(output, report)
 
 

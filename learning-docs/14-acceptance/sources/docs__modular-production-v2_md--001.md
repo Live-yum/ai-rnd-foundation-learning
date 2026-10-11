@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L211。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L219。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30110`。本段原文以LF换行结束。
+本段原始字节数：`31943`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2a2a74ff9926694147bb9f08da9699050c781b7408ff19c9a8306571c73da3ee"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0821faebaeaf50e9eff15f13c9fb1285f435adb783fff05656e05bdf5af2c336"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -228,4 +228,12 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 网关原本会在临时数据库记录每次model_failure，但该场景清理后未向summary保留这些记录。本地补丁在既有finally中导出最多32项`model_failure_receipts`，只含白名单code、1/2次尝试序号，transport_error另含基于有界异常类型链的固定transport_kind。HTTP代码限100–599；未知分类为other，非法序号为null；不导出endpoint、模型名、请求ID、时间、headers、prompt、校验字段路径/值、异常或响应正文。读取诊断失败记null，不替换原验收结果。只增加诊断，不改变两次尝试、退避、TLS、超时、预算或严格输出契约。
 
 真实网关/mock HTTP回归覆盖第一次无效JSON后第二次读取超时、远端协议错误、429或再次无效JSON；两次调用数保持不变。真实锁定Worker离线路径覆盖诊断读取成功和失败；白名单污染、上限及异常链环路有回归。既有453 artifact没有新增分类，补丁不能追补已删除临时数据库中的证据，当前具体根因仍未知；继续仅本地准备，不推送或盲目重跑。
+
+### 719bca1 主回执字段回归（本地修复，待真实复测）
+
+719bca1手动mini-SWE运行38129824945在模型前的ci_capability_security被require_browser_acceptance第302行拒绝；普通SQLite隔离38129655377同处失败。静态精确源码及离线串联复现确认：b932694新增观测时无条件向主回执写入memory_observation，但消费者要求原8个顶层字段精确匹配，即使所有真实检查通过也会拒绝。此前仅测生成器结果而未把其输出交给真实消费者，遗漏了兼容性回归；不能把这次模型前失败归因于模型、OOM或未经证明的时效问题。
+
+本地修复保持消费者原封不动，把可选memory_observation移至独立reports/capability-browser-memory-diagnostic.json，主成功回执恢复原8字段。诊断写入失败不覆盖原验收结果；诊断文件不是准入证据。既有artifact上传步骤仅补此文件，mini-SWE步骤另补原主回执，以便下次模型前失败也可取得证据；不改事件、scope、SHA绑定、时效、超时、调用预算或工作流安全配置。
+
+新增真实main生成器→原require_browser_acceptance串联回归，仅替代Docker/浏览器及主机运行事实，源码与镜像源码摘要仍由真实函数计算；不是实际容器证明。修复前3个成功观测分支均复现第302行拒绝；修复后正例通过，未知顶层字段（包括重新塞入memory_observation）、旧源码/运行身份、不完整检查、mocked及非布尔passed仍拒绝；OOM未证明、仍运行、启动超时等原负例仍拒绝。可选观测不可用、收尾失败、落盘失败、诊断文件修改或缺失均不改变主回执判断。相关离线221项通过；本轮只本地准备，不推送、不触发模型或三SQLite运行，等待719其余CI全部终态。
 ````

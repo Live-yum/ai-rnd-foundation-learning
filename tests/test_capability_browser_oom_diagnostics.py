@@ -61,14 +61,26 @@ def test_malformed_memory_state_can_only_produce_empty_finite_facts(state):
         ("malformed_state", False, False, 0),
     ],
 )
-@pytest.mark.parametrize("observation", ["unavailable", "oom_counters", "finish_failure"])
+@pytest.mark.parametrize(
+    "observation", ["unavailable", "oom_counters", "finish_failure", "write_failure"]
+)
 def test_oom_gate_preserves_original_proof_budget_and_cleanup(
     monkeypatch, tmp_path, case, oom, running, exit_code, observation
 ):
     from scripts import browser_memory_observation
+    from workbench import capability_browser_isolation as isolation
 
     image = "sha256:" + "a" * 64
     operations = []
+    if observation == "write_failure":
+        write_json = probe.write_json
+
+        def fail_sidecar(path, data):
+            if path.name == "capability-browser-memory-diagnostic.json":
+                raise PermissionError("secret sidecar write failure")
+            return write_json(path, data)
+
+        monkeypatch.setattr(probe, "write_json", fail_sidecar)
 
     class Observer:
         def __init__(self, *args):
@@ -106,10 +118,16 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
     )
     monkeypatch.setattr(probe, "ROOT", tmp_path)
     monkeypatch.setattr(probe, "browser_image_identity", lambda: image)
-    monkeypatch.setattr(probe, "browser_source_identity", lambda: {})
+    monkeypatch.setattr(
+        isolation, "BROWSER_ACCEPTANCE", tmp_path / "reports/capability-browser-isolation.json"
+    )
+    monkeypatch.setattr(isolation, "runtime_identity", lambda image: {})
+    monkeypatch.setattr(isolation, "selected_policy", lambda: None)
     monkeypatch.setattr(probe, "runtime_identity", lambda image: {})
     monkeypatch.setattr(probe, "selected_policy", lambda: None)
-    monkeypatch.setattr(probe, "require_image_sources", lambda name: {})
+    monkeypatch.setattr(
+        probe, "require_image_sources", lambda name: isolation.image_source_identity()
+    )
     monkeypatch.setattr(probe, "require_worker_inspection", lambda *args: None)
     monkeypatch.setattr(probe, "worker_command", lambda image, name: ["docker", "create", image])
     monkeypatch.setattr(probe, "ThreadingHTTPServer", lambda *args: server)
@@ -133,7 +151,20 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
             value = [] if case == "malformed_state" else state
             return json.dumps([{"State": value}]).encode()
         if "start" in args:
-            return b"{}"
+            return json.dumps(
+                {
+                    key: True
+                    for key in (
+                        "passed",
+                        "kernel_resource_limits",
+                        "network_none",
+                        "tmpfs_exhaustion",
+                        "pid_exhaustion",
+                        "readonly_root",
+                        "browser_build",
+                    )
+                }
+            ).encode()
         return b""
 
     def process(args, **kwargs):
@@ -168,6 +199,40 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
         with pytest.raises((RuntimeError, ValueError, subprocess.TimeoutExpired)):
             probe.main()
     report = json.loads((tmp_path / "reports/capability-browser-isolation.json").read_bytes())
+    assert "memory_observation" not in report
+    sidecar = tmp_path / "reports/capability-browser-memory-diagnostic.json"
+    if observation == "write_failure":
+        assert not sidecar.exists()
+    else:
+        diagnostic = json.loads(sidecar.read_bytes())
+        assert set(diagnostic) == {"memory_observation"}
+        assert "secret" not in json.dumps(diagnostic)
+        if observation == "oom_counters":
+            assert diagnostic["memory_observation"]["observed_delta"] == {"oom_kill": 1}
+    if case == "genuine_oom":
+        assert isolation.require_browser_acceptance(image) == image
+        # Neither sidecar contents nor its presence grant acceptance authority.
+        sidecar.write_text('{"passed":true,"memory_observation":{"secret":"ignored"}}')
+        assert isolation.require_browser_acceptance(image) == image
+        sidecar.unlink()
+        assert isolation.require_browser_acceptance(image) == image
+        for key, value in (
+            ("unknown_field", True),
+            ("memory_observation", {}),
+            ("sources", {}),
+            ("runtime", {"stale": True}),
+            ("image_sources", {}),
+            ("checks", {}),
+            ("passed", 1),
+            ("mocked", True),
+        ):
+            isolation.BROWSER_ACCEPTANCE.write_text(json.dumps({**report, key: value}))
+            with pytest.raises(ValueError, match="missing, stale, or incomplete"):
+                isolation.require_browser_acceptance(image)
+        isolation.BROWSER_ACCEPTANCE.write_text(json.dumps(report))
+    else:
+        with pytest.raises(ValueError, match="missing, stale, or incomplete"):
+            isolation.require_browser_acceptance(image)
     assert report["passed"] is (case == "genuine_oom")
     assert report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None)
     assert operations == [

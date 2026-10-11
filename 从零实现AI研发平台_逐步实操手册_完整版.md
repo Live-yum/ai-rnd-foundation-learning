@@ -210,6 +210,14 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 真实网关/mock HTTP回归覆盖第一次无效JSON后第二次读取超时、远端协议错误、429或再次无效JSON；两次调用数保持不变。真实锁定Worker离线路径覆盖诊断读取成功和失败；白名单污染、上限及异常链环路有回归。既有453 artifact没有新增分类，补丁不能追补已删除临时数据库中的证据，当前具体根因仍未知；继续仅本地准备，不推送或盲目重跑。
 
+### 719bca1 主回执字段回归（本地修复，待真实复测）
+
+719bca1手动mini-SWE运行38129824945在模型前的ci_capability_security被require_browser_acceptance第302行拒绝；普通SQLite隔离38129655377同处失败。静态精确源码及离线串联复现确认：b932694新增观测时无条件向主回执写入memory_observation，但消费者要求原8个顶层字段精确匹配，即使所有真实检查通过也会拒绝。此前仅测生成器结果而未把其输出交给真实消费者，遗漏了兼容性回归；不能把这次模型前失败归因于模型、OOM或未经证明的时效问题。
+
+本地修复保持消费者原封不动，把可选memory_observation移至独立reports/capability-browser-memory-diagnostic.json，主成功回执恢复原8字段。诊断写入失败不覆盖原验收结果；诊断文件不是准入证据。既有artifact上传步骤仅补此文件，mini-SWE步骤另补原主回执，以便下次模型前失败也可取得证据；不改事件、scope、SHA绑定、时效、超时、调用预算或工作流安全配置。
+
+新增真实main生成器→原require_browser_acceptance串联回归，仅替代Docker/浏览器及主机运行事实，源码与镜像源码摘要仍由真实函数计算；不是实际容器证明。修复前3个成功观测分支均复现第302行拒绝；修复后正例通过，未知顶层字段（包括重新塞入memory_observation）、旧源码/运行身份、不完整检查、mocked及非布尔passed仍拒绝；OOM未证明、仍运行、启动超时等原负例仍拒绝。可选观测不可用、收尾失败、落盘失败、诊断文件修改或缺失均不改变主回执判断。相关离线221项通过；本轮只本地准备，不推送、不触发模型或三SQLite运行，等待719其余CI全部终态。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -128309,16 +128317,17 @@ main().catch(error => {console.error(error);process.exitCode=1})
 
 - `test_memory_diagnostics_never_release_raw_errors_output_or_unknown_state`（L12–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L26断言`result == { "phase": "memory_exhaustion", "timed_out": False, "inspection_failed": Fa…`；L39断言`"secret" not in json.dumps(result)`；L40断言`len(json.dumps(result)) < 512`。 调用`probe.memory_probe_diagnostic`、`SimpleNamespace`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_malformed_memory_state_can_only_produce_empty_finite_facts`（L44–L48）：接收`state`。 控制顺序：L46断言`result["container_status"] == "other"`；L47断言`result["container_oom_killed"] is None`；L48断言`"secret" not in json.dumps(result)`。 调用`probe.memory_probe_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup`（L65–L185）：接收`monkeypatch`、`tmp_path`、`case`、`oom`、`running`、`exit_code`、`observation`。 控制顺序：L165按`case == "genuine_oom"`分支；L171断言`report["passed"] is (case == "genuine_oom")`；L172断言`report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None…`；L173断言`operations == [ "memory_start", "diagnostic_finished", "final_cleanup", "server_shutd…`；L180断言`"secret" not in json.dumps(report)`；L181按`case != "genuine_oom"`分支；L182断言`report["diagnostic"]["timed_out"] is (case == "timeout")`；L183断言`report["diagnostic"]["inspection_failed"] is ( case in {"inspect_failure", "malformed…`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`probe.main`、`pytest.raises`、`json.loads`、`(tmp_path / "reports/capability-browser-isolation.json").read_byt…`、`report["checks"].get`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer`（L73–L88）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.__init__`（L74–L75）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.start`（L77–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.finish`（L80–L88）：接收`stopped`。 控制顺序：L82断言`stopped is (not running and case not in {"inspect_failure", "malformed_state"})`；L83按`observation == "finish_failure"`分支；L84抛异常，停止当前正常路径。 调用`operations.append`、`RuntimeError`。 返回路径：L85的`{ "available": observation == "oom_counters", "observed_delta": {"oom_kill": 1} if observa…`。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.run`（L120–L137）：接收`args`、`timeout`。 控制顺序：L122按`"-e" in args`分支；L123断言`args[args.index("-e") + 1] == "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024…`；L127按`"inspect" in args`分支；L129按`inspections == 3`分支；L130断言`"diagnostic_finished" not in operations`；L131按`inspections == 3 and case == "inspect_failure"`分支；L132抛异常，停止当前正常路径；L135按`"start" in args`分支。 调用`args.index`、`RuntimeError`、`json.dumps([{"State": value}]).encode`、`json.dumps`。 返回路径：L134的`json.dumps([{"State": value}]).encode()`；L136的`b"{}"`；L137的`b""`。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.process`（L139–L149）：接收`args`、`**kwargs`。 控制顺序：L140按`"start" in args`分支；L142断言`kwargs["timeout"] == 30`；L143按`case == "timeout"`分支；L144抛异常，停止当前正常路径；L146断言`"rm" in args and "-f" in args`；L148断言`kwargs["timeout"] == 15`。 调用`operations.append`、`subprocess.TimeoutExpired`、`SimpleNamespace`。 返回路径：L145的`SimpleNamespace(returncode=exit_code, stdout=b"secret", stderr=b"secret")`；L149的`SimpleNamespace(returncode=0)`。
-- `test_oom_gate_preserves_original_proof_budget_and_cleanup.browser`（L151–L160）：接收`url`、`token`、`scenarios`、`*args`。 控制顺序：L153按`mode == "positive"`分支；L160抛异常，停止当前正常路径。 调用`probe.BrowserFailure`。 返回路径：L154的`[True]`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup`（L67–L250）：接收`monkeypatch`、`tmp_path`、`case`、`oom`、`running`、`exit_code`、`observation`。 控制顺序：L75按`observation == "write_failure"`分支；L196按`case == "genuine_oom"`分支；L202断言`"memory_observation" not in report`；L204按`observation == "write_failure"`分支；L205断言`not sidecar.exists()`；L208断言`set(diagnostic) == {"memory_observation"}`；L209断言`"secret" not in json.dumps(diagnostic)`；L210按`observation == "oom_counters"`分支。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`isolation.image_source_identity`、`probe.main`、`pytest.raises`、`json.loads`、`(tmp_path / "reports/capability-browser-isolation.json").read_byt…`、`sidecar.exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.fail_sidecar`（L78–L81）：接收`path`、`data`。 控制顺序：L79按`path.name == "capability-browser-memory-diagnostic.json"`分支；L80抛异常，停止当前正常路径。 调用`PermissionError`、`write_json`。 返回路径：L81的`write_json(path, data)`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer`（L85–L100）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.__init__`（L86–L87）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.start`（L89–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.Observer.finish`（L92–L100）：接收`stopped`。 控制顺序：L94断言`stopped is (not running and case not in {"inspect_failure", "malformed_state"})`；L95按`observation == "finish_failure"`分支；L96抛异常，停止当前正常路径。 调用`operations.append`、`RuntimeError`。 返回路径：L97的`{ "available": observation == "oom_counters", "observed_delta": {"oom_kill": 1} if observa…`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.run`（L138–L168）：接收`args`、`timeout`。 控制顺序：L140按`"-e" in args`分支；L141断言`args[args.index("-e") + 1] == "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024…`；L145按`"inspect" in args`分支；L147按`inspections == 3`分支；L148断言`"diagnostic_finished" not in operations`；L149按`inspections == 3 and case == "inspect_failure"`分支；L150抛异常，停止当前正常路径；L153按`"start" in args`分支。 调用`args.index`、`RuntimeError`、`json.dumps([{"State": value}]).encode`、`json.dumps`、`json.dumps( { key: True for key in ( "passed", "kernel_resource_l…`。 返回路径：L152的`json.dumps([{"State": value}]).encode()`；L154的`json.dumps( { key: True for key in ( "passed", "kernel_resource_limits", "network_none", "…`；L168的`b""`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.process`（L170–L180）：接收`args`、`**kwargs`。 控制顺序：L171按`"start" in args`分支；L173断言`kwargs["timeout"] == 30`；L174按`case == "timeout"`分支；L175抛异常，停止当前正常路径；L177断言`"rm" in args and "-f" in args`；L179断言`kwargs["timeout"] == 15`。 调用`operations.append`、`subprocess.TimeoutExpired`、`SimpleNamespace`。 返回路径：L176的`SimpleNamespace(returncode=exit_code, stdout=b"secret", stderr=b"secret")`；L180的`SimpleNamespace(returncode=0)`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.browser`（L182–L191）：接收`url`、`token`、`scenarios`、`*args`。 控制顺序：L184按`mode == "positive"`分支；L191抛异常，停止当前正常路径。 调用`probe.BrowserFailure`。 返回路径：L185的`[True]`。
 
-<!-- source-file: tests/test_capability_browser_oom_diagnostics.py sha256: 9bcec87cf969ad956aa115795ad8e1f8693bd5778a3c060067a9a6e78e337403 -->
+<!-- source-file: tests/test_capability_browser_oom_diagnostics.py sha256: cf031c51d4a5c8a7fb8283a73f419719fbae87bb613021eb337825fa025bcd22 -->
 ````python
 """Bounded OOM diagnostics preserve rejection; mocked transport is not live proof."""
 
@@ -128383,14 +128392,26 @@ def test_malformed_memory_state_can_only_produce_empty_finite_facts(state):
         ("malformed_state", False, False, 0),
     ],
 )
-@pytest.mark.parametrize("observation", ["unavailable", "oom_counters", "finish_failure"])
+@pytest.mark.parametrize(
+    "observation", ["unavailable", "oom_counters", "finish_failure", "write_failure"]
+)
 def test_oom_gate_preserves_original_proof_budget_and_cleanup(
     monkeypatch, tmp_path, case, oom, running, exit_code, observation
 ):
     from scripts import browser_memory_observation
+    from workbench import capability_browser_isolation as isolation
 
     image = "sha256:" + "a" * 64
     operations = []
+    if observation == "write_failure":
+        write_json = probe.write_json
+
+        def fail_sidecar(path, data):
+            if path.name == "capability-browser-memory-diagnostic.json":
+                raise PermissionError("secret sidecar write failure")
+            return write_json(path, data)
+
+        monkeypatch.setattr(probe, "write_json", fail_sidecar)
 
     class Observer:
         def __init__(self, *args):
@@ -128428,10 +128449,16 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
     )
     monkeypatch.setattr(probe, "ROOT", tmp_path)
     monkeypatch.setattr(probe, "browser_image_identity", lambda: image)
-    monkeypatch.setattr(probe, "browser_source_identity", lambda: {})
+    monkeypatch.setattr(
+        isolation, "BROWSER_ACCEPTANCE", tmp_path / "reports/capability-browser-isolation.json"
+    )
+    monkeypatch.setattr(isolation, "runtime_identity", lambda image: {})
+    monkeypatch.setattr(isolation, "selected_policy", lambda: None)
     monkeypatch.setattr(probe, "runtime_identity", lambda image: {})
     monkeypatch.setattr(probe, "selected_policy", lambda: None)
-    monkeypatch.setattr(probe, "require_image_sources", lambda name: {})
+    monkeypatch.setattr(
+        probe, "require_image_sources", lambda name: isolation.image_source_identity()
+    )
     monkeypatch.setattr(probe, "require_worker_inspection", lambda *args: None)
     monkeypatch.setattr(probe, "worker_command", lambda image, name: ["docker", "create", image])
     monkeypatch.setattr(probe, "ThreadingHTTPServer", lambda *args: server)
@@ -128455,7 +128482,20 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
             value = [] if case == "malformed_state" else state
             return json.dumps([{"State": value}]).encode()
         if "start" in args:
-            return b"{}"
+            return json.dumps(
+                {
+                    key: True
+                    for key in (
+                        "passed",
+                        "kernel_resource_limits",
+                        "network_none",
+                        "tmpfs_exhaustion",
+                        "pid_exhaustion",
+                        "readonly_root",
+                        "browser_build",
+                    )
+                }
+            ).encode()
         return b""
 
     def process(args, **kwargs):
@@ -128490,6 +128530,40 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
         with pytest.raises((RuntimeError, ValueError, subprocess.TimeoutExpired)):
             probe.main()
     report = json.loads((tmp_path / "reports/capability-browser-isolation.json").read_bytes())
+    assert "memory_observation" not in report
+    sidecar = tmp_path / "reports/capability-browser-memory-diagnostic.json"
+    if observation == "write_failure":
+        assert not sidecar.exists()
+    else:
+        diagnostic = json.loads(sidecar.read_bytes())
+        assert set(diagnostic) == {"memory_observation"}
+        assert "secret" not in json.dumps(diagnostic)
+        if observation == "oom_counters":
+            assert diagnostic["memory_observation"]["observed_delta"] == {"oom_kill": 1}
+    if case == "genuine_oom":
+        assert isolation.require_browser_acceptance(image) == image
+        # Neither sidecar contents nor its presence grant acceptance authority.
+        sidecar.write_text('{"passed":true,"memory_observation":{"secret":"ignored"}}')
+        assert isolation.require_browser_acceptance(image) == image
+        sidecar.unlink()
+        assert isolation.require_browser_acceptance(image) == image
+        for key, value in (
+            ("unknown_field", True),
+            ("memory_observation", {}),
+            ("sources", {}),
+            ("runtime", {"stale": True}),
+            ("image_sources", {}),
+            ("checks", {}),
+            ("passed", 1),
+            ("mocked", True),
+        ):
+            isolation.BROWSER_ACCEPTANCE.write_text(json.dumps({**report, key: value}))
+            with pytest.raises(ValueError, match="missing, stale, or incomplete"):
+                isolation.require_browser_acceptance(image)
+        isolation.BROWSER_ACCEPTANCE.write_text(json.dumps(report))
+    else:
+        with pytest.raises(ValueError, match="missing, stale, or incomplete"):
+            isolation.require_browser_acceptance(image)
     assert report["passed"] is (case == "genuine_oom")
     assert report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None)
     assert operations == [
@@ -198330,9 +198404,10 @@ if __name__ == "__main__":
 - `memory_probe_diagnostic`（L52–L77）：接收`process`、`state`、`timed_out`、`inspection_failed`。 源码说明：Expose finite exit facts only, never Docker errors, logs or process output.。 调用`type`、`state.get`、`integer`、`getattr`、`flag`、`bool`。 返回路径：L65的`{ "phase": "memory_exhaustion", "timed_out": timed_out is True, "inspection_failed": inspe…`。
 - `memory_probe_diagnostic.flag`（L56–L58）：接收`name`。 调用`state.get`、`type`。 返回路径：L58的`value if type(value) is bool else None`。
 - `memory_probe_diagnostic.integer`（L60–L61）：接收`value`。 调用`type`。 返回路径：L61的`value if type(value) is int and -(2**31) <= value < 2**31 else None`。
-- `main`（L80–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L107按`selected_policy() is not None`分支；L115按`len(raw_run.stdout) > 20000`分支；L116抛异常，停止当前正常路径；L119按`raw_run.returncode`分支；L120抛异常，停止当前正常路径；L139抛异常，停止当前正常路径；L142按`type(state) is not dict`分支；L143抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `write_memory_diagnostic`（L80–L89）：接收`observation`。 源码说明：Optional sidecar, never part of the exact-schema acceptance receipt.。 调用`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L92–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121按`selected_policy() is not None`分支；L129按`len(raw_run.stdout) > 20000`分支；L130抛异常，停止当前正常路径；L133按`raw_run.returncode`分支；L134抛异常，停止当前正常路径；L152抛异常，停止当前正常路径；L155按`type(state) is not dict`分支；L156抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`write_memory_diagnostic`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: 9a310ff66240a7a7e11bbdac3b17efb7b5f481cda00f69f704936e0e53596b2b -->
+<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: 00f99940f50d6561762cf3dc0dca410d4f7f5d3e6a55c9391902d77e88d86b52 -->
 ````python
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
 
@@ -198413,6 +198488,18 @@ def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_faile
     }
 
 
+def write_memory_diagnostic(observation):
+    """Optional sidecar, never part of the exact-schema acceptance receipt."""
+    try:
+        write_json(
+            ROOT / "reports/capability-browser-memory-diagnostic.json",
+            {"memory_observation": observation},
+        )
+    except Exception:
+        # Diagnostic persistence must not replace the original proof or failure.
+        pass
+
+
 def main():
     image = browser_image_identity()
     report = {
@@ -198427,6 +198514,8 @@ def main():
     }
     output = ROOT / "reports/capability-browser-isolation.json"
     write_json(output, report)
+    observation = None
+    write_memory_diagnostic(observation)
     name = "rnd-browser-" + uuid.uuid4().hex
     server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -198465,7 +198554,6 @@ def main():
         inspection = json.loads(run([*DOCKER, "inspect", name]))
         require_worker_inspection(inspection, image)
         with observe_memory(inspection, name, DOCKER) as observation:
-            report["memory_observation"] = observation
             try:
                 oom_run = subprocess.run(
                     [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
@@ -198529,6 +198617,7 @@ def main():
         )
         server.shutdown()
         server.server_close()
+        write_memory_diagnostic(observation)
         write_json(output, report)
 
 
@@ -219483,7 +219572,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/capability-browser-isolation.yml sha256: e817776be0db9ddac16d15fa9fc9b30156188fa19c2ac241d30b1a3b86df37b4 -->
+<!-- source-file: .github/workflows/capability-browser-isolation.yml sha256: f891099aaeb69e272f7535aa70793ab09c888451055f36eaffc42f00f94291e5 -->
 ````yaml
 name: Offline candidate browser isolation
 on:
@@ -219547,6 +219636,7 @@ jobs:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
           path: |
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json
 ````
 
@@ -219558,7 +219648,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/capability-profile.yml sha256: 124ef1108586a18687c8cb7a6f5589507b1e2b8026ff462a60937c7122d945eb -->
+<!-- source-file: .github/workflows/capability-profile.yml sha256: 32ea326015fa0626720e677fada88194f43b02125fddcf24586ffb69dfcc6d5c -->
 ````yaml
 name: Fixed authored SQLite isolation profile
 on:
@@ -219701,6 +219791,7 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json
 ````
 
@@ -220080,7 +220171,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: ed9cabd6376ddffeab64971fbe0a98fd2f48b9007d9a6fc896cfa366cb5a0063 -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: a846c8d0e32712d4ccd2adff881326b2ff6bf5cfb895ef22605544640e906482 -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -220288,6 +220379,7 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
             reports/native-tools/capability-source.json
@@ -220737,7 +220829,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/real-model.yml sha256: caeca9dd7403676c0e7872ba2c244700b10086ffe0d4a9a3e9aa58d2974f23cf -->
+<!-- source-file: .github/workflows/real-model.yml sha256: 9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f -->
 ````yaml
 name: Manual real-model customer acceptance
 on:
@@ -221022,6 +221114,8 @@ jobs:
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
+            reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
           if-no-files-found: error
           retention-days: 7
 ````
@@ -238539,7 +238633,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 2a2a74ff9926694147bb9f08da9699050c781b7408ff19c9a8306571c73da3ee -->
+<!-- source-file: docs/modular-production-v2.md sha256: 0821faebaeaf50e9eff15f13c9fb1285f435adb783fff05656e05bdf5af2c336 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -238752,6 +238846,14 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 网关原本会在临时数据库记录每次model_failure，但该场景清理后未向summary保留这些记录。本地补丁在既有finally中导出最多32项`model_failure_receipts`，只含白名单code、1/2次尝试序号，transport_error另含基于有界异常类型链的固定transport_kind。HTTP代码限100–599；未知分类为other，非法序号为null；不导出endpoint、模型名、请求ID、时间、headers、prompt、校验字段路径/值、异常或响应正文。读取诊断失败记null，不替换原验收结果。只增加诊断，不改变两次尝试、退避、TLS、超时、预算或严格输出契约。
 
 真实网关/mock HTTP回归覆盖第一次无效JSON后第二次读取超时、远端协议错误、429或再次无效JSON；两次调用数保持不变。真实锁定Worker离线路径覆盖诊断读取成功和失败；白名单污染、上限及异常链环路有回归。既有453 artifact没有新增分类，补丁不能追补已删除临时数据库中的证据，当前具体根因仍未知；继续仅本地准备，不推送或盲目重跑。
+
+### 719bca1 主回执字段回归（本地修复，待真实复测）
+
+719bca1手动mini-SWE运行38129824945在模型前的ci_capability_security被require_browser_acceptance第302行拒绝；普通SQLite隔离38129655377同处失败。静态精确源码及离线串联复现确认：b932694新增观测时无条件向主回执写入memory_observation，但消费者要求原8个顶层字段精确匹配，即使所有真实检查通过也会拒绝。此前仅测生成器结果而未把其输出交给真实消费者，遗漏了兼容性回归；不能把这次模型前失败归因于模型、OOM或未经证明的时效问题。
+
+本地修复保持消费者原封不动，把可选memory_observation移至独立reports/capability-browser-memory-diagnostic.json，主成功回执恢复原8字段。诊断写入失败不覆盖原验收结果；诊断文件不是准入证据。既有artifact上传步骤仅补此文件，mini-SWE步骤另补原主回执，以便下次模型前失败也可取得证据；不改事件、scope、SHA绑定、时效、超时、调用预算或工作流安全配置。
+
+新增真实main生成器→原require_browser_acceptance串联回归，仅替代Docker/浏览器及主机运行事实，源码与镜像源码摘要仍由真实函数计算；不是实际容器证明。修复前3个成功观测分支均复现第302行拒绝；修复后正例通过，未知顶层字段（包括重新塞入memory_observation）、旧源码/运行身份、不完整检查、mocked及非布尔passed仍拒绝；OOM未证明、仍运行、启动超时等原负例仍拒绝。可选观测不可用、收尾失败、落盘失败、诊断文件修改或缺失均不改变主回执判断。相关离线221项通过；本轮只本地准备，不推送、不触发模型或三SQLite运行，等待719其余CI全部终态。
 ````
 
 ### `docs/template-platform.md`

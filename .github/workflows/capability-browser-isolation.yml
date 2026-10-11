@@ -60,4 +60,5 @@ jobs:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
           path: |
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json

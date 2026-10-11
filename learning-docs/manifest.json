@@ -4481,8 +4481,8 @@
     },
     {
       "path": ".github/workflows/capability-browser-isolation.yml",
-      "bytes": 2656,
-      "sha256": "e817776be0db9ddac16d15fa9fc9b30156188fa19c2ac241d30b1a3b86df37b4",
+      "bytes": 2718,
+      "sha256": "f891099aaeb69e272f7535aa70793ab09c888451055f36eaffc42f00f94291e5",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-browser-isolation_yml--001.md"
@@ -4490,8 +4490,8 @@
     },
     {
       "path": ".github/workflows/capability-profile.yml",
-      "bytes": 7553,
-      "sha256": "124ef1108586a18687c8cb7a6f5589507b1e2b8026ff462a60937c7122d945eb",
+      "bytes": 7615,
+      "sha256": "32ea326015fa0626720e677fada88194f43b02125fddcf24586ffb69dfcc6d5c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-profile_yml--001.md"
@@ -4526,8 +4526,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 11298,
-      "sha256": "ed9cabd6376ddffeab64971fbe0a98fd2f48b9007d9a6fc896cfa366cb5a0063",
+      "bytes": 11360,
+      "sha256": "a846c8d0e32712d4ccd2adff881326b2ff6bf5cfb895ef22605544640e906482",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -4562,8 +4562,8 @@
     },
     {
       "path": ".github/workflows/real-model.yml",
-      "bytes": 12874,
-      "sha256": "caeca9dd7403676c0e7872ba2c244700b10086ffe0d4a9a3e9aa58d2974f23cf",
+      "bytes": 12990,
+      "sha256": "9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__real-model_yml--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 30110,
-      "sha256": "2a2a74ff9926694147bb9f08da9699050c781b7408ff19c9a8306571c73da3ee",
+      "bytes": 31943,
+      "sha256": "0821faebaeaf50e9eff15f13c9fb1285f435adb783fff05656e05bdf5af2c336",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5021,8 +5021,8 @@
     },
     {
       "path": "scripts/ci_capability_browser_isolation.py",
-      "bytes": 8947,
-      "sha256": "9a310ff66240a7a7e11bbdac3b17efb7b5f481cda00f69f704936e0e53596b2b",
+      "bytes": 9400,
+      "sha256": "00f99940f50d6561762cf3dc0dca410d4f7f5d3e6a55c9391902d77e88d86b52",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md"
@@ -5402,8 +5402,8 @@
     },
     {
       "path": "tests/test_capability_browser_oom_diagnostics.py",
-      "bytes": 6963,
-      "sha256": "9bcec87cf969ad956aa115795ad8e1f8693bd5778a3c060067a9a6e78e337403",
+      "bytes": 9786,
+      "sha256": "cf031c51d4a5c8a7fb8283a73f419719fbae87bb613021eb337825fa025bcd22",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md"

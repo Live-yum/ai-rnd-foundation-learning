@@ -281,5 +281,7 @@ jobs:
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
+            reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
           if-no-files-found: error
           retention-days: 7

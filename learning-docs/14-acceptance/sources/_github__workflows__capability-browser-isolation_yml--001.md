@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L63。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L64。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2656`。本段原文以LF换行结束。
+本段原始字节数：`2718`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e817776be0db9ddac16d15fa9fc9b30156188fa19c2ac241d30b1a3b86df37b4"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f891099aaeb69e272f7535aa70793ab09c888451055f36eaffc42f00f94291e5"} -->
 ````yaml
 # .github/workflows/capability-browser-isolation.yml
 name: Offline candidate browser isolation
@@ -79,5 +79,6 @@ jobs:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
           path: |
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json
 ````

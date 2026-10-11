@@ -22,15 +22,16 @@
 - `memory_probe_diagnostic`（L52–L77）：接收`process`、`state`、`timed_out`、`inspection_failed`。 源码说明：Expose finite exit facts only, never Docker errors, logs or process output.。 调用`type`、`state.get`、`integer`、`getattr`、`flag`、`bool`。 返回路径：L65的`{ "phase": "memory_exhaustion", "timed_out": timed_out is True, "inspection_failed": inspe…`。
 - `memory_probe_diagnostic.flag`（L56–L58）：接收`name`。 调用`state.get`、`type`。 返回路径：L58的`value if type(value) is bool else None`。
 - `memory_probe_diagnostic.integer`（L60–L61）：接收`value`。 调用`type`。 返回路径：L61的`value if type(value) is int and -(2**31) <= value < 2**31 else None`。
-- `main`（L80–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L107按`selected_policy() is not None`分支；L115按`len(raw_run.stdout) > 20000`分支；L116抛异常，停止当前正常路径；L119按`raw_run.returncode`分支；L120抛异常，停止当前正常路径；L139抛异常，停止当前正常路径；L142按`type(state) is not dict`分支；L143抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `write_memory_diagnostic`（L80–L89）：接收`observation`。 源码说明：Optional sidecar, never part of the exact-schema acceptance receipt.。 调用`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L92–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121按`selected_policy() is not None`分支；L129按`len(raw_run.stdout) > 20000`分支；L130抛异常，停止当前正常路径；L133按`raw_run.returncode`分支；L134抛异常，停止当前正常路径；L152抛异常，停止当前正常路径；L155按`type(state) is not dict`分支；L156抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`write_memory_diagnostic`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L200。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L214。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8947`。本段原文以LF换行结束。
+本段原始字节数：`9400`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9a310ff66240a7a7e11bbdac3b17efb7b5f481cda00f69f704936e0e53596b2b"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "00f99940f50d6561762cf3dc0dca410d4f7f5d3e6a55c9391902d77e88d86b52"} -->
 ````python
 # scripts/ci_capability_browser_isolation.py
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
@@ -112,6 +113,18 @@ def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_faile
     }
 
 
+def write_memory_diagnostic(observation):
+    """Optional sidecar, never part of the exact-schema acceptance receipt."""
+    try:
+        write_json(
+            ROOT / "reports/capability-browser-memory-diagnostic.json",
+            {"memory_observation": observation},
+        )
+    except Exception:
+        # Diagnostic persistence must not replace the original proof or failure.
+        pass
+
+
 def main():
     image = browser_image_identity()
     report = {
@@ -126,6 +139,8 @@ def main():
     }
     output = ROOT / "reports/capability-browser-isolation.json"
     write_json(output, report)
+    observation = None
+    write_memory_diagnostic(observation)
     name = "rnd-browser-" + uuid.uuid4().hex
     server = ThreadingHTTPServer(("127.0.0.1", 0), Page)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -164,7 +179,6 @@ def main():
         inspection = json.loads(run([*DOCKER, "inspect", name]))
         require_worker_inspection(inspection, image)
         with observe_memory(inspection, name, DOCKER) as observation:
-            report["memory_observation"] = observation
             try:
                 oom_run = subprocess.run(
                     [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
@@ -228,6 +242,7 @@ def main():
         )
         server.shutdown()
         server.server_close()
+        write_memory_diagnostic(observation)
         write_json(output, report)
 
 

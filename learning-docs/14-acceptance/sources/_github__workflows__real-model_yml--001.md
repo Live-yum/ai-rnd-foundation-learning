@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L285。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L287。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12874`。本段原文以LF换行结束。
+本段原始字节数：`12990`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "caeca9dd7403676c0e7872ba2c244700b10086ffe0d4a9a3e9aa58d2974f23cf"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
@@ -300,6 +300,8 @@ jobs:
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
+            reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
           if-no-files-found: error
           retention-days: 7
 ````

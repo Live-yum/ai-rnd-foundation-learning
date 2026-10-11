@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L142。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L143。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7553`。本段原文以LF换行结束。
+本段原始字节数：`7615`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "124ef1108586a18687c8cb7a6f5589507b1e2b8026ff462a60937c7122d945eb"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "32ea326015fa0626720e677fada88194f43b02125fddcf24586ffb69dfcc6d5c"} -->
 ````yaml
 # .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
@@ -158,5 +158,6 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json
 ````
