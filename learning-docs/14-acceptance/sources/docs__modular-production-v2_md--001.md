@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L166。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L170。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19403`。本段原文以LF换行结束。
+本段原始字节数：`20714`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "587325389ae17e3075e71898fabf812594b0d0e347ddd0924691a59c72231504"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "75d7355c936ac0d67e4069c9e851d9f11af81e4d4067e7ce55c08478a753eb5f"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -183,4 +183,8 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 失败摘要现在额外保存固定白名单异常类型、固定受信代码阶段及该代码帧的行号；容器检查拒绝沿用现有严格过滤的类别/布尔/数字事实。未知异常名称和仓库外帧被抑制，不保存原始异常、堆栈文本、局部变量、SDK响应、提示词或凭据。离线回归使用真实锁定 Worker、正式场景上下文和模型网关，替换隔离环境及HTTP transport，已确认可到达首次调用预留和模拟 transport；这不是在线沙箱或真实模型成功证据。
 
 此变更仅补齐故障可观测性，尚未确认或修复上述运行的根因。沙箱控制用户、权限、CA、预算和准入策略均未更改；不自动 dispatch 或重跑已通过的三 SQLite 场景。
+
+后续诊断运行 `38117555376`（`d3bf4c9`，artifact `11694582817`）明确在容器检查处被 `sandbox_network` 拒绝：`network_mode=bridge`、`network_count=1`、`runner_bridge_attached=true`，模型调用预留/HTTP尝试/响应仍全部为0。原因是编码器使用 `rnd-agent-` 名称，而已批准 Runner 的网络与资源限制仅在 `rnd-source-` 分支启用；独立验证器已经使用该严格前缀。编码器现使用 `rnd-source-agent-`（原生选择使用既有 `rnd-source-native-` 前缀），使创建配置进入原严格分支，不删除或放宽检查。
+
+原 Runner patch、单一准确 bridge 检查、`network_block_all=true`、私有沙箱、资源限制、控制用户、产品执行守卫及全部隔离正反例均保持不变。既有控制通道只传输批准业务文件，编码阶段不执行产品代码；后续产品执行仍必须经独立验证器与出口阻断守卫，不将控制 bridge 解释为任意网络授权。离线测试先复现原拒绝，再验证正确配置可通过真实检查器；旧前缀、额外网络、缺失配额和出口标志失效仍在上传前失败并删除沙箱。上述为模拟 Docker/SDK 事实上的离线配置证据，实际隔离及模型终态必须由新 SHA 的 Actions 再验证；本线程未 dispatch。
 ````

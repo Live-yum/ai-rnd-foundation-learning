@@ -953,3 +953,91 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
     with pytest.raises(ValueError, match="built-in seccomp"):
         profile.inspect_created_sandbox(directory, SANDBOX)
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "rejection", [None, "legacy_name", "extra_network", "no_limits", "egress_enabled"]
+)
+def test_coding_sandbox_uses_strict_runner_profile_before_upload(
+    execution_inspection, settings, monkeypatch, rejection
+):
+    """Real inspector over simulated Docker facts, never live isolation evidence."""
+    from scripts.ci_live_modules import acceptance_design
+    from workbench.errors import UnsupportedScope
+    from workbench.infrastructure.sandbox import coding
+
+    directory, _, inner, calls = execution_inspection
+    plan = acceptance_design().implementation
+    operations, uploaded = [], {}
+    record = profile.require_profile(directory)
+    record["recipe_identity"] = "e" * 64
+    record["snapshot"]["snapshot"] = "offline-owned-snapshot"
+    monkeypatch.setattr(
+        coding, "capability_execution_prerequisites", lambda *a: (directory, record)
+    )
+
+    def upload(content, path, **kwargs):
+        assert len(calls) == 4  # Real inspector and bridge validation precede any file upload.
+        uploaded[path] = content
+        operations.append("upload")
+
+    sandbox = SimpleNamespace(
+        id=SANDBOX,
+        network_block_all=rejection != "egress_enabled",
+        public=False,
+        refresh_data=lambda: None,
+        fs=SimpleNamespace(
+            create_folder=lambda *a: None,
+            upload_file=upload,
+            download_file=lambda path, **k: uploaded[path],
+        ),
+    )
+
+    def create(parameters, **kwargs):
+        assert parameters.network_block_all is True and parameters.public is False
+        # Emulate the pinned Runner's existing name-selected branch; do not alter it.
+        name = "rnd-agent-old" if rejection == "legacy_name" else parameters.name
+        assert 'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT
+        if not name.startswith("rnd-source-"):
+            inner["HostConfig"].update(NetworkMode="bridge", CpuQuota=0, Memory=0)
+        if rejection == "extra_network":
+            inner["NetworkSettings"]["Networks"]["unexpected"] = {}
+        if rejection == "no_limits":
+            inner["HostConfig"].update(CpuQuota=0, Memory=0)
+        operations.append("create")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: operations.append("delete"))
+    monkeypatch.setattr(coding, "client_for", lambda *a: client)
+    monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("close"))
+    product = directory / "coding-product"
+    product.mkdir()
+    (product / "app.py").write_text("# approved before-image\n")
+    task = plan.tasks[0]
+    context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
+    if rejection:
+        error = UnsupportedScope if rejection == "egress_enabled" else ContainerInspectionRejected
+        with pytest.raises(error) as captured:
+            with context:
+                pytest.fail("rejected isolation must not expose the file channel")
+        assert not uploaded and operations == ["create", "delete", "close"]
+        if rejection != "egress_enabled":
+            diagnostic = captured.value.diagnostic()
+            assert diagnostic["container_rejection"] == (
+                "resource_limits" if rejection == "no_limits" else "sandbox_network"
+            )
+            if rejection == "legacy_name":
+                assert diagnostic == {
+                    "container_rejection": "sandbox_network",
+                    "network_mode": "bridge",
+                    "network_count": 1,
+                    "runner_bridge_attached": True,
+                }
+    else:
+        with context as environment:
+            assert environment.snapshot(task.allowed_paths) == {
+                "app.py": "# approved before-image\n",
+                "sla.py": "",
+            }
+        assert len(uploaded) == 2
+        assert operations[-2:] == ["delete", "close"]

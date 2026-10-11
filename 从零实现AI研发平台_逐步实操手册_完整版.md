@@ -165,6 +165,10 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 此变更仅补齐故障可观测性，尚未确认或修复上述运行的根因。沙箱控制用户、权限、CA、预算和准入策略均未更改；不自动 dispatch 或重跑已通过的三 SQLite 场景。
 
+后续诊断运行 `38117555376`（`d3bf4c9`，artifact `11694582817`）明确在容器检查处被 `sandbox_network` 拒绝：`network_mode=bridge`、`network_count=1`、`runner_bridge_attached=true`，模型调用预留/HTTP尝试/响应仍全部为0。原因是编码器使用 `rnd-agent-` 名称，而已批准 Runner 的网络与资源限制仅在 `rnd-source-` 分支启用；独立验证器已经使用该严格前缀。编码器现使用 `rnd-source-agent-`（原生选择使用既有 `rnd-source-native-` 前缀），使创建配置进入原严格分支，不删除或放宽检查。
+
+原 Runner patch、单一准确 bridge 检查、`network_block_all=true`、私有沙箱、资源限制、控制用户、产品执行守卫及全部隔离正反例均保持不变。既有控制通道只传输批准业务文件，编码阶段不执行产品代码；后续产品执行仍必须经独立验证器与出口阻断守卫，不将控制 bridge 解释为任意网络授权。离线测试先复现原拒绝，再验证正确配置可通过真实检查器；旧前缀、额外网络、缺失配额和出口标志失效仍在上传前失败并删除沙箱。上述为模拟 Docker/SDK 事实上的离线配置证据，实际隔离及模型终态必须由新 SHA 的 Actions 再验证；本线程未 dispatch。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -20403,9 +20407,9 @@ def _cursor(connection):
 - `DaytonaFiles.__init__`（L24–L25）：接收`sandbox`、`task`、`timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.write`（L27–L33）：接收`edits`。 控制顺序：L28按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L29抛异常，停止当前正常路径；L30遍历`edits.files`。 调用`set`、`ValueError`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.snapshot`（L35–L44）：接收`paths`。 控制顺序：L36按`paths != self.task.allowed_paths`分支；L37抛异常，停止当前正常路径；L39遍历`paths`；L41按`not isinstance(content, bytes) or len(content) > 100000`分支；L42抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`isinstance`、`len`、`content.decode`。 返回路径：L44的`result`。
-- `coding_environment`（L48–L93）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L63按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L64抛异常，停止当前正常路径；L90按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `coding_environment`（L48–L98）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L68按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L69抛异常，停止当前正常路径；L95按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: a181638ab63a25f2bd21f828d686beb208f3d8355fee52ec3239f6266ec139e7 -->
+<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: 1231faee0f68a0eb824681a422448b7502fd1bd296a90968ab00e129056ebef0 -->
 ````python
 """File-only coding session on the existing admitted private Daytona channel.
 
@@ -20464,8 +20468,13 @@ def coding_environment(settings, task, selection, product):
     client = client_for(settings)
     sandbox = None
     try:
+        # The admitted Runner selects strict network/resource limits by this
+        # existing source prefix, shared with the independent verifier.
+        prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
         sandbox = client.create(
-            params_for(settings, "rnd-agent-" + uuid.uuid4().hex, selection["template"], selection),
+            params_for(
+                settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
+            ),
             timeout=settings.tool_timeout,
         )
         sandbox.refresh_data()
@@ -153674,8 +153683,11 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
 - `test_required_profile_verifies_image_id_and_registry_digest`（L922–L937）：接收`locked_profile`、`monkeypatch`。 控制顺序：L932断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_prepare_never_overwrites_existing_profile_or_credentials`（L940–L944）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L950–L955）：接收`inspection`、`options`。 控制顺序：L955断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L961–L1043）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1018按`rejection`分支；L1023断言`not uploaded and operations == ["create", "delete", "close"]`；L1024按`rejection != "egress_enabled"`分支；L1026断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1029按`rejection == "legacy_name"`分支；L1030断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1038断言`environment.snapshot(task.allowed_paths) == { "app.py": "# approved before-image\n", …`；L1042断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_text`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L979–L982）：接收`content`、`path`、`**kwargs`。 控制顺序：L980断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L996–L1008）：接收`parameters`、`**kwargs`。 控制顺序：L997断言`parameters.network_block_all is True and parameters.public is False`；L1000断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1001按`not name.startswith("rnd-source-")`分支；L1003按`rejection == "extra_network"`分支；L1005按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1008的`sandbox`。
 
-<!-- source-file: tests/test_daytona_capability_profile.py sha256: 1f90ccd1086d6e0f339e0f045a35eca4d53cbc5ec547c942b86b3ed87efdd0f9 -->
+<!-- source-file: tests/test_daytona_capability_profile.py sha256: d42fbc3309ede7f4360a6146417d9cc9ab83e1bff57b8d4948f006d1be8b2483 -->
 ````python
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
 
@@ -154632,6 +154644,94 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
     with pytest.raises(ValueError, match="built-in seccomp"):
         profile.inspect_created_sandbox(directory, SANDBOX)
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize(
+    "rejection", [None, "legacy_name", "extra_network", "no_limits", "egress_enabled"]
+)
+def test_coding_sandbox_uses_strict_runner_profile_before_upload(
+    execution_inspection, settings, monkeypatch, rejection
+):
+    """Real inspector over simulated Docker facts, never live isolation evidence."""
+    from scripts.ci_live_modules import acceptance_design
+    from workbench.errors import UnsupportedScope
+    from workbench.infrastructure.sandbox import coding
+
+    directory, _, inner, calls = execution_inspection
+    plan = acceptance_design().implementation
+    operations, uploaded = [], {}
+    record = profile.require_profile(directory)
+    record["recipe_identity"] = "e" * 64
+    record["snapshot"]["snapshot"] = "offline-owned-snapshot"
+    monkeypatch.setattr(
+        coding, "capability_execution_prerequisites", lambda *a: (directory, record)
+    )
+
+    def upload(content, path, **kwargs):
+        assert len(calls) == 4  # Real inspector and bridge validation precede any file upload.
+        uploaded[path] = content
+        operations.append("upload")
+
+    sandbox = SimpleNamespace(
+        id=SANDBOX,
+        network_block_all=rejection != "egress_enabled",
+        public=False,
+        refresh_data=lambda: None,
+        fs=SimpleNamespace(
+            create_folder=lambda *a: None,
+            upload_file=upload,
+            download_file=lambda path, **k: uploaded[path],
+        ),
+    )
+
+    def create(parameters, **kwargs):
+        assert parameters.network_block_all is True and parameters.public is False
+        # Emulate the pinned Runner's existing name-selected branch; do not alter it.
+        name = "rnd-agent-old" if rejection == "legacy_name" else parameters.name
+        assert 'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT
+        if not name.startswith("rnd-source-"):
+            inner["HostConfig"].update(NetworkMode="bridge", CpuQuota=0, Memory=0)
+        if rejection == "extra_network":
+            inner["NetworkSettings"]["Networks"]["unexpected"] = {}
+        if rejection == "no_limits":
+            inner["HostConfig"].update(CpuQuota=0, Memory=0)
+        operations.append("create")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: operations.append("delete"))
+    monkeypatch.setattr(coding, "client_for", lambda *a: client)
+    monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("close"))
+    product = directory / "coding-product"
+    product.mkdir()
+    (product / "app.py").write_text("# approved before-image\n")
+    task = plan.tasks[0]
+    context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
+    if rejection:
+        error = UnsupportedScope if rejection == "egress_enabled" else ContainerInspectionRejected
+        with pytest.raises(error) as captured:
+            with context:
+                pytest.fail("rejected isolation must not expose the file channel")
+        assert not uploaded and operations == ["create", "delete", "close"]
+        if rejection != "egress_enabled":
+            diagnostic = captured.value.diagnostic()
+            assert diagnostic["container_rejection"] == (
+                "resource_limits" if rejection == "no_limits" else "sandbox_network"
+            )
+            if rejection == "legacy_name":
+                assert diagnostic == {
+                    "container_rejection": "sandbox_network",
+                    "network_mode": "bridge",
+                    "network_count": 1,
+                    "runner_bridge_attached": True,
+                }
+    else:
+        with context as environment:
+            assert environment.snapshot(task.allowed_paths) == {
+                "app.py": "# approved before-image\n",
+                "sla.py": "",
+            }
+        assert len(uploaded) == 2
+        assert operations[-2:] == ["delete", "close"]
 ````
 
 ### `tests/test_daytona_dependency_build.py`
@@ -237068,7 +237168,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 587325389ae17e3075e71898fabf812594b0d0e347ddd0924691a59c72231504 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 75d7355c936ac0d67e4069c9e851d9f11af81e4d4067e7ce55c08478a753eb5f -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -237236,6 +237336,10 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 失败摘要现在额外保存固定白名单异常类型、固定受信代码阶段及该代码帧的行号；容器检查拒绝沿用现有严格过滤的类别/布尔/数字事实。未知异常名称和仓库外帧被抑制，不保存原始异常、堆栈文本、局部变量、SDK响应、提示词或凭据。离线回归使用真实锁定 Worker、正式场景上下文和模型网关，替换隔离环境及HTTP transport，已确认可到达首次调用预留和模拟 transport；这不是在线沙箱或真实模型成功证据。
 
 此变更仅补齐故障可观测性，尚未确认或修复上述运行的根因。沙箱控制用户、权限、CA、预算和准入策略均未更改；不自动 dispatch 或重跑已通过的三 SQLite 场景。
+
+后续诊断运行 `38117555376`（`d3bf4c9`，artifact `11694582817`）明确在容器检查处被 `sandbox_network` 拒绝：`network_mode=bridge`、`network_count=1`、`runner_bridge_attached=true`，模型调用预留/HTTP尝试/响应仍全部为0。原因是编码器使用 `rnd-agent-` 名称，而已批准 Runner 的网络与资源限制仅在 `rnd-source-` 分支启用；独立验证器已经使用该严格前缀。编码器现使用 `rnd-source-agent-`（原生选择使用既有 `rnd-source-native-` 前缀），使创建配置进入原严格分支，不删除或放宽检查。
+
+原 Runner patch、单一准确 bridge 检查、`network_block_all=true`、私有沙箱、资源限制、控制用户、产品执行守卫及全部隔离正反例均保持不变。既有控制通道只传输批准业务文件，编码阶段不执行产品代码；后续产品执行仍必须经独立验证器与出口阻断守卫，不将控制 bridge 解释为任意网络授权。离线测试先复现原拒绝，再验证正确配置可通过真实检查器；旧前缀、额外网络、缺失配额和出口标志失效仍在上传前失败并删除沙箱。上述为模拟 Docker/SDK 事实上的离线配置证据，实际隔离及模型终态必须由新 SHA 的 Actions 再验证；本线程未 dispatch。
 ````
 
 ### `docs/template-platform.md`

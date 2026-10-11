@@ -459,7 +459,7 @@
 - [tests/test_daytona_api_digest.py](12-daytona/sources/tests__test_daytona_api_digest_py--001.md)（1 段）
 - [tests/test_daytona_bootstrap_contract.py](12-daytona/sources/tests__test_daytona_bootstrap_contract_py--001.md)（1 段）
 - [tests/test_daytona_build.py](12-daytona/sources/tests__test_daytona_build_py--001.md)（1 段）
-- [tests/test_daytona_capability_profile.py](12-daytona/sources/tests__test_daytona_capability_profile_py--001.md)（1 段）
+- [tests/test_daytona_capability_profile.py](12-daytona/sources/tests__test_daytona_capability_profile_py--001.md)（2 段）
 - [tests/test_daytona_dependency_build.py](12-daytona/sources/tests__test_daytona_dependency_build_py--001.md)（1 段）
 - [tests/test_daytona_dependency_image.py](12-daytona/sources/tests__test_daytona_dependency_image_py--001.md)（1 段）
 - [tests/test_daytona_download.py](12-daytona/sources/tests__test_daytona_download_py--001.md)（1 段）

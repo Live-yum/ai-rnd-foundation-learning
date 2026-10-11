@@ -21,7 +21,7 @@
 - [tests/test_daytona_api_digest.py](sources/tests__test_daytona_api_digest_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_bootstrap_contract.py](sources/tests__test_daytona_bootstrap_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_build.py](sources/tests__test_daytona_build_py--001.md)：可重复的验收用例；1 段
-- [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；1 段
+- [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；2 段
 - [tests/test_daytona_dependency_build.py](sources/tests__test_daytona_dependency_build_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_dependency_image.py](sources/tests__test_daytona_dependency_image_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_download.py](sources/tests__test_daytona_download_py--001.md)：可重复的验收用例；1 段

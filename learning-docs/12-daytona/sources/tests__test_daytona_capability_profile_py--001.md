@@ -1,8 +1,8 @@
-# tests/test_daytona_capability_profile.py · 1/1
+# tests/test_daytona_capability_profile.py · 1/2
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-
+[下一段](tests__test_daytona_capability_profile_py--002.md)
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
 
@@ -49,19 +49,14 @@
 - `locked_profile`（L784–L869）：接收`tmp_path`、`monkeypatch`。 控制顺序：L787遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`records["api"].update`、`build.api_patch_identity`、`monkeypatch.setattr`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`等。 返回路径：L869的`tmp_path, record`。
 - `locked_profile.inspect_api`（L797–L814）：接收`*args`、`**kwargs`。 控制顺序：L798断言`args == ("image", "inspect", records["api"]["image_id"])`。 调用`json.dumps`、`build.api_patch_labels`。 返回路径：L801的`json.dumps( [ { "Id": records["api"]["image_id"], "Config": { "Labels": { "org.opencontain…`。
 - `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L872–L883）：接收`locked_profile`。 控制顺序：L878断言`actual == record`；L883断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission`（L886–L900）：接收`locked_profile`。 调用`record["recipes"].update`、`profile.sha256`、`json.dumps(record["recipes"], sort_keys=True).encode`、`json.dumps`、`local.private_json`、`pytest.raises`、`profile.load_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_edited_lock_cannot_select_general_or_unpinned_images`（L913–L919）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_required_profile_verifies_image_id_and_registry_digest`（L922–L937）：接收`locked_profile`、`monkeypatch`。 控制顺序：L932断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_never_overwrites_existing_profile_or_credentials`（L940–L944）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L950–L955）：接收`inspection`、`options`。 控制顺序：L955断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L955。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L885。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`36459`。本段原文以LF换行结束。
+本段原始字节数：`33196`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f90ccd1086d6e0f339e0f045a35eca4d53cbc5ec547c942b86b3ed87efdd0f9"} -->
+<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "17bb114bc227b89adeda5c5c46995538da248547c106d263ffad1b65b5a2ff31"} -->
 ````python
 # tests/test_daytona_capability_profile.py
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
@@ -949,74 +944,4 @@ def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_chan
     assert (directory / "compose.lock.yaml").read_bytes() == ordinary
 
 
-def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
-    directory, record = locked_profile
-    # This internally consistent recipe predates the explicit native IPC/size binding.
-    record["recipes"].update(
-        {
-            "scripts/daytona_capability_profile.py": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
-            "tools/daytona/capability-runner.patch": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
-        }
-    )
-    record["recipe_identity"] = profile.sha256(
-        json.dumps(record["recipes"], sort_keys=True).encode()
-    )
-    local.private_json(directory / profile.LOCK, record)
-    with pytest.raises(ValueError, match="recipe or original installation changed"):
-        profile.load_profile(directory)
-
-
-@pytest.mark.parametrize(
-    "mutation",
-    [
-        lambda record: record["bases"]["GO_IMAGE"].update(digest="golang:latest"),
-        lambda record: record["snapshot"].update(image="registry:6000/rnd-python:0000000000000000"),
-        lambda record: record["snapshot"].update(user="daytona"),
-        lambda record: record["snapshot"].update(digest="elsewhere.example/image@" + DIGEST),
-        lambda record: record["runner"].update(tag=local.IMAGES["runner"]),
-    ],
-)
-def test_edited_lock_cannot_select_general_or_unpinned_images(locked_profile, mutation):
-    directory, record = locked_profile
-    mutation(record)
-    local.private_json(directory / profile.LOCK, record)
-    local.private_json(directory / "snapshot-image.json", record["snapshot"])
-    with pytest.raises(ValueError, match="lock|identity"):
-        profile.load_profile(directory)
-
-
-def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, monkeypatch):
-    directory, record = locked_profile
-    image = snapshot_inspect()
-    runner = copy.deepcopy(image)
-    runner["Id"] = RUNNER
-    runner["Config"]["Env"] = ["USE_SNAPSHOT_ENTRYPOINT=false"]
-    monkeypatch.setattr(
-        profile, "inspect_image", lambda value: runner if value == RUNNER else image
-    )
-    monkeypatch.setattr(profile, "inspect_dependency_manifest", lambda *args: dependency_record())
-    assert profile.require_profile(directory, record["snapshot"]["snapshot"]) == record
-    with pytest.raises(ValueError, match="explicitly select"):
-        profile.require_profile(directory, "ordinary-snapshot")
-    image["RepoDigests"] = []
-    with pytest.raises(ValueError, match="ID and digest"):
-        profile.require_profile(directory)
-
-
-def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile):
-    directory, _ = locked_profile
-    # locked_profile permits only the exact read-only API image inspection.
-    with pytest.raises(ValueError, match="fresh local state"):
-        profile.prepare(directory)
-
-
-@pytest.mark.parametrize(
-    "options", [None, [], ["name=seccomp,profile=unconfined"], ["name=apparmor"]]
-)
-def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection, options):
-    directory, _, inner, calls = inspection
-    inner["engine_security"] = options
-    with pytest.raises(ValueError, match="built-in seccomp"):
-        profile.inspect_created_sandbox(directory, SANDBOX)
-    assert len(calls) == 2
 ````

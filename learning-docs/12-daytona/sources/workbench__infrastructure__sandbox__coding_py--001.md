@@ -19,15 +19,15 @@
 - `DaytonaFiles.__init__`（L24–L25）：接收`sandbox`、`task`、`timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.write`（L27–L33）：接收`edits`。 控制顺序：L28按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L29抛异常，停止当前正常路径；L30遍历`edits.files`。 调用`set`、`ValueError`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.snapshot`（L35–L44）：接收`paths`。 控制顺序：L36按`paths != self.task.allowed_paths`分支；L37抛异常，停止当前正常路径；L39遍历`paths`；L41按`not isinstance(content, bytes) or len(content) > 100000`分支；L42抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`isinstance`、`len`、`content.decode`。 返回路径：L44的`result`。
-- `coding_environment`（L48–L93）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L63按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L64抛异常，停止当前正常路径；L90按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `coding_environment`（L48–L98）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L68按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L69抛异常，停止当前正常路径；L95按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L93。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L98。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3668`。本段原文以LF换行结束。
+本段原始字节数：`3952`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a181638ab63a25f2bd21f828d686beb208f3d8355fee52ec3239f6266ec139e7"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1231faee0f68a0eb824681a422448b7502fd1bd296a90968ab00e129056ebef0"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -87,8 +87,13 @@ def coding_environment(settings, task, selection, product):
     client = client_for(settings)
     sandbox = None
     try:
+        # The admitted Runner selects strict network/resource limits by this
+        # existing source prefix, shared with the independent verifier.
+        prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
         sandbox = client.create(
-            params_for(settings, "rnd-agent-" + uuid.uuid4().hex, selection["template"], selection),
+            params_for(
+                settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
+            ),
             timeout=settings.tool_timeout,
         )
         sandbox.refresh_data()

@@ -55,8 +55,13 @@ def coding_environment(settings, task, selection, product):
     client = client_for(settings)
     sandbox = None
     try:
+        # The admitted Runner selects strict network/resource limits by this
+        # existing source prefix, shared with the independent verifier.
+        prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
         sandbox = client.create(
-            params_for(settings, "rnd-agent-" + uuid.uuid4().hex, selection["template"], selection),
+            params_for(
+                settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
+            ),
             timeout=settings.tool_timeout,
         )
         sandbox.refresh_data()
