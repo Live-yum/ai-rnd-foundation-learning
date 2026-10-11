@@ -254,13 +254,15 @@ def test_untrusted_or_stale_checkpoint_cannot_finish(settings, tmp_path, monkeyp
         agent.check_candidate(settings, task, plan, candidate, time.monotonic() + 40)
 
 
-@pytest.mark.skipif(not hasattr(signal, "setitimer"), reason="checkpoint requires Linux timer")
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGUSR1"), reason="checkpoint requires dedicated POSIX process"
+)
 def test_check_deadline_interrupts_exception_handlers_and_runs_cleanup(monkeypatch):
     from workbench import capability_sandbox as sandbox
 
     events = []
 
-    def work(payload):
+    def work(payload, **kwargs):
         try:
             try:
                 time.sleep(1)
@@ -381,8 +383,12 @@ def test_transport_failure_is_not_business_repair():
         ({"exception_type": "PermissionError"}, False),
         ({"exception_type": "MemoryError"}, False),
         ({"output_hints": ["storage-full"]}, False),
+        ({"output_hints": ["process-terminated"]}, False),
+        ({"output_hints": ["memory-error"]}, False),
         ({"output_hints": ["missing-module"]}, False),
         ({"command_exit_status": "unknown"}, False),
+        ({"command_exit_code": 137}, False),
+        ({"command_exit_code": 143}, False),
         ({"startup_phase_hint": "unknown"}, False),
         ({"application_startup_reported": True}, False),
     ],
@@ -416,6 +422,7 @@ def test_real_startup_classification_never_turns_infrastructure_into_repair(muta
         "receipt": {},
         "startup": {
             "command_exit_status": "nonzero",
+            "command_exit_code": 3,
             "startup_phase_hint": "lifespan",
             "application_startup_reported": False,
             "output_hints": [],
@@ -466,7 +473,6 @@ def test_actual_verifier_timeout_handler_preserves_owned_cleanup(
     from workbench import capability_sandbox as sandbox
 
     timers = []
-    monkeypatch.setattr(signal, "setitimer", lambda kind, seconds: timers.append(seconds))
 
     tree = ast.parse(inspect.getsource(sandbox._verify))
     original = next(n for n in tree.body[0].body if isinstance(n, ast.Try))
@@ -483,6 +489,11 @@ def test_actual_verifier_timeout_handler_preserves_owned_cleanup(
         if delete_fails:
             raise RuntimeError("private cleanup text")
 
+    def absent(identifier):
+        from daytona.common.errors import DaytonaNotFoundError
+
+        raise DaytonaNotFoundError("owned fixture absent")
+
     scope = {
         **vars(sandbox),
         "injected": sandbox.CheckpointExpired("fixed timeout"),
@@ -490,6 +501,7 @@ def test_actual_verifier_timeout_handler_preserves_owned_cleanup(
         "oracle_adapter": None,
         "native": False,
         "checkpoint": {"nonce": "fixture", "deadline": time.monotonic() + 10},
+        "checkpoint_deadline": SimpleNamespace(enter_cleanup=lambda: timers.append(True)),
         "name": "owned",
         "receipt": {
             "passed": False,
@@ -497,7 +509,7 @@ def test_actual_verifier_timeout_handler_preserves_owned_cleanup(
             "repairable_failure": "application_startup",
         },
         "sandbox": SimpleNamespace(id="owned"),
-        "client": SimpleNamespace(delete=delete),
+        "client": SimpleNamespace(delete=delete, get=absent),
         "settings": SimpleNamespace(tool_timeout=10),
         "receipt_path": tmp_path / "receipt.json",
     }
@@ -511,8 +523,465 @@ def test_actual_verifier_timeout_handler_preserves_owned_cleanup(
     )
     receipt = json.loads((tmp_path / "receipt.json").read_text())
     assert deleted == ["owned"]
-    assert len(timers) == 1 and 0 < timers[0] <= 10
+    assert timers == [True]
     assert receipt["kind"] == "checkpoint_timeout" and receipt["passed"] is False
     assert receipt["cleanup"] == ("delete-failed" if delete_fails else "deleted")
     assert "repairable_failure" not in receipt
     assert "private" not in json.dumps(receipt)
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="dedicated POSIX verifier")
+@pytest.mark.parametrize("blocking", [False, True])
+def test_real_locked_sdk_cannot_erase_checkpoint_deadline(blocking):
+    """Exercise the real SDK decorator, including the old failing timer setup."""
+    from importlib.metadata import version
+
+    from daytona._utils.timeout import with_timeout
+
+    from workbench.infrastructure.sandbox.deadline import CheckpointDeadline, CheckpointExpired
+    from workbench.local_only import DAYTONA_VERSION
+
+    assert version("daytona") == DAYTONA_VERSION
+
+    @with_timeout()
+    def sdk_call(timeout, delay=0):
+        time.sleep(delay)
+
+    previous = signal.signal(signal.SIGALRM, lambda *args: None)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, 1)
+        sdk_call(timeout=2)
+        assert signal.getitimer(signal.ITIMER_REAL)[0] == 0  # real pre-fix conflict
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+    events = []
+    start = time.monotonic()
+    with CheckpointDeadline(start + 10.15) as controller:
+        with pytest.raises(CheckpointExpired):
+            try:
+                sdk_call(timeout=2, delay=1 if blocking else 0)
+                time.sleep(1)
+            except Exception:
+                events.append("incorrectly-swallowed")
+            finally:
+                controller.enter_cleanup()
+                sdk_call(timeout=1, delay=0.03)
+                events.append("cleaned")
+    assert events == ["cleaned"] and time.monotonic() - start < 1
+    assert signal.getsignal(signal.SIGALRM) == previous
+
+
+def cleanup_binding():
+    plan = design().implementation
+    task = plan.tasks[0]
+    return (
+        task,
+        plan,
+        {
+            "task": digest(task.model_dump()),
+            "plan": digest(plan.model_dump()),
+            "source": "a" * 64,
+            "nonce": "b" * 32,
+        },
+    )
+
+
+@pytest.mark.parametrize("observation", ["absent", "present", "error"])
+def test_deletion_requires_typed_absence_after_delete(observation):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+
+    seen = []
+
+    def get(identifier):
+        seen.append(identifier)
+        if observation == "absent":
+            raise DaytonaNotFoundError("owned fixture")
+        if observation == "error":
+            raise RuntimeError("private SDK details")
+        return object()
+
+    client = SimpleNamespace(delete=lambda target, timeout: seen.append("delete"), get=get)
+    if observation == "absent":
+        confirm_deleted(client, SimpleNamespace(id="owned"), time.monotonic() + 0.03, 1)
+    else:
+        with pytest.raises((RuntimeError, TimeoutError)):
+            confirm_deleted(client, SimpleNamespace(id="owned"), time.monotonic() + 0.03, 1)
+    assert seen[:2] == ["delete", "owned"]
+
+
+@pytest.mark.parametrize("mismatch", ["name", "id"])
+def test_cleanup_cannot_delete_another_task_sandbox(settings, monkeypatch, mismatch):
+    from workbench.infrastructure.sandbox import cleanup
+
+    task, plan, binding = cleanup_binding()
+    name = "rnd-source-agent-" + "b" * 32
+    target = SimpleNamespace(
+        name=name if mismatch == "id" else "another-task",
+        id="another-id" if mismatch == "id" else "owned",
+    )
+    calls = []
+    client = SimpleNamespace(get=lambda key: target, delete=lambda *a, **k: calls.append(True))
+    monkeypatch.setattr("workbench.sandbox.client_for", lambda settings: client)
+    monkeypatch.setattr("workbench.sandbox.close_client", lambda client: None)
+    monkeypatch.setattr("workbench.local_only.install_loopback_guard", lambda: None)
+    with pytest.raises(ValueError, match="identity"):
+        cleanup.perform(
+            {
+                "name": name,
+                "identifier": "owned",
+                "binding": binding,
+                "settings": {},
+                "deadline": time.monotonic() + 2,
+            }
+        )
+    assert not calls
+
+
+@pytest.mark.parametrize("case", ["success", "wrong-binding", "late", "unknown-create"])
+def test_cleanup_parent_is_only_terminal_receipt_writer(settings, tmp_path, monkeypatch, case):
+    from workbench.infrastructure.sandbox import cleanup
+
+    _, _, binding = cleanup_binding()
+    name = "rnd-source-agent-" + "b" * 32
+    path = tmp_path / "cleanup.json"
+
+    class Process:
+        returncode = 0
+
+        def communicate(self, body, timeout):
+            request = json.loads(body)
+            assert request["name"] == name and request["binding"] == binding
+            value = dict(binding)
+            if case == "wrong-binding":
+                value["source"] = "c" * 64
+            return json.dumps({"binding": value, "deleted": True}).encode(), b""
+
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(cleanup.subprocess, "Popen", lambda *a, **k: Process())
+    args = (
+        settings,
+        name,
+        None if case == "unknown-create" else "owned",
+        binding,
+        path,
+        time.monotonic() + (-1 if case == "late" else 1),
+    )
+    if case == "success":
+        cleanup.delete_owned(*args)
+    else:
+        with pytest.raises(UnsupportedScope):
+            cleanup.delete_owned(*args)
+    value = json.loads(path.read_text())
+    assert value["binding"] == binding
+    assert value["status"] == ("deleted" if case == "success" else "unconfirmed")
+    assert (
+        settings.daytona_api_key.get_secret_value() not in path.read_text()
+        or not settings.daytona_api_key.get_secret_value()
+    )
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="POSIX child deadline")
+@pytest.mark.parametrize("expired", [False, True])
+def test_real_sdk_thread_timeout_is_cut_off_by_cleanup_supervisor(
+    settings, tmp_path, monkeypatch, expired
+):
+    """A real child and real SDK timeout around blocking C sleep; no SDK mocking."""
+    import subprocess
+    import sys
+
+    from workbench.infrastructure.sandbox import cleanup
+
+    _, _, binding = cleanup_binding()
+    marker = tmp_path / "entered-sdk"
+    child = """import json,sys,time,threading
+from pathlib import Path
+from daytona._utils.timeout import with_timeout
+p=json.loads(sys.stdin.buffer.read())
+@with_timeout()
+def sdk_call(timeout):
+    Path(sys.argv[1]).write_text("entered")
+    time.sleep(6)
+def worker():
+    try: sdk_call(timeout=1)
+    except Exception: pass
+t=threading.Thread(target=worker);t.start();t.join()
+print(json.dumps({"binding":p["binding"],"deleted":True}))
+"""
+    original = subprocess.Popen
+    children = []
+
+    def launch(command, **kwargs):
+        process = original([sys.executable, "-c", child, str(marker)], **kwargs)
+        children.append(process)
+        return process
+
+    monkeypatch.setattr(cleanup.subprocess, "Popen", launch)
+    path = tmp_path / "cleanup.json"
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        cleanup.delete_owned(
+            settings,
+            "rnd-source-agent-" + "b" * 32,
+            "owned",
+            binding,
+            path,
+            start + (-1 if expired else 2),
+        )
+    assert marker.read_text() == "entered"
+    assert time.monotonic() - start < 4
+    assert children[0].poll() is not None
+    value = json.loads(path.read_text())
+    assert value["status"] == "unconfirmed" and value["binding"] == binding
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value["binding"].update(task="c" * 64),
+        lambda value: value["binding"].update(source="private"),
+        lambda value: value.update(status="private"),
+        lambda value: value.update(reason="private"),
+        lambda value: value.update(sandbox_name="another-unowned-sandbox"),
+    ],
+)
+def test_public_cleanup_rejects_stale_or_poisoned_receipts(tmp_path, mutate):
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import cleanup
+
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "cleanup.json"
+    value = cleanup.receipt(binding, "rnd-source-agent-" + "b" * 32, "private-sdk-id")
+    mutate(value)
+    write_json(path, value)
+    assert cleanup.public_receipt(path, task, plan) == {
+        "status": "unconfirmed",
+        "reason": "invalid_or_missing",
+    }
+
+
+def test_public_cleanup_survives_workspace_deletion_without_raw_sdk_data(tmp_path):
+    import tempfile
+    from pathlib import Path
+
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import cleanup
+
+    task, plan, binding = cleanup_binding()
+    with tempfile.TemporaryDirectory(dir=tmp_path) as directory:
+        path = Path(directory) / "cleanup.json"
+        value = cleanup.receipt(
+            binding, "rnd-source-agent-" + "b" * 32, "private-sdk-id", "deletion_unconfirmed"
+        )
+        value["exception"] = "private secret"
+        write_json(path, value)
+        exported = cleanup.public_receipt(path, task, plan)
+    assert not path.exists()
+    assert exported["status"] == "unconfirmed" and exported["binding"] == binding
+    assert "private" not in json.dumps(exported)
+
+
+def test_terminal_checkpoint_cannot_retain_late_pass_or_repair(tmp_path):
+    from workbench.capability_sandbox import terminate_checkpoint
+    from workbench.filesystem import write_json
+
+    path = tmp_path / "receipt.json"
+    write_json(
+        path, {"passed": True, "cleanup": "deleted", "repairable_failure": "application_startup"}
+    )
+    checkpoint = {"nonce": "b" * 32, "task": "approved", "deadline": time.monotonic()}
+    terminate_checkpoint(path, checkpoint)
+    value = json.loads(path.read_text())
+    assert value["passed"] is False and value["cleanup"] == "unconfirmed"
+    assert value["checkpoint"] == checkpoint and "repairable_failure" not in value
+
+
+def test_real_sdk_thread_timer_alone_cannot_bound_blocking_c_call():
+    import threading
+
+    from daytona._utils.timeout import with_timeout
+    from daytona.common.errors import DaytonaTimeoutError
+
+    observed = []
+
+    @with_timeout()
+    def sdk_call(timeout):
+        time.sleep(1.25)
+
+    def work():
+        start = time.monotonic()
+        try:
+            sdk_call(timeout=1)
+        except DaytonaTimeoutError:
+            observed.append(time.monotonic() - start)
+
+    thread = threading.Thread(target=work)
+    thread.start()
+    thread.join(timeout=3)
+    assert not thread.is_alive() and len(observed) == 1 and observed[0] >= 1.2
+
+
+@pytest.mark.parametrize("wrong_source", [False, True])
+def test_checkpoint_cleanup_summary_binds_task_and_current_candidate(tmp_path, wrong_source):
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox.cleanup import checkpoint_receipts
+
+    task, plan, binding = cleanup_binding()
+    candidate = tmp_path / "step-1"
+    candidate.mkdir()
+    (candidate / "app.py").write_text("# fixture")
+    source = digest(manifest(candidate))
+    write_json(
+        tmp_path / "step-1-node-verification.json",
+        {
+            "checkpoint": {"nonce": binding["nonce"], "task": binding["task"]},
+            "plan_digest": binding["plan"],
+            "source_digest": "c" * 64 if wrong_source else source,
+            "sandbox_name": "rnd-source-" + "d" * 32,
+            "passed": False,
+            "cleanup": "unconfirmed",
+            "error": "private-sdk-body",
+            "repairable_failure": "private",
+        },
+    )
+    result = checkpoint_receipts(tmp_path, task, plan)
+    assert len(result) == 1 and result[0]["cleanup"] == "unconfirmed"
+    assert result[0]["binding_valid"] is not wrong_source
+    assert "private" not in json.dumps(result)
+    if not wrong_source:
+        assert result[0]["binding"]["source"] == source
+
+
+@pytest.mark.parametrize("fail_write", [False, True])
+def test_file_cleanup_tracks_expected_candidate_even_after_partial_upload(
+    settings, tmp_path, monkeypatch, fail_write
+):
+    from workbench.infrastructure.sandbox import cleanup, coding
+
+    task, plan, binding = cleanup_binding()
+    operations = []
+    client = SimpleNamespace()
+    target = SimpleNamespace(
+        id="owned", name=None, network_block_all=True, public=False, refresh_data=lambda: None
+    )
+
+    def create(parameters, timeout):
+        target.name = parameters.name
+        return target
+
+    client.create = create
+    monkeypatch.setattr(coding, "capability_execution_prerequisites", lambda *a: (tmp_path, {}))
+    monkeypatch.setattr(coding, "client_for", lambda *a: client)
+    monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("closed"))
+    monkeypatch.setattr(coding, "require_container_evidence", lambda *a: {})
+    monkeypatch.setattr(coding, "require_profile_container_binding", lambda *a: None)
+    monkeypatch.setattr(
+        "scripts.daytona_capability_profile.inspect_created_sandbox", lambda *a, **k: {}
+    )
+    monkeypatch.setattr(coding.DaytonaFiles, "write", lambda *a: None)
+
+    def delete(settings, name, identifier, bound, path, deadline):
+        assert name == target.name and identifier == target.id
+        assert bound == {**binding, "source": "c" * 64}
+        operations.append("delete")
+        assert json.loads(path.read_text())["binding"] == bound
+
+    monkeypatch.setattr(cleanup, "delete_owned", delete)
+    path = tmp_path / "agent-cleanup.json"
+
+    def run():
+        with coding.coding_environment(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            deadline=time.monotonic() + 30,
+            cleanup_record=path,
+            cleanup_binding=binding,
+        ) as environment:
+            environment.bind_candidate("c" * 64)
+            if fail_write:
+                raise RuntimeError("partial upload failed")
+
+    if fail_write:
+        with pytest.raises(RuntimeError):
+            run()
+    else:
+        run()
+    assert operations == ["delete", "closed"]
+
+
+def test_checkpoint_parent_kills_child_and_freezes_early_success(settings, tmp_path, monkeypatch):
+    import subprocess
+    import sys
+
+    from scripts.ci_capability_profile import fixed_application
+    from workbench import capability_sandbox as verifier
+    from workbench.generator import PrerequisiteError
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    monkeypatch.setattr(
+        "workbench.capability_execution.capability_execution_prerequisites",
+        lambda *a: (tmp_path, {}),
+    )
+    monkeypatch.setattr(
+        "workbench.capability_dependencies.require_dependency_descriptors", lambda *a: None
+    )
+    child = """import json,sys,time
+from pathlib import Path
+p=json.loads(sys.stdin.buffer.read())
+Path(p['receipt']).write_text(json.dumps({'passed':True,'cleanup':'deleted','checkpoint':p['checkpoint'],'repairable_failure':'application_startup'}))
+time.sleep(30)
+"""
+    original = subprocess.Popen
+    children = []
+
+    def launch(command, **kwargs):
+        process = original([sys.executable, "-c", child], **kwargs)
+        children.append(process)
+        return process
+
+    monkeypatch.setattr(verifier.subprocess, "Popen", launch)
+    checkpoint = {
+        "task": digest(plan.tasks[0].model_dump()),
+        "nonce": "a" * 32,
+        "deadline": time.monotonic() + 0.5,
+    }
+    with pytest.raises(PrerequisiteError, match="超时"):
+        verifier.verify_capabilities(
+            product,
+            plan,
+            plan.scenarios,
+            settings,
+            aggregate=False,
+            checkpoint=checkpoint,
+            selection=plan.selection.model_dump(),
+        )
+    assert children[0].poll() is not None
+    value = json.loads((tmp_path / "product-node-verification.json").read_text())
+    assert value["passed"] is False and value["cleanup"] == "unconfirmed"
+    assert value["checkpoint"] == checkpoint and "repairable_failure" not in value
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="dedicated POSIX deadline")
+def test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline():
+    from daytona._utils.timeout import with_timeout
+
+    from workbench.infrastructure.sandbox.deadline import CheckpointDeadline, CheckpointExpired
+
+    @with_timeout()
+    def cleanup_call(timeout):
+        time.sleep(12)
+
+    start = time.monotonic()
+    with CheckpointDeadline(start + 10.1) as controller:
+        controller.enter_cleanup()
+        with pytest.raises(CheckpointExpired):
+            cleanup_call(timeout=20)
+    elapsed = time.monotonic() - start
+    assert 10 <= elapsed < 11.5

@@ -15,7 +15,7 @@ from workbench.capability_execution import (
 from workbench.capability_isolation import require_container_evidence
 from workbench.coding.candidates import task_path_errors
 from workbench.errors import UnsupportedScope
-from workbench.filesystem import inside
+from workbench.filesystem import inside, write_json
 from workbench.sandbox import client_for, close_client, params_for
 
 REMOTE = "/tmp/rnd-agent-business"
@@ -25,6 +25,19 @@ class DaytonaFiles:
     def __init__(self, sandbox, task, timeout, deadline=None):
         self.sandbox, self.task, self.timeout = sandbox, task, timeout
         self.deadline = deadline
+        self.cleanup_record = None
+
+    def bind_candidate(self, source):
+        self.candidate_digest = source
+        if self.cleanup_record is not None:
+            from workbench.infrastructure.sandbox.cleanup import receipt
+
+            write_json(
+                self.cleanup_record,
+                receipt(
+                    {**self.cleanup_binding, "source": source}, self.cleanup_name, self.sandbox.id
+                ),
+            )
 
     def remaining(self):
         remaining = (
@@ -61,7 +74,9 @@ class DaytonaFiles:
 
 
 @contextmanager
-def coding_environment(settings, task, selection, product, *, deadline=None):
+def coding_environment(
+    settings, task, selection, product, *, deadline=None, cleanup_record=None, cleanup_binding=None
+):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
@@ -71,6 +86,8 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
     directory, profile = capability_execution_prerequisites(settings, selection)
     client = client_for(settings)
     sandbox = None
+    name = None
+    env = None
     token = _DEADLINE.set(None if deadline is None else deadline - 15)
 
     def remaining(cleanup=False):
@@ -93,10 +110,13 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
         # The admitted Runner selects strict network/resource limits by this
         # existing source prefix, shared with the independent verifier.
         prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
+        name = prefix + "agent-" + uuid.uuid4().hex
+        if cleanup_record is not None:
+            from workbench.infrastructure.sandbox.cleanup import receipt
+
+            write_json(cleanup_record, receipt(cleanup_binding, name, None, "create_unconfirmed"))
         sandbox = client.create(
-            params_for(
-                settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
-            ),
+            params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
         )
         remaining()
@@ -113,6 +133,13 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
         env = DaytonaFiles(
             sandbox, task, settings.tool_timeout, None if deadline is None else deadline - 15
         )
+        if cleanup_record is not None:
+            write_json(cleanup_record, receipt(cleanup_binding, name, sandbox.id))
+            env.cleanup_record, env.cleanup_binding, env.cleanup_name = (
+                cleanup_record,
+                cleanup_binding,
+                name,
+            )
         env.write(
             CapabilityEdits(
                 explanation="Approved before-images",
@@ -131,7 +158,31 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
     finally:
         try:
             _DEADLINE.reset(token)
-            if sandbox is not None:
+            if cleanup_record is not None and name is not None:
+                from workbench.infrastructure.sandbox.cleanup import delete_owned
+
+                binding = {
+                    **cleanup_binding,
+                    "source": getattr(env, "candidate_digest", cleanup_binding["source"]),
+                }
+                delete_owned(
+                    settings,
+                    name,
+                    sandbox.id if sandbox is not None else None,
+                    binding,
+                    cleanup_record,
+                    deadline,
+                )
+            elif sandbox is not None:
                 client.delete(sandbox, timeout=remaining(cleanup=True))
         finally:
-            close_client(client)
+            try:
+                close_client(client)
+            except Exception:
+                if cleanup_record is not None and cleanup_record.exists():
+                    import json
+
+                    value = json.loads(cleanup_record.read_text())
+                    value.update(status="unconfirmed", reason="transport_cleanup")
+                    write_json(cleanup_record, value)
+                raise

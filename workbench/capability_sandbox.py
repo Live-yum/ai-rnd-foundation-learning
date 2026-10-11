@@ -47,14 +47,11 @@ from workbench.capability_verification import (
 from workbench.domain import digest
 from workbench.filesystem import manifest, write_json
 from workbench.generator import PrerequisiteError
+from workbench.infrastructure.sandbox.deadline import CheckpointDeadline, CheckpointExpired
 from workbench.local_only import install_loopback_guard
 from workbench.tools import clean_env, process_options, stop_process
 
 REMOTE = "/tmp/rnd-capability"
-
-
-class CheckpointExpired(BaseException):
-    """Escape SDK/diagnostic Exception handlers into the verifier's cleanup."""
 
 
 def startup_command_exit_facts(process, session, command_id, timeout):
@@ -128,6 +125,7 @@ def startup_failure_diagnostic(
         "storage-full": ("No space left on device",),
         "memory-error": ("MemoryError", "out of memory"),
         "syntax-error": ("SyntaxError",),
+        "process-terminated": ("SIGKILL", "SIGTERM", "Killed", "Terminated"),
         "executable-format": ("Exec format error",),
     }
     categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
@@ -429,11 +427,18 @@ def verify_capabilities(
             process.communicate(body, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             stop_process(process)
+            if checkpoint is not None:
+                terminate_checkpoint(receipt_path, checkpoint)
             record_failure(receipt_path, exc)
             raise PrerequisiteError(
                 "自定义隔离验证超时；已保留沙箱名称回执，请在本机确认清理后重试"
             ) from None
+        if checkpoint is not None and time.monotonic() >= checkpoint["deadline"]:
+            terminate_checkpoint(receipt_path, checkpoint)
+            raise PrerequisiteError("模块检查结果晚于原截止时间，已停止")
         if process.returncode:
+            if checkpoint is not None:
+                terminate_checkpoint(receipt_path, checkpoint)
             # The child prints only a static classified error. Never echo provider/SDK objects.
             raise PrerequisiteError("自定义隔离验证进程失败；查看该节点的脱敏验证回执")
     if receipt_path.stat().st_size > 1_000_000:
@@ -442,6 +447,21 @@ def verify_capabilities(
     if receipt.get("cleanup") != "deleted":
         raise PrerequisiteError("自定义隔离环境清理未确认；已阻止交付，请按回执中的沙箱名称检查")
     return receipt
+
+
+def terminate_checkpoint(path, checkpoint):
+    """The parent freezes a killed/late child's receipt; it can never be repair feedback."""
+    try:
+        value = json.loads(path.read_text()) if path.stat().st_size <= 1_000_000 else {}
+        if type(value) is not dict:
+            value = {}
+    except OSError, ValueError:
+        value = {}
+    value.update(
+        passed=False, cleanup="unconfirmed", kind="checkpoint_timeout", checkpoint=checkpoint
+    )
+    value.pop("repairable_failure", None)
+    write_json(path, value)
 
 
 def _verify(
@@ -459,6 +479,7 @@ def _verify(
     trusted_oracle=None,
     profile_record=None,
     checkpoint=None,
+    checkpoint_deadline=None,
 ):
     from daytona import SessionExecuteRequest
 
@@ -780,6 +801,7 @@ def _verify(
                 if (
                     checkpoint is not None
                     and startup["command_exit_status"] == "nonzero"
+                    and startup["command_exit_code"] in {1, 3}
                     and startup["startup_phase_hint"] in {"lifespan", "import"}
                     and not startup["application_startup_reported"]
                     and not set(startup["output_hints"]) - {"syntax-error"}
@@ -1071,29 +1093,36 @@ def _verify(
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
     finally:
-        if checkpoint is not None:
-            import signal
-
-            # Work ended (normally or by its soft alarm). Cleanup owns the
-            # remaining original window; the work alarm must not interrupt it early.
-            signal.setitimer(
-                signal.ITIMER_REAL, max(0.001, checkpoint["deadline"] - time.monotonic())
-            )
+        if checkpoint_deadline is not None:
+            checkpoint_deadline.enter_cleanup()
         if oracle_adapter is not None:
             try:
                 oracle_adapter.close()
             except Exception:
                 receipt.update(passed=False, error="可信业务验证器连接清理失败")
+        creation_confirmed = sandbox is not None
         if sandbox is None:
             receipt["cleanup"] = "create-failed-unknown"
             try:
-                sandbox = client.get(name)
+                recovered = client.get(name)
+                if recovered.name != name:
+                    raise ValueError("Recovered sandbox ownership mismatch")
+                sandbox = recovered
             except Exception:
                 pass
         if sandbox is not None:
             try:
-                client.delete(sandbox, timeout=settings.tool_timeout)
-                receipt["cleanup"] = "deleted"
+                from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+
+                confirm_deleted(
+                    client,
+                    sandbox,
+                    checkpoint["deadline"]
+                    if checkpoint is not None
+                    else time.monotonic() + settings.tool_timeout,
+                    settings.tool_timeout,
+                )
+                receipt["cleanup"] = "deleted" if creation_confirmed else "create-failed-unknown"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
                 receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
@@ -1122,34 +1151,11 @@ def _execute_payload(payload):
     checkpoint = payload.get("checkpoint")
     if checkpoint is None:
         return _execute_payload_inner(payload)
-    # Dedicated verifier subprocess only: the alarm cannot affect a server thread.
-    import math
-    import signal
-
-    deadline = checkpoint.get("deadline")
-    if (
-        not hasattr(signal, "setitimer")
-        or type(deadline) not in (int, float)
-        or not math.isfinite(deadline)
-        or not 10 < deadline - time.monotonic() <= 180
-    ):
-        raise ValueError("模块检查需要受限Linux截止时间及清理余量")
-
-    def expired(signum, frame):
-        # First alarm interrupts work; the remaining ten seconds belong to cleanup.
-        signal.setitimer(signal.ITIMER_REAL, max(0.001, deadline - time.monotonic()))
-        raise CheckpointExpired("模块检查时间预算耗尽")
-
-    previous = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, deadline - time.monotonic() - 10)
-    try:
-        return _execute_payload_inner(payload)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    with CheckpointDeadline(checkpoint.get("deadline")) as deadline:
+        return _execute_payload_inner(payload, checkpoint_deadline=deadline)
 
 
-def _execute_payload_inner(payload):
+def _execute_payload_inner(payload, *, checkpoint_deadline=None):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
@@ -1189,6 +1195,7 @@ def _execute_payload_inner(payload):
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
             checkpoint=payload.get("checkpoint"),
+            checkpoint_deadline=checkpoint_deadline,
         )
     finally:
         close_client(client)

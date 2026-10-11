@@ -10,25 +10,24 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_diagnostics`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_diagnostics`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.infrastructure.sandbox.deadline`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_verify`（L447–L1106）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`。 控制顺序：L484按`trusted_oracle not in (None, "contest-business-v2")`分支；L485抛异常，停止当前正常路径；L486按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L489抛异常，停止当前正常路径；L492按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L496抛异常，停止当前正常路径；L497按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L502抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1106的`receipt`。
-- `_verify.start`（L658–L831）：接收`command`、`port`、`health_path`。 控制顺序：L662按`consumer and target["role"] == "backend"`分支；L666按`target["role"] == "backend"`分支；L697按`not response.cmd_id`分支；L698抛异常，停止当前正常路径；L701按`not isinstance(preview.token, str) or not preview.token`分支；L702抛异常，停止当前正常路径；L714在`time.monotonic() < deadline`成立时循环；L718按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L721的`http, url, preview.token`。
-- `main`（L1109–L1118）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1111按`len(body) > 1_000_000`分支；L1112抛异常，停止当前正常路径；L1118抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_execute_payload`（L1121–L1149）：接收`payload`。 控制顺序：L1123按`checkpoint is None`分支；L1130按`not hasattr(signal, "setitimer") or type(deadline) not in (int, float) or not math.is…`分支；L1136抛异常，停止当前正常路径。 调用`payload.get`、`_execute_payload_inner`、`checkpoint.get`、`hasattr`、`type`、`math.isfinite`、`time.monotonic`、`ValueError`、`signal.signal`等。 返回路径：L1124的`_execute_payload_inner(payload)`；L1146的`_execute_payload_inner(payload)`。
-- `_execute_payload.expired`（L1138–L1141）：接收`signum`、`frame`。 控制顺序：L1141抛异常，停止当前正常路径。 调用`signal.setitimer`、`max`、`time.monotonic`、`CheckpointExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_execute_payload_inner`（L1152–L1194）：接收`payload`。 控制顺序：L1160按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1166抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L467–L1135）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`、`checkpoint_deadline`。 控制顺序：L505按`trusted_oracle not in (None, "contest-business-v2")`分支；L506抛异常，停止当前正常路径；L507按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L510抛异常，停止当前正常路径；L513按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L517抛异常，停止当前正常路径；L518按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L523抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1135的`receipt`。
+- `_verify.start`（L679–L853）：接收`command`、`port`、`health_path`。 控制顺序：L683按`consumer and target["role"] == "backend"`分支；L687按`target["role"] == "backend"`分支；L718按`not response.cmd_id`分支；L719抛异常，停止当前正常路径；L722按`not isinstance(preview.token, str) or not preview.token`分支；L723抛异常，停止当前正常路径；L735在`time.monotonic() < deadline`成立时循环；L739按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L742的`http, url, preview.token`。
+- `main`（L1138–L1147）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1140按`len(body) > 1_000_000`分支；L1141抛异常，停止当前正常路径；L1147抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_execute_payload`（L1150–L1155）：接收`payload`。 控制顺序：L1152按`checkpoint is None`分支。 调用`payload.get`、`_execute_payload_inner`、`CheckpointDeadline`、`checkpoint.get`。 返回路径：L1153的`_execute_payload_inner(payload)`；L1155的`_execute_payload_inner(payload, checkpoint_deadline=deadline)`。
+- `_execute_payload_inner`（L1158–L1201）：接收`payload`、`checkpoint_deadline`。 控制顺序：L1166按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1172抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L447–L1198。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L467–L1205。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`34220`。本段原文以LF换行结束。
+本段原始字节数：`33852`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "04eed054b3f9025fe0c252b6611432837babeccc77ef00b0484bbe50d8f23eac"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "bb48ea868a48fd9587063ab5e301c07cbdb59a0d380dbad93cca636fa05e4a42"} -->
 ````python
 # workbench/capability_sandbox.py
 def _verify(
@@ -46,6 +45,7 @@ def _verify(
     trusted_oracle=None,
     profile_record=None,
     checkpoint=None,
+    checkpoint_deadline=None,
 ):
     from daytona import SessionExecuteRequest
 
@@ -367,6 +367,7 @@ def _verify(
                 if (
                     checkpoint is not None
                     and startup["command_exit_status"] == "nonzero"
+                    and startup["command_exit_code"] in {1, 3}
                     and startup["startup_phase_hint"] in {"lifespan", "import"}
                     and not startup["application_startup_reported"]
                     and not set(startup["output_hints"]) - {"syntax-error"}
@@ -658,29 +659,36 @@ def _verify(
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
     finally:
-        if checkpoint is not None:
-            import signal
-
-            # Work ended (normally or by its soft alarm). Cleanup owns the
-            # remaining original window; the work alarm must not interrupt it early.
-            signal.setitimer(
-                signal.ITIMER_REAL, max(0.001, checkpoint["deadline"] - time.monotonic())
-            )
+        if checkpoint_deadline is not None:
+            checkpoint_deadline.enter_cleanup()
         if oracle_adapter is not None:
             try:
                 oracle_adapter.close()
             except Exception:
                 receipt.update(passed=False, error="可信业务验证器连接清理失败")
+        creation_confirmed = sandbox is not None
         if sandbox is None:
             receipt["cleanup"] = "create-failed-unknown"
             try:
-                sandbox = client.get(name)
+                recovered = client.get(name)
+                if recovered.name != name:
+                    raise ValueError("Recovered sandbox ownership mismatch")
+                sandbox = recovered
             except Exception:
                 pass
         if sandbox is not None:
             try:
-                client.delete(sandbox, timeout=settings.tool_timeout)
-                receipt["cleanup"] = "deleted"
+                from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+
+                confirm_deleted(
+                    client,
+                    sandbox,
+                    checkpoint["deadline"]
+                    if checkpoint is not None
+                    else time.monotonic() + settings.tool_timeout,
+                    settings.tool_timeout,
+                )
+                receipt["cleanup"] = "deleted" if creation_confirmed else "create-failed-unknown"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
                 receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
@@ -709,34 +717,11 @@ def _execute_payload(payload):
     checkpoint = payload.get("checkpoint")
     if checkpoint is None:
         return _execute_payload_inner(payload)
-    # Dedicated verifier subprocess only: the alarm cannot affect a server thread.
-    import math
-    import signal
-
-    deadline = checkpoint.get("deadline")
-    if (
-        not hasattr(signal, "setitimer")
-        or type(deadline) not in (int, float)
-        or not math.isfinite(deadline)
-        or not 10 < deadline - time.monotonic() <= 180
-    ):
-        raise ValueError("模块检查需要受限Linux截止时间及清理余量")
-
-    def expired(signum, frame):
-        # First alarm interrupts work; the remaining ten seconds belong to cleanup.
-        signal.setitimer(signal.ITIMER_REAL, max(0.001, deadline - time.monotonic()))
-        raise CheckpointExpired("模块检查时间预算耗尽")
-
-    previous = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, deadline - time.monotonic() - 10)
-    try:
-        return _execute_payload_inner(payload)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
+    with CheckpointDeadline(checkpoint.get("deadline")) as deadline:
+        return _execute_payload_inner(payload, checkpoint_deadline=deadline)
 
 
-def _execute_payload_inner(payload):
+def _execute_payload_inner(payload, *, checkpoint_deadline=None):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
@@ -776,6 +761,7 @@ def _execute_payload_inner(payload):
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
             checkpoint=payload.get("checkpoint"),
+            checkpoint_deadline=checkpoint_deadline,
         )
     finally:
         close_client(client)

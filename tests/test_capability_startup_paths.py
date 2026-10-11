@@ -10,12 +10,19 @@ import shutil
 import stat
 import struct
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
 
 from workbench import capability_sandbox
 from workbench import capability_startup_paths as diagnostic
+
+
+def absent_sandbox(identifier):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned fixture absent")
 
 
 def helpers(loader):
@@ -854,7 +861,9 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "shlex": shlex,
         "preview_url": lambda url, sid, port: "https://owned.invalid/" + str(port),
         "httpx": SimpleNamespace(Client=Client),
-        "time": SimpleNamespace(monotonic=lambda: next(moments), sleep=lambda *a: None),
+        "time": SimpleNamespace(
+            monotonic=lambda: next(moments, time.monotonic()), sleep=lambda *a: None
+        ),
         "read_command_output": read,
         "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
         "startup_failure_diagnostic": startup_failure_diagnostic,
@@ -869,10 +878,14 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         .default,
         "BusinessCheckFailure": capability_sandbox.BusinessCheckFailure,
         "CheckpointExpired": capability_sandbox.CheckpointExpired,
+        "checkpoint_deadline": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint_deadline"]
+        .default,
         "closing": closing,
         "oracle_adapter": None,
         "client": SimpleNamespace(
-            delete=lambda actual, **k: events.append(("deleted", actual is sandbox))
+            delete=lambda actual, **k: events.append(("deleted", actual is sandbox)),
+            get=absent_sandbox,
         ),
         "write_json": lambda *a: None,
         "receipt_path": "unused",

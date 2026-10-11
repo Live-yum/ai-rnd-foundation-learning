@@ -21,6 +21,13 @@ OUTER = "d" * 64
 SANDBOX = "ea997c7d-cbb9-45eb-8352-3f8bc9e2a512"
 
 
+def absent_owned_sandbox(identifier):
+    """Offline SDK fixture: a completed delete is confirmed by a typed 404."""
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned test sandbox absent")
+
+
 def dependency_record():
     return {
         "schema": 1,
@@ -614,6 +621,7 @@ def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data
     client = SimpleNamespace(
         create=lambda *a, **k: sandbox,
         delete=lambda *a, **k: operations.append("deleted"),
+        get=absent_owned_sandbox,
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
     receipt_path = directory / "receipt.json"

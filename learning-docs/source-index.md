@@ -488,7 +488,9 @@
 - [workbench/daytona_sessions.py](12-daytona/sources/workbench__daytona_sessions_py--001.md)（1 段）
 - [workbench/daytona_worker.py](12-daytona/sources/workbench__daytona_worker_py--001.md)（1 段）
 - [workbench/infrastructure/sandbox/__init__.py](12-daytona/sources/workbench__infrastructure__sandbox____init___py--001.md)（1 段）
+- [workbench/infrastructure/sandbox/cleanup.py](12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md)（1 段）
 - [workbench/infrastructure/sandbox/coding.py](12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md)（1 段）
+- [workbench/infrastructure/sandbox/deadline.py](12-daytona/sources/workbench__infrastructure__sandbox__deadline_py--001.md)（1 段）
 ## [13-delivery · 独立交付与重启](13-delivery/README.md)
 
 - [scripts/ci_clean_install.py](13-delivery/sources/scripts__ci_clean_install_py--001.md)（1 段）

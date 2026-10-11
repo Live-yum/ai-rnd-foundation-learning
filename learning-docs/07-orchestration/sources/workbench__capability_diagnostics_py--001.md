@@ -15,19 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_read`（L45–L54）：接收`path`。 控制顺序：L49按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L50的`{}`；L52的`result if type(result) is dict else {}`；L54的`{}`。
-- `_label`（L57–L58）：接收`value`、`allowed`。 调用`type`。 返回路径：L58的`value if type(value) is str and value in allowed else "other"`。
-- `record_failure`（L61–L76）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L69在`frame is not None`成立时循环；L71按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `startup_diagnostic`（L79–L143）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L81按`type(value) is not dict`分支；L90遍历`enums.items()`；L92遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L95遍历`( "application_startup_reported", "output_readable", "output_none…`；L141按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L82的`None`；L143的`result`。
-- `node_diagnostic`（L146–L178）：接收`product`、`aggregate`。 控制顺序：L155按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L168按`type(line) is int and 0 < line < 1_000_000`分支；L170遍历`("checks", "obligation_checks", "browser")`；L173遍历`("restarted", "backend_health_observed")`；L176按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L178的`result`。
+- `_read`（L53–L62）：接收`path`。 控制顺序：L57按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L58的`{}`；L60的`result if type(result) is dict else {}`；L62的`{}`。
+- `_label`（L65–L66）：接收`value`、`allowed`。 调用`type`。 返回路径：L66的`value if type(value) is str and value in allowed else "other"`。
+- `record_failure`（L69–L84）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L77在`frame is not None`成立时循环；L79按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `startup_diagnostic`（L87–L152）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L89按`type(value) is not dict`分支；L98遍历`enums.items()`；L100遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L103遍历`( "application_startup_reported", "output_readable", "output_none…`；L150按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L90的`None`；L152的`result`。
+- `node_diagnostic`（L155–L187）：接收`product`、`aggregate`。 控制顺序：L164按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L177按`type(line) is int and 0 < line < 1_000_000`分支；L179遍历`("checks", "obligation_checks", "browser")`；L182遍历`("restarted", "backend_health_observed")`；L185按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L187的`result`。
 
 </details>
 
-**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L178。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L187。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6209`。本段原文以LF换行结束。
+本段原始字节数：`6317`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d83106e5595624e6a1942b65f6800d446f15c91d58a2d644c9427deb42798741"} -->
+<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "62745172e7955ed94ab554508a68deaa30cb636b12c4b4d7e2dee91beca44ea9"} -->
 ````python
 # workbench/capability_diagnostics.py
 """Optional verifier failure facts; no product text, paths, or SDK messages."""
@@ -70,7 +70,15 @@ ERRORS = frozenset(
     }
 )
 CLEANUP = frozenset(
-    {"deleted", "not-started", "not-created", "pending", "delete-failed", "create-failed-unknown"}
+    {
+        "deleted",
+        "not-started",
+        "not-created",
+        "pending",
+        "delete-failed",
+        "create-failed-unknown",
+        "unconfirmed",
+    }
 )
 
 
@@ -144,6 +152,7 @@ def startup_diagnostic(value):
         "memory-error",
         "syntax-error",
         "executable-format",
+        "process-terminated",
     )
     hints = value.get("output_hints")
     result["output_hints"] = [

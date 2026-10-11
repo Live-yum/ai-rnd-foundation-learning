@@ -15,21 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `DaytonaFiles`（L24–L60）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `DaytonaFiles.__init__`（L25–L27）：接收`sandbox`、`task`、`timeout`、`deadline`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.remaining`（L29–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L36按`remaining <= 0`分支；L37抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L38的`remaining`。
-- `DaytonaFiles.write`（L40–L47）：接收`edits`。 控制顺序：L41按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L42抛异常，停止当前正常路径；L43遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.snapshot`（L49–L60）：接收`paths`。 控制顺序：L50按`paths != self.task.allowed_paths`分支；L51抛异常，停止当前正常路径；L53遍历`paths`；L57按`not isinstance(content, bytes) or len(content) > 100000`分支；L58抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L60的`result`。
-- `coding_environment`（L64–L137）：接收`settings`、`task`、`selection`、`product`、`deadline`。 控制顺序：L69按`task_path_errors(task, selection)`分支；L70抛异常，停止当前正常路径；L104按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L105抛异常，停止当前正常路径；L134按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`client.create`、`params_for`、`uuid.uuid4`、`remaining`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `coding_environment.remaining`（L76–L90）：接收`cleanup`。 控制顺序：L84按`available <= 0`分支；L85按`cleanup`分支；L89抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L88的`1`；L90的`available`。
+- `DaytonaFiles`（L24–L73）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DaytonaFiles.__init__`（L25–L28）：接收`sandbox`、`task`、`timeout`、`deadline`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.bind_candidate`（L30–L40）：接收`source`。 控制顺序：L32按`self.cleanup_record is not None`分支。 调用`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.remaining`（L42–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`remaining <= 0`分支；L50抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L51的`remaining`。
+- `DaytonaFiles.write`（L53–L60）：接收`edits`。 控制顺序：L54按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L55抛异常，停止当前正常路径；L56遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.snapshot`（L62–L73）：接收`paths`。 控制顺序：L63按`paths != self.task.allowed_paths`分支；L64抛异常，停止当前正常路径；L66遍历`paths`；L70按`not isinstance(content, bytes) or len(content) > 100000`分支；L71抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L73的`result`。
+- `coding_environment`（L77–L188）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 控制顺序：L84按`task_path_errors(task, selection)`分支；L85抛异常，停止当前正常路径；L114按`cleanup_record is not None`分支；L124按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L125抛异常，停止当前正常路径；L136按`cleanup_record is not None`分支；L161按`cleanup_record is not None and name is not None`分支；L176按`sandbox is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`、`client.create`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `coding_environment.remaining`（L93–L107）：接收`cleanup`。 控制顺序：L101按`available <= 0`分支；L102按`cleanup`分支；L106抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L105的`1`；L107的`available`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L137。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L188。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5470`。本段原文以LF换行结束。
+本段原始字节数：`7484`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ab1f57739484f7f68692c618d2a15b1998d4426ed914eb7271aede213dc984ed"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e930d093c6a72501376bb2bf2100cc33e2c1dce5680f9d09d88a28739aa75170"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -49,7 +50,7 @@ from workbench.capability_execution import (
 from workbench.capability_isolation import require_container_evidence
 from workbench.coding.candidates import task_path_errors
 from workbench.errors import UnsupportedScope
-from workbench.filesystem import inside
+from workbench.filesystem import inside, write_json
 from workbench.sandbox import client_for, close_client, params_for
 
 REMOTE = "/tmp/rnd-agent-business"
@@ -59,6 +60,19 @@ class DaytonaFiles:
     def __init__(self, sandbox, task, timeout, deadline=None):
         self.sandbox, self.task, self.timeout = sandbox, task, timeout
         self.deadline = deadline
+        self.cleanup_record = None
+
+    def bind_candidate(self, source):
+        self.candidate_digest = source
+        if self.cleanup_record is not None:
+            from workbench.infrastructure.sandbox.cleanup import receipt
+
+            write_json(
+                self.cleanup_record,
+                receipt(
+                    {**self.cleanup_binding, "source": source}, self.cleanup_name, self.sandbox.id
+                ),
+            )
 
     def remaining(self):
         remaining = (
@@ -95,7 +109,9 @@ class DaytonaFiles:
 
 
 @contextmanager
-def coding_environment(settings, task, selection, product, *, deadline=None):
+def coding_environment(
+    settings, task, selection, product, *, deadline=None, cleanup_record=None, cleanup_binding=None
+):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
@@ -105,6 +121,8 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
     directory, profile = capability_execution_prerequisites(settings, selection)
     client = client_for(settings)
     sandbox = None
+    name = None
+    env = None
     token = _DEADLINE.set(None if deadline is None else deadline - 15)
 
     def remaining(cleanup=False):
@@ -127,10 +145,13 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
         # The admitted Runner selects strict network/resource limits by this
         # existing source prefix, shared with the independent verifier.
         prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
+        name = prefix + "agent-" + uuid.uuid4().hex
+        if cleanup_record is not None:
+            from workbench.infrastructure.sandbox.cleanup import receipt
+
+            write_json(cleanup_record, receipt(cleanup_binding, name, None, "create_unconfirmed"))
         sandbox = client.create(
-            params_for(
-                settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
-            ),
+            params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
         )
         remaining()
@@ -147,6 +168,13 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
         env = DaytonaFiles(
             sandbox, task, settings.tool_timeout, None if deadline is None else deadline - 15
         )
+        if cleanup_record is not None:
+            write_json(cleanup_record, receipt(cleanup_binding, name, sandbox.id))
+            env.cleanup_record, env.cleanup_binding, env.cleanup_name = (
+                cleanup_record,
+                cleanup_binding,
+                name,
+            )
         env.write(
             CapabilityEdits(
                 explanation="Approved before-images",
@@ -165,8 +193,32 @@ def coding_environment(settings, task, selection, product, *, deadline=None):
     finally:
         try:
             _DEADLINE.reset(token)
-            if sandbox is not None:
+            if cleanup_record is not None and name is not None:
+                from workbench.infrastructure.sandbox.cleanup import delete_owned
+
+                binding = {
+                    **cleanup_binding,
+                    "source": getattr(env, "candidate_digest", cleanup_binding["source"]),
+                }
+                delete_owned(
+                    settings,
+                    name,
+                    sandbox.id if sandbox is not None else None,
+                    binding,
+                    cleanup_record,
+                    deadline,
+                )
+            elif sandbox is not None:
                 client.delete(sandbox, timeout=remaining(cleanup=True))
         finally:
-            close_client(client)
+            try:
+                close_client(client)
+            except Exception:
+                if cleanup_record is not None and cleanup_record.exists():
+                    import json
+
+                    value = json.loads(cleanup_record.read_text())
+                    value.update(status="unconfirmed", reason="transport_cleanup")
+                    write_json(cleanup_record, value)
+                raise
 ````

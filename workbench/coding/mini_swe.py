@@ -195,7 +195,17 @@ def _run(
     write_json(record, budget)
     from functools import partial
 
-    factory = environment_factory or partial(coding_environment, deadline=deadline)
+    factory = environment_factory or partial(
+        coding_environment,
+        deadline=deadline,
+        cleanup_record=workspace / "agent-cleanup.json",
+        cleanup_binding={
+            "task": digest(task.model_dump()),
+            "plan": digest(plan.model_dump()),
+            "source": digest(manifest(product)),
+            "nonce": uuid.uuid4().hex,
+        },
+    )
     current = product
     edits_count = 0
     turn_schema = approved_turn_schema(task)
@@ -356,6 +366,8 @@ def _run(
                                 plan.selection.model_dump(),
                                 next_candidate,
                             )
+                            if hasattr(environment, "bind_candidate"):
+                                environment.bind_candidate(digest(manifest(next_candidate)))
                             environment.write(turn.edits)
                             current = next_candidate
                             edits_count += 1

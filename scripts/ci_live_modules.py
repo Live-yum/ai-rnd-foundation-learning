@@ -437,6 +437,26 @@ def execute(settings, directory, *, transport=None, progress=None):
         }
     finally:
         if progress is not None and run_id:
+            from workbench.infrastructure.sandbox.cleanup import checkpoint_receipts, public_receipt
+
+            try:
+                progress["agent_cleanup_receipts"] = [
+                    {
+                        "task": task.id,
+                        **public_receipt(
+                            directory / (task.id + "-worker") / "agent-cleanup.json", task, plan
+                        ),
+                        "checkpoints": checkpoint_receipts(
+                            directory / (task.id + "-worker"), task, plan
+                        ),
+                    }
+                    for task in plan.tasks[:2]
+                    if (directory / (task.id + "-worker")).exists()
+                ]
+            except Exception:
+                progress["agent_cleanup_receipts"] = [
+                    {"status": "unconfirmed", "reason": "diagnostic_unavailable"}
+                ]
             progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
             progress["model_http_attempts"] = transport.calls if transport else 0
             progress["model_http_responses"] = transport.responses if transport else 0

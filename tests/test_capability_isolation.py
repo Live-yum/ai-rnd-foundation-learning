@@ -13,6 +13,13 @@ from capability_dependency_fixtures import container_binding, dependency_evidenc
 from workbench.capability_isolation import IsolationUnavailable, product_argv
 
 
+def absent_owned_sandbox(identifier):
+    """Offline SDK fixture: a completed delete is confirmed by a typed 404."""
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned test sandbox absent")
+
+
 @pytest.mark.parametrize(
     "output,exit_code,shape",
     [
@@ -374,7 +381,9 @@ def test_live_container_inspection_failure_stops_before_source_upload(
         process=SimpleNamespace(exec=forbidden),
     )
     client = SimpleNamespace(
-        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+        get=absent_owned_sandbox,
+        create=lambda *a, **k: sandbox,
+        delete=lambda *a, **k: operations.append("deleted"),
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
     result = _verify(
@@ -558,6 +567,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         stop=stop,
         start=lambda *a, **k: events.append("started"),
         delete=delete,
+        get=absent_owned_sandbox,
     )
     counts = iter([0, 1, 1])
 
@@ -764,7 +774,9 @@ def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settin
         calls.append("created")
         return sandbox
 
-    client = SimpleNamespace(create=create, delete=lambda *a, **k: calls.append("deleted"))
+    client = SimpleNamespace(
+        get=absent_owned_sandbox, create=create, delete=lambda *a, **k: calls.append("deleted")
+    )
     result = _verify(
         product,
         plan,

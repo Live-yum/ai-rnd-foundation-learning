@@ -38,7 +38,15 @@ ERRORS = frozenset(
     }
 )
 CLEANUP = frozenset(
-    {"deleted", "not-started", "not-created", "pending", "delete-failed", "create-failed-unknown"}
+    {
+        "deleted",
+        "not-started",
+        "not-created",
+        "pending",
+        "delete-failed",
+        "create-failed-unknown",
+        "unconfirmed",
+    }
 )
 
 
@@ -112,6 +120,7 @@ def startup_diagnostic(value):
         "memory-error",
         "syntax-error",
         "executable-format",
+        "process-terminated",
     )
     hints = value.get("output_hints")
     result["output_hints"] = [

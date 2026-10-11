@@ -58,6 +58,8 @@ SOURCE_FILES = (
     "workbench/infrastructure/persistence/store.py",
     "workbench/infrastructure/sandbox/__init__.py",
     "workbench/infrastructure/sandbox/coding.py",
+    "workbench/infrastructure/sandbox/cleanup.py",
+    "workbench/infrastructure/sandbox/deadline.py",
     "workbench/specifications/__init__.py",
     "workbench/specifications/artifact_writer.py",
     "workbench/specifications/openspec/__init__.py",

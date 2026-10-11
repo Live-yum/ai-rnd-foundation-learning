@@ -709,8 +709,8 @@
     },
     {
       "path": "workbench/capability_execution.py",
-      "bytes": 16283,
-      "sha256": "203c6fd2b53fbcd4d95d16e14f31a6b8ceb2466a4d6608d2389ae5831d1b3a9e",
+      "bytes": 16386,
+      "sha256": "b44aed0c168e025063bd4be30039590732bba6e357794a07d976be58400051b7",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_execution_py--001.md"
@@ -1304,8 +1304,8 @@
     },
     {
       "path": "workbench/capability_diagnostics.py",
-      "bytes": 6209,
-      "sha256": "d83106e5595624e6a1942b65f6800d446f15c91d58a2d644c9427deb42798741",
+      "bytes": 6317,
+      "sha256": "62745172e7955ed94ab554508a68deaa30cb636b12c4b4d7e2dee91beca44ea9",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_diagnostics_py--001.md"
@@ -1322,8 +1322,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 52471,
-      "sha256": "8538bb7441e69e252c5bf5129ef86e4130abcfe05a5c9b3e380c7f3ae8bbe7e2",
+      "bytes": 53122,
+      "sha256": "7ab9dc2a5360d376ad2150ed094bceea97608e137fd4c73c34e96f01f5502d5d",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md",
@@ -1386,8 +1386,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 19946,
-      "sha256": "43d2b6ca703b74c9f99d94850edfffb14c11eff43426bc9aad6d8c97bf93b37c",
+      "bytes": 20409,
+      "sha256": "d1cb74ec9f04b6eb999da5f911332c44425ef329f9cdd860a15250079baf150b",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -3922,8 +3922,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 40543,
-      "sha256": "af54df085072b0b5d997b857cdc19f4a28d68edb658ae3e92bf46afd983d5dfe",
+      "bytes": 40816,
+      "sha256": "199c379d1094e5c9a74475e7d6c0d133ed2606771d462afb1fc97368e332dd2e",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md",
@@ -4156,12 +4156,30 @@
       ]
     },
     {
+      "path": "workbench/infrastructure/sandbox/cleanup.py",
+      "bytes": 8430,
+      "sha256": "a969c7ef93521f99aa666c1535671d53394c0718335cf69fa6d43b7989169784",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/infrastructure/sandbox/coding.py",
-      "bytes": 5470,
-      "sha256": "ab1f57739484f7f68692c618d2a15b1998d4426ed914eb7271aede213dc984ed",
+      "bytes": 7484,
+      "sha256": "e930d093c6a72501376bb2bf2100cc33e2c1dce5680f9d09d88a28739aa75170",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/deadline.py",
+      "bytes": 2112,
+      "sha256": "5f903bab7a45a9cd460c85494d47636a746f472fd631fff1a41c760369299eef",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__deadline_py--001.md"
       ]
     },
     {
@@ -4823,8 +4841,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 62980,
-      "sha256": "b5262352a622a83f795f25cfdee95bc5d83579cc224a736a72c9f509f4d6aa92",
+      "bytes": 66437,
+      "sha256": "99fbecfe00a647da2e1f1e273be63c0c944eea396fb802a4d70c84a062ea5bbe",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5138,8 +5156,8 @@
     },
     {
       "path": "scripts/ci_live_modules.py",
-      "bytes": 20339,
-      "sha256": "db7f38624e2d015757308bfbfb14df6a810f2fb4619fe9d57b526f2622cd9310",
+      "bytes": 21243,
+      "sha256": "579e280774ee57851279c6d0b28dd387de3892e5c49e329b6a6505c74bf45ab9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
@@ -5538,8 +5556,8 @@
     },
     {
       "path": "tests/test_capability_contest_integration.py",
-      "bytes": 7096,
-      "sha256": "37c0cc08902ac4d4167381dd8e44723bb2d934f8bd6ba4080a9126a005e22924",
+      "bytes": 7378,
+      "sha256": "3ac1c7967330c73eb59d4741fae7d1853eedd261607ad32b542b64b9fe5c9379",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_contest_integration_py--001.md"
@@ -5601,8 +5619,8 @@
     },
     {
       "path": "tests/test_capability_isolation.py",
-      "bytes": 31433,
-      "sha256": "b16d06263a610ee58c340eb71ccc90a703586bd143aa542a6ef1fabaa38a60b1",
+      "bytes": 31789,
+      "sha256": "9149083103f9d1ed371adbb71fc968371a291c651e45ba2f65380039daae054b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_isolation_py--001.md"
@@ -5800,8 +5818,8 @@
     },
     {
       "path": "tests/test_capability_startup_paths.py",
-      "bytes": 37172,
-      "sha256": "0c6db797aebc33a3bba9f1aad93668ef959415887aa4d52cc086e7c36902195f",
+      "bytes": 37544,
+      "sha256": "e07f513fad9f2bc021565bbd0f1efc048b95a9ef4a10249cee5d5ac9fccba572",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_paths_py--001.md"
@@ -6133,8 +6151,8 @@
     },
     {
       "path": "tests/test_mini_swe_checkpoints.py",
-      "bytes": 18855,
-      "sha256": "264dd3e231ab81151f2d75bbde069761f8820a1765d7330c9a0b91a7f6a06f97",
+      "bytes": 35776,
+      "sha256": "6f93fb85a3d7c1ffb486373bd707bdc03e17708b3b49023d6175bd73fece916f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md"
