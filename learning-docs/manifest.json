@@ -471,8 +471,8 @@
     },
     {
       "path": "tests/test_llm.py",
-      "bytes": 21767,
-      "sha256": "93881881a253242b56332a3a54356b1da6f38b16ea13565b457ffc53cdc8c023",
+      "bytes": 22374,
+      "sha256": "3d449a4d8c3b6a511d24e7b17aef70b6797554b894b1d0efad794de8c4c64d15",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_llm_py--001.md"
@@ -553,8 +553,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 16780,
-      "sha256": "8f0224746487b669e6f031bda92857186e0a4d445e32af23d0f41142f23398b3",
+      "bytes": 17894,
+      "sha256": "f2f2701883b59274e45bcba26b70c8feb84e134d6c81733fc1f0b88cab0264c6",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -4823,8 +4823,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 54688,
-      "sha256": "c61fb278bbb9870d043e0b44452214c33126a574fe0b6938b25879469527bd8b",
+      "bytes": 57568,
+      "sha256": "6b0a29d37c86b92fa8ce6dfc711afb08e8267459cba014385d25afe58a9b9e4a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5138,8 +5138,8 @@
     },
     {
       "path": "scripts/ci_live_modules.py",
-      "bytes": 20063,
-      "sha256": "ccef1b20a1352bbfaa0d8d230954777e9d2cf953a376c97c4e230f01f640b2e1",
+      "bytes": 20339,
+      "sha256": "db7f38624e2d015757308bfbfb14df6a810f2fb4619fe9d57b526f2622cd9310",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
@@ -5827,8 +5827,8 @@
     },
     {
       "path": "tests/test_ci_live_modules.py",
-      "bytes": 19051,
-      "sha256": "24732bde66473ff8485d997cbaec2e9a9e306dc85b95dbb56f8ba511251e53ec",
+      "bytes": 23108,
+      "sha256": "6ebd850887f305fe7588d8e08461c52227ed2e4fb2b2f1db1e07d11ec3d85139",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_live_modules_py--001.md"

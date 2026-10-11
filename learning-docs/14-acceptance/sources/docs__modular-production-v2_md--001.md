@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L305。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L317。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`54688`。本段原文以LF换行结束。
+本段原始字节数：`57568`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c61fb278bbb9870d043e0b44452214c33126a574fe0b6938b25879469527bd8b"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6b0a29d37c86b92fa8ce6dfc711afb08e8267459cba014385d25afe58a9b9e4a"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -322,4 +322,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 本轮改动是缺失原因与阶段的准确标注，不能保证取得完整生命周期端点；要保证启动前压力基线及退出前最终计数，需要另外设计可审核的生命周期同步协议，当前没有实施这种压力时序变化。不能据此宣称PG隔离证明已通过或本轮终止原因已确定。执行环境断开通知后，已在原/workspace工作区实际验证读写与Python执行成功；未切换环境绕过权限。仅本地准备，等待父线程安排，未推送、取消或重跑。
 
 验证：相关生命周期、OOM诊断、原主回执生产者→原消费者及策略回归189项通过；完整55文件集合保留三项强制标志，2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或测试数据库条件跳过。Ruff、diff及完整手册/774份教材一致性检查通过。没有取得新的真实cgroup/OOM证据，不冒充真实内核隔离验证。
+
+### e2c9dda 模型正文JSON失败的安全诊断投影（仅本地）
+
+父线程实际核验真实运行38154524202/artifact11708343281：2次预留、2次HTTP尝试、1次响应；第一次invalid_json，response_facts为http_status=200、finish_reason=stop、phase=content_decode，第二次transport_error/read_timeout，最终ModelFailure且passed=false，没有双模块ZIP。可定位正文解析阶段，不能猜测正文、认定声明的长度截断或宣称已有根因修复。
+
+只读核查确认：请求使用官方LangChain with_structured_output(method="json_mode")；提示含同一schema及完整对象、禁止围栏/说明/重复字段约束，mini-SWE另明确全部批准文件恰好一次。正文提取保留finish_reason、空白、拒绝及工具调用检查，本地仍执行严格JSON、schema及任务绑定校验。JSON mode不证明私有兼容端点支持服务端json_schema；任务绑定Python校验器也不会完整体现为JSON Schema。本轮未切换协议或探测端点，没有削弱接受条件或修补未知JSON。
+
+已有json_diagnostics保存固定类别、JSONDecodeError行列/偏移及字符/字节数，但验收摘要未导出。最小变更仅为invalid_json新增json_facts投影：只接受恰好一项字典诊断和现有固定JSON类别，排除结构化解析器分歧类别；position仅line/column/offset，lengths仅characters/bytes。所有数字必须type(value) is int，拒绝布尔、字符串、浮点及容器；行列范围1至2000001（包含输入末尾位置），偏移和长度0至2000000，依据原有正文上限。非法字段丢弃，非法类别/诊断结构不产生json_facts；未保存详情的旧回执保持原状。message、path、正文、片段、未知键均不导出，已有32条回执上限不变。empty_content加入固定代码白名单，不再退化为other，不据此推断本次为空白正文。
+
+回归覆盖真实JSON解析诊断到摘要的语法、额外内容、多余括号、重复键、非有限数字路径，范围边界/巨整数/布尔等污染负例及其他失败代码不附带JSON诊断。原普通HTTP/SSE两次尝试集成断言扩展为精确新字段，保留请求不变、JSON mode、调用数和严格失败/成功判定。此次只有诊断投影；请求、schema、批准文件集合、重试次数、时间及费用预算没有变化。本地PG生命周期诊断一并保留，未推送或发起新实测。
+
+验证：相关JSON诊断、HTTP/SSE、预算保护、PG内存诊断及原主回执回归361项通过；完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1，2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。Ruff、diff及两套生成文档一致性检查通过。普通矩阵38154312075尚未终态时不报告发布封定SHA，不自行推送或派发。
 ````

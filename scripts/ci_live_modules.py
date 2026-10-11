@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 from scripts.live_test_client import TestServiceTransport, zero_billing
 from scripts.sla_fixture import design
 from workbench.filesystem import manifest, pack_source, unpack, write_json
-from workbench.model_diagnostics import response_failure_facts
+from workbench.model_diagnostics import json_failure_facts, response_failure_facts
 from workbench.planning.feature_planner import FeatureDesign
 from workbench.settings import ROOT
 
@@ -31,13 +31,14 @@ REPORT = ROOT / "reports/live-modules/summary.json"
 
 
 def model_failure_receipts(records):
-    """Keep only finite labels and attempt ordinals; never export stored details."""
+    """Keep fixed labels and bounded numeric facts; never export diagnostic text."""
     codes = {
         "transport_error",
         "tls_certificate_verification_failed",
         "proxy_connection_failed",
         "schema_validation",
         "invalid_json",
+        "empty_content",
         "structured_parser_disagreement",
         "length",
         "truncated",
@@ -89,6 +90,10 @@ def model_failure_receipts(records):
             )
         if safe_code == "invalid_json" and isinstance(record.get("response_facts"), dict):
             receipt["response_facts"] = response_failure_facts(record["response_facts"])
+        if safe_code == "invalid_json" and isinstance(record.get("diagnostic"), dict):
+            facts = json_failure_facts(record["diagnostic"].get("details"))
+            if facts:
+                receipt["json_facts"] = facts
         receipts.append(receipt)
         if len(receipts) == MODEL_CALLS:
             break

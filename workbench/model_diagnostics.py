@@ -5,7 +5,7 @@ import ssl
 
 import httpx
 
-from workbench.model_protocol import JSONGuardFailure, json_lengths
+from workbench.model_protocol import MAX_MODEL_CONTENT_BYTES, JSONGuardFailure, json_lengths
 
 
 def response_failure_facts(value):
@@ -104,6 +104,36 @@ JSON_DIAGNOSTIC_CATEGORIES = (
     | frozenset(JSON_GUARD_MESSAGES)
     | {"json_syntax", "json_encoding", "invalid_json", "extra_closing_delimiters"}
 )
+
+
+def json_failure_facts(details):
+    """Project the single JSON diagnostic into bounded, text-free receipt facts."""
+    if not isinstance(details, list) or len(details) != 1 or not isinstance(details[0], dict):
+        return {}
+    detail = details[0]
+    category = detail.get("category")
+    if (
+        type(category) is not str
+        or category not in JSON_DIAGNOSTIC_CATEGORIES
+        or category == "langchain_structured_output_parsing_failed"
+    ):
+        return {}
+    result = {"category": category}
+    for group, fields in (
+        ("position", {"line": (1, 1), "column": (1, 1), "offset": (0, 0)}),
+        ("lengths", {"characters": (0, 0), "bytes": (0, 0)}),
+    ):
+        source = detail.get(group)
+        if not isinstance(source, dict):
+            continue
+        safe = {}
+        for key, (minimum, extra) in fields.items():
+            value = source.get(key)
+            if type(value) is int and minimum <= value <= MAX_MODEL_CONTENT_BYTES + extra:
+                safe[key] = value
+        if safe:
+            result[group] = safe
+    return result
 
 
 def json_syntax_category(exc):

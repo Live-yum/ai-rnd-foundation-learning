@@ -382,6 +382,133 @@ def test_json_response_facts_reject_poison_and_preserve_legacy_receipts(status):
     assert "private" not in json.dumps(result)
 
 
+@pytest.mark.parametrize(
+    ("content", "category"),
+    [
+        ('{"private-key": }', "expected_value"),
+        ("{} private-tail", "extra_data"),
+        ("{}}", "extra_closing_delimiters"),
+        ('{"private-key":1,"private-key":2}', "duplicate_json_key"),
+        ('{"private-key":NaN}', "non_finite_json_number"),
+    ],
+)
+def test_real_json_diagnostic_reaches_safe_receipt(content, category):
+    from workbench.model_diagnostics import json_diagnostics
+    from workbench.model_protocol import load_json
+
+    with pytest.raises(ValueError) as failure:
+        load_json(content)
+    details = json_diagnostics(failure.value, content)
+    facts = {
+        "category": category,
+        "lengths": {"characters": len(content), "bytes": len(content.encode())},
+    }
+    if isinstance(failure.value, json.JSONDecodeError):
+        facts["position"] = {
+            "line": failure.value.lineno,
+            "column": failure.value.colno,
+            "offset": failure.value.pos,
+        }
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 1,
+                "diagnostic": {"details": details},
+            }
+        ]
+    ) == [{"code": "invalid_json", "attempt": 1, "json_facts": facts}]
+
+
+@pytest.mark.parametrize(
+    "number",
+    [True, False, -1, 0, 1, 2_000_000, 2_000_001, 2_000_002, 10**100, 1.0, "1", None, [], {}],
+)
+def test_json_fact_numbers_are_bounded_and_poison_is_dropped(number):
+    detail = {
+        "category": "expected_value",
+        "type": "private-type",
+        "position": {
+            "line": number,
+            "column": number,
+            "offset": number,
+            "private-field": "private-source",
+        },
+        "lengths": {"characters": number, "bytes": number, "private-size": 4},
+        "message": "private-message",
+        "path": ["private-key"],
+        "body": "private-body",
+        "snippet": "private-snippet",
+    }
+    facts = {"category": "expected_value"}
+    position = {}
+    if type(number) is int and 1 <= number <= 2_000_001:
+        position.update(line=number, column=number)
+    if type(number) is int and 0 <= number <= 2_000_000:
+        position["offset"] = number
+        facts["lengths"] = {"characters": number, "bytes": number}
+    if position:
+        facts["position"] = position
+    result = live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 1,
+                "diagnostic": {"details": [detail], "private-extra": "private-value"},
+            }
+        ]
+    )
+    assert result == [{"code": "invalid_json", "attempt": 1, "json_facts": facts}]
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        None,
+        {},
+        "private",
+        [],
+        [None],
+        [[], {}],
+        [{"category": "private-category"}],
+        [{"category": []}],
+        [{"category": True}],
+        [{"category": "langchain_structured_output_parsing_failed"}],
+        [{"category": "expected_value"}, {"category": "extra_data"}],
+    ],
+)
+def test_invalid_json_fact_shapes_preserve_legacy_receipt(details):
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 2,
+                "diagnostic": {"details": details},
+            }
+        ]
+    ) == [{"code": "invalid_json", "attempt": 2}]
+
+
+@pytest.mark.parametrize(
+    "code", ["schema_validation", "structured_parser_disagreement", "empty_content", "truncated"]
+)
+def test_json_facts_are_only_exported_for_invalid_json(code):
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": code,
+                "attempt": 1,
+                "diagnostic": {"details": [{"category": "expected_value"}]},
+            }
+        ]
+    ) == [{"code": code, "attempt": 1}]
+
+
 def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, monkeypatch):
     from workbench.capability_diagnostics import record_failure
     from workbench.generator import PrerequisiteError

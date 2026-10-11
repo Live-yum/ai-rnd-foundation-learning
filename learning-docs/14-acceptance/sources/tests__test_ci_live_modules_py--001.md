@@ -40,20 +40,24 @@
 - `test_workflow_only_exposes_key_after_preflight_and_real_security`（L308–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L312断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L318断言`preflight < security < paid`；L319断言`"API_KEY" not in job["env"]`；L320断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L321断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L322断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_receipts_are_bounded_and_drop_all_unapproved_fields`（L325–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344断言`live.model_failure_receipts(records) == [ {"code": "other", "attempt": None}, {"code"…`；L351断言`len(result) == live.MODEL_CALLS`；L352断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_json_response_facts_reject_poison_and_preserve_legacy_receipts`（L356–L382）：接收`status`。 控制顺序：L374按`type(status) is int and status == 200`分支；L376断言`result == [ {"code": "invalid_json", "attempt": 2}, {"code": "invalid_json", "attempt…`；L382断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`type`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L385–L443）：接收`tmp_path`、`monkeypatch`。 控制顺序：L389遍历`dispatch().items()`；L431断言`error.value.code == 1`；L432断言`all(not path.exists() for path in directories)`；L435断言`report["passed"] is report["real_model_acceptance"] is False`；L436断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L438断言`node["exception_type"] == "ValueError"`；L439断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L440断言`node["startup"]["http_status"] == 502`。后续分支沿下方源码相同行号继续阅读。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L396–L426）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L426的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L419–L424）：接收`*args`、`**kwargs`。 控制顺序：L421抛异常，停止当前正常路径；L424抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L446–L462）：接收`monkeypatch`、`tmp_path`。 控制顺序：L461断言`error.value is original`；L462断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L449–L450）：接收`*args`、`**kwargs`。 控制顺序：L450抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L455–L456）：接收`*args`、`**kwargs`。 控制顺序：L456抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_json_diagnostic_reaches_safe_receipt`（L395–L421）：接收`content`、`category`。 控制顺序：L406按`isinstance(failure.value, json.JSONDecodeError)`分支；L412断言`live.model_failure_receipts( [ { "status": "failed", "code": "invalid_json", "attempt…`。 调用`pytest.raises`、`load_json`、`json_diagnostics`、`len`、`content.encode`、`isinstance`、`live.model_failure_receipts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_fact_numbers_are_bounded_and_poison_is_dropped`（L428–L464）：接收`number`。 控制顺序：L446按`type(number) is int and 1 <= number <= 2_000_001`分支；L448按`type(number) is int and 0 <= number <= 2_000_000`分支；L451按`position`分支；L463断言`result == [{"code": "invalid_json", "attempt": 1, "json_facts": facts}]`；L464断言`"private" not in json.dumps(result)`。 调用`type`、`position.update`、`live.model_failure_receipts`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_json_fact_shapes_preserve_legacy_receipt`（L483–L493）：接收`details`。 控制顺序：L484断言`live.model_failure_receipts( [ { "status": "failed", "code": "invalid_json", "attempt…`。 调用`live.model_failure_receipts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_facts_are_only_exported_for_invalid_json`（L499–L509）：接收`code`。 控制顺序：L500断言`live.model_failure_receipts( [ { "status": "failed", "code": code, "attempt": 1, "dia…`。 调用`live.model_failure_receipts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L512–L570）：接收`tmp_path`、`monkeypatch`。 控制顺序：L516遍历`dispatch().items()`；L558断言`error.value.code == 1`；L559断言`all(not path.exists() for path in directories)`；L562断言`report["passed"] is report["real_model_acceptance"] is False`；L563断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L565断言`node["exception_type"] == "ValueError"`；L566断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L567断言`node["startup"]["http_status"] == 502`。后续分支沿下方源码相同行号继续阅读。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L523–L553）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L553的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L546–L551）：接收`*args`、`**kwargs`。 控制顺序：L548抛异常，停止当前正常路径；L551抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L573–L589）：接收`monkeypatch`、`tmp_path`。 控制顺序：L588断言`error.value is original`；L589断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L576–L577）：接收`*args`、`**kwargs`。 控制顺序：L577抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L582–L583）：接收`*args`、`**kwargs`。 控制顺序：L583抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L462。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L589。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19051`。本段原文以LF换行结束。
+本段原始字节数：`23108`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "24732bde66473ff8485d997cbaec2e9a9e306dc85b95dbb56f8ba511251e53ec"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ebd850887f305fe7588d8e08461c52227ed2e4fb2b2f1db1e07d11ec3d85139"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -438,6 +442,133 @@ def test_json_response_facts_reject_poison_and_preserve_legacy_receipts(status):
         {"code": "invalid_json", "attempt": 2},
     ]
     assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    ("content", "category"),
+    [
+        ('{"private-key": }', "expected_value"),
+        ("{} private-tail", "extra_data"),
+        ("{}}", "extra_closing_delimiters"),
+        ('{"private-key":1,"private-key":2}', "duplicate_json_key"),
+        ('{"private-key":NaN}', "non_finite_json_number"),
+    ],
+)
+def test_real_json_diagnostic_reaches_safe_receipt(content, category):
+    from workbench.model_diagnostics import json_diagnostics
+    from workbench.model_protocol import load_json
+
+    with pytest.raises(ValueError) as failure:
+        load_json(content)
+    details = json_diagnostics(failure.value, content)
+    facts = {
+        "category": category,
+        "lengths": {"characters": len(content), "bytes": len(content.encode())},
+    }
+    if isinstance(failure.value, json.JSONDecodeError):
+        facts["position"] = {
+            "line": failure.value.lineno,
+            "column": failure.value.colno,
+            "offset": failure.value.pos,
+        }
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 1,
+                "diagnostic": {"details": details},
+            }
+        ]
+    ) == [{"code": "invalid_json", "attempt": 1, "json_facts": facts}]
+
+
+@pytest.mark.parametrize(
+    "number",
+    [True, False, -1, 0, 1, 2_000_000, 2_000_001, 2_000_002, 10**100, 1.0, "1", None, [], {}],
+)
+def test_json_fact_numbers_are_bounded_and_poison_is_dropped(number):
+    detail = {
+        "category": "expected_value",
+        "type": "private-type",
+        "position": {
+            "line": number,
+            "column": number,
+            "offset": number,
+            "private-field": "private-source",
+        },
+        "lengths": {"characters": number, "bytes": number, "private-size": 4},
+        "message": "private-message",
+        "path": ["private-key"],
+        "body": "private-body",
+        "snippet": "private-snippet",
+    }
+    facts = {"category": "expected_value"}
+    position = {}
+    if type(number) is int and 1 <= number <= 2_000_001:
+        position.update(line=number, column=number)
+    if type(number) is int and 0 <= number <= 2_000_000:
+        position["offset"] = number
+        facts["lengths"] = {"characters": number, "bytes": number}
+    if position:
+        facts["position"] = position
+    result = live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 1,
+                "diagnostic": {"details": [detail], "private-extra": "private-value"},
+            }
+        ]
+    )
+    assert result == [{"code": "invalid_json", "attempt": 1, "json_facts": facts}]
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "details",
+    [
+        None,
+        {},
+        "private",
+        [],
+        [None],
+        [[], {}],
+        [{"category": "private-category"}],
+        [{"category": []}],
+        [{"category": True}],
+        [{"category": "langchain_structured_output_parsing_failed"}],
+        [{"category": "expected_value"}, {"category": "extra_data"}],
+    ],
+)
+def test_invalid_json_fact_shapes_preserve_legacy_receipt(details):
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": "invalid_json",
+                "attempt": 2,
+                "diagnostic": {"details": details},
+            }
+        ]
+    ) == [{"code": "invalid_json", "attempt": 2}]
+
+
+@pytest.mark.parametrize(
+    "code", ["schema_validation", "structured_parser_disagreement", "empty_content", "truncated"]
+)
+def test_json_facts_are_only_exported_for_invalid_json(code):
+    assert live.model_failure_receipts(
+        [
+            {
+                "status": "failed",
+                "code": code,
+                "attempt": 1,
+                "diagnostic": {"details": [{"category": "expected_value"}]},
+            }
+        ]
+    ) == [{"code": code, "attempt": 1}]
 
 
 def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, monkeypatch):

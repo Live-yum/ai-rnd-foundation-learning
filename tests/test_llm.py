@@ -446,10 +446,16 @@ def test_live_receipts_preserve_each_attempt_without_provider_content(store, kin
     if second["code"] == "transport_error":
         second["transport_kind"] = kind
     facts = {"phase": "content_decode", "http_status": 200, "finish_reason": "unknown"}
+    json_facts = {
+        "category": "expected_value",
+        "position": {"line": 1, "column": 1, "offset": 0},
+        "lengths": {"characters": 20, "bytes": 20},
+    }
     if second["code"] == "invalid_json":
         second["response_facts"] = facts
+        second["json_facts"] = json_facts
     assert model_failure_receipts(store.model_records(run)) == [
-        {"code": "invalid_json", "attempt": 1, "response_facts": facts},
+        {"code": "invalid_json", "attempt": 1, "response_facts": facts, "json_facts": json_facts},
         second,
     ]
 
@@ -516,6 +522,14 @@ def test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary(stor
                     "phase": case + "_decode",
                     "http_status": 200,
                     "finish_reason": "stop" if case == "content" else "unknown",
+                },
+                "json_facts": {
+                    "category": "expected_value",
+                    "position": {"line": 1, "column": 1, "offset": 0},
+                    "lengths": {
+                        "characters": 20 if case == "content" else 24,
+                        "bytes": 20 if case == "content" else 24,
+                    },
                 },
             }
         )

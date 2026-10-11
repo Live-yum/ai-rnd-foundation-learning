@@ -35,21 +35,21 @@
 - `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L343–L351）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L345按`raises`分支；L346抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L347的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
 - `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L390–L411）：接收`store`、`wire`、`category`。 控制顺序：L402断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L403遍历`failures`；L405断言`event["data"]["code"] == "invalid_json"`；L406断言`detail["category"] == category`；L407断言`detail["lengths"] == {"bytes": len(wire)}`；L408断言`"position" not in detail`；L409断言`category in requests[1]["messages"][-1]["content"]`；L410断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L393–L395）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L395的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
-- `test_live_receipts_preserve_each_attempt_without_provider_content`（L417–L454）：接收`store`、`kind`。 控制顺序：L441断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L446按`second["code"] == "transport_error"`分支；L449按`second["code"] == "invalid_json"`分支；L451断言`model_failure_receipts(store.model_records(run)) == [ {"code": "invalid_json", "attem…`。 调用`new_run`、`pytest.raises`、`gateway(store, handler).complete`、`gateway`、`len`、`store.get_run`、`model_failure_receipts`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_receipts_preserve_each_attempt_without_provider_content`（L417–L460）：接收`store`、`kind`。 控制顺序：L441断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L446按`second["code"] == "transport_error"`分支；L454按`second["code"] == "invalid_json"`分支；L457断言`model_failure_receipts(store.model_records(run)) == [ {"code": "invalid_json", "attem…`。 调用`new_run`、`pytest.raises`、`gateway(store, handler).complete`、`gateway`、`len`、`store.get_run`、`model_failure_receipts`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_receipts_preserve_each_attempt_without_provider_content.handler`（L422–L436）：接收`request`。 控制顺序：L424按`len(calls) == 2`分支；L425按`kind == "read_timeout"`分支；L426抛异常，停止当前正常路径；L427按`kind == "remote_protocol_error"`分支；L428抛异常，停止当前正常路径；L429按`kind == "http_429"`分支。 调用`calls.append`、`len`、`httpx.ReadTimeout`、`httpx.RemoteProtocolError`、`httpx.Response`。 返回路径：L430的`httpx.Response(429, text="private-error-url-key-prompt")`；L431的`httpx.Response( 200, json={ "choices": [{"message": {"role": "assistant", "content": "priv…`。
-- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary`（L459–L525）：接收`store`、`streaming`、`case`。 控制顺序：L495按`case == "valid"`分支；L496断言`model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement) == requ…`；L503断言`"private" not in str(error.value)`；L504断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L505断言`len(responses) == 1`；L506断言`requests[0]["messages"] == requests[1]["messages"]`；L507断言`requests[1]["response_format"] == {"type": "json_object"}`；L510按`case in {"envelope", "content"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`requirement`、`pytest.raises`、`str`、`len`、`store.get_run`、`model_failure_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary.handler`（L466–L490）：接收`request`。 控制顺序：L468按`len(requests) == 1`分支；L469抛异常，停止当前正常路径；L473按`streaming`分支；L481按`case == "envelope"`分支。 调用`requests.append`、`json.loads`、`len`、`httpx.ReadTimeout`、`responses.append`、`requirement().model_dump_json`、`requirement`、`httpx.Response`、`stream_body`。 返回路径：L474的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content=b"data: privat…`；L482的`httpx.Response(200, text="private-invalid-envelope")`；L483的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": cont…`。
-- `test_transport_category_follows_typed_causes_and_stops_cycles`（L528–L536）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L532断言`transport_category(outer) == "other"`；L534断言`transport_category(outer) == "read_timeout"`；L536断言`transport_category(outer) == "other"`。 调用`RuntimeError`、`transport_category`、`httpx.ReadTimeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_parser_audit_error_does_not_claim_envelope_decode`（L539–L559）：接收`store`、`monkeypatch`。 控制顺序：L558断言`facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2`；L559断言`store.get_run(run)["model_calls"] == 2`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`model_failure_receipts`、`store.model_records`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_parser_audit_error_does_not_claim_envelope_decode.rejected_mode`（L543–L544）：接收`mode`。 控制顺序：L544抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary`（L465–L539）：接收`store`、`streaming`、`case`。 控制顺序：L501按`case == "valid"`分支；L502断言`model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement) == requ…`；L509断言`"private" not in str(error.value)`；L510断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L511断言`len(responses) == 1`；L512断言`requests[0]["messages"] == requests[1]["messages"]`；L513断言`requests[1]["response_format"] == {"type": "json_object"}`；L516按`case in {"envelope", "content"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`requirement`、`pytest.raises`、`str`、`len`、`store.get_run`、`model_failure_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary.handler`（L472–L496）：接收`request`。 控制顺序：L474按`len(requests) == 1`分支；L475抛异常，停止当前正常路径；L479按`streaming`分支；L487按`case == "envelope"`分支。 调用`requests.append`、`json.loads`、`len`、`httpx.ReadTimeout`、`responses.append`、`requirement().model_dump_json`、`requirement`、`httpx.Response`、`stream_body`。 返回路径：L480的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content=b"data: privat…`；L488的`httpx.Response(200, text="private-invalid-envelope")`；L489的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": cont…`。
+- `test_transport_category_follows_typed_causes_and_stops_cycles`（L542–L550）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L546断言`transport_category(outer) == "other"`；L548断言`transport_category(outer) == "read_timeout"`；L550断言`transport_category(outer) == "other"`。 调用`RuntimeError`、`transport_category`、`httpx.ReadTimeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_parser_audit_error_does_not_claim_envelope_decode`（L553–L573）：接收`store`、`monkeypatch`。 控制顺序：L572断言`facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2`；L573断言`store.get_run(run)["model_calls"] == 2`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`model_failure_receipts`、`store.model_records`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_parser_audit_error_does_not_claim_envelope_decode.rejected_mode`（L557–L558）：接收`mode`。 控制顺序：L558抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L559。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L573。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21767`。本段原文以LF换行结束。
+本段原始字节数：`22374`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "93881881a253242b56332a3a54356b1da6f38b16ea13565b457ffc53cdc8c023"} -->
+<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3d449a4d8c3b6a511d24e7b17aef70b6797554b894b1d0efad794de8c4c64d15"} -->
 ````python
 # tests/test_llm.py
 import json
@@ -500,10 +500,16 @@ def test_live_receipts_preserve_each_attempt_without_provider_content(store, kin
     if second["code"] == "transport_error":
         second["transport_kind"] = kind
     facts = {"phase": "content_decode", "http_status": 200, "finish_reason": "unknown"}
+    json_facts = {
+        "category": "expected_value",
+        "position": {"line": 1, "column": 1, "offset": 0},
+        "lengths": {"characters": 20, "bytes": 20},
+    }
     if second["code"] == "invalid_json":
         second["response_facts"] = facts
+        second["json_facts"] = json_facts
     assert model_failure_receipts(store.model_records(run)) == [
-        {"code": "invalid_json", "attempt": 1, "response_facts": facts},
+        {"code": "invalid_json", "attempt": 1, "response_facts": facts, "json_facts": json_facts},
         second,
     ]
 
@@ -570,6 +576,14 @@ def test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary(stor
                     "phase": case + "_decode",
                     "http_status": 200,
                     "finish_reason": "stop" if case == "content" else "unknown",
+                },
+                "json_facts": {
+                    "category": "expected_value",
+                    "position": {"line": 1, "column": 1, "offset": 0},
+                    "lengths": {
+                        "characters": 20 if case == "content" else 24,
+                        "bytes": 20 if case == "content" else 24,
+                    },
                 },
             }
         )
