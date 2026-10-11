@@ -10,28 +10,28 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.live_test_client`、`scripts.sla_fixture`、`workbench.filesystem`、`workbench.model_diagnostics`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.live_test_client`、`scripts.sla_fixture`、`workbench.filesystem`、`workbench.model_diagnostics`、`workbench.planning.feature_planner`、`workbench.settings`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `model_failure_receipts`（L33–L100）：接收`records`。 源码说明：Keep fixed labels and bounded numeric facts; never export diagnostic text.。 控制顺序：L74遍历`records`；L75按`record.get("status") != "failed"`分支；L79按`type(code) is str and re.fullmatch(r"http_[1-5][0-9]{2}", code)`分支；L86按`safe_code == "transport_error"`分支；L91按`safe_code == "invalid_json" and isinstance(record.get("response_facts"), dict)`分支；L93按`safe_code == "invalid_json" and isinstance(record.get("diagnostic"), dict)`分支；L95按`facts`分支；L98按`len(receipts) == MODEL_CALLS`分支。 调用`record.get`、`type`、`re.fullmatch`、`isinstance`、`response_failure_facts`、`json_failure_facts`、`record["diagnostic"].get`、`receipts.append`、`len`。 返回路径：L100的`receipts`。
-- `failure_diagnostic`（L103–L155）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L146在`frame is not None`成立时循环；L148按`stage is not None`分支；L151按`type(exc) is ContainerInspectionRejected`分支；L153按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L155的`result`。
-- `verify_with_diagnostics`（L158–L171）：接收`verifier`、`product`、`progress`、`*args`、`**kwargs`。 源码说明：Capture bounded node facts before this run's temporary directory is deleted.。 控制顺序：L163按`progress is not None`分支；L168按`len(receipts) < 3`分支。 调用`verifier`、`progress.setdefault`、`len`、`receipts.append`、`node_diagnostic`。 返回路径：L161的`verifier(product, *args, **kwargs)`。
-- `require`（L174–L176）：接收`condition`、`code`。 控制顺序：L175按`not condition`分支；L176抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L179–L232）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L209按`billing == "declared_free"`分支；L219抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L220的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L235–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L242遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L277的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L280–L316）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L289的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L319–L484）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L360遍历`plan.tasks`；L439按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L424的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L487–L528）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L502按`not args.preflight`分支；L526抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `model_failure_receipts`（L34–L107）：接收`records`。 源码说明：Keep fixed labels and bounded numeric facts; never export diagnostic text.。 控制顺序：L80遍历`records`；L81按`record.get("status") != "failed"`分支；L85按`type(code) is str and re.fullmatch(r"http_[1-5][0-9]{2}", code)`分支；L93按`safe_code == "transport_error"`分支；L98按`safe_code == "invalid_json" and isinstance(record.get("response_facts"), dict)`分支；L100按`safe_code == "invalid_json" and isinstance(record.get("diagnostic"), dict)`分支；L102按`facts`分支；L105按`len(receipts) == MODEL_CALLS`分支。 调用`record.get`、`type`、`re.fullmatch`、`receipt.update`、`native_output_receipt`、`isinstance`、`response_failure_facts`、`json_failure_facts`、`record["diagnostic"].get`等。 返回路径：L107的`receipts`。
+- `failure_diagnostic`（L110–L162）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L153在`frame is not None`成立时循环；L155按`stage is not None`分支；L158按`type(exc) is ContainerInspectionRejected`分支；L160按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L162的`result`。
+- `verify_with_diagnostics`（L165–L178）：接收`verifier`、`product`、`progress`、`*args`、`**kwargs`。 源码说明：Capture bounded node facts before this run's temporary directory is deleted.。 控制顺序：L170按`progress is not None`分支；L175按`len(receipts) < 3`分支。 调用`verifier`、`progress.setdefault`、`len`、`receipts.append`、`node_diagnostic`。 返回路径：L168的`verifier(product, *args, **kwargs)`。
+- `require`（L181–L183）：接收`condition`、`code`。 控制顺序：L182按`not condition`分支；L183抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L186–L242）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L218按`billing == "declared_free"`分支；L228抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L229的`{ "head_sha": head, "scenario": SCENARIO, "mini_swe_output_mode": output_mode, "billing": …`。
+- `acceptance_design`（L245–L287）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L252遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L287的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L290–L326）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L299的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L329–L500）：接收`settings`、`directory`、`transport`、`progress`、`output_mode`。 控制顺序：L373遍历`plan.tasks`；L452按`progress is not None and run_id`分支；L494按`output_mode == "json_schema"`分支。 调用`require`、`acceptance_design`、`plan.selection.model_dump`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L437的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L503–L545）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L518按`not args.preflight`分支；L543抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L532。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L549。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21845`。本段原文以LF换行结束。
+本段原始字节数：`22822`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "79e47c79d3eab72416c32f4f470c9ac3b59d090181f354499f1fad6bbae31406"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "786cd32ff3dbad783a326af453fb9f89cf1d43b32b1e125ffee34350912c3f25"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -55,6 +55,7 @@ from workbench.filesystem import manifest, pack_source, unpack, write_json
 from workbench.model_diagnostics import json_failure_facts, response_failure_facts
 from workbench.planning.feature_planner import FeatureDesign
 from workbench.settings import ROOT
+from workbench.store import native_output_receipt
 
 REPOSITORY = "Live-yum/ai-rnd-foundation-learning"
 SCENARIO = "mini-swe-sla"
@@ -92,6 +93,11 @@ def model_failure_receipts(records):
         "request_destination_rejected",
         "request_count_limit",
         "unexpected_model_error",
+        "native_scope_rejected",
+        "native_sdk_unsupported",
+        "native_request_mismatch",
+        "native_schema_violation",
+        "native_format_rejected",
     }
     transport_kinds = {
         "connect_timeout",
@@ -119,6 +125,7 @@ def model_failure_receipts(records):
             "code": safe_code,
             "attempt": attempt if type(attempt) is int and attempt in (1, 2) else None,
         }
+        receipt.update(native_output_receipt(record))
         if safe_code == "transport_error":
             kind = record.get("transport_kind")
             receipt["transport_kind"] = (
@@ -237,6 +244,8 @@ def configuration(env):
         "https_endpoint_required",
     )
     require(bool(env.get("MODE", "").strip()), "model_required")
+    output_mode = env.get("LIVE_MINI_SWE_OUTPUT_MODE", "json_object")
+    require(output_mode in {"json_object", "json_schema"}, "unknown_mini_swe_output_mode")
     billing = env.get("LIVE_BILLING_MODE", "metered")
     require(billing in {"metered", "declared_free"}, "unknown_billing_mode")
     try:
@@ -256,6 +265,7 @@ def configuration(env):
     return {
         "head_sha": head,
         "scenario": SCENARIO,
+        "mini_swe_output_mode": output_mode,
         "billing": zero_billing(env) if billing == "declared_free" else {"mode": "metered"},
         "max_cost_usd": float(cost),
         "usd_per_million_tokens": float(price),
@@ -352,7 +362,7 @@ def live_settings(env, config, directory):
     )
 
 
-def execute(settings, directory, *, transport=None, progress=None):
+def execute(settings, directory, *, transport=None, progress=None, output_mode="json_object"):
     from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
     from workbench.capability_execution import capability_execution_prerequisites
     from workbench.capability_sandbox import verify_capabilities
@@ -363,6 +373,7 @@ def execute(settings, directory, *, transport=None, progress=None):
     from workbench.production.candidates import ProductLedger
     from workbench.store import Store
 
+    require(output_mode in {"json_object", "json_schema"}, "unknown_mini_swe_output_mode")
     selected = acceptance_design()
     plan = selected.implementation
     selection = plan.selection.model_dump()
@@ -383,7 +394,9 @@ def execute(settings, directory, *, transport=None, progress=None):
             },
             "live-sla-run",
         )["run_id"]
-        gateway = ModelGateway(settings, store, transport)
+        gateway = ModelGateway(
+            settings, store, transport, native_strict=output_mode == "json_schema"
+        )
         base = directory / "baseline"
         generate_basic(selected.baseline, base, selection)
         prepare_consumer(base, plan)
@@ -512,9 +525,12 @@ def execute(settings, directory, *, transport=None, progress=None):
             )
             # Optional evidence must never replace the original result or cleanup.
             try:
-                progress["model_failure_receipts"] = model_failure_receipts(
-                    store.model_records(run_id)
-                )
+                records = store.model_records(run_id)
+                progress["model_failure_receipts"] = model_failure_receipts(records)
+                if output_mode == "json_schema":
+                    progress["native_output_receipts"] = [
+                        receipt for record in records if (receipt := native_output_receipt(record))
+                    ][:MODEL_CALLS]
             except Exception:
                 progress["model_failure_receipts"] = None
         store.engine.dispose()
@@ -549,6 +565,7 @@ def main():
                             directory,
                             transport=transport,
                             progress=summary,
+                            output_mode=config["mini_swe_output_mode"],
                         )
                     )
                 finally:

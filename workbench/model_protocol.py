@@ -90,7 +90,12 @@ def structured_model(profile, schema, contract, http_client, *, streaming=False)
             cache=False,
             max_tokens=contract.request_fields["max_output_tokens"],
         )
-        yield model.with_structured_output(schema, method="json_mode", include_raw=True)
+        yield model.with_structured_output(
+            schema,
+            method="json_schema" if contract.mode == "json_schema" else "json_mode",
+            include_raw=True,
+            **({"strict": True} if contract.mode == "json_schema" else {}),
+        )
     finally:
         try:
             asyncio.get_running_loop()
@@ -110,7 +115,9 @@ class SyncOnlyTransport(httpx.AsyncBaseTransport):
 class AuditedTransport(httpx.BaseTransport):
     """Bound bytes and check response status before SDK/parser normalization loses evidence."""
 
-    def __init__(self, contract, inner=None, *, observer=None, streaming=False):
+    def __init__(self, contract, inner=None, *, observer=None, streaming=False, native=None):
+        if (contract.mode == "json_schema") != (native is not None):
+            raise OutputFailure("native_request_mismatch", "原生 strict 必须绑定实际 wire 守卫")
         self.contract = contract
         self.owned = inner is None
         self.inner = inner if inner is not None else httpx.HTTPTransport(retries=0, trust_env=False)
@@ -122,9 +129,12 @@ class AuditedTransport(httpx.BaseTransport):
         self.observer = observer
         self.streaming = streaming
         self.stream_unsupported = False
+        self.native = native
 
     def handle_request(self, request):
         try:
+            if self.native is not None:
+                self.native.check_request(request)
             response = self.inner.handle_request(request)
         except OutputFailure as exc:
             # Preserve a trusted transport guard through SDK exception wrapping.
@@ -132,6 +142,17 @@ class AuditedTransport(httpx.BaseTransport):
             self.error = exc
             raise
         self.http_status = response.status_code
+        if (
+            self.native is not None
+            and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            == "text/event-stream"
+        ):
+            self.error = OutputFailure("native_request_mismatch", "原生 strict 不接受流式响应")
+            try:
+                response.close()
+            except Exception:
+                pass  # Cleanup failure cannot authorize a compatibility retry.
+            raise self.error
         if (
             200 <= response.status_code < 300
             and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -158,6 +179,8 @@ class AuditedTransport(httpx.BaseTransport):
                 self.content, self.usage, self.finish = completion_content(
                     load_json(data), self.contract
                 )
+                if self.native is not None:
+                    self.native.check_content(self.content)
                 if self.observer:
                     self.observer.mode("non_streaming")
             elif response.status_code in {400, 422}:
@@ -459,7 +482,9 @@ def completion_content(envelope, contract):
     ):
         raise OutputFailure("unexpected_tool_call", "本阶段不接受模型工具调用")
     # Legacy compatible endpoints sometimes omit this field. Reviewed providers cannot.
-    if finish != "stop" and not (finish is None and contract.provider == "compatible"):
+    if finish != "stop" and not (
+        finish is None and contract.provider == "compatible" and contract.mode == "json_object"
+    ):
         raise OutputFailure("invalid_finish_reason", "模型响应没有确认完整结束", retry=True)
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -479,8 +504,10 @@ def completion_content(envelope, contract):
 
 
 def validate_content(content, schema, *, mode):
-    if mode != "json_object":
+    if mode not in {"json_object", "json_schema"}:
         raise ValueError("unsupported_output_validation_mode")
+    # Native mode additionally validates raw content in AuditedTransport before
+    # SDK/Pydantic normalization. These client/business checks stay mandatory.
     # Pydantic's JSON parser accepts duplicate keys/nonfinite numbers; reject them first.
     value = load_json(content)
     if not isinstance(value, dict):

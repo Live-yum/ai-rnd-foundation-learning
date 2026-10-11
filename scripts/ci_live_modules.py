@@ -19,6 +19,7 @@ from workbench.filesystem import manifest, pack_source, unpack, write_json
 from workbench.model_diagnostics import json_failure_facts, response_failure_facts
 from workbench.planning.feature_planner import FeatureDesign
 from workbench.settings import ROOT
+from workbench.store import native_output_receipt
 
 REPOSITORY = "Live-yum/ai-rnd-foundation-learning"
 SCENARIO = "mini-swe-sla"
@@ -56,6 +57,11 @@ def model_failure_receipts(records):
         "request_destination_rejected",
         "request_count_limit",
         "unexpected_model_error",
+        "native_scope_rejected",
+        "native_sdk_unsupported",
+        "native_request_mismatch",
+        "native_schema_violation",
+        "native_format_rejected",
     }
     transport_kinds = {
         "connect_timeout",
@@ -83,6 +89,7 @@ def model_failure_receipts(records):
             "code": safe_code,
             "attempt": attempt if type(attempt) is int and attempt in (1, 2) else None,
         }
+        receipt.update(native_output_receipt(record))
         if safe_code == "transport_error":
             kind = record.get("transport_kind")
             receipt["transport_kind"] = (
@@ -201,6 +208,8 @@ def configuration(env):
         "https_endpoint_required",
     )
     require(bool(env.get("MODE", "").strip()), "model_required")
+    output_mode = env.get("LIVE_MINI_SWE_OUTPUT_MODE", "json_object")
+    require(output_mode in {"json_object", "json_schema"}, "unknown_mini_swe_output_mode")
     billing = env.get("LIVE_BILLING_MODE", "metered")
     require(billing in {"metered", "declared_free"}, "unknown_billing_mode")
     try:
@@ -220,6 +229,7 @@ def configuration(env):
     return {
         "head_sha": head,
         "scenario": SCENARIO,
+        "mini_swe_output_mode": output_mode,
         "billing": zero_billing(env) if billing == "declared_free" else {"mode": "metered"},
         "max_cost_usd": float(cost),
         "usd_per_million_tokens": float(price),
@@ -316,7 +326,7 @@ def live_settings(env, config, directory):
     )
 
 
-def execute(settings, directory, *, transport=None, progress=None):
+def execute(settings, directory, *, transport=None, progress=None, output_mode="json_object"):
     from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
     from workbench.capability_execution import capability_execution_prerequisites
     from workbench.capability_sandbox import verify_capabilities
@@ -327,6 +337,7 @@ def execute(settings, directory, *, transport=None, progress=None):
     from workbench.production.candidates import ProductLedger
     from workbench.store import Store
 
+    require(output_mode in {"json_object", "json_schema"}, "unknown_mini_swe_output_mode")
     selected = acceptance_design()
     plan = selected.implementation
     selection = plan.selection.model_dump()
@@ -347,7 +358,9 @@ def execute(settings, directory, *, transport=None, progress=None):
             },
             "live-sla-run",
         )["run_id"]
-        gateway = ModelGateway(settings, store, transport)
+        gateway = ModelGateway(
+            settings, store, transport, native_strict=output_mode == "json_schema"
+        )
         base = directory / "baseline"
         generate_basic(selected.baseline, base, selection)
         prepare_consumer(base, plan)
@@ -476,9 +489,12 @@ def execute(settings, directory, *, transport=None, progress=None):
             )
             # Optional evidence must never replace the original result or cleanup.
             try:
-                progress["model_failure_receipts"] = model_failure_receipts(
-                    store.model_records(run_id)
-                )
+                records = store.model_records(run_id)
+                progress["model_failure_receipts"] = model_failure_receipts(records)
+                if output_mode == "json_schema":
+                    progress["native_output_receipts"] = [
+                        receipt for record in records if (receipt := native_output_receipt(record))
+                    ][:MODEL_CALLS]
             except Exception:
                 progress["model_failure_receipts"] = None
         store.engine.dispose()
@@ -513,6 +529,7 @@ def main():
                             directory,
                             transport=transport,
                             progress=summary,
+                            output_mode=config["mini_swe_output_mode"],
                         )
                     )
                 finally:

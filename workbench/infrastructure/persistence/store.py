@@ -39,6 +39,21 @@ from workbench.settings import ROOT, Settings
 MODEL_FREE_APPROVAL_STAGES = frozenset({"delivery", "extension_scope", "extension_delivery"})
 
 
+def native_output_receipt(record):
+    """Expose only fixed native-mode facts; HTTP 200 never proves enforcement."""
+    if record.get("native_strict_requested") is not True:
+        return {}
+    status = record.get("native_http_status")
+    conformant = record.get("native_local_conformant")
+    return {
+        "native_strict_requested": True,
+        "native_request_verified": record.get("native_request_verified") is True,
+        "native_local_conformant": conformant if type(conformant) is bool else None,
+        "native_provider_enforcement": "unknown",
+        "native_http_status": status if type(status) is int and 100 <= status <= 599 else None,
+    }
+
+
 def action_needs_model(stage, action):
     return action != "reject" and not (action == "approve" and stage in MODEL_FREE_APPROVAL_STAGES)
 
@@ -675,6 +690,7 @@ class Store:
                     "structured_output": r.data.get("structured_output", "legacy"),
                     "finish_reason": r.data.get("finish_reason", "unknown"),
                     "status": "validated" if r.data.get("contract_version") else "legacy",
+                    **native_output_receipt(r.data),
                     "created_at": r.created_at,
                 }
                 for r in rows

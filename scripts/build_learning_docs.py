@@ -46,6 +46,7 @@ MODULE_STAGE = {
     "conversation": 3,
     "llm": 3,
     "model_protocol": 3,
+    "native_schema": 3,
     "model_connection": 3,
     "model_diagnostics": 3,
     "streaming": 3,
@@ -227,6 +228,7 @@ def test_stage(name):
         return 10
     stem = Path(name).stem.removeprefix("test_")
     early = {
+        "native_schema": 3,
         "field_predicate_semantics": 3,
         "generation_preservation": 6,
         "product_browser_gate": 6,

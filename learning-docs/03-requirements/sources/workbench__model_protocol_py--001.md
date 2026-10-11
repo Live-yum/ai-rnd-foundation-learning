@@ -19,39 +19,39 @@
 - `OutputContract`（L28–L41）：继承`object`。声明的数据项为`provider`、`mode`、`reason`、`request_fields`；类型约束/数据库列参数以完整定义为准。
 - `OutputContract.receipt`（L34–L41）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L35的`{ "provider": self.provider, "output_mode": self.mode, "format_reason": self.reason, "cont…`。
 - `output_contract`（L44–L61）：接收`profile`、`schema`。 源码说明：Choose the integration, not model capabilities or a hand-built API schema.。 控制顺序：L47按`provider == "auto"`分支；L51按`profile.output_mode not in {"auto", "json_object"}`分支；L52抛异常，停止当前正常路径。 调用`{"api.deepseek.com": "deepseek", "api.openai.com": "openai"}.get`、`urlsplit`、`ValueError`、`OutputContract`。 返回路径：L53的`OutputContract( provider, "json_object", "langchain_json_mode", { "max_output_tokens": pro…`。
-- `structured_model`（L65–L102）：接收`profile`、`schema`、`contract`、`http_client`、`streaming`。 源码说明：The official LangChain integration owns wire formatting and schema parsing. LangGraph nodes call this same Runnable for all four schema-driven stages. JSON mode preserves open dictionaries; local stri。 调用`httpx.AsyncClient`、`SyncOnlyTransport`、`model_class`、`model.with_structured_output`、`asyncio.get_running_loop`、`asyncio.run`、`async_client.aclose`、`ThreadPoolExecutor`、`executor.submit(asyncio.run, async_client.aclose()).result`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `SyncOnlyTransport`（L105–L107）：继承`httpx.AsyncBaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `SyncOnlyTransport.handle_async_request`（L106–L107）：接收`request`。 控制顺序：L107抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AuditedTransport`（L110–L215）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AuditedTransport.__init__`（L113–L124）：接收`contract`、`inner`、`observer`、`streaming`。 调用`httpx.HTTPTransport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AuditedTransport.handle_request`（L126–L211）：接收`request`。 控制顺序：L133抛异常，停止当前正常路径；L135按`200 <= response.status_code < 300 and response.headers.get("content-type", "").split(…`分支；L140按`self.observer`分支；L153遍历`response.iter_bytes()`；L155按`len(data) > MAX_MODEL_CONTENT_BYTES`分支；L156抛异常，停止当前正常路径；L157按`200 <= response.status_code < 300`分支；L161按`self.observer`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.inner.handle_request`、`response.headers.get("content-type", "").split(";", 1)[0].strip()…`、`response.headers.get("content-type", "").split(";", 1)[0].strip`、`response.headers.get("content-type", "").split`、`response.headers.get`、`self.observer.mode`、`httpx.Response`、`response.headers.items`、`k.lower`等。 返回路径：L142的`httpx.Response( response.status_code, headers={ k: v for k, v in response.headers.items() …`；L211的`httpx.Response(response.status_code, headers=headers, content=bytes(data))`。
-- `AuditedTransport.close`（L213–L215）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214按`self.owned`分支。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AuditedEventStream`（L218–L365）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AuditedEventStream.__init__`（L221–L230）：接收`response`、`audit`。 调用`stream_wire_limit`、`audit.contract.request_fields.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AuditedEventStream.__iter__`（L232–L262）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L236遍历`self.lines()`；L237按`line == ""`分支；L238按`not data`分支；L243按`len(payload.encode("utf-8")) > MAX_MODEL_CONTENT_BYTES`分支；L244抛异常，停止当前正常路径；L247按`self.done`分支；L249按`line.startswith("data:")`分支；L253按`data_bytes > MAX_MODEL_CONTENT_BYTES`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.lines`、`"\n".join`、`len`、`payload.encode`、`OutputFailure`、`self.frame`、`("data: " + payload + "\n\n").encode`、`line.startswith`、`line[5:].removeprefix`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `AuditedEventStream.lines`（L264–L290）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267遍历`self.response.iter_bytes()`；L269按`self.bytes_read > self.wire_limit`分支；L270抛异常，停止当前正常路径；L272在`True`成立时循环；L274按`not boundaries`分支；L277按`len(buffer[:index].encode("utf-8")) > MAX_MODEL_CONTENT_BYTES`分支；L278抛异常，停止当前正常路径；L279按`buffer[index] == "\r" and index == len(buffer) - 1`分支。后续分支沿下方源码相同行号继续阅读。 调用`codecs.getincrementaldecoder("utf-8")`、`codecs.getincrementaldecoder`、`self.response.iter_bytes`、`len`、`OutputFailure`、`decoder.decode`、`buffer.find`、`min`、`buffer[:index].encode`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `AuditedEventStream.frame`（L292–L361）：接收`payload`。 控制顺序：L293按`payload == "[DONE]"`分支；L307按`self.finish != "stop"`分支；L308抛异常，停止当前正常路径；L312按`not isinstance(value, dict) or value.get("error")`分支；L313抛异常，停止当前正常路径；L316按`choices == [] and isinstance(value.get("usage"), dict)`分支；L319按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L320抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`completion_content`、`"".join`、`OutputFailure`、`load_json`、`isinstance`、`value.get`、`len`、`choice.get`、`delta.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AuditedEventStream.close`（L364–L365）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.response.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `OutputFailure`（L368–L373）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `OutputFailure.__init__`（L371–L373）：接收`code`、`message`、`retry`、`repair`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `json_lengths`（L376–L387）：接收`text`。 源码说明：Numeric input sizes only; never retain the input or a JSON key in an error.。 控制顺序：L378按`isinstance(text, bytes \| bytearray)`分支；L380按`not isinstance(text, str)`分支。 调用`isinstance`、`len`、`text.encode`。 返回路径：L379的`{"bytes": len(text)}`；L381的`{}`；L387的`result`。
-- `JSONGuardFailure`（L390–L393）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `JSONGuardFailure.__init__`（L391–L393）：接收`code`、`text`。 调用`json_lengths`、`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_json`（L396–L430）：接收`text`。 控制顺序：L430抛异常，停止当前正常路径。 调用`json.loads`、`JSONGuardFailure`。 返回路径：L422的`json.loads( text, object_pairs_hook=unique_pairs, parse_constant=invalid_constant, parse_f…`。
-- `load_json.unique_pairs`（L397–L403）：接收`pairs`。 控制顺序：L399遍历`pairs`；L400按`key in result`分支；L401抛异常，停止当前正常路径。 调用`JSONGuardFailure`。 返回路径：L403的`result`。
-- `load_json.invalid_constant`（L405–L406）：接收`_`。 控制顺序：L406抛异常，停止当前正常路径。 调用`JSONGuardFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_json.finite_float`（L408–L412）：接收`value`。 控制顺序：L410按`not math.isfinite(result)`分支；L411抛异常，停止当前正常路径。 调用`float`、`math.isfinite`、`JSONGuardFailure`。 返回路径：L412的`result`。
-- `load_json.bounded_integer`（L414–L419）：接收`value`。 控制顺序：L419抛异常，停止当前正常路径。 调用`int`、`JSONGuardFailure`。 返回路径：L416的`int(value)`。
-- `completion_content`（L433–L478）：接收`envelope`、`contract`。 控制顺序：L434按`not isinstance(envelope, dict) or envelope.get("error")`分支；L435抛异常，停止当前正常路径；L437按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L438抛异常，停止当前正常路径；L441按`not isinstance(message, dict) or message.get("role", "assistant") != "assistant"`分支；L442抛异常，停止当前正常路径；L443按`message.get("refusal") is not None`分支；L444按`message["refusal"] != ""`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`envelope.get`、`OutputFailure`、`len`、`choice.get`、`message.get`、`content.strip`、`usage.items`、`type`。 返回路径：L478的`content, safe_usage, finish or "unknown"`。
-- `validate_content`（L481–L488）：接收`content`、`schema`、`mode`。 控制顺序：L482按`mode != "json_object"`分支；L483抛异常，停止当前正常路径；L486按`not isinstance(value, dict)`分支；L487抛异常，停止当前正常路径。 调用`ValueError`、`load_json`、`isinstance`、`schema.model_validate_json`。 返回路径：L488的`schema.model_validate_json(content, strict=True)`。
+- `structured_model`（L65–L107）：接收`profile`、`schema`、`contract`、`http_client`、`streaming`。 源码说明：The official LangChain integration owns wire formatting and schema parsing. LangGraph nodes call this same Runnable for all four schema-driven stages. JSON mode preserves open dictionaries; local stri。 调用`httpx.AsyncClient`、`SyncOnlyTransport`、`model_class`、`model.with_structured_output`、`asyncio.get_running_loop`、`asyncio.run`、`async_client.aclose`、`ThreadPoolExecutor`、`executor.submit(asyncio.run, async_client.aclose()).result`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `SyncOnlyTransport`（L110–L112）：继承`httpx.AsyncBaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SyncOnlyTransport.handle_async_request`（L111–L112）：接收`request`。 控制顺序：L112抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedTransport`（L115–L238）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AuditedTransport.__init__`（L118–L132）：接收`contract`、`inner`、`observer`、`streaming`、`native`。 控制顺序：L119按`(contract.mode == "json_schema") != (native is not None)`分支；L120抛异常，停止当前正常路径。 调用`OutputFailure`、`httpx.HTTPTransport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedTransport.handle_request`（L134–L234）：接收`request`。 控制顺序：L136按`self.native is not None`分支；L143抛异常，停止当前正常路径；L145按`self.native is not None and response.headers.get("content-type", "").split(";", 1)[0]…`分支；L155抛异常，停止当前正常路径；L156按`200 <= response.status_code < 300 and response.headers.get("content-type", "").split(…`分支；L161按`self.observer`分支；L174遍历`response.iter_bytes()`；L176按`len(data) > MAX_MODEL_CONTENT_BYTES`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.native.check_request`、`self.inner.handle_request`、`response.headers.get("content-type", "").split(";", 1)[0].strip()…`、`response.headers.get("content-type", "").split(";", 1)[0].strip`、`response.headers.get("content-type", "").split`、`response.headers.get`、`OutputFailure`、`response.close`、`self.observer.mode`等。 返回路径：L163的`httpx.Response( response.status_code, headers={ k: v for k, v in response.headers.items() …`；L234的`httpx.Response(response.status_code, headers=headers, content=bytes(data))`。
+- `AuditedTransport.close`（L236–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L237按`self.owned`分支。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedEventStream`（L241–L388）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AuditedEventStream.__init__`（L244–L253）：接收`response`、`audit`。 调用`stream_wire_limit`、`audit.contract.request_fields.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedEventStream.__iter__`（L255–L285）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L259遍历`self.lines()`；L260按`line == ""`分支；L261按`not data`分支；L266按`len(payload.encode("utf-8")) > MAX_MODEL_CONTENT_BYTES`分支；L267抛异常，停止当前正常路径；L270按`self.done`分支；L272按`line.startswith("data:")`分支；L276按`data_bytes > MAX_MODEL_CONTENT_BYTES`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.lines`、`"\n".join`、`len`、`payload.encode`、`OutputFailure`、`self.frame`、`("data: " + payload + "\n\n").encode`、`line.startswith`、`line[5:].removeprefix`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `AuditedEventStream.lines`（L287–L313）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L290遍历`self.response.iter_bytes()`；L292按`self.bytes_read > self.wire_limit`分支；L293抛异常，停止当前正常路径；L295在`True`成立时循环；L297按`not boundaries`分支；L300按`len(buffer[:index].encode("utf-8")) > MAX_MODEL_CONTENT_BYTES`分支；L301抛异常，停止当前正常路径；L302按`buffer[index] == "\r" and index == len(buffer) - 1`分支。后续分支沿下方源码相同行号继续阅读。 调用`codecs.getincrementaldecoder("utf-8")`、`codecs.getincrementaldecoder`、`self.response.iter_bytes`、`len`、`OutputFailure`、`decoder.decode`、`buffer.find`、`min`、`buffer[:index].encode`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `AuditedEventStream.frame`（L315–L384）：接收`payload`。 控制顺序：L316按`payload == "[DONE]"`分支；L330按`self.finish != "stop"`分支；L331抛异常，停止当前正常路径；L335按`not isinstance(value, dict) or value.get("error")`分支；L336抛异常，停止当前正常路径；L339按`choices == [] and isinstance(value.get("usage"), dict)`分支；L342按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L343抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`completion_content`、`"".join`、`OutputFailure`、`load_json`、`isinstance`、`value.get`、`len`、`choice.get`、`delta.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedEventStream.close`（L387–L388）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.response.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `OutputFailure`（L391–L396）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `OutputFailure.__init__`（L394–L396）：接收`code`、`message`、`retry`、`repair`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `json_lengths`（L399–L410）：接收`text`。 源码说明：Numeric input sizes only; never retain the input or a JSON key in an error.。 控制顺序：L401按`isinstance(text, bytes \| bytearray)`分支；L403按`not isinstance(text, str)`分支。 调用`isinstance`、`len`、`text.encode`。 返回路径：L402的`{"bytes": len(text)}`；L404的`{}`；L410的`result`。
+- `JSONGuardFailure`（L413–L416）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `JSONGuardFailure.__init__`（L414–L416）：接收`code`、`text`。 调用`json_lengths`、`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json`（L419–L453）：接收`text`。 控制顺序：L453抛异常，停止当前正常路径。 调用`json.loads`、`JSONGuardFailure`。 返回路径：L445的`json.loads( text, object_pairs_hook=unique_pairs, parse_constant=invalid_constant, parse_f…`。
+- `load_json.unique_pairs`（L420–L426）：接收`pairs`。 控制顺序：L422遍历`pairs`；L423按`key in result`分支；L424抛异常，停止当前正常路径。 调用`JSONGuardFailure`。 返回路径：L426的`result`。
+- `load_json.invalid_constant`（L428–L429）：接收`_`。 控制顺序：L429抛异常，停止当前正常路径。 调用`JSONGuardFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json.finite_float`（L431–L435）：接收`value`。 控制顺序：L433按`not math.isfinite(result)`分支；L434抛异常，停止当前正常路径。 调用`float`、`math.isfinite`、`JSONGuardFailure`。 返回路径：L435的`result`。
+- `load_json.bounded_integer`（L437–L442）：接收`value`。 控制顺序：L442抛异常，停止当前正常路径。 调用`int`、`JSONGuardFailure`。 返回路径：L439的`int(value)`。
+- `completion_content`（L456–L503）：接收`envelope`、`contract`。 控制顺序：L457按`not isinstance(envelope, dict) or envelope.get("error")`分支；L458抛异常，停止当前正常路径；L460按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L461抛异常，停止当前正常路径；L464按`not isinstance(message, dict) or message.get("role", "assistant") != "assistant"`分支；L465抛异常，停止当前正常路径；L466按`message.get("refusal") is not None`分支；L467按`message["refusal"] != ""`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`envelope.get`、`OutputFailure`、`len`、`choice.get`、`message.get`、`content.strip`、`usage.items`、`type`。 返回路径：L503的`content, safe_usage, finish or "unknown"`。
+- `validate_content`（L506–L515）：接收`content`、`schema`、`mode`。 控制顺序：L507按`mode not in {"json_object", "json_schema"}`分支；L508抛异常，停止当前正常路径；L513按`not isinstance(value, dict)`分支；L514抛异常，停止当前正常路径。 调用`ValueError`、`load_json`、`isinstance`、`schema.model_validate_json`。 返回路径：L515的`schema.model_validate_json(content, strict=True)`。
 
 </details>
 
-**创建路径：** `workbench/model_protocol.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L488。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_protocol.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L515。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20539`。本段原文以LF换行结束。
+本段原始字节数：`21836`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_protocol.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3b965ba536a88ebeb304f7fb604624c9be7aae1d877441a19856dc693c72beb9"} -->
+<!-- learning-source: {"path": "workbench/model_protocol.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d0afe00c96a1d2d7a0c7d9a4a672dafc81a94435ce59bd3c2d67d804100730d4"} -->
 ````python
 # workbench/model_protocol.py
 """LangChain structured-output integration and provider-independent validation guards."""
@@ -146,7 +146,12 @@ def structured_model(profile, schema, contract, http_client, *, streaming=False)
             cache=False,
             max_tokens=contract.request_fields["max_output_tokens"],
         )
-        yield model.with_structured_output(schema, method="json_mode", include_raw=True)
+        yield model.with_structured_output(
+            schema,
+            method="json_schema" if contract.mode == "json_schema" else "json_mode",
+            include_raw=True,
+            **({"strict": True} if contract.mode == "json_schema" else {}),
+        )
     finally:
         try:
             asyncio.get_running_loop()
@@ -166,7 +171,9 @@ class SyncOnlyTransport(httpx.AsyncBaseTransport):
 class AuditedTransport(httpx.BaseTransport):
     """Bound bytes and check response status before SDK/parser normalization loses evidence."""
 
-    def __init__(self, contract, inner=None, *, observer=None, streaming=False):
+    def __init__(self, contract, inner=None, *, observer=None, streaming=False, native=None):
+        if (contract.mode == "json_schema") != (native is not None):
+            raise OutputFailure("native_request_mismatch", "原生 strict 必须绑定实际 wire 守卫")
         self.contract = contract
         self.owned = inner is None
         self.inner = inner if inner is not None else httpx.HTTPTransport(retries=0, trust_env=False)
@@ -178,9 +185,12 @@ class AuditedTransport(httpx.BaseTransport):
         self.observer = observer
         self.streaming = streaming
         self.stream_unsupported = False
+        self.native = native
 
     def handle_request(self, request):
         try:
+            if self.native is not None:
+                self.native.check_request(request)
             response = self.inner.handle_request(request)
         except OutputFailure as exc:
             # Preserve a trusted transport guard through SDK exception wrapping.
@@ -188,6 +198,17 @@ class AuditedTransport(httpx.BaseTransport):
             self.error = exc
             raise
         self.http_status = response.status_code
+        if (
+            self.native is not None
+            and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            == "text/event-stream"
+        ):
+            self.error = OutputFailure("native_request_mismatch", "原生 strict 不接受流式响应")
+            try:
+                response.close()
+            except Exception:
+                pass  # Cleanup failure cannot authorize a compatibility retry.
+            raise self.error
         if (
             200 <= response.status_code < 300
             and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -214,6 +235,8 @@ class AuditedTransport(httpx.BaseTransport):
                 self.content, self.usage, self.finish = completion_content(
                     load_json(data), self.contract
                 )
+                if self.native is not None:
+                    self.native.check_content(self.content)
                 if self.observer:
                     self.observer.mode("non_streaming")
             elif response.status_code in {400, 422}:
@@ -515,7 +538,9 @@ def completion_content(envelope, contract):
     ):
         raise OutputFailure("unexpected_tool_call", "本阶段不接受模型工具调用")
     # Legacy compatible endpoints sometimes omit this field. Reviewed providers cannot.
-    if finish != "stop" and not (finish is None and contract.provider == "compatible"):
+    if finish != "stop" and not (
+        finish is None and contract.provider == "compatible" and contract.mode == "json_object"
+    ):
         raise OutputFailure("invalid_finish_reason", "模型响应没有确认完整结束", retry=True)
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
@@ -535,8 +560,10 @@ def completion_content(envelope, contract):
 
 
 def validate_content(content, schema, *, mode):
-    if mode != "json_object":
+    if mode not in {"json_object", "json_schema"}:
         raise ValueError("unsupported_output_validation_mode")
+    # Native mode additionally validates raw content in AuditedTransport before
+    # SDK/Pydantic normalization. These client/business checks stay mandatory.
     # Pydantic's JSON parser accepts duplicate keys/nonfinite numbers; reject them first.
     value = load_json(content)
     if not isinstance(value, dict):

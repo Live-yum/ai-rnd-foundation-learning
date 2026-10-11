@@ -124,6 +124,7 @@ uv run python -m scripts.build_learning_docs --check
 在上述 Actions 页面选择 `feat/modular-production-v2` 分支，输入：
 
 - `scenario`: `mini-swe-sla`（默认仍为 `legacy`，不会意外开启新付费场景）。
+- `mini_swe_output_mode`: 默认 `json_object`。仅本场景可显式选择 `json_schema` 做原生 strict 兼容性试跑；该选项不扩展场景、权限或预算，也不改变普通模型设置。
 - `reviewed_sha`: 本次已审核分支的完整40位 SHA；必须与实际 checkout 完全一致。
 - `max_cost_usd`: 本次单次手动运行的授权总上限，`0 < 值 <= 10`；默认 `0` 失败关闭。
 - `usd_per_million_tokens`: 运营方核实的输入或输出 token 每百万美元费用的保守最大值，`0 < 值 <= 10000`；默认 `0` 失败关闭，脚本不会猜价格。
@@ -387,3 +388,15 @@ Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.mi
 Windows普通CI38172056666的checkpoint失败已由正式JUnit11714728237确认：communicate在约0.47665秒截止后，stop_process内wait(timeout=15)再超时，总测试15.613秒。源码发现测试夹具替换了共享subprocess.Popen，所有命令都被改成sleep30的验证器，包括生产stop_process调用的taskkill。因此本次只让夹具拦截准确verifier启动命令，其他命令原样透传，并验证Windows确实调用taskkill；不修改生产15秒回收等待、不降低冻结早到成功回执的要求。
 
 另一Windows idle的正式JUnit11715057043经SHA256核对一致，测试耗时12.638秒，只有原第1122行unconfirmed!=deleted断言，没有底层错误或安全locals；不能借上述taskkill夹具缺陷解释。独立诊断用真实watchdog/finish时序及子进程，证明reader、pipe、Job terminate或Job close不同错误都能满足已有“<14秒、已知ID、删除替身调用一次、进程已回收”断言而最终unconfirmed；Linux原idle测试10.33秒通过。当前没有该Windows实例的首次父回收错误，故不猜0.2秒过紧，也不声称idle根因已修。父回执现附固定supervision_failure_phase/kind，保留首次错误及journal读取/绑定异常阶段；测试失败消息只显示这些固定诊断字段和原因，便于后续Windows证据归因。原14秒断言、0.2秒回收界限、typed404标准、Linux终止行为及unconfirmed拒绝均不变。
+
+### 默认关闭的原生 strict 兼容性试跑
+
+`mini_swe_output_mode=json_schema` 使用锁定的 LangChain/OpenAI SDK 序列化 `ApprovedAgentTurn`，仅允许现有 `sla-api` / `sla-dashboard` 非流式调用。版本与本地审核组合不同则以 `native_sdk_unsupported` 停止；不绕过锁文件、不更换端点、不切换工具调用或 JSON mode。此改动仅有本地 HTTP mock 回归证据，尚未证明真实端点支持 strict。
+
+SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹配；实际 wire Schema 和审核 SDK 版本也纳入缓存身份。native 与 JSON mode 缓存分开。预检失败不预留或发送模型调用，回执 `attempt:null`。
+
+发送前核对实际 HTTP 的精确目标、模型、response_format/schema/strict、非流式、无工具及 8192 输出上限；完整请求体（含新增 Schema）必须落在原 `4 × MAX_CONTEXT_CHARS` 的输入预留内。返回内容先经过拒绝、完成状态、大小及严格 JSON 检查，再按实际发送的 wire Schema 校验，之后仍执行原 Pydantic 业务约束、批准文件完整清单、preimage、checkpoint 和最终独立验收。SDK 将可空字段变为必填：`submit` 必须带 `edits:null`，新文件必须带 `before_sha256:null`，不能靠客户端默认值补齐。
+
+出站不匹配以 `native_request_mismatch` 在网络前停止；HTTP 400/422 以 `native_format_rejected` 在首个响应后停止，安全回执仅保留数字 HTTP 状态；违反 wire Schema 以 `native_schema_violation` 在首个响应后停止。不得删去服务端不支持的约束或自动重试兼容性格式。HTTP 500/超时及本地业务纠错仍受原每轮最多两次约束；没有第三次回退。每模块 8 步、200 万 token、180 秒、总计 32 次调用及原费用边界全部不变。
+
+受控试跑须另行明确授权，绑定已审查完整 SHA、现有 `rnd` 配置、同 Job 隔离前置证明及原预算。回执分别保留 `native_strict_requested`、`native_request_verified`、`native_local_conformant`，并始终将 `native_provider_enforcement` 标为 `unknown`。HTTP 200 且本地合规只能证明该请求被接受且该响应通过本地校验，不能区分服务端执行 strict 与静默忽略后偶然输出合规 JSON；也不能代替业务验收通过。

@@ -12,6 +12,11 @@ on:
         type: choice
         options: [metered, declared_free]
         default: metered
+      mini_swe_output_mode:
+        description: mini-swe-sla only; strict is a compatibility trial, never an automatic fallback
+        type: choice
+        options: [json_object, json_schema]
+        default: json_object
       confirm_no_charge:
         description: I confirm this exact service has no charges for this test
         type: boolean
@@ -198,6 +203,7 @@ jobs:
     environment: rnd
     env:
       LIVE_SCENARIO: ${{ inputs.scenario }}
+      LIVE_MINI_SWE_OUTPUT_MODE: ${{ inputs.mini_swe_output_mode }}
       LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
       LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
       LIVE_TEST_CA: ${{ inputs.test_ca }}

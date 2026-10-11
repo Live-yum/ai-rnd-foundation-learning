@@ -15,22 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `security_checks_for`（L194–L199）：接收`selection`。 控制顺序：L195按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L196的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L199的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L202–L207）：接收`selection`。 调用`selection.get`。 返回路径：L203的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L210–L211）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L211的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L214–L235）：接收`record`。 控制顺序：L218按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L222抛异常，停止当前正常路径；L226按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L227抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L228的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_preinstalled_evidence`（L238–L281）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L257按`native`分支；L259按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L280抛异常，停止当前正常路径。 调用`isinstance`、`expected.get`、`keys.add`、`set`、`type`、`value.get`、`valid_native_runtime_patches`、`any`、`re.fullmatch`等。 返回路径：L281的`value`。
-- `require_profile_container_binding`（L284–L304）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L287按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L291抛异常，停止当前正常路径；L292按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L293抛异常，停止当前正常路径；L294按`record.get("selection", {}).get("template") == "fastapiadmin"`分支；L296按`container.get("profile") != "native-fastapiadmin-postgresql-v1" or type(shared) is no…`分支；L303抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`、`record.get("selection", {}).get`、`record.get`、`type`。 返回路径：L304的`container`。
-- `require_security_receipt`（L307–L350）：接收`value`、`record`、`browser_image`。 控制顺序：L325按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L344抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L350的`value`。
-- `capability_execution_prerequisites`（L353–L408）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L363按`not settings.capability_execution_enabled`分支；L364抛异常，停止当前正常路径；L368按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L372抛异常，停止当前正常路径；L376按`settings.sandbox_provider != "daytona"`分支；L377抛异常，停止当前正常路径；L388按`directory.is_relative_to(runs)`分支；L389抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L408的`directory, record`。
+- `security_checks_for`（L196–L201）：接收`selection`。 控制顺序：L197按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L198的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L201的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L204–L209）：接收`selection`。 调用`selection.get`。 返回路径：L205的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L212–L213）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L213的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L216–L237）：接收`record`。 控制顺序：L220按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L224抛异常，停止当前正常路径；L228按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L229抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L230的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_preinstalled_evidence`（L240–L283）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L259按`native`分支；L261按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L282抛异常，停止当前正常路径。 调用`isinstance`、`expected.get`、`keys.add`、`set`、`type`、`value.get`、`valid_native_runtime_patches`、`any`、`re.fullmatch`等。 返回路径：L283的`value`。
+- `require_profile_container_binding`（L286–L306）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L289按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L293抛异常，停止当前正常路径；L294按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L295抛异常，停止当前正常路径；L296按`record.get("selection", {}).get("template") == "fastapiadmin"`分支；L298按`container.get("profile") != "native-fastapiadmin-postgresql-v1" or type(shared) is no…`分支；L305抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`、`record.get("selection", {}).get`、`record.get`、`type`。 返回路径：L306的`container`。
+- `require_security_receipt`（L309–L352）：接收`value`、`record`、`browser_image`。 控制顺序：L327按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L346抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L352的`value`。
+- `capability_execution_prerequisites`（L355–L410）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L365按`not settings.capability_execution_enabled`分支；L366抛异常，停止当前正常路径；L370按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L374抛异常，停止当前正常路径；L378按`settings.sandbox_provider != "daytona"`分支；L379抛异常，停止当前正常路径；L390按`directory.is_relative_to(runs)`分支；L391抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L410的`directory, record`。
 
 </details>
 
-**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L408。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L410。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16531`。本段原文以LF换行结束。
+本段原始字节数：`16600`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "32d16c9a2e047a29578226ed65e3beddcb75e246a91a0e6ba853578465c71f27"} -->
+<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a70a2666619fc1456a623cd4d870b6668a1932244f7c7f5056fdc8f0ab4afc21"} -->
 ````python
 # workbench/capability_execution.py
 """Fail-closed admission for reviewed custom-source execution.
@@ -90,6 +90,8 @@ SOURCE_FILES = (
     "workbench/infrastructure/__init__.py",
     "workbench/infrastructure/llm/__init__.py",
     "workbench/infrastructure/llm/gateway.py",
+    "workbench/native_schema.py",
+    "workbench/model_protocol.py",
     "workbench/infrastructure/persistence/__init__.py",
     "workbench/infrastructure/persistence/store.py",
     "workbench/infrastructure/sandbox/__init__.py",

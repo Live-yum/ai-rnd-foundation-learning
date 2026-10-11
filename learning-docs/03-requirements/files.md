@@ -17,6 +17,7 @@
 - [tests/test_field_predicate_semantics.py](sources/tests__test_field_predicate_semantics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_models.py](sources/tests__test_guided_models_py--001.md)：可重复的验收用例；1 段
 - [tests/test_llm.py](sources/tests__test_llm_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_schema.py](sources/tests__test_native_schema_py--001.md)：可重复的验收用例；1 段
 - [tests/test_provider_structured_outputs.py](sources/tests__test_provider_structured_outputs_py--001.md)：可重复的验收用例；1 段
 - [workbench/business_capabilities.py](sources/workbench__business_capabilities_py--001.md)：业务合同的可执行能力边界；2 段
 - [workbench/conversation.py](sources/workbench__conversation_py--001.md)：从持久化记录组织对话上下文；1 段
@@ -27,6 +28,7 @@
 - [workbench/model_connection.py](sources/workbench__model_connection_py--001.md)：项目根配置或说明；1 段
 - [workbench/model_diagnostics.py](sources/workbench__model_diagnostics_py--001.md)：项目根配置或说明；1 段
 - [workbench/model_protocol.py](sources/workbench__model_protocol_py--001.md)：项目根配置或说明；1 段
+- [workbench/native_schema.py](sources/workbench__native_schema_py--001.md)：项目根配置或说明；1 段
 - [workbench/requirement_canonical.py](sources/workbench__requirement_canonical_py--001.md)：对已确认等价的需求表述进行保守去重；1 段
 - [workbench/requirement_coverage.py](sources/workbench__requirement_coverage_py--001.md)：保留用户事实并检查可执行需求覆盖；1 段
 - [workbench/requirement_intent.py](sources/workbench__requirement_intent_py--001.md)：保留原始报名目标并明确参与者入口；1 段

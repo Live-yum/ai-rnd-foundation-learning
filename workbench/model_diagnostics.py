@@ -168,6 +168,18 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
         phase = "model_execution"
         summary = "模型调用发生未预期错误，未生成可批准结果。"
         hint = "使用追踪 ID 定位服务端日志，检查模型适配器和配置；修复后重试当前运行。"
+    elif code in {
+        "native_scope_rejected",
+        "native_sdk_unsupported",
+        "native_request_mismatch",
+        "native_format_rejected",
+    }:
+        phase = "provider_request"
+        summary = "原生 strict 兼容性或请求契约检查失败，已停止。"
+        hint = "检查批准范围、锁定 SDK 和服务格式支持；不自动降级格式或新增兼容性重试。"
+    elif code == "native_schema_violation":
+        summary = "响应违反所请求的原生 strict Schema，已停止。"
+        hint = "保留客户端及业务守卫；HTTP 成功状态不能证明服务端强制执行了 strict。"
     elif code == "invalid_json":
         summary = "服务已响应，但返回内容不是可接受的完整 JSON 对象。"
         hint = "检查服务是否支持 JSON 对象输出；保留严格校验，调整模型或配置后重试当前运行。"

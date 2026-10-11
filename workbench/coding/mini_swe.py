@@ -331,6 +331,7 @@ def _run(
                                 gateway.store,
                                 gateway.transport,
                                 streaming=gateway.streaming,
+                                native_strict=gateway.native_strict,
                             )
                         with record_turn(
                             workspace / "agent-model-timings.json",

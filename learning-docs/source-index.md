@@ -63,6 +63,7 @@
 - [tests/test_field_predicate_semantics.py](03-requirements/sources/tests__test_field_predicate_semantics_py--001.md)（1 段）
 - [tests/test_guided_models.py](03-requirements/sources/tests__test_guided_models_py--001.md)（1 段）
 - [tests/test_llm.py](03-requirements/sources/tests__test_llm_py--001.md)（1 段）
+- [tests/test_native_schema.py](03-requirements/sources/tests__test_native_schema_py--001.md)（1 段）
 - [tests/test_provider_structured_outputs.py](03-requirements/sources/tests__test_provider_structured_outputs_py--001.md)（1 段）
 - [workbench/business_capabilities.py](03-requirements/sources/workbench__business_capabilities_py--001.md)（2 段）
 - [workbench/conversation.py](03-requirements/sources/workbench__conversation_py--001.md)（1 段）
@@ -73,6 +74,7 @@
 - [workbench/model_connection.py](03-requirements/sources/workbench__model_connection_py--001.md)（1 段）
 - [workbench/model_diagnostics.py](03-requirements/sources/workbench__model_diagnostics_py--001.md)（1 段）
 - [workbench/model_protocol.py](03-requirements/sources/workbench__model_protocol_py--001.md)（1 段）
+- [workbench/native_schema.py](03-requirements/sources/workbench__native_schema_py--001.md)（1 段）
 - [workbench/requirement_canonical.py](03-requirements/sources/workbench__requirement_canonical_py--001.md)（1 段）
 - [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（1 段）
 - [workbench/requirement_intent.py](03-requirements/sources/workbench__requirement_intent_py--001.md)（1 段）

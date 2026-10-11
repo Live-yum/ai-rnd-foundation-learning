@@ -46,6 +46,8 @@ def dispatch():
         ("LIVE_USD_PER_MILLION_TOKENS", "0"),
         ("LIVE_USD_PER_MILLION_TOKENS", "garbage"),
         ("MODE", ""),
+        ("LIVE_MINI_SWE_OUTPUT_MODE", "auto"),
+        ("LIVE_MINI_SWE_OUTPUT_MODE", "function_calling"),
     ],
 )
 def test_preflight_rejects_unreviewed_or_unbounded_dispatch(key, value):
@@ -154,8 +156,9 @@ def test_diagnostic_retains_only_bounded_inspector_facts():
 
 
 @pytest.mark.parametrize("receipt_read_fails", [False, True])
+@pytest.mark.parametrize("output_mode", ["json_object", "json_schema"])
 def test_real_worker_and_live_context_reach_offline_transport(
-    tmp_path, monkeypatch, receipt_read_fails
+    tmp_path, monkeypatch, receipt_read_fails, output_mode
 ):
     """Exercise pre-call orchestration; this supplies no real sandbox/model evidence."""
     from contextlib import contextmanager
@@ -181,7 +184,9 @@ def test_real_worker_and_live_context_reach_offline_transport(
     seen = []
 
     def stop(request):
-        assert json.loads(request.content).get("stream", False) is False
+        body = json.loads(request.content)
+        assert body.get("stream", False) is False
+        assert body["response_format"]["type"] == output_mode
         seen.append(request.url.path)
         raise RuntimeError("offline pre-call boundary reached")
 
@@ -198,10 +203,19 @@ def test_real_worker_and_live_context_reach_offline_transport(
         monkeypatch.setattr(Store, "model_records", unavailable)
     progress = {}
     with OfflineTransport(stop) as transport, pytest.raises(Exception):
-        live.execute(settings, tmp_path, transport=transport, progress=progress)
+        live.execute(
+            settings, tmp_path, transport=transport, progress=progress, output_mode=output_mode
+        )
     assert seen == ["/v1/chat/completions"]
     assert progress["model_call_reservations"] == 1
-    assert progress["model_failure_receipts"] == (None if receipt_read_fails else [])
+    if receipt_read_fails:
+        assert progress["model_failure_receipts"] is None
+    elif output_mode == "json_object":
+        assert progress["model_failure_receipts"] == []
+    else:
+        assert progress["model_failure_receipts"][0]["code"] == "native_sdk_unsupported"
+        assert progress["native_output_receipts"][0]["native_request_verified"] is True
+        assert progress["native_output_receipts"][0]["native_provider_enforcement"] == "unknown"
     timing = progress["model_turn_timings"][0]
     assert timing["task"] == "sla-api" and len(timing["turns"]) == 1
     turn = timing["turns"][0]
@@ -597,3 +611,50 @@ def test_node_diagnostic_read_failure_preserves_original_oracle_error(monkeypatc
         live.verify_with_diagnostics(reject, tmp_path / "node", aggregate=False, progress=progress)
     assert error.value is original
     assert progress["verification_diagnostic_unavailable"] is True
+
+
+def test_native_opt_in_has_one_input_and_identical_limits():
+    default = live.configuration(dispatch())
+    selected = live.configuration({**dispatch(), "LIVE_MINI_SWE_OUTPUT_MODE": "json_schema"})
+    assert default["mini_swe_output_mode"] == "json_object"
+    assert selected == {**default, "mini_swe_output_mode": "json_schema"}
+    workflow = yaml.safe_load((live.ROOT / ".github/workflows/real-model.yml").read_text())
+    inputs = workflow[True]["workflow_dispatch"]["inputs"]
+    assert inputs["mini_swe_output_mode"]["default"] == "json_object"
+    assert inputs["mini_swe_output_mode"]["options"] == ["json_object", "json_schema"]
+    for name, job in workflow["jobs"].items():
+        assert ("LIVE_MINI_SWE_OUTPUT_MODE" in job.get("env", {})) == (name == "mini-swe-sla")
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "native_scope_rejected",
+        "native_sdk_unsupported",
+        "native_request_mismatch",
+        "native_schema_violation",
+        "native_format_rejected",
+    ],
+)
+def test_native_receipts_preserve_fixed_codes_and_never_claim_enforcement(code):
+    record = {
+        "status": "failed",
+        "code": code,
+        "attempt": 1,
+        "native_strict_requested": True,
+        "native_request_verified": "private",
+        "native_local_conformant": "private",
+        "native_provider_enforcement": "confirmed",
+        "native_http_status": True,
+        "schema": {"private": "private"},
+    }
+    receipt = live.model_failure_receipts([record])[0]
+    assert receipt == {
+        "code": code,
+        "attempt": 1,
+        "native_strict_requested": True,
+        "native_request_verified": False,
+        "native_local_conformant": None,
+        "native_provider_enforcement": "unknown",
+        "native_http_status": None,
+    }

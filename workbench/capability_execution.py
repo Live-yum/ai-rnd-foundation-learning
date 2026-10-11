@@ -55,6 +55,8 @@ SOURCE_FILES = (
     "workbench/infrastructure/__init__.py",
     "workbench/infrastructure/llm/__init__.py",
     "workbench/infrastructure/llm/gateway.py",
+    "workbench/native_schema.py",
+    "workbench/model_protocol.py",
     "workbench/infrastructure/persistence/__init__.py",
     "workbench/infrastructure/persistence/store.py",
     "workbench/infrastructure/sandbox/__init__.py",
