@@ -1,8 +1,8 @@
-# tests/test_mini_swe_checkpoints.py · 1/1
+# tests/test_mini_swe_checkpoints.py · 1/2
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-
+[下一段](tests__test_mini_swe_checkpoints_py--002.md)
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
 
@@ -71,19 +71,14 @@
 - `test_file_cleanup_tracks_expected_candidate_even_after_partial_upload`（L860–L915）：接收`settings`、`tmp_path`、`monkeypatch`、`fail_write`。 控制顺序：L910按`fail_write`分支；L915断言`operations == ["delete", "closed"]`。 调用`cleanup_binding`、`SimpleNamespace`、`monkeypatch.setattr`、`operations.append`、`pytest.raises`、`run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_file_cleanup_tracks_expected_candidate_even_after_partial_upload.create`（L872–L874）：接收`parameters`、`timeout`。 返回路径：L874的`target`。
 - `test_file_cleanup_tracks_expected_candidate_even_after_partial_upload.delete`（L887–L891）：接收`settings`、`name`、`identifier`、`bound`、`path`、`deadline`。 控制顺序：L888断言`name == target.name and identifier == target.id`；L889断言`bound == {**binding, "source": "c" * 64}`；L891断言`json.loads(path.read_text())["binding"] == bound`。 调用`operations.append`、`json.loads`、`path.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_file_cleanup_tracks_expected_candidate_even_after_partial_upload.run`（L896–L908）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L907按`fail_write`分支；L908抛异常，停止当前正常路径。 调用`coding.coding_environment`、`plan.selection.model_dump`、`time.monotonic`、`environment.bind_candidate`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_checkpoint_parent_kills_child_and_freezes_early_success`（L918–L968）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L965断言`children[0].poll() is not None`；L967断言`value["passed"] is False and value["cleanup"] == "unconfirmed"`；L968断言`value["checkpoint"] == checkpoint and "repairable_failure" not in value`。 调用`fixed_application`、`monkeypatch.setattr`、`digest`、`plan.tasks[0].model_dump`、`time.monotonic`、`pytest.raises`、`verifier.verify_capabilities`、`plan.selection.model_dump`、`children[0].poll`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_checkpoint_parent_kills_child_and_freezes_early_success.launch`（L944–L947）：接收`command`、`**kwargs`。 调用`original`、`children.append`。 返回路径：L947的`process`。
-- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline`（L972–L987）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L987断言`10 <= elapsed < 11.5`。 调用`time.monotonic`、`CheckpointDeadline`、`controller.enter_cleanup`、`pytest.raises`、`cleanup_call`、`pytest.mark.skipif`、`hasattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline.cleanup_call`（L978–L979）：接收`timeout`。 调用`time.sleep`、`with_timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L987。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L895。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35776`。本段原文以LF换行结束。
+本段原始字节数：`32594`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6f93fb85a3d7c1ffb486373bd707bdc03e17708b3b49023d6175bd73fece916f"} -->
+<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "e432f333f500988c1fbd5aed99f97a7e57d89a97dc9b5122a6320694557f12e9"} -->
 ````python
 # tests/test_mini_swe_checkpoints.py
 """Offline checkpoint control flow; fake proofs are never live acceptance evidence."""
@@ -981,96 +976,4 @@ def test_file_cleanup_tracks_expected_candidate_even_after_partial_upload(
     monkeypatch.setattr(cleanup, "delete_owned", delete)
     path = tmp_path / "agent-cleanup.json"
 
-    def run():
-        with coding.coding_environment(
-            settings,
-            task,
-            plan.selection.model_dump(),
-            tmp_path,
-            deadline=time.monotonic() + 30,
-            cleanup_record=path,
-            cleanup_binding=binding,
-        ) as environment:
-            environment.bind_candidate("c" * 64)
-            if fail_write:
-                raise RuntimeError("partial upload failed")
-
-    if fail_write:
-        with pytest.raises(RuntimeError):
-            run()
-    else:
-        run()
-    assert operations == ["delete", "closed"]
-
-
-def test_checkpoint_parent_kills_child_and_freezes_early_success(settings, tmp_path, monkeypatch):
-    import subprocess
-    import sys
-
-    from scripts.ci_capability_profile import fixed_application
-    from workbench import capability_sandbox as verifier
-    from workbench.generator import PrerequisiteError
-
-    product = tmp_path / "product"
-    plan = fixed_application(product)
-    monkeypatch.setattr(
-        "workbench.capability_execution.capability_execution_prerequisites",
-        lambda *a: (tmp_path, {}),
-    )
-    monkeypatch.setattr(
-        "workbench.capability_dependencies.require_dependency_descriptors", lambda *a: None
-    )
-    child = """import json,sys,time
-from pathlib import Path
-p=json.loads(sys.stdin.buffer.read())
-Path(p['receipt']).write_text(json.dumps({'passed':True,'cleanup':'deleted','checkpoint':p['checkpoint'],'repairable_failure':'application_startup'}))
-time.sleep(30)
-"""
-    original = subprocess.Popen
-    children = []
-
-    def launch(command, **kwargs):
-        process = original([sys.executable, "-c", child], **kwargs)
-        children.append(process)
-        return process
-
-    monkeypatch.setattr(verifier.subprocess, "Popen", launch)
-    checkpoint = {
-        "task": digest(plan.tasks[0].model_dump()),
-        "nonce": "a" * 32,
-        "deadline": time.monotonic() + 0.5,
-    }
-    with pytest.raises(PrerequisiteError, match="超时"):
-        verifier.verify_capabilities(
-            product,
-            plan,
-            plan.scenarios,
-            settings,
-            aggregate=False,
-            checkpoint=checkpoint,
-            selection=plan.selection.model_dump(),
-        )
-    assert children[0].poll() is not None
-    value = json.loads((tmp_path / "product-node-verification.json").read_text())
-    assert value["passed"] is False and value["cleanup"] == "unconfirmed"
-    assert value["checkpoint"] == checkpoint and "repairable_failure" not in value
-
-
-@pytest.mark.skipif(not hasattr(signal, "SIGUSR1"), reason="dedicated POSIX deadline")
-def test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline():
-    from daytona._utils.timeout import with_timeout
-
-    from workbench.infrastructure.sandbox.deadline import CheckpointDeadline, CheckpointExpired
-
-    @with_timeout()
-    def cleanup_call(timeout):
-        time.sleep(12)
-
-    start = time.monotonic()
-    with CheckpointDeadline(start + 10.1) as controller:
-        controller.enter_cleanup()
-        with pytest.raises(CheckpointExpired):
-            cleanup_call(timeout=20)
-    elapsed = time.monotonic() - start
-    assert 10 <= elapsed < 11.5
 ````

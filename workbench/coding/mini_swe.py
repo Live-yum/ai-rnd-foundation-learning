@@ -154,6 +154,7 @@ def run_agent(
             executable,
             output_tokens,
             environment_factory,
+            started + settings.mini_swe_timeout,
         )
         if time.monotonic() - started >= settings.mini_swe_timeout:
             raise UnsupportedScope("模块时间预算（含检查与清理）已耗尽，未接受候选")
@@ -174,6 +175,7 @@ def _run(
     executable,
     output_tokens,
     environment_factory,
+    deadline,
 ):
     from workbench.infrastructure.sandbox.coding import coding_environment
 
@@ -190,7 +192,6 @@ def _run(
         if budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode:
             raise ValueError("Agent journal cannot change billing mode during recovery")
         raise UnsupportedScope("模块会话已使用；不能通过重建worker重置步骤或时间预算")
-    deadline = time.monotonic() + settings.mini_swe_timeout
     budget["started_at"] = time.time()
     write_json(record, budget)
     from functools import partial

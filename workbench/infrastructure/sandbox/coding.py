@@ -74,8 +74,18 @@ class DaytonaFiles:
 
 
 @contextmanager
-def coding_environment(
-    settings, task, selection, product, *, deadline=None, cleanup_record=None, cleanup_binding=None
+def _local_environment(
+    settings,
+    task,
+    selection,
+    product,
+    *,
+    deadline=None,
+    cleanup_record=None,
+    cleanup_binding=None,
+    owned_name=None,
+    on_created=None,
+    external_cleanup=False,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
@@ -110,7 +120,7 @@ def coding_environment(
         # The admitted Runner selects strict network/resource limits by this
         # existing source prefix, shared with the independent verifier.
         prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
-        name = prefix + "agent-" + uuid.uuid4().hex
+        name = owned_name or prefix + "agent-" + uuid.uuid4().hex
         if cleanup_record is not None:
             from workbench.infrastructure.sandbox.cleanup import receipt
 
@@ -119,6 +129,8 @@ def coding_environment(
             params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
         )
+        if on_created is not None:
+            on_created(name, sandbox.id)
         remaining()
         sandbox.refresh_data()
         if sandbox.network_block_all is not True or sandbox.public is not False:
@@ -158,7 +170,9 @@ def coding_environment(
     finally:
         try:
             _DEADLINE.reset(token)
-            if cleanup_record is not None and name is not None:
+            if external_cleanup:
+                pass  # The supervising parent owns deletion, including a killed SDK worker.
+            elif cleanup_record is not None and name is not None:
                 from workbench.infrastructure.sandbox.cleanup import delete_owned
 
                 binding = {
@@ -186,3 +200,20 @@ def coding_environment(
                     value.update(status="unconfirmed", reason="transport_cleanup")
                     write_json(cleanup_record, value)
                 raise
+
+
+def coding_environment(
+    settings, task, selection, product, *, deadline, cleanup_record, cleanup_binding
+):
+    """All production SDK work runs in a process supervised until owned cleanup ends."""
+    from workbench.infrastructure.sandbox.file_session import supervised_environment
+
+    return supervised_environment(
+        settings,
+        task,
+        selection,
+        product,
+        deadline=deadline,
+        cleanup_record=cleanup_record,
+        cleanup_binding=cleanup_binding,
+    )

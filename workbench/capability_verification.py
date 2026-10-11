@@ -427,6 +427,8 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
                     raise CheckFailure("验收HTTP总期限已耗尽")
         except httpx.HTTPError:
             raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
+        if status in {502, 503, 504}:
+            raise CheckFailure("验收代理网关失败，无法确认应用来源")
         if status != step.status:
             raise BusinessCheckFailure(
                 f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"

@@ -35,18 +35,18 @@
 - `values_at`（L322–L338）：接收`value`、`path`。 控制顺序：L323按`path == "$"`分支；L325按`not path.startswith("$.") or len(path) > 300`分支；L326抛异常，停止当前正常路径；L328遍历`path[2:].split(".")`；L330遍历`values`；L331按`part == "*" and isinstance(item, (dict, list))`分支；L333按`isinstance(item, dict) and part in item`分支；L335按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L324的`[value]`；L338的`values`。
 - `json_equal`（L341–L352）：接收`left`、`right`。 控制顺序：L342按`type(left) is not type(right)`分支；L344按`isinstance(left, dict)`分支；L348按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L343的`False`；L345的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L349的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
 - `http_phase_deadline`（L360–L366）：接收`steps`、`deadline`。 控制顺序：L361按`len(steps) > MAX_HTTP_PHASE_STEPS or sum(step.wait_ms for step in steps) > MAX_HTTP_P…`分支；L365抛异常，停止当前正常路径。 调用`len`、`sum`、`CheckFailure`、`time.monotonic`。 返回路径：L366的`time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline`。
-- `run_steps`（L369–L463）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L373遍历`enumerate(steps)`；L385按`started + wait >= deadline`分支；L386抛异常，停止当前正常路径；L387按`wait`分支；L390按`step.body is not None`分支；L392按`step.body_encoding == "form"`分支；L396抛异常，停止当前正常路径；L403按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L463的`receipts`。
-- `run_scenarios`（L466–L507）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L477遍历`scenarios`；L479按`scenario.id not in saved`分支；L486按`not steps`分支；L494抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L507的`checks, saved`。
-- `run_browser`（L510–L617）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L512按`not selected`分支；L515按`not node`分支；L516抛异常，停止当前正常路径；L522抛异常，停止当前正常路径；L559抛异常，停止当前正常路径；L570按`prior and prior["passed"] is False`分支；L571抛异常，停止当前正常路径；L574抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L513的`[]`；L617的`value["checks"]`。
-- `require_evidence`（L620–L741）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L639按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L642抛异常，停止当前正常路径；L643按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L649抛异常，停止当前正常路径；L661按`aggregate`分支；L668抛异常，停止当前正常路径；L673按`selection["template"] == "fastapiadmin"`分支；L675遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L741的`receipt`。
+- `run_steps`（L369–L465）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L373遍历`enumerate(steps)`；L385按`started + wait >= deadline`分支；L386抛异常，停止当前正常路径；L387按`wait`分支；L390按`step.body is not None`分支；L392按`step.body_encoding == "form"`分支；L396抛异常，停止当前正常路径；L403按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L465的`receipts`。
+- `run_scenarios`（L468–L509）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L479遍历`scenarios`；L481按`scenario.id not in saved`分支；L488按`not steps`分支；L496抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L509的`checks, saved`。
+- `run_browser`（L512–L619）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L514按`not selected`分支；L517按`not node`分支；L518抛异常，停止当前正常路径；L524抛异常，停止当前正常路径；L561抛异常，停止当前正常路径；L572按`prior and prior["passed"] is False`分支；L573抛异常，停止当前正常路径；L576抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L515的`[]`；L619的`value["checks"]`。
+- `require_evidence`（L622–L743）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L641按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L644抛异常，停止当前正常路径；L645按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L651抛异常，停止当前正常路径；L663按`aggregate`分支；L670抛异常，停止当前正常路径；L675按`selection["template"] == "fastapiadmin"`分支；L677遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L743的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L741。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L743。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29055`。本段原文以LF换行结束。
+本段原始字节数：`29179`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "34c3796fd0b1e0a19902311fdfa04190c72d0c4937df7afb2bf5e494e74d75c8"} -->
+<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0c85c76509c13e3fa5e368af77405cd07328647f65d7d02b79e39a144ac5623d"} -->
 ````python
 # workbench/capability_verification.py
 """Independent HTTP checks run outside the generated application's sandbox.
@@ -478,6 +478,8 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
                     raise CheckFailure("验收HTTP总期限已耗尽")
         except httpx.HTTPError:
             raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
+        if status in {502, 503, 504}:
+            raise CheckFailure("验收代理网关失败，无法确认应用来源")
         if status != step.status:
             raise BusinessCheckFailure(
                 f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"

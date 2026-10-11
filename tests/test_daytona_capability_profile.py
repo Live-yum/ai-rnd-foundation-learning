@@ -1023,7 +1023,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     product.mkdir()
     (product / "app.py").write_bytes(original)
     task = plan.tasks[0]
-    context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
+    context = coding._local_environment(settings, task, plan.selection.model_dump(), product)
     if rejection:
         error = UnsupportedScope if rejection == "egress_enabled" else ContainerInspectionRejected
         with pytest.raises(error) as captured:

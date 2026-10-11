@@ -894,7 +894,7 @@ def test_file_cleanup_tracks_expected_candidate_even_after_partial_upload(
     path = tmp_path / "agent-cleanup.json"
 
     def run():
-        with coding.coding_environment(
+        with coding._local_environment(
             settings,
             task,
             plan.selection.model_dump(),
@@ -985,3 +985,149 @@ def test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline():
             cleanup_call(timeout=20)
     elapsed = time.monotonic() - start
     assert 10 <= elapsed < 11.5
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_preview_gateway_errors_cannot_authorize_business_repair(status):
+    import httpx
+
+    from workbench.capability_contracts import HttpStep
+    from workbench.capability_verification import BusinessCheckFailure, CheckFailure, run_steps
+
+    with httpx.Client(
+        base_url="http://fixture.invalid",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(status, stream=httpx.ByteStream(b"upstream unavailable"))
+        ),
+    ) as client:
+        with pytest.raises(CheckFailure) as error:
+            run_steps(client, [HttpStep(path="/check", status=200)], {})
+    assert not isinstance(error.value, BusinessCheckFailure)
+
+
+@pytest.mark.parametrize("phase", ["create", "refresh", "write", "snapshot", "idle", "success"])
+def test_entire_file_sdk_lifecycle_is_supervised(settings, tmp_path, monkeypatch, phase):
+    """Event-blocked real SDK refresh/API transport in a real child, no external network."""
+    import subprocess
+    import sys
+
+    from workbench.filesystem import write_json
+    from workbench.infrastructure.sandbox import file_session
+    from workbench.infrastructure.sandbox.coding import coding_environment
+    from workbench.planning.contracts import CapabilityEdits
+
+    task, plan, binding = cleanup_binding()
+    marker = tmp_path / "blocked"
+    child = r"""
+import io,json,socket,sys,threading,subprocess
+from pathlib import Path
+from unittest.mock import patch
+from daytona import Daytona,DaytonaConfig
+from daytona._utils.timeout import with_timeout
+from urllib3.response import HTTPResponse
+from workbench.infrastructure.sandbox import file_session,coding
+phase,marker=sys.argv[1:]
+def deny(*a,**k):raise AssertionError('offline only')
+socket.socket.connect=deny;socket.create_connection=deny
+client=Daytona(DaytonaConfig(api_url='http://127.0.0.1:1/api',api_key='offline-fixture',target='local',otel_enabled=False))
+state={'name':None,'count':0}
+def block():
+ if phase=='refresh':
+  descendant=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)'])
+  Path(marker+'.pid').write_text(str(descendant.pid))
+ Path(marker).write_text('entered')
+ threading.Event().wait(60)
+def request(method,url,**kw):
+ state['count']+=1
+ if state['count']>1 and phase=='refresh':block()
+ dto={'id':'owned','organizationId':'fixture','name':state['name'],'user':'root','env':{},'labels':{},'public':False,'networkBlockAll':True,'target':'local','cpu':1,'gpu':0,'memory':1,'disk':1,'toolboxProxyUrl':'http://127.0.0.1:1/toolbox','state':'started'}
+ return HTTPResponse(status=200,body=io.BytesIO(json.dumps(dto).encode()),headers={'content-type':'application/json'},preload_content=False)
+client._api_client.rest_client.pool_manager.request=request
+@with_timeout()
+def create(parameters,timeout):
+ state['name']=parameters.name
+ if phase=='create':block()
+ return client.get(parameters.name)
+client.create=create
+writes=[0]
+def write(self,edits):
+ writes[0]+=1
+ if phase=='write' and writes[0]>1:block()
+def snapshot(self,paths):
+ if phase=='snapshot':block()
+ return {p:'' for p in paths}
+with patch.object(coding,'client_for',lambda *a:client),patch.object(coding,'capability_execution_prerequisites',lambda *a:(Path('/tmp'),{})),patch.object(coding,'require_container_evidence',lambda *a:{}),patch.object(coding,'require_profile_container_binding',lambda *a:None),patch('scripts.daytona_capability_profile.inspect_created_sandbox',lambda *a,**k:{}),patch.object(coding.DaytonaFiles,'write',write),patch.object(coding.DaytonaFiles,'snapshot',snapshot):
+ file_session.main()
+"""
+    original = subprocess.Popen
+    children = []
+
+    def launch(command, **kwargs):
+        with (tmp_path / "child-errors").open("wb") as errors:
+            kwargs["stderr"] = errors
+            process = original([sys.executable, "-c", child, phase, str(marker)], **kwargs)
+        children.append(process)
+        return process
+
+    monkeypatch.setattr(file_session.subprocess, "Popen", launch)
+    cleaned = []
+
+    def cleanup(settings, name, identifier, bound, path, deadline):
+        cleaned.append((identifier, time.monotonic(), dict(bound)))
+        value = file_session.receipt(
+            bound, name, identifier, "create_unconfirmed" if identifier is None else "pending"
+        )
+        if identifier is not None:
+            value.update(status="deleted", reason="confirmed_absent")
+        write_json(path, value)
+        if identifier is None:
+            raise UnsupportedScope("Unknown create stays unconfirmed")
+
+    monkeypatch.setattr(file_session, "delete_owned", cleanup)
+    start = time.monotonic()
+    path = tmp_path / "agent-cleanup.json"
+    from contextlib import nullcontext
+
+    with nullcontext() if phase == "success" else pytest.raises(UnsupportedScope):
+        with coding_environment(
+            settings,
+            task,
+            plan.selection.model_dump(),
+            tmp_path,
+            deadline=start + 25,
+            cleanup_record=path,
+            cleanup_binding=binding,
+        ) as environment:
+            if phase == "success":
+                assert environment.snapshot(task.allowed_paths) == {
+                    p: "" for p in task.allowed_paths
+                }
+            if phase == "write":
+                environment.bind_candidate("c" * 64)
+                environment.write(
+                    CapabilityEdits(
+                        explanation="fixture",
+                        files=[{"path": p, "content": ""} for p in task.allowed_paths],
+                    )
+                )
+            elif phase == "snapshot":
+                environment.snapshot(task.allowed_paths)
+            elif phase == "idle":
+                assert environment.done.wait(12), "watchdog must clean while parent is idle"
+                environment.snapshot(task.allowed_paths)
+    assert time.monotonic() - start < 14
+    assert len(cleaned) == 1 and cleaned[0][1] < start + 25
+    assert children[0].poll() is not None
+    value = json.loads(path.read_text())
+    assert value["status"] == ("unconfirmed" if phase == "create" else "deleted")
+    assert value["binding"]["source"] == ("c" * 64 if phase == "write" else binding["source"])
+    if phase not in {"idle", "success"}:
+        assert marker.read_text() == "entered"
+    if phase == "refresh" and os.name == "posix":
+        from pathlib import Path
+
+        descendant = Path("/proc") / (tmp_path / "blocked.pid").read_text() / "stat"
+        if descendant.exists():
+            assert descendant.read_text().split()[2] == "Z", (
+                "Owned inspector must not survive SDK kill"
+            )

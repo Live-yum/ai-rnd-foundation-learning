@@ -116,7 +116,7 @@ def test_diagnostic_locates_real_sandbox_boundary_without_sdk_text(settings, tmp
     monkeypatch.setattr(coding, "close_client", lambda value: closed.append(value))
     plan = live.acceptance_design().implementation
     with pytest.raises(RuntimeError) as captured:
-        with coding.coding_environment(
+        with coding._local_environment(
             settings, plan.tasks[0], plan.selection.model_dump(), tmp_path
         ):
             pytest.fail("unadmitted sandbox yielded")

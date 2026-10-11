@@ -21,16 +21,17 @@
 - `DaytonaFiles.remaining`（L42–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`remaining <= 0`分支；L50抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L51的`remaining`。
 - `DaytonaFiles.write`（L53–L60）：接收`edits`。 控制顺序：L54按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L55抛异常，停止当前正常路径；L56遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.snapshot`（L62–L73）：接收`paths`。 控制顺序：L63按`paths != self.task.allowed_paths`分支；L64抛异常，停止当前正常路径；L66遍历`paths`；L70按`not isinstance(content, bytes) or len(content) > 100000`分支；L71抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L73的`result`。
-- `coding_environment`（L77–L188）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 控制顺序：L84按`task_path_errors(task, selection)`分支；L85抛异常，停止当前正常路径；L114按`cleanup_record is not None`分支；L124按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L125抛异常，停止当前正常路径；L136按`cleanup_record is not None`分支；L161按`cleanup_record is not None and name is not None`分支；L176按`sandbox is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`、`client.create`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `coding_environment.remaining`（L93–L107）：接收`cleanup`。 控制顺序：L101按`available <= 0`分支；L102按`cleanup`分支；L106抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L105的`1`；L107的`available`。
+- `_local_environment`（L77–L202）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`、`owned_name`、`on_created`、`external_cleanup`。 控制顺序：L94按`task_path_errors(task, selection)`分支；L95抛异常，停止当前正常路径；L124按`cleanup_record is not None`分支；L132按`on_created is not None`分支；L136按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L137抛异常，停止当前正常路径；L148按`cleanup_record is not None`分支；L173按`external_cleanup`分支。后续分支沿下方源码相同行号继续阅读。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`、`client.create`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_local_environment.remaining`（L103–L117）：接收`cleanup`。 控制顺序：L111按`available <= 0`分支；L112按`cleanup`分支；L116抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L115的`1`；L117的`available`。
+- `coding_environment`（L205–L219）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 源码说明：All production SDK work runs in a process supervised until owned cleanup ends.。 调用`supervised_environment`。 返回路径：L211的`supervised_environment( settings, task, selection, product, deadline=deadline, cleanup_rec…`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L188。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L219。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7484`。本段原文以LF换行结束。
+本段原始字节数：`8306`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e930d093c6a72501376bb2bf2100cc33e2c1dce5680f9d09d88a28739aa75170"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2ec058f7c75381deb02df407e1ab29f151f9499f52108f03cbc74d9ee6c09fbc"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -109,8 +110,18 @@ class DaytonaFiles:
 
 
 @contextmanager
-def coding_environment(
-    settings, task, selection, product, *, deadline=None, cleanup_record=None, cleanup_binding=None
+def _local_environment(
+    settings,
+    task,
+    selection,
+    product,
+    *,
+    deadline=None,
+    cleanup_record=None,
+    cleanup_binding=None,
+    owned_name=None,
+    on_created=None,
+    external_cleanup=False,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
     from workbench.daytona_sessions import _DEADLINE
@@ -145,7 +156,7 @@ def coding_environment(
         # The admitted Runner selects strict network/resource limits by this
         # existing source prefix, shared with the independent verifier.
         prefix = "rnd-source-native-" if selection["template"] == "fastapiadmin" else "rnd-source-"
-        name = prefix + "agent-" + uuid.uuid4().hex
+        name = owned_name or prefix + "agent-" + uuid.uuid4().hex
         if cleanup_record is not None:
             from workbench.infrastructure.sandbox.cleanup import receipt
 
@@ -154,6 +165,8 @@ def coding_environment(
             params_for(settings, name, selection["template"], selection),
             timeout=remaining(),
         )
+        if on_created is not None:
+            on_created(name, sandbox.id)
         remaining()
         sandbox.refresh_data()
         if sandbox.network_block_all is not True or sandbox.public is not False:
@@ -193,7 +206,9 @@ def coding_environment(
     finally:
         try:
             _DEADLINE.reset(token)
-            if cleanup_record is not None and name is not None:
+            if external_cleanup:
+                pass  # The supervising parent owns deletion, including a killed SDK worker.
+            elif cleanup_record is not None and name is not None:
                 from workbench.infrastructure.sandbox.cleanup import delete_owned
 
                 binding = {
@@ -221,4 +236,21 @@ def coding_environment(
                     value.update(status="unconfirmed", reason="transport_cleanup")
                     write_json(cleanup_record, value)
                 raise
+
+
+def coding_environment(
+    settings, task, selection, product, *, deadline, cleanup_record, cleanup_binding
+):
+    """All production SDK work runs in a process supervised until owned cleanup ends."""
+    from workbench.infrastructure.sandbox.file_session import supervised_environment
+
+    return supervised_environment(
+        settings,
+        task,
+        selection,
+        product,
+        deadline=deadline,
+        cleanup_record=cleanup_record,
+        cleanup_binding=cleanup_binding,
+    )
 ````

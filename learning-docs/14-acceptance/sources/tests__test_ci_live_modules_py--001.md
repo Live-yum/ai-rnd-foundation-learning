@@ -21,7 +21,7 @@
 - `test_live_profile_pins_https_costs_and_coding_stage`（L70–L81）：接收`tmp_path`、`monkeypatch`。 控制顺序：L74断言`settings.allow_insecure_model_http is False`；L75断言`settings.mini_swe_enabled is True`；L76断言`settings.mini_swe_max_cost_usd * 2 == 5`；L77断言`settings.mini_swe_usd_per_million_tokens == 1`；L78断言`settings.max_model_calls == 32`；L80断言`profile.base_url == env["BASE_URL"]`；L81断言`profile.max_output_tokens == 8192`。 调用`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`settings.model_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failure_receipt_never_publishes_raw_provider_error`（L84–L100）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85遍历`dispatch().items()`；L98断言`"secret-and-untrusted" not in raw`；L99断言`json.loads(raw)["real_model_acceptance"] is False`；L100断言`json.loads(raw)["failure_diagnostic"]["exception_type"] == "RuntimeError"`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`live.REPORT.read_text`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failure_receipt_never_publishes_raw_provider_error.reject`（L91–L92）：接收`*args`、`**kwargs`。 控制顺序：L92抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text`（L103–L128）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L124断言`diagnostic["stage"] == "coding_sandbox"`；L125断言`diagnostic["exception_type"] == "RuntimeError"`；L126断言`type(diagnostic["trusted_source_line"]) is int`；L127断言`"private" not in json.dumps(diagnostic)`；L128断言`closed == [client]`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`closed.append`、`live.acceptance_design`、`pytest.raises`、`coding.coding_environment`、`plan.selection.model_dump`、`pytest.fail`、`live.failure_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text`（L103–L128）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L124断言`diagnostic["stage"] == "coding_sandbox"`；L125断言`diagnostic["exception_type"] == "RuntimeError"`；L126断言`type(diagnostic["trusted_source_line"]) is int`；L127断言`"private" not in json.dumps(diagnostic)`；L128断言`closed == [client]`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`closed.append`、`live.acceptance_design`、`pytest.raises`、`coding._local_environment`、`plan.selection.model_dump`、`pytest.fail`、`live.failure_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text.reject`（L110–L111）：接收`*args`、`**kwargs`。 控制顺序：L111抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames`（L131–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134抛异常，停止当前正常路径；L137断言`diagnostic == {"exception_type": "other", "stage": "other"}`。 调用`type("private-provider-content", (Exception,), {})`、`type`、`live.failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_retains_only_bounded_inspector_facts`（L140–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149断言`diagnostic["container"] == { "container_rejection": "container_policy", "network_mode…`；L153断言`"private" not in json.dumps(diagnostic)`。 调用`ContainerInspectionRejected`、`live.failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -57,7 +57,7 @@
 
 本段原始字节数：`23118`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f3b8c20fba2632edb361b5718deed603518caa89b93ce994eda81b777520bf9b"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70193a2d605383f210604de83109d15730edeb6fdec02dfab9600eebaea86b1f"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -178,7 +178,7 @@ def test_diagnostic_locates_real_sandbox_boundary_without_sdk_text(settings, tmp
     monkeypatch.setattr(coding, "close_client", lambda value: closed.append(value))
     plan = live.acceptance_design().implementation
     with pytest.raises(RuntimeError) as captured:
-        with coding.coding_environment(
+        with coding._local_environment(
             settings, plan.tasks[0], plan.selection.model_dump(), tmp_path
         ):
             pytest.fail("unadmitted sandbox yielded")

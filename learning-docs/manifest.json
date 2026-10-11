@@ -709,8 +709,8 @@
     },
     {
       "path": "workbench/capability_execution.py",
-      "bytes": 16386,
-      "sha256": "b44aed0c168e025063bd4be30039590732bba6e357794a07d976be58400051b7",
+      "bytes": 16442,
+      "sha256": "5f18c6ef9124e5db056afb75f1da1ccc91bb27dbc6756dcd1389e7d023521bc3",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_execution_py--001.md"
@@ -781,8 +781,8 @@
     },
     {
       "path": "workbench/capability_verification.py",
-      "bytes": 29055,
-      "sha256": "34c3796fd0b1e0a19902311fdfa04190c72d0c4937df7afb2bf5e494e74d75c8",
+      "bytes": 29179,
+      "sha256": "0c85c76509c13e3fa5e368af77405cd07328647f65d7d02b79e39a144ac5623d",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_verification_py--001.md"
@@ -1386,8 +1386,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 20409,
-      "sha256": "d1cb74ec9f04b6eb999da5f911332c44425ef329f9cdd860a15250079baf150b",
+      "bytes": 20412,
+      "sha256": "3791c0a18a4e8727dce182cf27577ff7c52322c7be5279190d3bb279fa1baa43",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -3923,7 +3923,7 @@
     {
       "path": "tests/test_daytona_capability_profile.py",
       "bytes": 40816,
-      "sha256": "199c379d1094e5c9a74475e7d6c0d133ed2606771d462afb1fc97368e332dd2e",
+      "sha256": "677d499e07eafd24aa59e6b8faf5646087e85b6a03882f5b0f2f1a42b14d7c72",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md",
@@ -4166,8 +4166,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/coding.py",
-      "bytes": 7484,
-      "sha256": "e930d093c6a72501376bb2bf2100cc33e2c1dce5680f9d09d88a28739aa75170",
+      "bytes": 8306,
+      "sha256": "2ec058f7c75381deb02df407e1ab29f151f9499f52108f03cbc74d9ee6c09fbc",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md"
@@ -4180,6 +4180,15 @@
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__deadline_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/file_session.py",
+      "bytes": 10205,
+      "sha256": "a62506c220432ef25aa71f291c924f46b0506687760dd86e7124cab3d9a92615",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__file_session_py--001.md"
       ]
     },
     {
@@ -4841,8 +4850,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 66437,
-      "sha256": "99fbecfe00a647da2e1f1e273be63c0c944eea396fb802a4d70c84a062ea5bbe",
+      "bytes": 69960,
+      "sha256": "21948beb89ca8bf7f7c112efa3adcdf895e696a6b31e8b043a9eb4fa1b96b866",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5846,7 +5855,7 @@
     {
       "path": "tests/test_ci_live_modules.py",
       "bytes": 23118,
-      "sha256": "f3b8c20fba2632edb361b5718deed603518caa89b93ce994eda81b777520bf9b",
+      "sha256": "70193a2d605383f210604de83109d15730edeb6fdec02dfab9600eebaea86b1f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_live_modules_py--001.md"
@@ -6151,11 +6160,12 @@
     },
     {
       "path": "tests/test_mini_swe_checkpoints.py",
-      "bytes": 35776,
-      "sha256": "6f93fb85a3d7c1ffb486373bd707bdc03e17708b3b49023d6175bd73fece916f",
+      "bytes": 42410,
+      "sha256": "bc4eb10dbeacb8f330d777b787c28af8c94cb6b8773a48883ab6e261d6a75cff",
       "stage": "14-acceptance",
       "parts": [
-        "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md"
+        "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md",
+        "14-acceptance/sources/tests__test_mini_swe_checkpoints_py--002.md"
       ]
     },
     {

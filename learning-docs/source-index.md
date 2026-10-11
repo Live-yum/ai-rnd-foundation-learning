@@ -491,6 +491,7 @@
 - [workbench/infrastructure/sandbox/cleanup.py](12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md)（1 段）
 - [workbench/infrastructure/sandbox/coding.py](12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md)（1 段）
 - [workbench/infrastructure/sandbox/deadline.py](12-daytona/sources/workbench__infrastructure__sandbox__deadline_py--001.md)（1 段）
+- [workbench/infrastructure/sandbox/file_session.py](12-daytona/sources/workbench__infrastructure__sandbox__file_session_py--001.md)（1 段）
 ## [13-delivery · 独立交付与重启](13-delivery/README.md)
 
 - [scripts/ci_clean_install.py](13-delivery/sources/scripts__ci_clean_install_py--001.md)（1 段）
@@ -713,7 +714,7 @@
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
 - [tests/test_legacy_signup_recovery.py](14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md)（1 段）
 - [tests/test_live_test_client.py](14-acceptance/sources/tests__test_live_test_client_py--001.md)（1 段）
-- [tests/test_mini_swe_checkpoints.py](14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md)（1 段）
+- [tests/test_mini_swe_checkpoints.py](14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md)（2 段）
 - [tests/test_model_connection.py](14-acceptance/sources/tests__test_model_connection_py--001.md)（1 段）
 - [tests/test_model_feedback_ci.py](14-acceptance/sources/tests__test_model_feedback_ci_py--001.md)（1 段）
 - [tests/test_model_feedback_history.py](14-acceptance/sources/tests__test_model_feedback_history_py--001.md)（1 段）

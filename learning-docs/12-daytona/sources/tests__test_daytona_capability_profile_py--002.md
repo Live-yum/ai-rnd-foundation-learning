@@ -20,7 +20,7 @@
 - `test_required_profile_verifies_image_id_and_registry_digest`（L930–L945）：接收`locked_profile`、`monkeypatch`。 控制顺序：L940断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_prepare_never_overwrites_existing_profile_or_credentials`（L948–L952）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L958–L963）：接收`inspection`、`options`。 控制顺序：L963断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L970–L1053）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`、`original`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1027按`rejection`分支；L1032断言`not uploaded and operations == ["create", "delete", "close"]`；L1033按`rejection != "egress_enabled"`分支；L1035断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1038按`rejection == "legacy_name"`分支；L1039断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1047断言`environment.snapshot(task.allowed_paths) == { "app.py": original.decode("utf-8"), "sl…`；L1051断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_bytes`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L970–L1053）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`、`original`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1027按`rejection`分支；L1032断言`not uploaded and operations == ["create", "delete", "close"]`；L1033按`rejection != "egress_enabled"`分支；L1035断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1038按`rejection == "legacy_name"`分支；L1039断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1047断言`environment.snapshot(task.allowed_paths) == { "app.py": original.decode("utf-8"), "sl…`；L1051断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_bytes`、`coding._local_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L988–L991）：接收`content`、`path`、`**kwargs`。 控制顺序：L989断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L1005–L1017）：接收`parameters`、`**kwargs`。 控制顺序：L1006断言`parameters.network_block_all is True and parameters.public is False`；L1009断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1010按`not name.startswith("rnd-source-")`分支；L1012按`rejection == "extra_network"`分支；L1014按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1017的`sandbox`。
 
@@ -30,7 +30,7 @@
 
 本段原始字节数：`7347`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "bac030f67e35d1e035b5c1bf986aefe63481aedef3c44b529bd0f3042b61742c"} -->
+<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "60724f4feee0b5fbcef1732b50bda6efe2aadbcbe1c81915dea54de8c6873306"} -->
 ````python
 # tests/test_daytona_capability_profile.py
 def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
@@ -165,7 +165,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     product.mkdir()
     (product / "app.py").write_bytes(original)
     task = plan.tasks[0]
-    context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
+    context = coding._local_environment(settings, task, plan.selection.model_dump(), product)
     if rejection:
         error = UnsupportedScope if rejection == "egress_enabled" else ContainerInspectionRejected
         with pytest.raises(error) as captured:
