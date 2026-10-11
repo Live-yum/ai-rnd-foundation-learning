@@ -375,6 +375,14 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
                 "checks": ["private-source"],
                 "error": "private-key-prompt",
                 "sandbox_name": "private-path",
+                "startup_diagnostic": {
+                    "phase": "health_deadline",
+                    "http_status": 502,
+                    "command_exit_code": 1,
+                    "command_exit_status": "nonzero",
+                    "output_hints": ["missing-module", "private-module"],
+                    "raw_output": "private",
+                },
             },
         )
 
@@ -399,6 +407,9 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
     node = report["verification_receipts"][0]
     assert node["exception_type"] == "ValueError"
     assert node["cleanup"] == "deleted" and node["checks_count"] == 1
+    assert node["startup"]["http_status"] == 502
+    assert node["startup"]["command_exit_code"] == 1
+    assert node["startup"]["output_hints"] == ["missing-module"]
     assert "private" not in raw
 
 

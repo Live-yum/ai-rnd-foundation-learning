@@ -1304,8 +1304,8 @@
     },
     {
       "path": "workbench/capability_diagnostics.py",
-      "bytes": 3848,
-      "sha256": "4942f6b15b664232377d0cd99cef726c900d3fc6e5f9c529df84fbd15f395b8e",
+      "bytes": 6148,
+      "sha256": "4bae636b60c5717fabe6d05a78225184dc6a62a6b9d902adb5314d3f66a2dbf1",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_diagnostics_py--001.md"
@@ -4796,8 +4796,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 37413,
-      "sha256": "bee59a17f75c8bd44325adf06790d84733fdc6c3d4e80dffdc974d45d0246c77",
+      "bytes": 39941,
+      "sha256": "4611ee1875961650c819d268e3b6e1c2a8c87de717c1a7dba631a72a0b366ad4",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5520,8 +5520,8 @@
     },
     {
       "path": "tests/test_capability_diagnostics.py",
-      "bytes": 9643,
-      "sha256": "986d148c5dd859432cbdbf53b0e856c9f0a6eb9170c4c6ac576b49b13d68afa4",
+      "bytes": 12458,
+      "sha256": "67ca037e62235e2a072bda6b7643a8750785b4afa4bc28fb48fc8659101ed7dc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_diagnostics_py--001.md"
@@ -5800,8 +5800,8 @@
     },
     {
       "path": "tests/test_ci_live_modules.py",
-      "bytes": 17373,
-      "sha256": "93a504d28834251065d5c6228bb0e08b63160cc38f0fab6aea3b00c06433cabd",
+      "bytes": 17904,
+      "sha256": "2019be8fd7bdb7e37dc754ba026e6a0486bba68e90a63bb0605fc157d77e31a6",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_live_modules_py--001.md"

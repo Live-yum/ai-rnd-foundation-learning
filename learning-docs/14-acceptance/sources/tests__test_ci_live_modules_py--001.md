@@ -39,20 +39,20 @@
 - `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L279–L282）：接收`proof`、`**kwargs`。 控制顺序：L281按`not proof["passed"]`分支；L282抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_workflow_only_exposes_key_after_preflight_and_real_security`（L308–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L312断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L318断言`preflight < security < paid`；L319断言`"API_KEY" not in job["env"]`；L320断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L321断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L322断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_receipts_are_bounded_and_drop_all_unapproved_fields`（L325–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344断言`live.model_failure_receipts(records) == [ {"code": "other", "attempt": None}, {"code"…`；L351断言`len(result) == live.MODEL_CALLS`；L352断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L355–L402）：接收`tmp_path`、`monkeypatch`。 控制顺序：L359遍历`dispatch().items()`；L393断言`error.value.code == 1`；L394断言`all(not path.exists() for path in directories)`；L397断言`report["passed"] is report["real_model_acceptance"] is False`；L398断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L400断言`node["exception_type"] == "ValueError"`；L401断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L402断言`"private" not in raw`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L366–L388）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L388的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L381–L386）：接收`*args`、`**kwargs`。 控制顺序：L383抛异常，停止当前正常路径；L386抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L405–L421）：接收`monkeypatch`、`tmp_path`。 控制顺序：L420断言`error.value is original`；L421断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L408–L409）：接收`*args`、`**kwargs`。 控制顺序：L409抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L414–L415）：接收`*args`、`**kwargs`。 控制顺序：L415抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L355–L413）：接收`tmp_path`、`monkeypatch`。 控制顺序：L359遍历`dispatch().items()`；L401断言`error.value.code == 1`；L402断言`all(not path.exists() for path in directories)`；L405断言`report["passed"] is report["real_model_acceptance"] is False`；L406断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L408断言`node["exception_type"] == "ValueError"`；L409断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L410断言`node["startup"]["http_status"] == 502`。后续分支沿下方源码相同行号继续阅读。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L366–L396）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L396的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L389–L394）：接收`*args`、`**kwargs`。 控制顺序：L391抛异常，停止当前正常路径；L394抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L416–L432）：接收`monkeypatch`、`tmp_path`。 控制顺序：L431断言`error.value is original`；L432断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L419–L420）：接收`*args`、`**kwargs`。 控制顺序：L420抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L425–L426）：接收`*args`、`**kwargs`。 控制顺序：L426抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L421。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L432。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17373`。本段原文以LF换行结束。
+本段原始字节数：`17904`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "93a504d28834251065d5c6228bb0e08b63160cc38f0fab6aea3b00c06433cabd"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2019be8fd7bdb7e37dc754ba026e6a0486bba68e90a63bb0605fc157d77e31a6"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -432,6 +432,14 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
                 "checks": ["private-source"],
                 "error": "private-key-prompt",
                 "sandbox_name": "private-path",
+                "startup_diagnostic": {
+                    "phase": "health_deadline",
+                    "http_status": 502,
+                    "command_exit_code": 1,
+                    "command_exit_status": "nonzero",
+                    "output_hints": ["missing-module", "private-module"],
+                    "raw_output": "private",
+                },
             },
         )
 
@@ -456,6 +464,9 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
     node = report["verification_receipts"][0]
     assert node["exception_type"] == "ValueError"
     assert node["cleanup"] == "deleted" and node["checks_count"] == 1
+    assert node["startup"]["http_status"] == 502
+    assert node["startup"]["command_exit_code"] == 1
+    assert node["startup"]["output_hints"] == ["missing-module"]
     assert "private" not in raw
 
 

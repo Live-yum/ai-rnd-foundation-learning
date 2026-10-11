@@ -18,15 +18,16 @@
 - `_read`（L43–L52）：接收`path`。 控制顺序：L47按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L48的`{}`；L50的`result if type(result) is dict else {}`；L52的`{}`。
 - `_label`（L55–L56）：接收`value`、`allowed`。 调用`type`。 返回路径：L56的`value if type(value) is str and value in allowed else "other"`。
 - `record_failure`（L59–L74）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L67在`frame is not None`成立时循环；L69按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `node_diagnostic`（L77–L106）：接收`product`、`aggregate`。 控制顺序：L86按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L99按`type(line) is int and 0 < line < 1_000_000`分支；L101遍历`("checks", "obligation_checks", "browser")`；L104遍历`("restarted", "backend_health_observed")`。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L106的`result`。
+- `startup_diagnostic`（L77–L141）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L79按`type(value) is not dict`分支；L88遍历`enums.items()`；L90遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L93遍历`( "application_startup_reported", "output_readable", "output_none…`；L139按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L80的`None`；L141的`result`。
+- `node_diagnostic`（L144–L176）：接收`product`、`aggregate`。 控制顺序：L153按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L166按`type(line) is int and 0 < line < 1_000_000`分支；L168遍历`("checks", "obligation_checks", "browser")`；L171遍历`("restarted", "backend_health_observed")`；L174按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L176的`result`。
 
 </details>
 
-**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L106。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L176。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3848`。本段原文以LF换行结束。
+本段原始字节数：`6148`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4942f6b15b664232377d0cd99cef726c900d3fc6e5f9c529df84fbd15f395b8e"} -->
+<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4bae636b60c5717fabe6d05a78225184dc6a62a6b9d902adb5314d3f66a2dbf1"} -->
 ````python
 # workbench/capability_diagnostics.py
 """Optional verifier failure facts; no product text, paths, or SDK messages."""
@@ -105,6 +106,73 @@ def record_failure(receipt_path, exc):
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
 
 
+def startup_diagnostic(value):
+    """Re-filter existing startup facts; output hints never establish acceptance."""
+    if type(value) is not dict:
+        return None
+    result = {}
+    enums = {
+        "phase": {"health_deadline"},
+        "http_error": {"none", "connect", "timeout", "protocol", "other"},
+        "command_exit_status": {"zero", "nonzero", "unknown"},
+        "startup_phase_hint": {"unknown", "lifespan", "factory", "import"},
+    }
+    for key, allowed in enums.items():
+        result[key] = _label(value.get(key), allowed)
+    for key, lower, upper in (("http_status", 100, 599), ("command_exit_code", 0, 255)):
+        number = value.get(key)
+        result[key] = number if type(number) is int and lower <= number <= upper else None
+    for key in (
+        "application_startup_reported",
+        "output_readable",
+        "output_nonempty",
+        "tmpfs_noexec",
+    ):
+        item = value.get(key)
+        result[key] = item if type(item) is bool else None
+    allowed_hints = (
+        "permission-denied",
+        "missing-module",
+        "import-error",
+        "native-library-mapping",
+        "missing-file",
+        "address-in-use",
+        "readonly-filesystem",
+        "storage-full",
+        "memory-error",
+        "syntax-error",
+        "executable-format",
+    )
+    hints = value.get("output_hints")
+    result["output_hints"] = [
+        name for name in allowed_hints if type(hints) is list and name in hints[:32]
+    ]
+    exception = value.get("exception_type")
+    result["exception_type_hint"] = _label(
+        exception,
+        {
+            "SyntaxError",
+            "IndentationError",
+            "ImportError",
+            "ModuleNotFoundError",
+            "NameError",
+            "AttributeError",
+            "TypeError",
+            "ValueError",
+            "KeyError",
+            "RuntimeError",
+            "PermissionError",
+            "OSError",
+            "FileNotFoundError",
+            "MemoryError",
+        },
+    )
+    target = value.get("target")
+    if type(target) is dict:
+        result["target_role"] = _label(target.get("role"), {"backend", "frontend"})
+    return result
+
+
 def node_diagnostic(product, *, aggregate):
     product = Path(product)
     path = product.parent / (
@@ -134,5 +202,8 @@ def node_diagnostic(product, *, aggregate):
         result[key + "_count"] = len(value) if type(value) is list and len(value) <= 10000 else None
     for key in ("restarted", "backend_health_observed"):
         result[key] = receipt.get(key) if type(receipt.get(key)) is bool else None
+    startup = startup_diagnostic(receipt.get("startup_diagnostic"))
+    if startup is not None:
+        result["startup"] = startup
     return result
 ````

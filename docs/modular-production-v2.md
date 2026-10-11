@@ -241,3 +241,13 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 按两个workflow的完整离线命令解析实际文件集合：SQLite为53文件，PG为55文件且包含前者；使用PG完整集合覆盖两套，始终保留RND_REQUIRE_NODE_TESTS=1、RND_REQUIRE_LANDLOCK=1、RND_REQUIRE_SECCOMP_BPF=1。修复前37失败/2469通过/13跳过，其中32个NameError、5个Landlock强制检查返回78；修复后5失败/2533通过/13跳过，仅剩相同5个主机内核条件失败。三个AST消费者专项200项通过。13个跳过涉及缺少原生Node/Vite工具树与测试数据库；本地Python3.14.7、Node24.19.0，不冒充Actions的Node22和内核环境，也不关闭强制标志伪造全绿。
 
 本轮仅本地准备，未推送、取消或重跑真实模型；等待当前efc8e2a全部运行终态。已有模型、Windows业务登录与环境资源证明的未知原因保持原边界，复杂场景未启用。
+
+### efc8e2a 已到启动健康门禁，补保留既有安全启动事实（本地）
+
+父线程从官方artifact11701442745恢复本次真实mini-SWE证据：模型预留/HTTP尝试/响应为4/4/3，model_failure_receipts含invalid_json attempt1及transport_error/read_timeout attempt1；最终由product_ledger第55行拒绝晋升。节点为CheckFailure/verifier_controller/精确capability_sandbox.py第789行，backend_health_observed=false、checks_count=0、obligation_checks_count=0、restarted=false、passed=false、cleanup=deleted。这次独立验证已运行，不能把最终失败仅归为网关，也不能把4次调用或3次响应算作业务验收通过。
+
+第789行是原启动deadline内未观察到健康2xx。到达此处前已取得启动命令ID与私有预览令牌，但这些不证明应用进程持续存活。候选源码已通过inspect_stack对全部Python文件的AST语法检查；离线用语法正确但引用不存在模块的样例确认该门禁不等价于导入或健康成功，并保留真正语法错误的拒绝。受保护启动命令为start.py --no-install --host 0.0.0.0 --port <批准端口>，当前无固定入口/端口错误的可证修复。实际候选、完整节点回执与启动输出未上传，临时目录已删除，无法复原该次具体导入/初始化/进程或预览问题。
+
+验证器原本已在健康失败时采集有限startup_diagnostic，但上一版summary过滤遗漏了该段。本地仅补过滤已有数据：HTTP状态100–599、固定HTTP错误标签、受控命令退出码0–255/状态、启动上报和输出可读布尔值、固定启动阶段/异常类别提示、受限输出提示及backend/frontend目标类别。候选输出产生的提示仅是线索，不能作为验收或内核证明。继续丢弃原始输出、模块/符号文本、URL、headers、源码与凭据；不增加SDK查询、日志读取、宿主权限或scope，也不改启动命令、deadline、health条件或独立oracle。
+
+55项针对性回归通过，覆盖缺模块、名称错误、HTTP404与连接失败的既有分类器→节点过滤，以及临时目录删除后summary仍保留固定事实且不泄露污染内容。再次执行两个工作流完整55文件覆盖集合，三项强制标志保持1：2539通过、5失败、13跳过；5失败仍是本地Landlock检查返回78，未关闭门禁或宣称全绿。6a4f53a AST夹具修复保留；本轮仅本地准备，等待最后矩阵终态后再推送，不盲重跑真实模型或三SQLite。

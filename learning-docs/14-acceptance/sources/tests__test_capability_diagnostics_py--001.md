@@ -25,14 +25,17 @@
 - `test_verifier_policy_forwarding_rejects_changed_scope`（L221–L229）：接收`monkeypatch`、`field`、`value`。 调用`approved_manual`、`monkeypatch.setenv`、`pytest.raises`、`verifier_policy_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_verifier_policy_forwarding_is_off_by_default_and_does_not_change_clean_env`（L232–L243）：接收`monkeypatch`。 控制顺序：L239断言`verifier_policy_environment()["GITHUB_JOB"] == "mini-swe-sla"`；L240断言`"GITHUB_JOB" not in clean_env()`；L241断言`"CAPABILITY_BROWSER_APPROVED_POLICY" not in clean_env()`；L243断言`verifier_policy_environment() == {}`。 调用`approved_manual`、`verifier_policy_environment`、`clean_env`、`monkeypatch.delenv`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_diagnostic_cannot_explain_a_new_receipt`（L246–L255）：接收`tmp_path`。 控制顺序：L255断言`node_diagnostic(product, aggregate=False)["exception_type"] == "other"`。 调用`Path`、`str`、`sidecar.write_text`、`json.dumps`、`os.utime`、`path.write_text`、`node_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_startup_classifier_survives_node_export_without_raw_content`（L267–L284）：接收`tmp_path`、`output`、`status`、`http_error`、`exit_code`、`hint`。 控制顺序：L279断言`startup["http_status"] == status`；L280断言`startup["http_error"] == http_error`；L281断言`startup["command_exit_code"] == exit_code`；L282断言`startup["output_hints"] == ([hint] if hint else [])`；L283断言`result["passed"] is False`；L284断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`path.write_text`、`json.dumps`、`node_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_startup_filter_drops_unknown_fields_labels_and_invalid_numeric_types`（L287–L306）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303断言`result["http_status"] is result["command_exit_code"] is None`；L304断言`result["application_startup_reported"] is None`；L305断言`result["output_hints"] == ["missing-module"]`；L306断言`"private" not in json.dumps(result)`。 调用`startup_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_syntax_gate_does_not_claim_import_or_health_success`（L309–L322）：接收`tmp_path`。 调用`fixed_application`、`app.read_text`、`app.write_text`、`inspect_stack`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L255。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L322。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9643`。本段原文以LF换行结束。
+本段原始字节数：`12458`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "986d148c5dd859432cbdbf53b0e856c9f0a6eb9170c4c6ac576b49b13d68afa4"} -->
+<!-- learning-source: {"path": "tests/test_capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "67ca037e62235e2a072bda6b7643a8750785b4afa4bc28fb48fc8659101ed7dc"} -->
 ````python
 # tests/test_capability_diagnostics.py
 """Exercise verifier child failure through the live artifact filter, offline."""
@@ -290,4 +293,71 @@ def test_stale_diagnostic_cannot_explain_a_new_receipt(tmp_path):
     os.utime(sidecar, ns=(1_000_000_000, 1_000_000_000))
     path.write_text(json.dumps({"passed": False, "cleanup": "not-started"}))
     assert node_diagnostic(product, aggregate=False)["exception_type"] == "other"
+
+
+@pytest.mark.parametrize(
+    "output,status,http_error,exit_code,hint",
+    [
+        ("ModuleNotFoundError: No module named 'private_module'", 502, "none", 1, "missing-module"),
+        ("NameError: name 'private_symbol' is not defined", 502, "none", 1, None),
+        ("Application startup complete", 404, "none", None, None),
+        ("", None, "connect", None, None),
+    ],
+)
+def test_actual_startup_classifier_survives_node_export_without_raw_content(
+    tmp_path, output, status, http_error, exit_code, hint
+):
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    path = tmp_path / "product-node-verification.json"
+    original = startup_failure_diagnostic(output, status, http_error, command_exit_code=exit_code)
+    path.write_text(
+        json.dumps({"passed": False, "cleanup": "deleted", "startup_diagnostic": original})
+    )
+    result = node_diagnostic(tmp_path / "product", aggregate=False)
+    startup = result["startup"]
+    assert startup["http_status"] == status
+    assert startup["http_error"] == http_error
+    assert startup["command_exit_code"] == exit_code
+    assert startup["output_hints"] == ([hint] if hint else [])
+    assert result["passed"] is False
+    assert "private" not in json.dumps(result)
+
+
+def test_startup_filter_drops_unknown_fields_labels_and_invalid_numeric_types():
+    from workbench.capability_diagnostics import startup_diagnostic
+
+    value = {
+        "phase": "private",
+        "http_status": True,
+        "command_exit_code": 256,
+        "http_error": "private",
+        "output_hints": ["private", "missing-module"] * 100,
+        "application_startup_reported": 1,
+        "target": {"role": "private", "url": "private"},
+        "exception_type": "private",
+        "raw_output": "private-code-key-prompt",
+        "headers": "private",
+    }
+    result = startup_diagnostic(value)
+    assert result["http_status"] is result["command_exit_code"] is None
+    assert result["application_startup_reported"] is None
+    assert result["output_hints"] == ["missing-module"]
+    assert "private" not in json.dumps(result)
+
+
+def test_syntax_gate_does_not_claim_import_or_health_success(tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_stack import inspect_stack
+    from workbench.capability_verification import CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    app = product / "app.py"
+    original = app.read_text()
+    app.write_text("from deliberately_absent_fixture_module import absent\n" + original)
+    inspect_stack(product, plan)  # Parse only: never import the candidate on this host.
+    app.write_text(original + "\ndef broken(:\n")
+    with pytest.raises(CheckFailure, match="语法"):
+        inspect_stack(product, plan)
 ````

@@ -242,6 +242,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 
 本轮仅本地准备，未推送、取消或重跑真实模型；等待当前efc8e2a全部运行终态。已有模型、Windows业务登录与环境资源证明的未知原因保持原边界，复杂场景未启用。
 
+### efc8e2a 已到启动健康门禁，补保留既有安全启动事实（本地）
+
+父线程从官方artifact11701442745恢复本次真实mini-SWE证据：模型预留/HTTP尝试/响应为4/4/3，model_failure_receipts含invalid_json attempt1及transport_error/read_timeout attempt1；最终由product_ledger第55行拒绝晋升。节点为CheckFailure/verifier_controller/精确capability_sandbox.py第789行，backend_health_observed=false、checks_count=0、obligation_checks_count=0、restarted=false、passed=false、cleanup=deleted。这次独立验证已运行，不能把最终失败仅归为网关，也不能把4次调用或3次响应算作业务验收通过。
+
+第789行是原启动deadline内未观察到健康2xx。到达此处前已取得启动命令ID与私有预览令牌，但这些不证明应用进程持续存活。候选源码已通过inspect_stack对全部Python文件的AST语法检查；离线用语法正确但引用不存在模块的样例确认该门禁不等价于导入或健康成功，并保留真正语法错误的拒绝。受保护启动命令为start.py --no-install --host 0.0.0.0 --port <批准端口>，当前无固定入口/端口错误的可证修复。实际候选、完整节点回执与启动输出未上传，临时目录已删除，无法复原该次具体导入/初始化/进程或预览问题。
+
+验证器原本已在健康失败时采集有限startup_diagnostic，但上一版summary过滤遗漏了该段。本地仅补过滤已有数据：HTTP状态100–599、固定HTTP错误标签、受控命令退出码0–255/状态、启动上报和输出可读布尔值、固定启动阶段/异常类别提示、受限输出提示及backend/frontend目标类别。候选输出产生的提示仅是线索，不能作为验收或内核证明。继续丢弃原始输出、模块/符号文本、URL、headers、源码与凭据；不增加SDK查询、日志读取、宿主权限或scope，也不改启动命令、deadline、health条件或独立oracle。
+
+55项针对性回归通过，覆盖缺模块、名称错误、HTTP404与连接失败的既有分类器→节点过滤，以及临时目录删除后summary仍保留固定事实且不泄露污染内容。再次执行两个工作流完整55文件覆盖集合，三项强制标志保持1：2539通过、5失败、13跳过；5失败仍是本地Landlock检查返回78，未关闭门禁或宣称全绿。6a4f53a AST夹具修复保留；本轮仅本地准备，等待最后矩阵终态后再推送，不盲重跑真实模型或三SQLite。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -10737,9 +10747,10 @@ def verify_readonly_dependencies(sandbox, plan, timeout, *, expected, source_inv
 - `_read`（L43–L52）：接收`path`。 控制顺序：L47按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L48的`{}`；L50的`result if type(result) is dict else {}`；L52的`{}`。
 - `_label`（L55–L56）：接收`value`、`allowed`。 调用`type`。 返回路径：L56的`value if type(value) is str and value in allowed else "other"`。
 - `record_failure`（L59–L74）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L67在`frame is not None`成立时循环；L69按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `node_diagnostic`（L77–L106）：接收`product`、`aggregate`。 控制顺序：L86按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L99按`type(line) is int and 0 < line < 1_000_000`分支；L101遍历`("checks", "obligation_checks", "browser")`；L104遍历`("restarted", "backend_health_observed")`。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L106的`result`。
+- `startup_diagnostic`（L77–L141）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L79按`type(value) is not dict`分支；L88遍历`enums.items()`；L90遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L93遍历`( "application_startup_reported", "output_readable", "output_none…`；L139按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L80的`None`；L141的`result`。
+- `node_diagnostic`（L144–L176）：接收`product`、`aggregate`。 控制顺序：L153按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L166按`type(line) is int and 0 < line < 1_000_000`分支；L168遍历`("checks", "obligation_checks", "browser")`；L171遍历`("restarted", "backend_health_observed")`；L174按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L176的`result`。
 
-<!-- source-file: workbench/capability_diagnostics.py sha256: 4942f6b15b664232377d0cd99cef726c900d3fc6e5f9c529df84fbd15f395b8e -->
+<!-- source-file: workbench/capability_diagnostics.py sha256: 4bae636b60c5717fabe6d05a78225184dc6a62a6b9d902adb5314d3f66a2dbf1 -->
 ````python
 """Optional verifier failure facts; no product text, paths, or SDK messages."""
 
@@ -10817,6 +10828,73 @@ def record_failure(receipt_path, exc):
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
 
 
+def startup_diagnostic(value):
+    """Re-filter existing startup facts; output hints never establish acceptance."""
+    if type(value) is not dict:
+        return None
+    result = {}
+    enums = {
+        "phase": {"health_deadline"},
+        "http_error": {"none", "connect", "timeout", "protocol", "other"},
+        "command_exit_status": {"zero", "nonzero", "unknown"},
+        "startup_phase_hint": {"unknown", "lifespan", "factory", "import"},
+    }
+    for key, allowed in enums.items():
+        result[key] = _label(value.get(key), allowed)
+    for key, lower, upper in (("http_status", 100, 599), ("command_exit_code", 0, 255)):
+        number = value.get(key)
+        result[key] = number if type(number) is int and lower <= number <= upper else None
+    for key in (
+        "application_startup_reported",
+        "output_readable",
+        "output_nonempty",
+        "tmpfs_noexec",
+    ):
+        item = value.get(key)
+        result[key] = item if type(item) is bool else None
+    allowed_hints = (
+        "permission-denied",
+        "missing-module",
+        "import-error",
+        "native-library-mapping",
+        "missing-file",
+        "address-in-use",
+        "readonly-filesystem",
+        "storage-full",
+        "memory-error",
+        "syntax-error",
+        "executable-format",
+    )
+    hints = value.get("output_hints")
+    result["output_hints"] = [
+        name for name in allowed_hints if type(hints) is list and name in hints[:32]
+    ]
+    exception = value.get("exception_type")
+    result["exception_type_hint"] = _label(
+        exception,
+        {
+            "SyntaxError",
+            "IndentationError",
+            "ImportError",
+            "ModuleNotFoundError",
+            "NameError",
+            "AttributeError",
+            "TypeError",
+            "ValueError",
+            "KeyError",
+            "RuntimeError",
+            "PermissionError",
+            "OSError",
+            "FileNotFoundError",
+            "MemoryError",
+        },
+    )
+    target = value.get("target")
+    if type(target) is dict:
+        result["target_role"] = _label(target.get("role"), {"backend", "frontend"})
+    return result
+
+
 def node_diagnostic(product, *, aggregate):
     product = Path(product)
     path = product.parent / (
@@ -10846,6 +10924,9 @@ def node_diagnostic(product, *, aggregate):
         result[key + "_count"] = len(value) if type(value) is list and len(value) <= 10000 else None
     for key in ("restarted", "backend_health_observed"):
         result[key] = receipt.get(key) if type(receipt.get(key)) is bool else None
+    startup = startup_diagnostic(receipt.get("startup_diagnostic"))
+    if startup is not None:
+        result["startup"] = startup
     return result
 ````
 
@@ -132965,8 +133046,11 @@ def test_business_proof_rejects_incomplete_or_self_reported_results(mutation):
 - `test_verifier_policy_forwarding_rejects_changed_scope`（L221–L229）：接收`monkeypatch`、`field`、`value`。 调用`approved_manual`、`monkeypatch.setenv`、`pytest.raises`、`verifier_policy_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_verifier_policy_forwarding_is_off_by_default_and_does_not_change_clean_env`（L232–L243）：接收`monkeypatch`。 控制顺序：L239断言`verifier_policy_environment()["GITHUB_JOB"] == "mini-swe-sla"`；L240断言`"GITHUB_JOB" not in clean_env()`；L241断言`"CAPABILITY_BROWSER_APPROVED_POLICY" not in clean_env()`；L243断言`verifier_policy_environment() == {}`。 调用`approved_manual`、`verifier_policy_environment`、`clean_env`、`monkeypatch.delenv`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_diagnostic_cannot_explain_a_new_receipt`（L246–L255）：接收`tmp_path`。 控制顺序：L255断言`node_diagnostic(product, aggregate=False)["exception_type"] == "other"`。 调用`Path`、`str`、`sidecar.write_text`、`json.dumps`、`os.utime`、`path.write_text`、`node_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_startup_classifier_survives_node_export_without_raw_content`（L267–L284）：接收`tmp_path`、`output`、`status`、`http_error`、`exit_code`、`hint`。 控制顺序：L279断言`startup["http_status"] == status`；L280断言`startup["http_error"] == http_error`；L281断言`startup["command_exit_code"] == exit_code`；L282断言`startup["output_hints"] == ([hint] if hint else [])`；L283断言`result["passed"] is False`；L284断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`path.write_text`、`json.dumps`、`node_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_startup_filter_drops_unknown_fields_labels_and_invalid_numeric_types`（L287–L306）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L303断言`result["http_status"] is result["command_exit_code"] is None`；L304断言`result["application_startup_reported"] is None`；L305断言`result["output_hints"] == ["missing-module"]`；L306断言`"private" not in json.dumps(result)`。 调用`startup_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_syntax_gate_does_not_claim_import_or_health_success`（L309–L322）：接收`tmp_path`。 调用`fixed_application`、`app.read_text`、`app.write_text`、`inspect_stack`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_diagnostics.py sha256: 986d148c5dd859432cbdbf53b0e856c9f0a6eb9170c4c6ac576b49b13d68afa4 -->
+<!-- source-file: tests/test_capability_diagnostics.py sha256: 67ca037e62235e2a072bda6b7643a8750785b4afa4bc28fb48fc8659101ed7dc -->
 ````python
 """Exercise verifier child failure through the live artifact filter, offline."""
 
@@ -133223,6 +133307,73 @@ def test_stale_diagnostic_cannot_explain_a_new_receipt(tmp_path):
     os.utime(sidecar, ns=(1_000_000_000, 1_000_000_000))
     path.write_text(json.dumps({"passed": False, "cleanup": "not-started"}))
     assert node_diagnostic(product, aggregate=False)["exception_type"] == "other"
+
+
+@pytest.mark.parametrize(
+    "output,status,http_error,exit_code,hint",
+    [
+        ("ModuleNotFoundError: No module named 'private_module'", 502, "none", 1, "missing-module"),
+        ("NameError: name 'private_symbol' is not defined", 502, "none", 1, None),
+        ("Application startup complete", 404, "none", None, None),
+        ("", None, "connect", None, None),
+    ],
+)
+def test_actual_startup_classifier_survives_node_export_without_raw_content(
+    tmp_path, output, status, http_error, exit_code, hint
+):
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    path = tmp_path / "product-node-verification.json"
+    original = startup_failure_diagnostic(output, status, http_error, command_exit_code=exit_code)
+    path.write_text(
+        json.dumps({"passed": False, "cleanup": "deleted", "startup_diagnostic": original})
+    )
+    result = node_diagnostic(tmp_path / "product", aggregate=False)
+    startup = result["startup"]
+    assert startup["http_status"] == status
+    assert startup["http_error"] == http_error
+    assert startup["command_exit_code"] == exit_code
+    assert startup["output_hints"] == ([hint] if hint else [])
+    assert result["passed"] is False
+    assert "private" not in json.dumps(result)
+
+
+def test_startup_filter_drops_unknown_fields_labels_and_invalid_numeric_types():
+    from workbench.capability_diagnostics import startup_diagnostic
+
+    value = {
+        "phase": "private",
+        "http_status": True,
+        "command_exit_code": 256,
+        "http_error": "private",
+        "output_hints": ["private", "missing-module"] * 100,
+        "application_startup_reported": 1,
+        "target": {"role": "private", "url": "private"},
+        "exception_type": "private",
+        "raw_output": "private-code-key-prompt",
+        "headers": "private",
+    }
+    result = startup_diagnostic(value)
+    assert result["http_status"] is result["command_exit_code"] is None
+    assert result["application_startup_reported"] is None
+    assert result["output_hints"] == ["missing-module"]
+    assert "private" not in json.dumps(result)
+
+
+def test_syntax_gate_does_not_claim_import_or_health_success(tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_stack import inspect_stack
+    from workbench.capability_verification import CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    app = product / "app.py"
+    original = app.read_text()
+    app.write_text("from deliberately_absent_fixture_module import absent\n" + original)
+    inspect_stack(product, plan)  # Parse only: never import the candidate on this host.
+    app.write_text(original + "\ndef broken(:\n")
+    with pytest.raises(CheckFailure, match="语法"):
+        inspect_stack(product, plan)
 ````
 
 ### `tests/test_capability_editing.py`
@@ -144751,14 +144902,14 @@ def test_workflow_has_independent_complete_gates_and_always_run_fail_closed_aggr
 - `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L279–L282）：接收`proof`、`**kwargs`。 控制顺序：L281按`not proof["passed"]`分支；L282抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_workflow_only_exposes_key_after_preflight_and_real_security`（L308–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L312断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L318断言`preflight < security < paid`；L319断言`"API_KEY" not in job["env"]`；L320断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L321断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L322断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_receipts_are_bounded_and_drop_all_unapproved_fields`（L325–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344断言`live.model_failure_receipts(records) == [ {"code": "other", "attempt": None}, {"code"…`；L351断言`len(result) == live.MODEL_CALLS`；L352断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L355–L402）：接收`tmp_path`、`monkeypatch`。 控制顺序：L359遍历`dispatch().items()`；L393断言`error.value.code == 1`；L394断言`all(not path.exists() for path in directories)`；L397断言`report["passed"] is report["real_model_acceptance"] is False`；L398断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L400断言`node["exception_type"] == "ValueError"`；L401断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L402断言`"private" not in raw`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L366–L388）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L388的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
-- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L381–L386）：接收`*args`、`**kwargs`。 控制顺序：L383抛异常，停止当前正常路径；L386抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L405–L421）：接收`monkeypatch`、`tmp_path`。 控制顺序：L420断言`error.value is original`；L421断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L408–L409）：接收`*args`、`**kwargs`。 控制顺序：L409抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L414–L415）：接收`*args`、`**kwargs`。 控制顺序：L415抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L355–L413）：接收`tmp_path`、`monkeypatch`。 控制顺序：L359遍历`dispatch().items()`；L401断言`error.value.code == 1`；L402断言`all(not path.exists() for path in directories)`；L405断言`report["passed"] is report["real_model_acceptance"] is False`；L406断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L408断言`node["exception_type"] == "ValueError"`；L409断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L410断言`node["startup"]["http_status"] == 502`。后续分支沿下方源码相同行号继续阅读。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L366–L396）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L396的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L389–L394）：接收`*args`、`**kwargs`。 控制顺序：L391抛异常，停止当前正常路径；L394抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L416–L432）：接收`monkeypatch`、`tmp_path`。 控制顺序：L431断言`error.value is original`；L432断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L419–L420）：接收`*args`、`**kwargs`。 控制顺序：L420抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L425–L426）：接收`*args`、`**kwargs`。 控制顺序：L426抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_ci_live_modules.py sha256: 93a504d28834251065d5c6228bb0e08b63160cc38f0fab6aea3b00c06433cabd -->
+<!-- source-file: tests/test_ci_live_modules.py sha256: 2019be8fd7bdb7e37dc754ba026e6a0486bba68e90a63bb0605fc157d77e31a6 -->
 ````python
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
 
@@ -145137,6 +145288,14 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
                 "checks": ["private-source"],
                 "error": "private-key-prompt",
                 "sandbox_name": "private-path",
+                "startup_diagnostic": {
+                    "phase": "health_deadline",
+                    "http_status": 502,
+                    "command_exit_code": 1,
+                    "command_exit_status": "nonzero",
+                    "output_hints": ["missing-module", "private-module"],
+                    "raw_output": "private",
+                },
             },
         )
 
@@ -145161,6 +145320,9 @@ def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, 
     node = report["verification_receipts"][0]
     assert node["exception_type"] == "ValueError"
     assert node["cleanup"] == "deleted" and node["checks_count"] == 1
+    assert node["startup"]["http_status"] == 502
+    assert node["startup"]["command_exit_code"] == 1
+    assert node["startup"]["output_hints"] == ["missing-module"]
     assert "private" not in raw
 
 
@@ -239251,7 +239413,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: bee59a17f75c8bd44325adf06790d84733fdc6c3d4e80dffdc974d45d0246c77 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 4611ee1875961650c819d268e3b6e1c2a8c87de717c1a7dba631a72a0b366ad4 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -239496,6 +239658,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 按两个workflow的完整离线命令解析实际文件集合：SQLite为53文件，PG为55文件且包含前者；使用PG完整集合覆盖两套，始终保留RND_REQUIRE_NODE_TESTS=1、RND_REQUIRE_LANDLOCK=1、RND_REQUIRE_SECCOMP_BPF=1。修复前37失败/2469通过/13跳过，其中32个NameError、5个Landlock强制检查返回78；修复后5失败/2533通过/13跳过，仅剩相同5个主机内核条件失败。三个AST消费者专项200项通过。13个跳过涉及缺少原生Node/Vite工具树与测试数据库；本地Python3.14.7、Node24.19.0，不冒充Actions的Node22和内核环境，也不关闭强制标志伪造全绿。
 
 本轮仅本地准备，未推送、取消或重跑真实模型；等待当前efc8e2a全部运行终态。已有模型、Windows业务登录与环境资源证明的未知原因保持原边界，复杂场景未启用。
+
+### efc8e2a 已到启动健康门禁，补保留既有安全启动事实（本地）
+
+父线程从官方artifact11701442745恢复本次真实mini-SWE证据：模型预留/HTTP尝试/响应为4/4/3，model_failure_receipts含invalid_json attempt1及transport_error/read_timeout attempt1；最终由product_ledger第55行拒绝晋升。节点为CheckFailure/verifier_controller/精确capability_sandbox.py第789行，backend_health_observed=false、checks_count=0、obligation_checks_count=0、restarted=false、passed=false、cleanup=deleted。这次独立验证已运行，不能把最终失败仅归为网关，也不能把4次调用或3次响应算作业务验收通过。
+
+第789行是原启动deadline内未观察到健康2xx。到达此处前已取得启动命令ID与私有预览令牌，但这些不证明应用进程持续存活。候选源码已通过inspect_stack对全部Python文件的AST语法检查；离线用语法正确但引用不存在模块的样例确认该门禁不等价于导入或健康成功，并保留真正语法错误的拒绝。受保护启动命令为start.py --no-install --host 0.0.0.0 --port <批准端口>，当前无固定入口/端口错误的可证修复。实际候选、完整节点回执与启动输出未上传，临时目录已删除，无法复原该次具体导入/初始化/进程或预览问题。
+
+验证器原本已在健康失败时采集有限startup_diagnostic，但上一版summary过滤遗漏了该段。本地仅补过滤已有数据：HTTP状态100–599、固定HTTP错误标签、受控命令退出码0–255/状态、启动上报和输出可读布尔值、固定启动阶段/异常类别提示、受限输出提示及backend/frontend目标类别。候选输出产生的提示仅是线索，不能作为验收或内核证明。继续丢弃原始输出、模块/符号文本、URL、headers、源码与凭据；不增加SDK查询、日志读取、宿主权限或scope，也不改启动命令、deadline、health条件或独立oracle。
+
+55项针对性回归通过，覆盖缺模块、名称错误、HTTP404与连接失败的既有分类器→节点过滤，以及临时目录删除后summary仍保留固定事实且不泄露污染内容。再次执行两个工作流完整55文件覆盖集合，三项强制标志保持1：2539通过、5失败、13跳过；5失败仍是本地Landlock检查返回78，未关闭门禁或宣称全绿。6a4f53a AST夹具修复保留；本轮仅本地准备，等待最后矩阵终态后再推送，不盲重跑真实模型或三SQLite。
 ````
 
 ### `docs/template-platform.md`

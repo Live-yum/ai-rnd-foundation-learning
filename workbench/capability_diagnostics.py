@@ -74,6 +74,73 @@ def record_failure(receipt_path, exc):
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
 
 
+def startup_diagnostic(value):
+    """Re-filter existing startup facts; output hints never establish acceptance."""
+    if type(value) is not dict:
+        return None
+    result = {}
+    enums = {
+        "phase": {"health_deadline"},
+        "http_error": {"none", "connect", "timeout", "protocol", "other"},
+        "command_exit_status": {"zero", "nonzero", "unknown"},
+        "startup_phase_hint": {"unknown", "lifespan", "factory", "import"},
+    }
+    for key, allowed in enums.items():
+        result[key] = _label(value.get(key), allowed)
+    for key, lower, upper in (("http_status", 100, 599), ("command_exit_code", 0, 255)):
+        number = value.get(key)
+        result[key] = number if type(number) is int and lower <= number <= upper else None
+    for key in (
+        "application_startup_reported",
+        "output_readable",
+        "output_nonempty",
+        "tmpfs_noexec",
+    ):
+        item = value.get(key)
+        result[key] = item if type(item) is bool else None
+    allowed_hints = (
+        "permission-denied",
+        "missing-module",
+        "import-error",
+        "native-library-mapping",
+        "missing-file",
+        "address-in-use",
+        "readonly-filesystem",
+        "storage-full",
+        "memory-error",
+        "syntax-error",
+        "executable-format",
+    )
+    hints = value.get("output_hints")
+    result["output_hints"] = [
+        name for name in allowed_hints if type(hints) is list and name in hints[:32]
+    ]
+    exception = value.get("exception_type")
+    result["exception_type_hint"] = _label(
+        exception,
+        {
+            "SyntaxError",
+            "IndentationError",
+            "ImportError",
+            "ModuleNotFoundError",
+            "NameError",
+            "AttributeError",
+            "TypeError",
+            "ValueError",
+            "KeyError",
+            "RuntimeError",
+            "PermissionError",
+            "OSError",
+            "FileNotFoundError",
+            "MemoryError",
+        },
+    )
+    target = value.get("target")
+    if type(target) is dict:
+        result["target_role"] = _label(target.get("role"), {"backend", "frontend"})
+    return result
+
+
 def node_diagnostic(product, *, aggregate):
     product = Path(product)
     path = product.parent / (
@@ -103,4 +170,7 @@ def node_diagnostic(product, *, aggregate):
         result[key + "_count"] = len(value) if type(value) is list and len(value) <= 10000 else None
     for key in ("restarted", "backend_health_observed"):
         result[key] = receipt.get(key) if type(receipt.get(key)) is bool else None
+    startup = startup_diagnostic(receipt.get("startup_diagnostic"))
+    if startup is not None:
+        result["startup"] = startup
     return result

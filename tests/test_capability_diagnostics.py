@@ -253,3 +253,70 @@ def test_stale_diagnostic_cannot_explain_a_new_receipt(tmp_path):
     os.utime(sidecar, ns=(1_000_000_000, 1_000_000_000))
     path.write_text(json.dumps({"passed": False, "cleanup": "not-started"}))
     assert node_diagnostic(product, aggregate=False)["exception_type"] == "other"
+
+
+@pytest.mark.parametrize(
+    "output,status,http_error,exit_code,hint",
+    [
+        ("ModuleNotFoundError: No module named 'private_module'", 502, "none", 1, "missing-module"),
+        ("NameError: name 'private_symbol' is not defined", 502, "none", 1, None),
+        ("Application startup complete", 404, "none", None, None),
+        ("", None, "connect", None, None),
+    ],
+)
+def test_actual_startup_classifier_survives_node_export_without_raw_content(
+    tmp_path, output, status, http_error, exit_code, hint
+):
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    path = tmp_path / "product-node-verification.json"
+    original = startup_failure_diagnostic(output, status, http_error, command_exit_code=exit_code)
+    path.write_text(
+        json.dumps({"passed": False, "cleanup": "deleted", "startup_diagnostic": original})
+    )
+    result = node_diagnostic(tmp_path / "product", aggregate=False)
+    startup = result["startup"]
+    assert startup["http_status"] == status
+    assert startup["http_error"] == http_error
+    assert startup["command_exit_code"] == exit_code
+    assert startup["output_hints"] == ([hint] if hint else [])
+    assert result["passed"] is False
+    assert "private" not in json.dumps(result)
+
+
+def test_startup_filter_drops_unknown_fields_labels_and_invalid_numeric_types():
+    from workbench.capability_diagnostics import startup_diagnostic
+
+    value = {
+        "phase": "private",
+        "http_status": True,
+        "command_exit_code": 256,
+        "http_error": "private",
+        "output_hints": ["private", "missing-module"] * 100,
+        "application_startup_reported": 1,
+        "target": {"role": "private", "url": "private"},
+        "exception_type": "private",
+        "raw_output": "private-code-key-prompt",
+        "headers": "private",
+    }
+    result = startup_diagnostic(value)
+    assert result["http_status"] is result["command_exit_code"] is None
+    assert result["application_startup_reported"] is None
+    assert result["output_hints"] == ["missing-module"]
+    assert "private" not in json.dumps(result)
+
+
+def test_syntax_gate_does_not_claim_import_or_health_success(tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_stack import inspect_stack
+    from workbench.capability_verification import CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    app = product / "app.py"
+    original = app.read_text()
+    app.write_text("from deliberately_absent_fixture_module import absent\n" + original)
+    inspect_stack(product, plan)  # Parse only: never import the candidate on this host.
+    app.write_text(original + "\ndef broken(:\n")
+    with pytest.raises(CheckFailure, match="语法"):
+        inspect_stack(product, plan)
