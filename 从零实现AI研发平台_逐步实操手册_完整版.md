@@ -181785,36 +181785,39 @@ def test_exact_approved_fastapi_plan_protocol_projection_fits_unchanged_budget(d
 
 **逐个入口与控制逻辑：**
 
-- `no_network`（L22–L27）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fixture`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `no_network.deny`（L23–L24）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `model_gateway`（L30–L45）：接收`store`、`handler`、`native`、`model`、`streaming`。 调用`store.settings.model_copy`、`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L43的`ModelGateway( settings, store, httpx.MockTransport(handler), native_strict=native, streami…`。
-- `invoke`（L48–L56）：接收`gateway`、`run`、`key`、`task`。 调用`design`、`gateway.complete`、`task.model_dump`、`approved_turn_schema`。 返回路径：L50的`gateway.complete( run, key, "Return the approved action.", {"task": task.model_dump()}, ap…`。
-- `response`（L59–L77）：接收`content`、`status`、`finish`、`refusal`。 控制顺序：L60按`status != 200`分支。 调用`httpx.Response`。 返回路径：L61的`httpx.Response(status, json={"error": {"message": "private-provider-text"}})`；L62的`httpx.Response( 200, json={ "id": "offline", "object": "chat.completion", "created": 0, "m…`。
-- `edit`（L80–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L81的`{ "operation": "edit", "edits": { "explanation": "offline", "files": [ {"path": "app.py", …`。
-- `test_actual_sdk_wire_closed_required_union_and_safe_success_receipt`（L93–L133）：接收`store`。 控制顺序：L123断言`invoke(model, run).operation == "submit"`；L124断言`invoke(model, run).operation == "submit"`；L125断言`len(seen) == 1`；L126断言`approved_turn_schema(design().implementation.tasks[0]).model_json_schema() == origina…`；L128断言`record["output_mode"] == "json_schema"`；L129断言`record["native_strict_requested"] is True`；L130断言`record["native_request_verified"] is True`；L131断言`record["native_local_conformant"] is True`。后续分支沿下方源码相同行号继续阅读。 调用`approved_turn_schema(design().implementation.tasks[0]).model_json…`、`approved_turn_schema`、`design`、`model_gateway`、`new_run`、`invoke`、`len`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_sdk_wire_closed_required_union_and_safe_success_receipt.handler`（L97–L119）：接收`request`。 控制顺序：L100断言`set(body) == { "model", "messages", "stream", "max_completion_tokens", "response_form…`；L107断言`body["stream"] is False and body["max_completion_tokens"] == 8192`；L108断言`len(request.content) <= 4 * 40000`；L109断言`request.extensions["timeout"]["read"] == 60`；L111断言`fmt["type"] == "json_schema" and fmt["json_schema"]["strict"] is True`；L113遍历`(schema, *schema["$defs"].values())`；L114断言`obj["additionalProperties"] is False`；L115断言`set(obj["required"]) == set(obj["properties"])`。后续分支沿下方源码相同行号继续阅读。 调用`seen.append`、`json.loads`、`set`、`len`、`schema["$defs"].values`、`response`。 返回路径：L119的`response('{"operation":"submit","edits":null}')`。
-- `test_http_200_ignoring_strict_stops_once_without_repair`（L151–L185）：接收`store`、`kind`。 控制顺序：L153按`kind == "missing_edits"`分支；L155按`kind == "missing_before"`分支；L157按`kind == "extra"`分支；L159按`kind == "nested_extra"`分支；L161按`kind == "type"`分支；L163按`kind == "union"`分支；L181断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L183断言`record["code"] == "native_schema_violation"`。后续分支沿下方源码相同行号继续阅读。 调用`edit`、`value["edits"]["files"][1].pop`、`json.dumps`、`{ "malformed": content + "}", "duplicate": '{"operation":"submit"…`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_http_200_ignoring_strict_stops_once_without_repair.handler`（L174–L176）：接收`request`。 调用`calls.append`、`response`。 返回路径：L176的`response(content)`。
-- `test_rejection_timeout_and_refusal_have_no_compatibility_retry`（L200–L224）：接收`store`、`kind`、`code`、`count`。 控制顺序：L221断言`len(calls) == store.get_run(run)["model_calls"] == count`；L223断言`[r["code"] for r in records] == [code] * count`；L224断言`"private" not in json.dumps(records)`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejection_timeout_and_refusal_have_no_compatibility_retry.handler`（L203–L216）：接收`request`。 控制顺序：L205按`kind == "timeout"`分支；L206抛异常，停止当前正常路径；L207按`kind == "stream"`分支。 调用`calls.append`、`httpx.ReadTimeout`、`httpx.Response`、`response`、`kind.isdigit`、`int`。 返回路径：L208的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content=b"data: {}\n\n…`；L211的`response( '{"operation":"submit","edits":null}', status=int(kind) if kind.isdigit() else 2…`。
-- `test_native_schema_keeps_original_business_validation`（L228–L243）：接收`store`、`kind`。 控制顺序：L230按`kind == "edit_null"`分支；L232按`kind == "submit_edits"`分支；L234按`kind == "wrong_path"`分支；L242断言`[r["code"] for r in records] == ["schema_validation"] * 2`；L243断言`all(r["native_local_conformant"] is True for r in records)`。 调用`edit`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`response`、`json.dumps`、`store.model_records`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_edit_still_requires_matching_preimage`（L246–L262）：接收`store`、`tmp_path`。 调用`base.mkdir`、`(base / "app.py").write_text`、`edit`、`sha`、`model_gateway`、`response`、`json.dumps`、`invoke`、`new_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_incompatible_sdk_or_scope_stops_before_network`（L274–L289）：接收`store`、`monkeypatch`、`kind`、`code`。 控制顺序：L275按`kind == "version"`分支；L287断言`record["code"] == code`；L288断言`record["native_request_verified"] is False`；L289断言`record["native_local_conformant"] is None`。 调用`monkeypatch.setattr`、`model_gateway`、`pytest.fail`、`new_run`、`pytest.raises`、`invoke`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_outbound_drift_never_reaches_transport`（L309–L349）：接收`store`、`monkeypatch`、`change`。 控制顺序：L349断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`monkeypatch.setattr`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`pytest.fail`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_outbound_drift_never_reaches_transport.changed`（L312–L343）：接收`request`。 控制顺序：L314按`change == "schema"`分支；L316按`change == "strict"`分支；L318按`change == "strict_integer"`分支；L320按`change == "format"`分支；L322按`change == "tools"`分支；L324按`change == "stream"`分支；L326按`change == "tokens"`分支；L328按`change == "legacy_tokens"`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`body["response_format"]["json_schema"]["schema"]["required"].remo…`、`body.pop`、`copy.deepcopy`、`httpx.Request`、`original`。 返回路径：L343的`original(self, bad)`。
-- `test_json_object_default_and_cache_are_separate_from_opt_in`（L352–L362）：接收`store`。 控制顺序：L362断言`seen == ["json_object", "json_schema"]`。 调用`new_run`、`invoke`、`model_gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_json_object_default_and_cache_are_separate_from_opt_in.handler`（L355–L357）：接收`request`。 调用`seen.append`、`json.loads`、`response`。 返回路径：L357的`response('{"operation":"submit","edits":null}')`。
-- `test_cached_native_result_cannot_bypass_sdk_version_preflight`（L365–L382）：接收`store`、`monkeypatch`。 控制顺序：L374断言`invoke(model, run).operation == "submit"`；L378断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L380断言`record["code"] == "native_sdk_unsupported"`；L381断言`record["attempt"] is None`；L382断言`record["native_request_verified"] is False`。 调用`model_gateway`、`new_run`、`invoke`、`monkeypatch.setattr`、`pytest.raises`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cached_native_result_cannot_bypass_sdk_version_preflight.handler`（L368–L370）：接收`request`。 调用`calls.append`、`response`。 返回路径：L370的`response('{"operation":"submit","edits":null}')`。
-- `test_native_guards_are_bound_into_isolation_source_identity`（L386–L394）：接收`monkeypatch`、`name`。 控制顺序：L394断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_transport_cannot_be_constructed_without_wire_guard`（L397–L401）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L401断言`failure.value.code == "native_request_mismatch"`。 调用`OutputContract`、`pytest.raises`、`AuditedTransport`、`httpx.MockTransport`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry`（L404–L424）：接收`store`。 控制顺序：L423断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L424断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose`（L407–L412）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.__iter__`（L408–L409）：不接收显式业务参数，从已配置对象/模块读取依赖。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.close`（L411–L412）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L412抛异常，停止当前正常路径。 调用`httpx.ReadError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.handler`（L414–L418）：接收`request`。 调用`calls.append`、`httpx.Response`、`BrokenClose`。 返回路径：L416的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, stream=BrokenClose() )`。
+- `no_network`（L22–L55）：接收`monkeypatch`、`request`。 控制顺序：L43遍历`range(8)`；L54遍历`owned`。 调用`getattr`、`range`、`pair_factory`、`owned.extend`、`available.append`、`monkeypatch.setattr`、`connection.close`、`pytest.fixture`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `no_network.deny`（L34–L35）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `no_network.private_socketpair`（L37–L40）：接收`*args`、`**kwargs`。 控制顺序：L38按`args or kwargs or not available`分支。 调用`pytest.fail`、`available.pop`。 返回路径：L40的`available.pop()`。
+- `model_gateway`（L58–L73）：接收`store`、`handler`、`native`、`model`、`streaming`。 调用`store.settings.model_copy`、`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L71的`ModelGateway( settings, store, httpx.MockTransport(handler), native_strict=native, streami…`。
+- `invoke`（L76–L84）：接收`gateway`、`run`、`key`、`task`。 调用`design`、`gateway.complete`、`task.model_dump`、`approved_turn_schema`。 返回路径：L78的`gateway.complete( run, key, "Return the approved action.", {"task": task.model_dump()}, ap…`。
+- `response`（L87–L105）：接收`content`、`status`、`finish`、`refusal`。 控制顺序：L88按`status != 200`分支。 调用`httpx.Response`。 返回路径：L89的`httpx.Response(status, json={"error": {"message": "private-provider-text"}})`；L90的`httpx.Response( 200, json={ "id": "offline", "object": "chat.completion", "created": 0, "m…`。
+- `edit`（L108–L118）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L109的`{ "operation": "edit", "edits": { "explanation": "offline", "files": [ {"path": "app.py", …`。
+- `test_actual_sdk_wire_closed_required_union_and_safe_success_receipt`（L122–L162）：接收`store`。 控制顺序：L152断言`invoke(model, run).operation == "submit"`；L153断言`invoke(model, run).operation == "submit"`；L154断言`len(seen) == 1`；L155断言`approved_turn_schema(design().implementation.tasks[0]).model_json_schema() == origina…`；L157断言`record["output_mode"] == "json_schema"`；L158断言`record["native_strict_requested"] is True`；L159断言`record["native_request_verified"] is True`；L160断言`record["native_local_conformant"] is True`。后续分支沿下方源码相同行号继续阅读。 调用`approved_turn_schema(design().implementation.tasks[0]).model_json…`、`approved_turn_schema`、`design`、`model_gateway`、`new_run`、`invoke`、`len`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sdk_wire_closed_required_union_and_safe_success_receipt.handler`（L126–L148）：接收`request`。 控制顺序：L129断言`set(body) == { "model", "messages", "stream", "max_completion_tokens", "response_form…`；L136断言`body["stream"] is False and body["max_completion_tokens"] == 8192`；L137断言`len(request.content) <= 4 * 40000`；L138断言`request.extensions["timeout"]["read"] == 60`；L140断言`fmt["type"] == "json_schema" and fmt["json_schema"]["strict"] is True`；L142遍历`(schema, *schema["$defs"].values())`；L143断言`obj["additionalProperties"] is False`；L144断言`set(obj["required"]) == set(obj["properties"])`。后续分支沿下方源码相同行号继续阅读。 调用`seen.append`、`json.loads`、`set`、`len`、`schema["$defs"].values`、`response`。 返回路径：L148的`response('{"operation":"submit","edits":null}')`。
+- `test_http_200_ignoring_strict_stops_once_without_repair`（L181–L215）：接收`store`、`kind`。 控制顺序：L183按`kind == "missing_edits"`分支；L185按`kind == "missing_before"`分支；L187按`kind == "extra"`分支；L189按`kind == "nested_extra"`分支；L191按`kind == "type"`分支；L193按`kind == "union"`分支；L211断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L213断言`record["code"] == "native_schema_violation"`。后续分支沿下方源码相同行号继续阅读。 调用`edit`、`value["edits"]["files"][1].pop`、`json.dumps`、`{ "malformed": content + "}", "duplicate": '{"operation":"submit"…`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_http_200_ignoring_strict_stops_once_without_repair.handler`（L204–L206）：接收`request`。 调用`calls.append`、`response`。 返回路径：L206的`response(content)`。
+- `test_rejection_timeout_and_refusal_have_no_compatibility_retry`（L230–L254）：接收`store`、`kind`、`code`、`count`。 控制顺序：L251断言`len(calls) == store.get_run(run)["model_calls"] == count`；L253断言`[r["code"] for r in records] == [code] * count`；L254断言`"private" not in json.dumps(records)`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejection_timeout_and_refusal_have_no_compatibility_retry.handler`（L233–L246）：接收`request`。 控制顺序：L235按`kind == "timeout"`分支；L236抛异常，停止当前正常路径；L237按`kind == "stream"`分支。 调用`calls.append`、`httpx.ReadTimeout`、`httpx.Response`、`response`、`kind.isdigit`、`int`。 返回路径：L238的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content=b"data: {}\n\n…`；L241的`response( '{"operation":"submit","edits":null}', status=int(kind) if kind.isdigit() else 2…`。
+- `test_native_schema_keeps_original_business_validation`（L258–L273）：接收`store`、`kind`。 控制顺序：L260按`kind == "edit_null"`分支；L262按`kind == "submit_edits"`分支；L264按`kind == "wrong_path"`分支；L272断言`[r["code"] for r in records] == ["schema_validation"] * 2`；L273断言`all(r["native_local_conformant"] is True for r in records)`。 调用`edit`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`response`、`json.dumps`、`store.model_records`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_edit_still_requires_matching_preimage`（L276–L292）：接收`store`、`tmp_path`。 调用`base.mkdir`、`(base / "app.py").write_text`、`edit`、`sha`、`model_gateway`、`response`、`json.dumps`、`invoke`、`new_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incompatible_sdk_or_scope_stops_before_network`（L304–L319）：接收`store`、`monkeypatch`、`kind`、`code`。 控制顺序：L305按`kind == "version"`分支；L317断言`record["code"] == code`；L318断言`record["native_request_verified"] is False`；L319断言`record["native_local_conformant"] is None`。 调用`monkeypatch.setattr`、`model_gateway`、`pytest.fail`、`new_run`、`pytest.raises`、`invoke`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_outbound_drift_never_reaches_transport`（L339–L379）：接收`store`、`monkeypatch`、`change`。 控制顺序：L379断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`monkeypatch.setattr`、`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`pytest.fail`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_outbound_drift_never_reaches_transport.changed`（L342–L373）：接收`request`。 控制顺序：L344按`change == "schema"`分支；L346按`change == "strict"`分支；L348按`change == "strict_integer"`分支；L350按`change == "format"`分支；L352按`change == "tools"`分支；L354按`change == "stream"`分支；L356按`change == "tokens"`分支；L358按`change == "legacy_tokens"`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`body["response_format"]["json_schema"]["schema"]["required"].remo…`、`body.pop`、`copy.deepcopy`、`httpx.Request`、`original`。 返回路径：L373的`original(self, bad)`。
+- `test_json_object_default_and_cache_are_separate_from_opt_in`（L382–L392）：接收`store`。 控制顺序：L392断言`seen == ["json_object", "json_schema"]`。 调用`new_run`、`invoke`、`model_gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_object_default_and_cache_are_separate_from_opt_in.handler`（L385–L387）：接收`request`。 调用`seen.append`、`json.loads`、`response`。 返回路径：L387的`response('{"operation":"submit","edits":null}')`。
+- `test_cached_native_result_cannot_bypass_sdk_version_preflight`（L395–L412）：接收`store`、`monkeypatch`。 控制顺序：L404断言`invoke(model, run).operation == "submit"`；L408断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L410断言`record["code"] == "native_sdk_unsupported"`；L411断言`record["attempt"] is None`；L412断言`record["native_request_verified"] is False`。 调用`model_gateway`、`new_run`、`invoke`、`monkeypatch.setattr`、`pytest.raises`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cached_native_result_cannot_bypass_sdk_version_preflight.handler`（L398–L400）：接收`request`。 调用`calls.append`、`response`。 返回路径：L400的`response('{"operation":"submit","edits":null}')`。
+- `test_native_guards_are_bound_into_isolation_source_identity`（L416–L424）：接收`monkeypatch`、`name`。 控制顺序：L424断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_transport_cannot_be_constructed_without_wire_guard`（L427–L431）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L431断言`failure.value.code == "native_request_mismatch"`。 调用`OutputContract`、`pytest.raises`、`AuditedTransport`、`httpx.MockTransport`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry`（L434–L454）：接收`store`。 控制顺序：L453断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L454断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose`（L437–L442）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.__iter__`（L438–L439）：不接收显式业务参数，从已配置对象/模块读取依赖。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.close`（L441–L442）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L442抛异常，停止当前正常路径。 调用`httpx.ReadError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.handler`（L444–L448）：接收`request`。 调用`calls.append`、`httpx.Response`、`BrokenClose`。 返回路径：L446的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, stream=BrokenClose() )`。
+- `test_fixture_still_blocks_every_new_connection`（L460–L470）：接收`address`、`operation`。 控制顺序：L465按`operation in {"connect", "connect_ex"}`分支；L467按`operation == "create_connection"`分支。 调用`socket.socket`、`pytest.raises`、`getattr(connection, operation)`、`getattr`、`socket.create_connection`、`socket.getaddrinfo`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_socketpairs_are_connected_owned_and_bounded`（L474–L485）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L476遍历`pairs`；L479断言`reader.recv(9) == b"self-pipe"`；L480断言`reader.getpeername() == writer.getsockname()`；L481断言`writer.getpeername() == reader.getsockname()`。 调用`socket.socketpair`、`range`、`reader.settimeout`、`writer.sendall`、`reader.recv`、`reader.getpeername`、`writer.getsockname`、`writer.getpeername`、`reader.getsockname`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_schema.py sha256: 486a9c781169c9c7b077a52f0b1e46984298ac91b2fa3457269300f9b2b86c28 -->
+<!-- source-file: tests/test_native_schema.py sha256: ab579bd1be63dd52e5f66e78119b3d6c8850540363da944c0052e433c3afd9da -->
 ````python
 """Real locked SDK serialization; only lowest HTTP is replaced, no external model."""
 
@@ -181837,12 +181840,40 @@ from workbench.native_schema import NativeSchema
 
 
 @pytest.fixture(autouse=True)
-def no_network(monkeypatch):
+def no_network(monkeypatch, request):
+    # Windows asyncio uses TCP socketpair for its private wakeup pipe. Create a
+    # bounded pool before blocking connections; never allow arbitrary loopback
+    # connects during the test, including while the SDK closes its async client.
+    pair_factory = (
+        socket._fallback_socketpair
+        if getattr(request, "param", "platform") == "tcp"
+        else socket.socketpair
+    )
+    available = []
+    owned = []
+
     def deny(*args, **kwargs):
         pytest.fail("native schema tests must not connect to any endpoint")
 
-    monkeypatch.setattr(socket.socket, "connect", deny)
-    monkeypatch.setattr(socket, "create_connection", deny)
+    def private_socketpair(*args, **kwargs):
+        if args or kwargs or not available:
+            pytest.fail("unregistered or exhausted native-test socketpair")
+        return available.pop()
+
+    try:
+        for _ in range(8):
+            pair = pair_factory()
+            owned.extend(pair)
+            available.append(pair)
+        monkeypatch.setattr(socket, "socketpair", private_socketpair)
+        monkeypatch.setattr(socket.socket, "connect", deny)
+        monkeypatch.setattr(socket.socket, "connect_ex", deny)
+        monkeypatch.setattr(socket, "create_connection", deny)
+        monkeypatch.setattr(socket, "getaddrinfo", deny)
+        yield
+    finally:
+        for connection in owned:
+            connection.close()
 
 
 def model_gateway(store, handler, *, native=True, model="offline-native", streaming=False):
@@ -181908,6 +181939,7 @@ def edit():
     }
 
 
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
 def test_actual_sdk_wire_closed_required_union_and_safe_success_receipt(store):
     seen = []
     original = approved_turn_schema(design().implementation.tasks[0]).model_json_schema()
@@ -181951,6 +181983,7 @@ def test_actual_sdk_wire_closed_required_union_and_safe_success_receipt(store):
     assert record["native_http_status"] == 200
 
 
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
 @pytest.mark.parametrize(
     "kind",
     [
@@ -182240,6 +182273,37 @@ def test_rejected_stream_cleanup_error_cannot_authorize_retry(store):
         invoke(model_gateway(store, handler), run)
     assert len(calls) == store.get_run(run)["model_calls"] == 1
     assert store.model_records(run)[0]["code"] == "native_request_mismatch"
+
+
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
+@pytest.mark.parametrize("address", [("127.0.0.1", 9), ("192.0.2.1", 443)])
+@pytest.mark.parametrize("operation", ["connect", "connect_ex", "create_connection", "getaddrinfo"])
+def test_fixture_still_blocks_every_new_connection(address, operation):
+    with (
+        socket.socket() as connection,
+        pytest.raises(pytest.fail.Exception, match="must not connect to any endpoint"),
+    ):
+        if operation in {"connect", "connect_ex"}:
+            getattr(connection, operation)(address)
+        elif operation == "create_connection":
+            socket.create_connection(address)
+        else:
+            socket.getaddrinfo(*address)
+
+
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
+def test_fixture_socketpairs_are_connected_owned_and_bounded():
+    pairs = [socket.socketpair() for _ in range(8)]
+    for reader, writer in pairs:
+        reader.settimeout(1)
+        writer.sendall(b"self-pipe")
+        assert reader.recv(9) == b"self-pipe"
+        assert reader.getpeername() == writer.getsockname()
+        assert writer.getpeername() == reader.getsockname()
+    with pytest.raises(pytest.fail.Exception, match="unregistered or exhausted"):
+        socket.socketpair()
+    with pytest.raises(pytest.fail.Exception, match="unregistered or exhausted"):
+        socket.socketpair(socket.AF_INET)
 ````
 
 ### `tests/test_native_style.py`

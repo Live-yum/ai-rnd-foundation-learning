@@ -480,8 +480,8 @@
     },
     {
       "path": "tests/test_native_schema.py",
-      "bytes": 15152,
-      "sha256": "486a9c781169c9c7b077a52f0b1e46984298ac91b2fa3457269300f9b2b86c28",
+      "bytes": 17774,
+      "sha256": "ab579bd1be63dd52e5f66e78119b3d6c8850540363da944c0052e433c3afd9da",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_native_schema_py--001.md"

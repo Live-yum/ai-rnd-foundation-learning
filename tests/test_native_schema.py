@@ -19,12 +19,40 @@ from workbench.native_schema import NativeSchema
 
 
 @pytest.fixture(autouse=True)
-def no_network(monkeypatch):
+def no_network(monkeypatch, request):
+    # Windows asyncio uses TCP socketpair for its private wakeup pipe. Create a
+    # bounded pool before blocking connections; never allow arbitrary loopback
+    # connects during the test, including while the SDK closes its async client.
+    pair_factory = (
+        socket._fallback_socketpair
+        if getattr(request, "param", "platform") == "tcp"
+        else socket.socketpair
+    )
+    available = []
+    owned = []
+
     def deny(*args, **kwargs):
         pytest.fail("native schema tests must not connect to any endpoint")
 
-    monkeypatch.setattr(socket.socket, "connect", deny)
-    monkeypatch.setattr(socket, "create_connection", deny)
+    def private_socketpair(*args, **kwargs):
+        if args or kwargs or not available:
+            pytest.fail("unregistered or exhausted native-test socketpair")
+        return available.pop()
+
+    try:
+        for _ in range(8):
+            pair = pair_factory()
+            owned.extend(pair)
+            available.append(pair)
+        monkeypatch.setattr(socket, "socketpair", private_socketpair)
+        monkeypatch.setattr(socket.socket, "connect", deny)
+        monkeypatch.setattr(socket.socket, "connect_ex", deny)
+        monkeypatch.setattr(socket, "create_connection", deny)
+        monkeypatch.setattr(socket, "getaddrinfo", deny)
+        yield
+    finally:
+        for connection in owned:
+            connection.close()
 
 
 def model_gateway(store, handler, *, native=True, model="offline-native", streaming=False):
@@ -90,6 +118,7 @@ def edit():
     }
 
 
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
 def test_actual_sdk_wire_closed_required_union_and_safe_success_receipt(store):
     seen = []
     original = approved_turn_schema(design().implementation.tasks[0]).model_json_schema()
@@ -133,6 +162,7 @@ def test_actual_sdk_wire_closed_required_union_and_safe_success_receipt(store):
     assert record["native_http_status"] == 200
 
 
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
 @pytest.mark.parametrize(
     "kind",
     [
@@ -422,3 +452,34 @@ def test_rejected_stream_cleanup_error_cannot_authorize_retry(store):
         invoke(model_gateway(store, handler), run)
     assert len(calls) == store.get_run(run)["model_calls"] == 1
     assert store.model_records(run)[0]["code"] == "native_request_mismatch"
+
+
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
+@pytest.mark.parametrize("address", [("127.0.0.1", 9), ("192.0.2.1", 443)])
+@pytest.mark.parametrize("operation", ["connect", "connect_ex", "create_connection", "getaddrinfo"])
+def test_fixture_still_blocks_every_new_connection(address, operation):
+    with (
+        socket.socket() as connection,
+        pytest.raises(pytest.fail.Exception, match="must not connect to any endpoint"),
+    ):
+        if operation in {"connect", "connect_ex"}:
+            getattr(connection, operation)(address)
+        elif operation == "create_connection":
+            socket.create_connection(address)
+        else:
+            socket.getaddrinfo(*address)
+
+
+@pytest.mark.parametrize("no_network", ["platform", "tcp"], indirect=True)
+def test_fixture_socketpairs_are_connected_owned_and_bounded():
+    pairs = [socket.socketpair() for _ in range(8)]
+    for reader, writer in pairs:
+        reader.settimeout(1)
+        writer.sendall(b"self-pipe")
+        assert reader.recv(9) == b"self-pipe"
+        assert reader.getpeername() == writer.getsockname()
+        assert writer.getpeername() == reader.getsockname()
+    with pytest.raises(pytest.fail.Exception, match="unregistered or exhausted"):
+        socket.socketpair()
+    with pytest.raises(pytest.fail.Exception, match="unregistered or exhausted"):
+        socket.socketpair(socket.AF_INET)
