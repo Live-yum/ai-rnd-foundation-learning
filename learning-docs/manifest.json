@@ -471,8 +471,8 @@
     },
     {
       "path": "tests/test_llm.py",
-      "bytes": 14753,
-      "sha256": "0f593e8ea7555a31f770e289dc44ccdd3d10c4727efb1e7c786babf74b0d716a",
+      "bytes": 15851,
+      "sha256": "f40fd9da40a5691d51e36f1201edd181df108bb292643f093f2e621b17440129",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_llm_py--001.md"
@@ -526,8 +526,8 @@
     },
     {
       "path": "workbench/infrastructure/llm/gateway.py",
-      "bytes": 15854,
-      "sha256": "bc2a9b6057bab25cf11cbc4e2fe26295284927a66a95a444e0bbbe518faa2880",
+      "bytes": 16114,
+      "sha256": "12ece8f70a7019750d90a76afc85074401b6d4b3a02b3ea30976fbf22e3c213b",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__infrastructure__llm__gateway_py--001.md"
@@ -544,8 +544,8 @@
     },
     {
       "path": "workbench/model_connection.py",
-      "bytes": 11000,
-      "sha256": "2138576ed0b0a145b3c0c6943378c1bcb2561252ba913906dd17f9d2794c14e9",
+      "bytes": 11265,
+      "sha256": "8bdb5d2b2dde0458a81c8475fc2475ec905b319aa1e89062a14b94fc849c39cd",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_connection_py--001.md"
@@ -553,8 +553,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 14165,
-      "sha256": "f230bce9b3dd1bc75336e07c4dc87e25ba9ef0fd5756bb6ca246db6360753d7f",
+      "bytes": 15119,
+      "sha256": "f5d2523b65f50f42731380d40c2a81dd1e7fcd59a901bb5fd154b14340f7485d",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -4822,8 +4822,8 @@
     },
     {
       "path": "docs/real-model-acceptance.md",
-      "bytes": 24347,
-      "sha256": "6c106a3a5f3affce75b1d5a3dc3f2ae2f5a7b5aeab0194e4a664290518a5a9be",
+      "bytes": 26972,
+      "sha256": "4052242e55e4364f5c2f68bfe3f02234c72498e338d95e3fb74831cfcf629e8e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__real-model-acceptance_md--001.md"
@@ -6024,8 +6024,8 @@
     },
     {
       "path": "tests/test_model_connection.py",
-      "bytes": 10150,
-      "sha256": "37a936277740d836603f49e430703e9e188447b7a53c761f6fa14562c98a41ff",
+      "bytes": 11731,
+      "sha256": "60c3624d9fa591e40d031df7f41da0571559af714bea6c65b8354548c6df2fae",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_model_connection_py--001.md"

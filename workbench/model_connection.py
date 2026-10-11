@@ -16,6 +16,7 @@ from filelock import FileLock, Timeout
 from openai import APIConnectionError, APIError, APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from workbench.model_diagnostics import transport_failure
 from workbench.model_protocol import (
     AuditedTransport,
     OutputFailure,
@@ -211,6 +212,8 @@ class ModelConnectionTester:
             status = getattr(exc, "status_code", None) or getattr(
                 getattr(exc, "response", None), "status_code", None
             )
+            if not status and (diagnostic := transport_failure(exc)):
+                return finish("request", *diagnostic, retryable=False)
             if status:
                 result["http_status"] = status
                 code, message, retryable = {
@@ -221,7 +224,7 @@ class ModelConnectionTester:
                     ),
                     403: (
                         "permission_denied",
-                        "该账号无权调用此模型；请检查模型权限和服务区域",
+                        "服务或中间网关返回 HTTP 403；请检查访问策略、模型权限和服务区域，不能仅据此判定密钥或证书无效",
                         False,
                     ),
                     404: (

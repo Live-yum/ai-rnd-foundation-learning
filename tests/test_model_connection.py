@@ -1,6 +1,7 @@
 """Offline connection probes: real adapter, mocked transport, no paid calls."""
 
 import json
+import ssl
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -153,6 +154,8 @@ def test_http_failures_are_actionable_redacted_and_never_retried(
     assert len(requests) == result["attempts"] == 1
     assert SECRET not in json.dumps(result) + caplog.text
     assert len(result["trace_id"]) == 32
+    if status == 403:
+        assert "中间网关" in result["message"]
 
 
 @pytest.mark.parametrize(
@@ -171,6 +174,48 @@ def test_transport_errors_do_not_echo_exception_text(settings, configured, excep
     )
     assert result["code"] == code and result["retryable"]
     assert len(calls) == 1 and SECRET not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "kind,code",
+    [
+        ("proxy", "proxy_connection_failed"),
+        ("certificate", "tls_certificate_verification_failed"),
+        ("proxy_certificate", "tls_certificate_verification_failed"),
+    ],
+)
+def test_typed_proxy_and_certificate_failures_survive_sdk_wrapping(
+    settings, configured, kind, code, caplog
+):
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 " + SECRET, request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, SECRET)
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError(SECRET, request=request) from cause
+            raise httpx.ConnectError(SECRET, request=request) from cause
+
+    result = ModelConnectionTester(settings, httpx.MockTransport(handle)).test(
+        command(configured[1]["revision"])
+    )
+    assert result["code"] == code and result["retryable"] is False
+    assert "http_status" not in result
+    assert len(calls) == 1
+    assert SECRET not in json.dumps(result) + caplog.text
+
+
+def test_transport_classification_does_not_infer_from_text_or_loop():
+    from workbench.model_diagnostics import transport_failure
+
+    error = httpx.ConnectError("certificate verify failed; CONNECT 403; " + SECRET)
+    assert transport_failure(error) is None
+    error.__cause__ = error
+    assert transport_failure(error) is None
 
 
 @pytest.mark.parametrize(

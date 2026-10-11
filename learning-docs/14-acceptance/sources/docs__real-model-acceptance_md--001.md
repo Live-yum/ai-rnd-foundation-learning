@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/real-model-acceptance.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L230。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/real-model-acceptance.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L251。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`24347`。本段原文以LF换行结束。
+本段原始字节数：`26972`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/real-model-acceptance.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6c106a3a5f3affce75b1d5a3dc3f2ae2f5a7b5aeab0194e4a664290518a5a9be"} -->
+<!-- learning-source: {"path": "docs/real-model-acceptance.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4052242e55e4364f5c2f68bfe3f02234c72498e338d95e3fb74831cfcf629e8e"} -->
 ````markdown
 <!-- docs/real-model-acceptance.md -->
 ## 显式授权的真实模型客服端到端验收
@@ -247,4 +247,25 @@ uv run python -m scripts.ci_native_bundled fastapiadmin --approved-replay fastap
 `review-projection-status.json` 只记录阶段、哈希与结果，失败不补写证明值或沿用旧成功文件。
 
 真实模型验收始终重新进行推荐、设计与独立复核，不读取这个回归方案。`customer_design_diagnostics` 中明确标记未批准的候选方案只供校验器诊断，不能进入生成或执行。
+
+## 区分代理拒绝、证书失败和服务认证失败
+
+先在需要诊断的执行环境运行不带认证的严格 TLS 请求，不读取 API Key：
+
+```sh
+curl -q -sS --proto '=https' --connect-timeout 10 --max-time 20 --head --output /dev/null --write-out 'http_code=%{http_code}\nproxy_connect=%{http_connect}\nssl_verify_result=%{ssl_verify_result}\n' https://170.106.181.109:8317/v1
+```
+
+保留 stderr 和退出码一起判断；不使用 `-k`、`verify=False`、代理绕过、HTTP 回退或新增信任根。
+
+- `CONNECT tunnel failed, response 403`，通常伴随 `proxy_connect=403`、`http_code=000`：代理拒绝建立隧道，尚不能判断目标 TLS 证书或服务认证。此时 `ssl_verify_result=0` 也不能当成证书校验通过。
+- `curl: (60) SSL certificate problem`、名称/IP 不匹配、自签名或证书链无法验证：TLS 校验失败；先修复服务证书，不能关闭校验。并非所有 TLS 握手失败都属于证书问题，其余错误应按实际阶段报告。
+- Windows 的 `200 Connection established` 后跟 `curl: (60) schannel: SEC_E_UNTRUSTED_ROOT` 表示隧道已建立、随后证书链信任校验失败，与 CONNECT 403 不同。尚需检查对端证书及 issuer，才能区分服务端证书链/私有 CA 和代理提供的证书；不能仅凭此错误断定为自签名证书。
+- 严格 TLS 成功后收到 HTTP 401：HTTPS 上的服务或网关已返回认证要求；这个无认证探测并未验证 API Key 或模型可用性。HEAD 可能返回 404/405，也不等于 TLS 失败。
+
+`DefaultHttpxClient(verify=False)` 的成功只表明该客户端跳过校验后能通信，不能证明证书可信，也不能推翻其他环境收到的代理 CONNECT 拒绝。
+
+对 IP 地址入口，建议配置解析到服务器的域名，部署可信 CA 签发、包含该域名的 SAN 且未过期的证书及完整中间证书链，然后使用匹配域名的 HTTPS BASE_URL。若继续直接使用 IP，证书必须包含准确的 IP SAN；仅有域名 SAN 的证书不能用 IP 地址通过名称校验。代理访问策略仍需由其管理员独立处理，改证书不会自动解除 CONNECT 403。
+
+平台按可信异常类型及有界因果链区分 `proxy_connection_failed` 与 `tls_certificate_verification_failed`，不解析不可信错误文本、不回显原始异常；此类错误不自动重试。普通 HTTP 403 只表示服务或中间网关拒绝访问，不武断归因为模型权限。未能取得类型证据时保留通用连接诊断。连接测试及模型传输仍使用原有证书校验和网络配置；费用门禁不变。
 ````

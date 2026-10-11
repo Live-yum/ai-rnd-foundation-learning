@@ -1,4 +1,5 @@
 import json
+import ssl
 from contextlib import contextmanager
 
 import httpx
@@ -47,6 +48,33 @@ def test_failures_not_fake_success(store, status):
     with pytest.raises(ModelFailure) as error:
         model.complete(new_run(store), "error", "x", {}, Requirement)
     assert "do-not-disclose" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "kind,message",
+    [("proxy", "代理"), ("certificate", "TLS 证书"), ("proxy_certificate", "TLS 证书")],
+)
+def test_permanent_transport_diagnostics_are_redacted_and_not_retried(store, kind, message):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 do-not-disclose", request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, "do-not-disclose")
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError("do-not-disclose", request=request) from cause
+            raise httpx.ConnectError("do-not-disclose", request=request) from cause
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    with pytest.raises(ModelFailure) as error:
+        model.complete(run, "error", "x", {}, Requirement)
+    assert message in str(error.value)
+    assert "do-not-disclose" not in str(error.value)
+    assert len(calls) == store.get_run(run)["model_calls"] == 1
 
 
 def test_invalid_json_bounded(store):

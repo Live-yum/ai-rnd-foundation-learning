@@ -13,6 +13,7 @@ from workbench.model_diagnostics import (
     json_diagnostics,
     json_syntax_category,
     schema_diagnostics,
+    transport_failure,
 )
 from workbench.model_protocol import (
     MAX_MODEL_CONTENT_BYTES,
@@ -282,6 +283,10 @@ class ModelGateway:
                     status = getattr(exc, "status_code", None) or getattr(
                         getattr(exc, "response", None), "status_code", None
                     )
+                    if not status and (diagnostic := transport_failure(exc)):
+                        code, message = diagnostic
+                        failed(attempt, code)
+                        raise ModelFailure(message) from None
                     failed(attempt, "http_" + str(status) if status else "transport_error")
                     if stream_request and attempt == 0 and audited.stream_unsupported:
                         stream_request = False

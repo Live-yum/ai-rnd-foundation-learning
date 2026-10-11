@@ -10,27 +10,27 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.model_protocol`、`workbench.model_settings`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.model_diagnostics`、`workbench.model_protocol`、`workbench.model_settings`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ConnectionTestRequest`（L34–L39）：继承`BaseModel`。声明的数据项为`stage`、`expected_revision`、`request_id`、`confirm_cost`；类型约束/数据库列参数以完整定义为准。
-- `ProbeResponse`（L42–L44）：继承`BaseModel`。声明的数据项为`ok`；类型约束/数据库列参数以完整定义为准。
-- `ConnectionTestBusy`（L47–L48）：继承`ModelSettingsError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelConnectionTester`（L51–L255）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelConnectionTester.__init__`（L52–L55）：接收`settings`、`transport`。 调用`Lock`、`OrderedDict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelConnectionTester.test`（L57–L87）：接收`command`。 控制顺序：L60按`not self._lock.acquire(blocking=False)`分支；L61抛异常，停止当前正常路径；L65按`cached`分支；L66按`cached[0] != fingerprint`分支；L67抛异常，停止当前正常路径；L77按`configuration.revision != command.expected_revision`分支；L78抛异常，停止当前正常路径；L81抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self._lock.acquire`、`ConnectionTestBusy`、`self._results.get`、`RevisionConflict`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.settings.model_configuration`、`self._probe`等。 返回路径：L68的`cached[1]`；L85的`result`。
-- `ModelConnectionTester._probe`（L89–L255）：接收`configuration`、`stage`。 控制顺序：L124按`stage == "default"`分支；L181按`audited.error is not None`分支；L182抛异常，停止当前正常路径；L183抛异常，停止当前正常路径；L185按`response.get("parsing_error") is not None or not isinstance( response.get("parsed"), …`分支；L188抛异常，停止当前正常路径；L196按`exc.code == "truncated"`分支；L214按`status`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`uuid.uuid4`、`min`、`ModelProfile`、`configuration.default.model_dump`、`configuration.profile`、`profile.validate_endpoint`、`profile.model_copy`、`output_contract`等。 返回路径：L147的`finish( "configuration", "invalid_configuration", "请先补全并保存该连接的地址、模型和专用密钥", )`；L190的`finish( "completed", "connected", "连接成功，已收到并验证真实模型响应；本次测试不代表所有任务均可执行", )`；L197的`finish( "validation", "truncated", f"模型已响应，但超过本次测试的 {profile.max_output_tokens} token 输出上限…`。
-- `ModelConnectionTester._probe.finish`（L102–L121）：接收`phase`、`code`、`message`、`retryable`。 调用`self.settings.redact_data`、`max`、`round`、`time.monotonic`、`logger.info`。 返回路径：L121的`receipt`。
+- `ConnectionTestRequest`（L35–L40）：继承`BaseModel`。声明的数据项为`stage`、`expected_revision`、`request_id`、`confirm_cost`；类型约束/数据库列参数以完整定义为准。
+- `ProbeResponse`（L43–L45）：继承`BaseModel`。声明的数据项为`ok`；类型约束/数据库列参数以完整定义为准。
+- `ConnectionTestBusy`（L48–L49）：继承`ModelSettingsError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelConnectionTester`（L52–L258）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelConnectionTester.__init__`（L53–L56）：接收`settings`、`transport`。 调用`Lock`、`OrderedDict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelConnectionTester.test`（L58–L88）：接收`command`。 控制顺序：L61按`not self._lock.acquire(blocking=False)`分支；L62抛异常，停止当前正常路径；L66按`cached`分支；L67按`cached[0] != fingerprint`分支；L68抛异常，停止当前正常路径；L78按`configuration.revision != command.expected_revision`分支；L79抛异常，停止当前正常路径；L82抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self._lock.acquire`、`ConnectionTestBusy`、`self._results.get`、`RevisionConflict`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.settings.model_configuration`、`self._probe`等。 返回路径：L69的`cached[1]`；L86的`result`。
+- `ModelConnectionTester._probe`（L90–L258）：接收`configuration`、`stage`。 控制顺序：L125按`stage == "default"`分支；L182按`audited.error is not None`分支；L183抛异常，停止当前正常路径；L184抛异常，停止当前正常路径；L186按`response.get("parsing_error") is not None or not isinstance( response.get("parsed"), …`分支；L189抛异常，停止当前正常路径；L197按`exc.code == "truncated"`分支；L215按`not status and (diagnostic := transport_failure(exc))`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`uuid.uuid4`、`min`、`ModelProfile`、`configuration.default.model_dump`、`configuration.profile`、`profile.validate_endpoint`、`profile.model_copy`、`output_contract`等。 返回路径：L148的`finish( "configuration", "invalid_configuration", "请先补全并保存该连接的地址、模型和专用密钥", )`；L191的`finish( "completed", "connected", "连接成功，已收到并验证真实模型响应；本次测试不代表所有任务均可执行", )`；L198的`finish( "validation", "truncated", f"模型已响应，但超过本次测试的 {profile.max_output_tokens} token 输出上限…`。
+- `ModelConnectionTester._probe.finish`（L103–L122）：接收`phase`、`code`、`message`、`retryable`。 调用`self.settings.redact_data`、`max`、`round`、`time.monotonic`、`logger.info`。 返回路径：L122的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/model_connection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L255。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_connection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L258。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11000`。本段原文以LF换行结束。
+本段原始字节数：`11265`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_connection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2138576ed0b0a145b3c0c6943378c1bcb2561252ba913906dd17f9d2794c14e9"} -->
+<!-- learning-source: {"path": "workbench/model_connection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8bdb5d2b2dde0458a81c8475fc2475ec905b319aa1e89062a14b94fc849c39cd"} -->
 ````python
 # workbench/model_connection.py
 """One explicit, bounded connection probe against a saved immutable model profile.
@@ -51,6 +51,7 @@ from filelock import FileLock, Timeout
 from openai import APIConnectionError, APIError, APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from workbench.model_diagnostics import transport_failure
 from workbench.model_protocol import (
     AuditedTransport,
     OutputFailure,
@@ -246,6 +247,8 @@ class ModelConnectionTester:
             status = getattr(exc, "status_code", None) or getattr(
                 getattr(exc, "response", None), "status_code", None
             )
+            if not status and (diagnostic := transport_failure(exc)):
+                return finish("request", *diagnostic, retryable=False)
             if status:
                 result["http_status"] = status
                 code, message, retryable = {
@@ -256,7 +259,7 @@ class ModelConnectionTester:
                     ),
                     403: (
                         "permission_denied",
-                        "该账号无权调用此模型；请检查模型权限和服务区域",
+                        "服务或中间网关返回 HTTP 403；请检查访问策略、模型权限和服务区域，不能仅据此判定密钥或证书无效",
                         False,
                     ),
                     404: (

@@ -3075,6 +3075,27 @@ uv run python -m scripts.ci_native_bundled fastapiadmin --approved-replay fastap
 
 真实模型验收始终重新进行推荐、设计与独立复核，不读取这个回归方案。`customer_design_diagnostics` 中明确标记未批准的候选方案只供校验器诊断，不能进入生成或执行。
 
+## 区分代理拒绝、证书失败和服务认证失败
+
+先在需要诊断的执行环境运行不带认证的严格 TLS 请求，不读取 API Key：
+
+```sh
+curl -q -sS --proto '=https' --connect-timeout 10 --max-time 20 --head --output /dev/null --write-out 'http_code=%{http_code}\nproxy_connect=%{http_connect}\nssl_verify_result=%{ssl_verify_result}\n' https://170.106.181.109:8317/v1
+```
+
+保留 stderr 和退出码一起判断；不使用 `-k`、`verify=False`、代理绕过、HTTP 回退或新增信任根。
+
+- `CONNECT tunnel failed, response 403`，通常伴随 `proxy_connect=403`、`http_code=000`：代理拒绝建立隧道，尚不能判断目标 TLS 证书或服务认证。此时 `ssl_verify_result=0` 也不能当成证书校验通过。
+- `curl: (60) SSL certificate problem`、名称/IP 不匹配、自签名或证书链无法验证：TLS 校验失败；先修复服务证书，不能关闭校验。并非所有 TLS 握手失败都属于证书问题，其余错误应按实际阶段报告。
+- Windows 的 `200 Connection established` 后跟 `curl: (60) schannel: SEC_E_UNTRUSTED_ROOT` 表示隧道已建立、随后证书链信任校验失败，与 CONNECT 403 不同。尚需检查对端证书及 issuer，才能区分服务端证书链/私有 CA 和代理提供的证书；不能仅凭此错误断定为自签名证书。
+- 严格 TLS 成功后收到 HTTP 401：HTTPS 上的服务或网关已返回认证要求；这个无认证探测并未验证 API Key 或模型可用性。HEAD 可能返回 404/405，也不等于 TLS 失败。
+
+`DefaultHttpxClient(verify=False)` 的成功只表明该客户端跳过校验后能通信，不能证明证书可信，也不能推翻其他环境收到的代理 CONNECT 拒绝。
+
+对 IP 地址入口，建议配置解析到服务器的域名，部署可信 CA 签发、包含该域名的 SAN 且未过期的证书及完整中间证书链，然后使用匹配域名的 HTTPS BASE_URL。若继续直接使用 IP，证书必须包含准确的 IP SAN；仅有域名 SAN 的证书不能用 IP 地址通过名称校验。代理访问策略仍需由其管理员独立处理，改证书不会自动解除 CONNECT 403。
+
+平台按可信异常类型及有界因果链区分 `proxy_connection_failed` 与 `tls_certificate_verification_failed`，不解析不可信错误文本、不回显原始异常；此类错误不自动重试。普通 HTTP 403 只表示服务或中间网关拒绝访问，不武断归因为模型权限。未能取得类型证据时保留通用连接诊断。连接测试及模型传输仍使用原有证书校验和网络配置；费用门禁不变。
+
 # 从空目录到可信交付：逐站实操与证据阅读
 
 这一章是学习过程的检查路线。完整源码附录给出最终实现；这里说明每站先准备什么、亲手执行什么、看到什么才可以继续。命令默认在含`pyproject.toml`的项目根目录执行。终端出现绿色文字、页面出现下载按钮、模型说“完成”，都不能单独证明验收通过。
@@ -18884,15 +18905,15 @@ sys.modules[__name__] = _implementation
 
 **逐个入口与控制逻辑：**
 
-- `ModelFailure`（L30–L31）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `_json_repair_reference`（L34–L56）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L41按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L50按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L47的`None`；L51的`None`；L54的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
-- `ModelGateway`（L59–L327）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway.__init__`（L60–L62）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L64–L327）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L76抛异常，停止当前正常路径；L312抛异常，停止当前正常路径；L314按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L327的`value`。
-- `ModelGateway.complete.call`（L107–L307）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133按`len(body) > self.settings.max_context_chars`分支；L134抛异常，停止当前正常路径；L146遍历`range(2)`；L148按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L149抛异常，停止当前正常路径；L178按`audited.error is not None`分支；L179抛异常，停止当前正常路径；L180按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L192的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
-- `ModelGateway.complete.call.failed`（L110–L130）：接收`attempt`、`code`、`details`。 控制顺序：L111按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelFailure`（L31–L32）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `_json_repair_reference`（L35–L57）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L42按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L51按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L48的`None`；L52的`None`；L55的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
+- `ModelGateway`（L60–L332）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway.__init__`（L61–L63）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L65–L332）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L77抛异常，停止当前正常路径；L317抛异常，停止当前正常路径；L319按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L332的`value`。
+- `ModelGateway.complete.call`（L108–L312）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`len(body) > self.settings.max_context_chars`分支；L135抛异常，停止当前正常路径；L147遍历`range(2)`；L149按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L150抛异常，停止当前正常路径；L179按`audited.error is not None`分支；L180抛异常，停止当前正常路径；L181按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L193的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.failed`（L111–L131）：接收`attempt`、`code`、`details`。 控制顺序：L112按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/infrastructure/llm/gateway.py sha256: bc2a9b6057bab25cf11cbc4e2fe26295284927a66a95a444e0bbbe518faa2880 -->
+<!-- source-file: workbench/infrastructure/llm/gateway.py sha256: 12ece8f70a7019750d90a76afc85074401b6d4b3a02b3ea30976fbf22e3c213b -->
 ````python
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
 
@@ -18909,6 +18930,7 @@ from workbench.model_diagnostics import (
     json_diagnostics,
     json_syntax_category,
     schema_diagnostics,
+    transport_failure,
 )
 from workbench.model_protocol import (
     MAX_MODEL_CONTENT_BYTES,
@@ -19178,6 +19200,10 @@ class ModelGateway:
                     status = getattr(exc, "status_code", None) or getattr(
                         getattr(exc, "response", None), "status_code", None
                     )
+                    if not status and (diagnostic := transport_failure(exc)):
+                        code, message = diagnostic
+                        failed(attempt, code)
+                        raise ModelFailure(message) from None
                     failed(attempt, "http_" + str(status) if status else "transport_error")
                     if stream_request and attempt == 0 and audited.stream_unsupported:
                         stream_request = False
@@ -21636,20 +21662,20 @@ def local_docker_command(argv):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.model_protocol`、`workbench.model_settings`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.model_diagnostics`、`workbench.model_protocol`、`workbench.model_settings`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `ConnectionTestRequest`（L34–L39）：继承`BaseModel`。声明的数据项为`stage`、`expected_revision`、`request_id`、`confirm_cost`；类型约束/数据库列参数以完整定义为准。
-- `ProbeResponse`（L42–L44）：继承`BaseModel`。声明的数据项为`ok`；类型约束/数据库列参数以完整定义为准。
-- `ConnectionTestBusy`（L47–L48）：继承`ModelSettingsError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelConnectionTester`（L51–L255）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelConnectionTester.__init__`（L52–L55）：接收`settings`、`transport`。 调用`Lock`、`OrderedDict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelConnectionTester.test`（L57–L87）：接收`command`。 控制顺序：L60按`not self._lock.acquire(blocking=False)`分支；L61抛异常，停止当前正常路径；L65按`cached`分支；L66按`cached[0] != fingerprint`分支；L67抛异常，停止当前正常路径；L77按`configuration.revision != command.expected_revision`分支；L78抛异常，停止当前正常路径；L81抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self._lock.acquire`、`ConnectionTestBusy`、`self._results.get`、`RevisionConflict`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.settings.model_configuration`、`self._probe`等。 返回路径：L68的`cached[1]`；L85的`result`。
-- `ModelConnectionTester._probe`（L89–L255）：接收`configuration`、`stage`。 控制顺序：L124按`stage == "default"`分支；L181按`audited.error is not None`分支；L182抛异常，停止当前正常路径；L183抛异常，停止当前正常路径；L185按`response.get("parsing_error") is not None or not isinstance( response.get("parsed"), …`分支；L188抛异常，停止当前正常路径；L196按`exc.code == "truncated"`分支；L214按`status`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`uuid.uuid4`、`min`、`ModelProfile`、`configuration.default.model_dump`、`configuration.profile`、`profile.validate_endpoint`、`profile.model_copy`、`output_contract`等。 返回路径：L147的`finish( "configuration", "invalid_configuration", "请先补全并保存该连接的地址、模型和专用密钥", )`；L190的`finish( "completed", "connected", "连接成功，已收到并验证真实模型响应；本次测试不代表所有任务均可执行", )`；L197的`finish( "validation", "truncated", f"模型已响应，但超过本次测试的 {profile.max_output_tokens} token 输出上限…`。
-- `ModelConnectionTester._probe.finish`（L102–L121）：接收`phase`、`code`、`message`、`retryable`。 调用`self.settings.redact_data`、`max`、`round`、`time.monotonic`、`logger.info`。 返回路径：L121的`receipt`。
+- `ConnectionTestRequest`（L35–L40）：继承`BaseModel`。声明的数据项为`stage`、`expected_revision`、`request_id`、`confirm_cost`；类型约束/数据库列参数以完整定义为准。
+- `ProbeResponse`（L43–L45）：继承`BaseModel`。声明的数据项为`ok`；类型约束/数据库列参数以完整定义为准。
+- `ConnectionTestBusy`（L48–L49）：继承`ModelSettingsError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelConnectionTester`（L52–L258）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelConnectionTester.__init__`（L53–L56）：接收`settings`、`transport`。 调用`Lock`、`OrderedDict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelConnectionTester.test`（L58–L88）：接收`command`。 控制顺序：L61按`not self._lock.acquire(blocking=False)`分支；L62抛异常，停止当前正常路径；L66按`cached`分支；L67按`cached[0] != fingerprint`分支；L68抛异常，停止当前正常路径；L78按`configuration.revision != command.expected_revision`分支；L79抛异常，停止当前正常路径；L82抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self._lock.acquire`、`ConnectionTestBusy`、`self._results.get`、`RevisionConflict`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.settings.model_configuration`、`self._probe`等。 返回路径：L69的`cached[1]`；L86的`result`。
+- `ModelConnectionTester._probe`（L90–L258）：接收`configuration`、`stage`。 控制顺序：L125按`stage == "default"`分支；L182按`audited.error is not None`分支；L183抛异常，停止当前正常路径；L184抛异常，停止当前正常路径；L186按`response.get("parsing_error") is not None or not isinstance( response.get("parsed"), …`分支；L189抛异常，停止当前正常路径；L197按`exc.code == "truncated"`分支；L215按`not status and (diagnostic := transport_failure(exc))`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`uuid.uuid4`、`min`、`ModelProfile`、`configuration.default.model_dump`、`configuration.profile`、`profile.validate_endpoint`、`profile.model_copy`、`output_contract`等。 返回路径：L148的`finish( "configuration", "invalid_configuration", "请先补全并保存该连接的地址、模型和专用密钥", )`；L191的`finish( "completed", "connected", "连接成功，已收到并验证真实模型响应；本次测试不代表所有任务均可执行", )`；L198的`finish( "validation", "truncated", f"模型已响应，但超过本次测试的 {profile.max_output_tokens} token 输出上限…`。
+- `ModelConnectionTester._probe.finish`（L103–L122）：接收`phase`、`code`、`message`、`retryable`。 调用`self.settings.redact_data`、`max`、`round`、`time.monotonic`、`logger.info`。 返回路径：L122的`receipt`。
 
-<!-- source-file: workbench/model_connection.py sha256: 2138576ed0b0a145b3c0c6943378c1bcb2561252ba913906dd17f9d2794c14e9 -->
+<!-- source-file: workbench/model_connection.py sha256: 8bdb5d2b2dde0458a81c8475fc2475ec905b319aa1e89062a14b94fc849c39cd -->
 ````python
 """One explicit, bounded connection probe against a saved immutable model profile.
 
@@ -21669,6 +21695,7 @@ from filelock import FileLock, Timeout
 from openai import APIConnectionError, APIError, APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from workbench.model_diagnostics import transport_failure
 from workbench.model_protocol import (
     AuditedTransport,
     OutputFailure,
@@ -21864,6 +21891,8 @@ class ModelConnectionTester:
             status = getattr(exc, "status_code", None) or getattr(
                 getattr(exc, "response", None), "status_code", None
             )
+            if not status and (diagnostic := transport_failure(exc)):
+                return finish("request", *diagnostic, retryable=False)
             if status:
                 result["http_status"] = status
                 code, message, retryable = {
@@ -21874,7 +21903,7 @@ class ModelConnectionTester:
                     ),
                     403: (
                         "permission_denied",
-                        "该账号无权调用此模型；请检查模型权限和服务区域",
+                        "服务或中间网关返回 HTTP 403；请检查访问策略、模型权限和服务区域，不能仅据此判定密钥或证书无效",
                         False,
                     ),
                     404: (
@@ -21920,23 +21949,52 @@ class ModelConnectionTester:
 
 **逐个入口与控制逻辑：**
 
-- `json_syntax_category`（L34–L40）：接收`exc`。 控制顺序：L36按`category == "extra_data"`分支；L38按`tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n")`分支。 调用`JSON_SYNTAX_CATEGORIES.get`、`tail.strip`、`set(tail).difference`、`set`。 返回路径：L39的`"extra_closing_delimiters"`；L40的`category`。
-- `failure_diagnostic`（L43–L109）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L47按`code.startswith("http_") or code == "transport_error"`分支；L51按`code in {"http_401", "http_403"}`分支；L53按`code == "http_429"`分支；L55按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L59按`code in {"refusal", "content_filter"}`分支；L62按`code == "unexpected_model_error"`分支；L66按`code == "invalid_json"`分支；L69按`code == "structured_parser_disagreement"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L101的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
-- `json_diagnostics`（L112–L158）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L116按`isinstance(exc, json.JSONDecodeError)`分支；L142按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`json_syntax_category`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L130的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L145的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
-- `_schema_nodes`（L161–L192）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L181遍历`path`；L183遍历`nodes`；L184遍历`expand(node)`；L185按`isinstance(part, int)`分支；L189按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L192的`[candidate for node in nodes for candidate in expand(node)]`。
-- `_schema_nodes.expand`（L164–L178）：接收`node`、`seen`。 控制顺序：L165按`not isinstance(node, dict)`分支；L169按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L171遍历`ref[2:].split("/")`；L172按`not isinstance(target, dict)`分支；L176遍历`("anyOf", "oneOf", "allOf")`；L177遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_constraint_hint`（L195–L225）：接收`document`、`error`。 控制顺序：L203按`error["type"] not in rules or len(error["loc"]) > 20`分支；L207按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L210按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L216按`isinstance(node.get("description"), str)`分支；L223按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L204的`None`；L208的`None`；L214的`None`。
-- `schema_diagnostics`（L228–L298）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 控制顺序：L285遍历`errors`。 调用`set`、`schema.model_json_schema`、`collect`、`exc.errors`、`document.get`、`tuple`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`等。 返回路径：L287的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
-- `schema_diagnostics.collect`（L236–L243）：接收`node`。 控制顺序：L237按`isinstance(node, dict)`分支；L239遍历`node.values()`；L241按`isinstance(node, list)`分支；L242遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `schema_diagnostics.safe_message`（L277–L279）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L279的`value if value in safe_messages else "字段结构或类型不符合约定"`。
+- `transport_failure`（L11–L32）：接收`exc`。 源码说明：Classify typed causes only; never parse or expose exception/provider text.。 控制顺序：L15遍历`range(12)`；L16按`exc is None or id(exc) in seen`分支；L19按`isinstance(exc, ssl.SSLCertVerificationError)`分支；L24按`isinstance(exc, httpx.ProxyError)`分支；L27按`proxy`分支。 调用`set`、`range`、`id`、`seen.add`、`isinstance`。 返回路径：L20的`( "tls_certificate_verification_failed", "TLS 证书校验失败；请检查证书有效期、信任链及地址与证书名称是否匹配，不能关闭校验", )`；L28的`( "proxy_connection_failed", "代理连接或隧道失败；请检查代理访问策略。这不能证明目标服务证书或 API Key 无效", )`；L32的`None`。
+- `json_syntax_category`（L62–L68）：接收`exc`。 控制顺序：L64按`category == "extra_data"`分支；L66按`tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n")`分支。 调用`JSON_SYNTAX_CATEGORIES.get`、`tail.strip`、`set(tail).difference`、`set`。 返回路径：L67的`"extra_closing_delimiters"`；L68的`category`。
+- `failure_diagnostic`（L71–L137）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L75按`code.startswith("http_") or code == "transport_error"`分支；L79按`code in {"http_401", "http_403"}`分支；L81按`code == "http_429"`分支；L83按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L87按`code in {"refusal", "content_filter"}`分支；L90按`code == "unexpected_model_error"`分支；L94按`code == "invalid_json"`分支；L97按`code == "structured_parser_disagreement"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L129的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
+- `json_diagnostics`（L140–L186）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L144按`isinstance(exc, json.JSONDecodeError)`分支；L170按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`json_syntax_category`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L158的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L173的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
+- `_schema_nodes`（L189–L220）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L209遍历`path`；L211遍历`nodes`；L212遍历`expand(node)`；L213按`isinstance(part, int)`分支；L217按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L220的`[candidate for node in nodes for candidate in expand(node)]`。
+- `_schema_nodes.expand`（L192–L206）：接收`node`、`seen`。 控制顺序：L193按`not isinstance(node, dict)`分支；L197按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L199遍历`ref[2:].split("/")`；L200按`not isinstance(target, dict)`分支；L204遍历`("anyOf", "oneOf", "allOf")`；L205遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_constraint_hint`（L223–L253）：接收`document`、`error`。 控制顺序：L231按`error["type"] not in rules or len(error["loc"]) > 20`分支；L235按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L238按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L244按`isinstance(node.get("description"), str)`分支；L251按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L232的`None`；L236的`None`；L242的`None`。
+- `schema_diagnostics`（L256–L326）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 控制顺序：L313遍历`errors`。 调用`set`、`schema.model_json_schema`、`collect`、`exc.errors`、`document.get`、`tuple`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`等。 返回路径：L315的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
+- `schema_diagnostics.collect`（L264–L271）：接收`node`。 控制顺序：L265按`isinstance(node, dict)`分支；L267遍历`node.values()`；L269按`isinstance(node, list)`分支；L270遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `schema_diagnostics.safe_message`（L305–L307）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L307的`value if value in safe_messages else "字段结构或类型不符合约定"`。
 
-<!-- source-file: workbench/model_diagnostics.py sha256: f230bce9b3dd1bc75336e07c4dc87e25ba9ef0fd5756bb6ca246db6360753d7f -->
+<!-- source-file: workbench/model_diagnostics.py sha256: f5d2523b65f50f42731380d40c2a81dd1e7fcd59a901bb5fd154b14340f7485d -->
 ````python
 """Safe actionable provider failures. Never persist provider bodies or input values."""
 
 import json
+import ssl
+
+import httpx
 
 from workbench.model_protocol import JSONGuardFailure, json_lengths
+
+
+def transport_failure(exc):
+    """Classify typed causes only; never parse or expose exception/provider text."""
+    seen = set()
+    proxy = False
+    for _ in range(12):
+        if exc is None or id(exc) in seen:
+            break
+        seen.add(id(exc))
+        if isinstance(exc, ssl.SSLCertVerificationError):
+            return (
+                "tls_certificate_verification_failed",
+                "TLS 证书校验失败；请检查证书有效期、信任链及地址与证书名称是否匹配，不能关闭校验",
+            )
+        if isinstance(exc, httpx.ProxyError):
+            proxy = True
+        exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    if proxy:
+        return (
+            "proxy_connection_failed",
+            "代理连接或隧道失败；请检查代理访问策略。这不能证明目标服务证书或 API Key 无效",
+        )
+    return None
+
 
 JSON_SYNTAX_CATEGORIES = {
     "Expecting value": "expected_value",
@@ -164070,28 +164128,31 @@ def test_legacy_ready_gate_does_not_gain_scope_approval_from_delegation(
 
 **逐个入口与控制逻辑：**
 
-- `gateway`（L12–L18）：接收`store`、`handler`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L18的`ModelGateway(store.settings, store, httpx.MockTransport(handler))`。
-- `test_success_cache_and_usage`（L21–L41）：接收`store`。 控制顺序：L39断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L40断言`len(calls) == 1`；L41断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_success_cache_and_usage.handler`（L24–L34）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L26的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
-- `test_failures_not_fake_success`（L45–L49）：接收`store`、`status`。 控制顺序：L49断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_json_bounded`（L52–L62）：接收`store`。 控制顺序：L62断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L65–L101）：接收`store`。 控制顺序：L93断言`result.business is not None`；L94断言`len(requests) == 2`；L96断言`[message["role"] for message in retry] == ["system", "user", "assistant", "user"]`；L97断言`retry[-2]["role"] == "assistant"`；L98断言`json.loads(retry[-2]["content"]) == invalid`；L99断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L100断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L101断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L75–L89）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L77的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
-- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract`（L122–L178）：接收`store`、`bad`、`category`。 控制顺序：L149断言`model.complete(run, "requirement:json-repair", "instruction", payload, Requirement)`；L150断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L152断言`len(failures) == 1`；L155断言`failure["code"] == "invalid_json"`；L156断言`detail["category"] == category`；L157按`category == "expected_value"`分支；L158断言`detail["position"] == {"line": 3, "column": 11, "offset": bad.index("]")}`；L160断言`"position" not in detail`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`、`store.events`、`bad.index`、`bad.encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract.handler`（L127–L144）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`、`requirement().model_dump_json`、`requirement`。 返回路径：L129的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
-- `test_large_valid_plan_does_not_trigger_a_local_json_size_or_node_threshold`（L181–L213）：接收`store`。 控制顺序：L198断言`len(content) > 30000`；L211断言`model.complete(run, "plan:large-protocol", "instruction", {}, Plan) == expected`；L212断言`store.get_run(run)["model_calls"] == 1`；L213断言`not [event for event in store.events(run) if event["kind"] == "model_failure"]`。 调用`Plan.model_validate`、`range`、`expected.model_dump_json`、`len`、`gateway`、`httpx.Response`、`new_run`、`model.complete`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts`（L217–L299）：接收`store`、`repair_succeeds`。 控制顺序：L269按`repair_succeeds`分支；L270断言`model.complete( run, "plan:extra-data", "Preserve confirmed scope", payload, Plan ) =…`；L276断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L277断言`Plan.model_json_schema() == original_schema`；L278断言`requests[0]["messages"][0] == requests[1]["messages"][0]`；L280断言`instruction.endswith(json.dumps(original_schema, ensure_ascii=False))`；L281断言`"同一对象内的字段名只能出现一次" in instruction`；L282断言`"required 的字段" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`json.dumps`、`Plan.model_json_schema`、`gateway`、`new_run`、`model.complete`、`pytest.raises`、`len`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts.handler`（L250–L265）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`。 返回路径：L252的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code`（L303–L352）：接收`store`、`monkeypatch`、`raises`。 控制顺序：L349断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L350断言`{event["data"]["code"] for event in failures} == {"structured_parser_disagreement"}`；L351断言`all(event["data"]["diagnostic"]["phase"] == "model_execution" for event in failures)`；L352断言`"private-adapter-canary" not in json.dumps(failures)`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`store.events`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees`（L311–L325）：接收`*args`、`**kwargs`。 调用`original`、`RejectingParser`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser`（L314–L323）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L315–L323）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L317按`raises`分支；L318抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L319的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
-- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L362–L383）：接收`store`、`wire`、`category`。 控制顺序：L374断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L375遍历`failures`；L377断言`event["data"]["code"] == "invalid_json"`；L378断言`detail["category"] == category`；L379断言`detail["lengths"] == {"bytes": len(wire)}`；L380断言`"position" not in detail`；L381断言`category in requests[1]["messages"][-1]["content"]`；L382断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L365–L367）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L367的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
+- `gateway`（L13–L19）：接收`store`、`handler`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L19的`ModelGateway(store.settings, store, httpx.MockTransport(handler))`。
+- `test_success_cache_and_usage`（L22–L42）：接收`store`。 控制顺序：L40断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L41断言`len(calls) == 1`；L42断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_success_cache_and_usage.handler`（L25–L35）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L27的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
+- `test_failures_not_fake_success`（L46–L50）：接收`store`、`status`。 控制顺序：L50断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permanent_transport_diagnostics_are_redacted_and_not_retried`（L57–L77）：接收`store`、`kind`、`message`。 控制顺序：L75断言`message in str(error.value)`；L76断言`"do-not-disclose" not in str(error.value)`；L77断言`len(calls) == store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`str`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permanent_transport_diagnostics_are_redacted_and_not_retried.handler`（L60–L69）：接收`request`。 控制顺序：L62按`kind == "proxy"`分支；L63抛异常，停止当前正常路径；L65抛异常，停止当前正常路径；L67按`kind == "proxy_certificate"`分支；L68抛异常，停止当前正常路径；L69抛异常，停止当前正常路径。 调用`calls.append`、`httpx.ProxyError`、`ssl.SSLCertVerificationError`、`httpx.ConnectError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_json_bounded`（L80–L90）：接收`store`。 控制顺序：L90断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L93–L129）：接收`store`。 控制顺序：L121断言`result.business is not None`；L122断言`len(requests) == 2`；L124断言`[message["role"] for message in retry] == ["system", "user", "assistant", "user"]`；L125断言`retry[-2]["role"] == "assistant"`；L126断言`json.loads(retry[-2]["content"]) == invalid`；L127断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L128断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L129断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L103–L117）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L105的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract`（L150–L206）：接收`store`、`bad`、`category`。 控制顺序：L177断言`model.complete(run, "requirement:json-repair", "instruction", payload, Requirement)`；L178断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L180断言`len(failures) == 1`；L183断言`failure["code"] == "invalid_json"`；L184断言`detail["category"] == category`；L185按`category == "expected_value"`分支；L186断言`detail["position"] == {"line": 3, "column": 11, "offset": bad.index("]")}`；L188断言`"position" not in detail`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`、`store.events`、`bad.index`、`bad.encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract.handler`（L155–L172）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`、`requirement().model_dump_json`、`requirement`。 返回路径：L157的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
+- `test_large_valid_plan_does_not_trigger_a_local_json_size_or_node_threshold`（L209–L241）：接收`store`。 控制顺序：L226断言`len(content) > 30000`；L239断言`model.complete(run, "plan:large-protocol", "instruction", {}, Plan) == expected`；L240断言`store.get_run(run)["model_calls"] == 1`；L241断言`not [event for event in store.events(run) if event["kind"] == "model_failure"]`。 调用`Plan.model_validate`、`range`、`expected.model_dump_json`、`len`、`gateway`、`httpx.Response`、`new_run`、`model.complete`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts`（L245–L327）：接收`store`、`repair_succeeds`。 控制顺序：L297按`repair_succeeds`分支；L298断言`model.complete( run, "plan:extra-data", "Preserve confirmed scope", payload, Plan ) =…`；L304断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L305断言`Plan.model_json_schema() == original_schema`；L306断言`requests[0]["messages"][0] == requests[1]["messages"][0]`；L308断言`instruction.endswith(json.dumps(original_schema, ensure_ascii=False))`；L309断言`"同一对象内的字段名只能出现一次" in instruction`；L310断言`"required 的字段" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`json.dumps`、`Plan.model_json_schema`、`gateway`、`new_run`、`model.complete`、`pytest.raises`、`len`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts.handler`（L278–L293）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`。 返回路径：L280的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code`（L331–L380）：接收`store`、`monkeypatch`、`raises`。 控制顺序：L377断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L378断言`{event["data"]["code"] for event in failures} == {"structured_parser_disagreement"}`；L379断言`all(event["data"]["diagnostic"]["phase"] == "model_execution" for event in failures)`；L380断言`"private-adapter-canary" not in json.dumps(failures)`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`store.events`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees`（L339–L353）：接收`*args`、`**kwargs`。 调用`original`、`RejectingParser`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser`（L342–L351）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L343–L351）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L345按`raises`分支；L346抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L347的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
+- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L390–L411）：接收`store`、`wire`、`category`。 控制顺序：L402断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L403遍历`failures`；L405断言`event["data"]["code"] == "invalid_json"`；L406断言`detail["category"] == category`；L407断言`detail["lengths"] == {"bytes": len(wire)}`；L408断言`"position" not in detail`；L409断言`category in requests[1]["messages"][-1]["content"]`；L410断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L393–L395）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L395的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
 
-<!-- source-file: tests/test_llm.py sha256: 0f593e8ea7555a31f770e289dc44ccdd3d10c4727efb1e7c786babf74b0d716a -->
+<!-- source-file: tests/test_llm.py sha256: f40fd9da40a5691d51e36f1201edd181df108bb292643f093f2e621b17440129 -->
 ````python
 import json
+import ssl
 from contextlib import contextmanager
 
 import httpx
@@ -164140,6 +164201,33 @@ def test_failures_not_fake_success(store, status):
     with pytest.raises(ModelFailure) as error:
         model.complete(new_run(store), "error", "x", {}, Requirement)
     assert "do-not-disclose" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "kind,message",
+    [("proxy", "代理"), ("certificate", "TLS 证书"), ("proxy_certificate", "TLS 证书")],
+)
+def test_permanent_transport_diagnostics_are_redacted_and_not_retried(store, kind, message):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 do-not-disclose", request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, "do-not-disclose")
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError("do-not-disclose", request=request) from cause
+            raise httpx.ConnectError("do-not-disclose", request=request) from cause
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    with pytest.raises(ModelFailure) as error:
+        model.complete(run, "error", "x", {}, Requirement)
+    assert message in str(error.value)
+    assert "do-not-disclose" not in str(error.value)
+    assert len(calls) == store.get_run(run)["model_calls"] == 1
 
 
 def test_invalid_json_bounded(store):
@@ -164787,31 +164875,35 @@ def test_only_one_complete_handbook_is_generated():
 
 **逐个入口与控制逻辑：**
 
-- `configured`（L28–L42）：接收`settings`。 调用`ModelSettingsRepository`、`repository.update`。 返回路径：L42的`repository, saved`。
-- `command`（L45–L52）：接收`revision`、`stage`、`**extra`。 调用`ConnectionTestRequest`、`str`、`uuid.uuid4`。 返回路径：L46的`ConnectionTestRequest( stage=stage, expected_revision=revision, request_id=str(uuid.uuid4(…`。
-- `completion`（L55–L72）：接收`content`、`finish`。 调用`httpx.Response`。 返回路径：L56的`httpx.Response( 200, json={ "id": "test-probe", "object": "chat.completion", "created": 0,…`。
-- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data`（L75–L103）：接收`settings`、`configured`。 控制顺序：L87断言`result["ok"] and result["code"] == "connected"`；L88断言`result["phase"] == "completed" and result["attempts"] == 1`；L89断言`result["revision"] == saved["revision"] and result["stage"] == "coding"`；L90断言`result["model"] == "saved-coder"`；L91断言`result["usage"]["total_tokens"] == 17`；L92断言`len(seen) == 1`；L93断言`str(seen[0].url) == "https://provider.example/v1/chat/completions"`；L94断言`seen[0].headers["authorization"] == "Bearer " + SECRET`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`tester.test`、`command`、`len`、`str`、`json.loads`、`body.get`、`json.dumps(body).lower`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data.handle`（L81–L83）：接收`request`。 调用`seen.append`、`completion`。 返回路径：L83的`completion()`。
-- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call`（L106–L120）：接收`settings`、`configured`。 控制顺序：L119断言`result["ok"] and result["revision"] == saved["revision"]`；L120断言`repository.public()["revision"] != result["revision"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`repository.public`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call.handle`（L109–L114）：接收`request`。 控制顺序：L113断言`json.loads(request.content)["model"] == "saved-model"`。 调用`repository.update`、`json.loads`、`completion`。 返回路径：L114的`completion()`。
-- `test_http_failures_are_actionable_redacted_and_never_retried`（L134–L155）：接收`settings`、`configured`、`status`、`code`、`retryable`、`caplog`。 控制顺序：L151断言`not result["ok"] and result["code"] == code and result["phase"] == "request"`；L152断言`result["retryable"] is retryable and result["http_status"] == status`；L153断言`len(requests) == result["attempts"] == 1`；L154断言`SECRET not in json.dumps(result) + caplog.text`；L155断言`len(result["trace_id"]) == 32`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_http_failures_are_actionable_redacted_and_never_retried.handle`（L140–L146）：接收`request`。 调用`requests.append`、`httpx.Response`。 返回路径：L142的`httpx.Response( status, headers={"location": "https://unapproved.example/v1"}, json={"erro…`。
-- `test_transport_errors_do_not_echo_exception_text`（L161–L173）：接收`settings`、`configured`、`exception`、`code`。 控制顺序：L172断言`result["code"] == code and result["retryable"]`；L173断言`len(calls) == 1 and SECRET not in json.dumps(result)`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_transport_errors_do_not_echo_exception_text.handle`（L165–L167）：接收`request`。 控制顺序：L167抛异常，停止当前正常路径。 调用`calls.append`、`exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_model_output_is_not_reported_as_connected`（L185–L193）：接收`settings`、`configured`、`content`、`finish`、`code`。 控制顺序：L192断言`not result["ok"] and result["phase"] == "validation" and result["code"] == code`；L193断言`SECRET not in json.dumps(result)`。 调用`ModelConnectionTester( settings, httpx.MockTransport(lambda reque…`、`ModelConnectionTester`、`httpx.MockTransport`、`completion`、`command`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_duplicate_request_is_cached_and_stale_configuration_cannot_call`（L196–L209）：接收`settings`、`configured`。 控制顺序：L204断言`tester.test(request) == first and len(calls) == 1`；L209断言`len(calls) == 1`。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`command`、`tester.test`、`len`、`pytest.raises`、`request.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_concurrent_probe_is_blocked_before_second_model_call`（L212–L233）：接收`settings`、`configured`。 控制顺序：L225断言`started.wait(5)`；L233断言`running.result()["ok"]`。 调用`threading.Event`、`ModelConnectionTester`、`httpx.MockTransport`、`ThreadPoolExecutor`、`executor.submit`、`command`、`started.wait`、`pytest.raises`、`tester.test`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_concurrent_probe_is_blocked_before_second_model_call.handle`（L216–L219）：接收`request`。 控制顺序：L218断言`release.wait(5)`。 调用`started.set`、`release.wait`、`completion`。 返回路径：L219的`completion()`。
-- `test_missing_configuration_never_uses_network`（L236–L241）：接收`settings`。 控制顺序：L241断言`result["code"] == "invalid_configuration" and result["attempts"] == 0`。 调用`ModelConnectionTester(settings, httpx.MockTransport(unexpected)).…`、`ModelConnectionTester`、`httpx.MockTransport`、`command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_configuration_never_uses_network.unexpected`（L237–L238）：接收`request`。 控制顺序：L238抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation`（L244–L288）：接收`settings`、`configured`、`monkeypatch`。 控制顺序：L262断言`client.post("/settings/models/test", json=body).status_code == 401`；L264断言`client.post( "/settings/models/test", json=body, headers={"origin": "https://evil.exa…`；L270遍历`( {**body, "confirm_cost": False}, {**body, "stage": SECRET}, {**…`；L276断言`response.status_code == 422 and SECRET not in response.text`；L277断言`client.post( "/settings/models/test", json={**body, "expected_revision": "stale"} ).s…`；L283断言`not calls`；L285断言`response.status_code == 200 and response.json()["ok"]`；L286断言`response.headers["cache-control"] == "no-store"`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`monkeypatch.setattr`、`FastAPI`、`register_model_settings_routes`、`command(saved["revision"]).model_dump`、`command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation.auth`（L255–L257）：接收`request`。用本机Dex真实签发的JWT访问本机API创建密钥，不伪造token，也不向云身份服务注册账号。 控制顺序：L256按`request.headers.get("authorization") != "Bearer local-test-token"`分支；L257抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configured`（L29–L43）：接收`settings`。 调用`ModelSettingsRepository`、`repository.update`。 返回路径：L43的`repository, saved`。
+- `command`（L46–L53）：接收`revision`、`stage`、`**extra`。 调用`ConnectionTestRequest`、`str`、`uuid.uuid4`。 返回路径：L47的`ConnectionTestRequest( stage=stage, expected_revision=revision, request_id=str(uuid.uuid4(…`。
+- `completion`（L56–L73）：接收`content`、`finish`。 调用`httpx.Response`。 返回路径：L57的`httpx.Response( 200, json={ "id": "test-probe", "object": "chat.completion", "created": 0,…`。
+- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data`（L76–L104）：接收`settings`、`configured`。 控制顺序：L88断言`result["ok"] and result["code"] == "connected"`；L89断言`result["phase"] == "completed" and result["attempts"] == 1`；L90断言`result["revision"] == saved["revision"] and result["stage"] == "coding"`；L91断言`result["model"] == "saved-coder"`；L92断言`result["usage"]["total_tokens"] == 17`；L93断言`len(seen) == 1`；L94断言`str(seen[0].url) == "https://provider.example/v1/chat/completions"`；L95断言`seen[0].headers["authorization"] == "Bearer " + SECRET`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`tester.test`、`command`、`len`、`str`、`json.loads`、`body.get`、`json.dumps(body).lower`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data.handle`（L82–L84）：接收`request`。 调用`seen.append`、`completion`。 返回路径：L84的`completion()`。
+- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call`（L107–L121）：接收`settings`、`configured`。 控制顺序：L120断言`result["ok"] and result["revision"] == saved["revision"]`；L121断言`repository.public()["revision"] != result["revision"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`repository.public`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call.handle`（L110–L115）：接收`request`。 控制顺序：L114断言`json.loads(request.content)["model"] == "saved-model"`。 调用`repository.update`、`json.loads`、`completion`。 返回路径：L115的`completion()`。
+- `test_http_failures_are_actionable_redacted_and_never_retried`（L135–L158）：接收`settings`、`configured`、`status`、`code`、`retryable`、`caplog`。 控制顺序：L152断言`not result["ok"] and result["code"] == code and result["phase"] == "request"`；L153断言`result["retryable"] is retryable and result["http_status"] == status`；L154断言`len(requests) == result["attempts"] == 1`；L155断言`SECRET not in json.dumps(result) + caplog.text`；L156断言`len(result["trace_id"]) == 32`；L157按`status == 403`分支；L158断言`"中间网关" in result["message"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_http_failures_are_actionable_redacted_and_never_retried.handle`（L141–L147）：接收`request`。 调用`requests.append`、`httpx.Response`。 返回路径：L143的`httpx.Response( status, headers={"location": "https://unapproved.example/v1"}, json={"erro…`。
+- `test_transport_errors_do_not_echo_exception_text`（L164–L176）：接收`settings`、`configured`、`exception`、`code`。 控制顺序：L175断言`result["code"] == code and result["retryable"]`；L176断言`len(calls) == 1 and SECRET not in json.dumps(result)`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_errors_do_not_echo_exception_text.handle`（L168–L170）：接收`request`。 控制顺序：L170抛异常，停止当前正常路径。 调用`calls.append`、`exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_typed_proxy_and_certificate_failures_survive_sdk_wrapping`（L187–L209）：接收`settings`、`configured`、`kind`、`code`、`caplog`。 控制顺序：L206断言`result["code"] == code and result["retryable"] is False`；L207断言`"http_status" not in result`；L208断言`len(calls) == 1`；L209断言`SECRET not in json.dumps(result) + caplog.text`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_typed_proxy_and_certificate_failures_survive_sdk_wrapping.handle`（L192–L201）：接收`request`。 控制顺序：L194按`kind == "proxy"`分支；L195抛异常，停止当前正常路径；L197抛异常，停止当前正常路径；L199按`kind == "proxy_certificate"`分支；L200抛异常，停止当前正常路径；L201抛异常，停止当前正常路径。 调用`calls.append`、`httpx.ProxyError`、`ssl.SSLCertVerificationError`、`httpx.ConnectError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_classification_does_not_infer_from_text_or_loop`（L212–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216断言`transport_failure(error) is None`；L218断言`transport_failure(error) is None`。 调用`httpx.ConnectError`、`transport_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_model_output_is_not_reported_as_connected`（L230–L238）：接收`settings`、`configured`、`content`、`finish`、`code`。 控制顺序：L237断言`not result["ok"] and result["phase"] == "validation" and result["code"] == code`；L238断言`SECRET not in json.dumps(result)`。 调用`ModelConnectionTester( settings, httpx.MockTransport(lambda reque…`、`ModelConnectionTester`、`httpx.MockTransport`、`completion`、`command`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_duplicate_request_is_cached_and_stale_configuration_cannot_call`（L241–L254）：接收`settings`、`configured`。 控制顺序：L249断言`tester.test(request) == first and len(calls) == 1`；L254断言`len(calls) == 1`。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`command`、`tester.test`、`len`、`pytest.raises`、`request.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_concurrent_probe_is_blocked_before_second_model_call`（L257–L278）：接收`settings`、`configured`。 控制顺序：L270断言`started.wait(5)`；L278断言`running.result()["ok"]`。 调用`threading.Event`、`ModelConnectionTester`、`httpx.MockTransport`、`ThreadPoolExecutor`、`executor.submit`、`command`、`started.wait`、`pytest.raises`、`tester.test`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_concurrent_probe_is_blocked_before_second_model_call.handle`（L261–L264）：接收`request`。 控制顺序：L263断言`release.wait(5)`。 调用`started.set`、`release.wait`、`completion`。 返回路径：L264的`completion()`。
+- `test_missing_configuration_never_uses_network`（L281–L286）：接收`settings`。 控制顺序：L286断言`result["code"] == "invalid_configuration" and result["attempts"] == 0`。 调用`ModelConnectionTester(settings, httpx.MockTransport(unexpected)).…`、`ModelConnectionTester`、`httpx.MockTransport`、`command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_configuration_never_uses_network.unexpected`（L282–L283）：接收`request`。 控制顺序：L283抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation`（L289–L333）：接收`settings`、`configured`、`monkeypatch`。 控制顺序：L307断言`client.post("/settings/models/test", json=body).status_code == 401`；L309断言`client.post( "/settings/models/test", json=body, headers={"origin": "https://evil.exa…`；L315遍历`( {**body, "confirm_cost": False}, {**body, "stage": SECRET}, {**…`；L321断言`response.status_code == 422 and SECRET not in response.text`；L322断言`client.post( "/settings/models/test", json={**body, "expected_revision": "stale"} ).s…`；L328断言`not calls`；L330断言`response.status_code == 200 and response.json()["ok"]`；L331断言`response.headers["cache-control"] == "no-store"`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`monkeypatch.setattr`、`FastAPI`、`register_model_settings_routes`、`command(saved["revision"]).model_dump`、`command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation.auth`（L300–L302）：接收`request`。用本机Dex真实签发的JWT访问本机API创建密钥，不伪造token，也不向云身份服务注册账号。 控制顺序：L301按`request.headers.get("authorization") != "Bearer local-test-token"`分支；L302抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_model_connection.py sha256: 37a936277740d836603f49e430703e9e188447b7a53c761f6fa14562c98a41ff -->
+<!-- source-file: tests/test_model_connection.py sha256: 60c3624d9fa591e40d031df7f41da0571559af714bea6c65b8354548c6df2fae -->
 ````python
 """Offline connection probes: real adapter, mocked transport, no paid calls."""
 
 import json
+import ssl
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -164964,6 +165056,8 @@ def test_http_failures_are_actionable_redacted_and_never_retried(
     assert len(requests) == result["attempts"] == 1
     assert SECRET not in json.dumps(result) + caplog.text
     assert len(result["trace_id"]) == 32
+    if status == 403:
+        assert "中间网关" in result["message"]
 
 
 @pytest.mark.parametrize(
@@ -164982,6 +165076,48 @@ def test_transport_errors_do_not_echo_exception_text(settings, configured, excep
     )
     assert result["code"] == code and result["retryable"]
     assert len(calls) == 1 and SECRET not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "kind,code",
+    [
+        ("proxy", "proxy_connection_failed"),
+        ("certificate", "tls_certificate_verification_failed"),
+        ("proxy_certificate", "tls_certificate_verification_failed"),
+    ],
+)
+def test_typed_proxy_and_certificate_failures_survive_sdk_wrapping(
+    settings, configured, kind, code, caplog
+):
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 " + SECRET, request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, SECRET)
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError(SECRET, request=request) from cause
+            raise httpx.ConnectError(SECRET, request=request) from cause
+
+    result = ModelConnectionTester(settings, httpx.MockTransport(handle)).test(
+        command(configured[1]["revision"])
+    )
+    assert result["code"] == code and result["retryable"] is False
+    assert "http_status" not in result
+    assert len(calls) == 1
+    assert SECRET not in json.dumps(result) + caplog.text
+
+
+def test_transport_classification_does_not_infer_from_text_or_loop():
+    from workbench.model_diagnostics import transport_failure
+
+    error = httpx.ConnectError("certificate verify failed; CONNECT 403; " + SECRET)
+    assert transport_failure(error) is None
+    error.__cause__ = error
+    assert transport_failure(error) is None
 
 
 @pytest.mark.parametrize(
@@ -239060,7 +239196,7 @@ uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: 6c106a3a5f3affce75b1d5a3dc3f2ae2f5a7b5aeab0194e4a664290518a5a9be -->
+<!-- source-file: docs/real-model-acceptance.md sha256: 4052242e55e4364f5c2f68bfe3f02234c72498e338d95e3fb74831cfcf629e8e -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -239292,6 +239428,27 @@ uv run python -m scripts.ci_native_bundled fastapiadmin --approved-replay fastap
 `review-projection-status.json` 只记录阶段、哈希与结果，失败不补写证明值或沿用旧成功文件。
 
 真实模型验收始终重新进行推荐、设计与独立复核，不读取这个回归方案。`customer_design_diagnostics` 中明确标记未批准的候选方案只供校验器诊断，不能进入生成或执行。
+
+## 区分代理拒绝、证书失败和服务认证失败
+
+先在需要诊断的执行环境运行不带认证的严格 TLS 请求，不读取 API Key：
+
+```sh
+curl -q -sS --proto '=https' --connect-timeout 10 --max-time 20 --head --output /dev/null --write-out 'http_code=%{http_code}\nproxy_connect=%{http_connect}\nssl_verify_result=%{ssl_verify_result}\n' https://170.106.181.109:8317/v1
+```
+
+保留 stderr 和退出码一起判断；不使用 `-k`、`verify=False`、代理绕过、HTTP 回退或新增信任根。
+
+- `CONNECT tunnel failed, response 403`，通常伴随 `proxy_connect=403`、`http_code=000`：代理拒绝建立隧道，尚不能判断目标 TLS 证书或服务认证。此时 `ssl_verify_result=0` 也不能当成证书校验通过。
+- `curl: (60) SSL certificate problem`、名称/IP 不匹配、自签名或证书链无法验证：TLS 校验失败；先修复服务证书，不能关闭校验。并非所有 TLS 握手失败都属于证书问题，其余错误应按实际阶段报告。
+- Windows 的 `200 Connection established` 后跟 `curl: (60) schannel: SEC_E_UNTRUSTED_ROOT` 表示隧道已建立、随后证书链信任校验失败，与 CONNECT 403 不同。尚需检查对端证书及 issuer，才能区分服务端证书链/私有 CA 和代理提供的证书；不能仅凭此错误断定为自签名证书。
+- 严格 TLS 成功后收到 HTTP 401：HTTPS 上的服务或网关已返回认证要求；这个无认证探测并未验证 API Key 或模型可用性。HEAD 可能返回 404/405，也不等于 TLS 失败。
+
+`DefaultHttpxClient(verify=False)` 的成功只表明该客户端跳过校验后能通信，不能证明证书可信，也不能推翻其他环境收到的代理 CONNECT 拒绝。
+
+对 IP 地址入口，建议配置解析到服务器的域名，部署可信 CA 签发、包含该域名的 SAN 且未过期的证书及完整中间证书链，然后使用匹配域名的 HTTPS BASE_URL。若继续直接使用 IP，证书必须包含准确的 IP SAN；仅有域名 SAN 的证书不能用 IP 地址通过名称校验。代理访问策略仍需由其管理员独立处理，改证书不会自动解除 CONNECT 403。
+
+平台按可信异常类型及有界因果链区分 `proxy_connection_failed` 与 `tls_certificate_verification_failed`，不解析不可信错误文本、不回显原始异常；此类错误不自动重试。普通 HTTP 403 只表示服务或中间网关拒绝访问，不武断归因为模型权限。未能取得类型证据时保留通用连接诊断。连接测试及模型传输仍使用原有证书校验和网络配置；费用门禁不变。
 ````
 
 ### `docs/from-zero-checkpoints.md`

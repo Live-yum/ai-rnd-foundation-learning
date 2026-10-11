@@ -1,8 +1,36 @@
 """Safe actionable provider failures. Never persist provider bodies or input values."""
 
 import json
+import ssl
+
+import httpx
 
 from workbench.model_protocol import JSONGuardFailure, json_lengths
+
+
+def transport_failure(exc):
+    """Classify typed causes only; never parse or expose exception/provider text."""
+    seen = set()
+    proxy = False
+    for _ in range(12):
+        if exc is None or id(exc) in seen:
+            break
+        seen.add(id(exc))
+        if isinstance(exc, ssl.SSLCertVerificationError):
+            return (
+                "tls_certificate_verification_failed",
+                "TLS 证书校验失败；请检查证书有效期、信任链及地址与证书名称是否匹配，不能关闭校验",
+            )
+        if isinstance(exc, httpx.ProxyError):
+            proxy = True
+        exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    if proxy:
+        return (
+            "proxy_connection_failed",
+            "代理连接或隧道失败；请检查代理访问策略。这不能证明目标服务证书或 API Key 无效",
+        )
+    return None
+
 
 JSON_SYNTAX_CATEGORIES = {
     "Expecting value": "expected_value",
