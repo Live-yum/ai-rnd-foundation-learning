@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L102。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L138。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9175`。本段原文以LF换行结束。
+本段原始字节数：`14566`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "cf51a15ce46e9d74ba2ac5b7d14c6ace97c09469bdce8ef74517800aebbc5815"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -119,4 +119,40 @@ uv run python -m scripts.build_learning_docs --check
 ```
 
 `test_sla_vertical.py` 的代码是审核过的 authored fixture：基础客户工单产品保留，两个模块通过真实 Python3.12 Worker 和 mock 模型/文件环境编辑，解包到新目录启动，独立 API 检查认证、用户隔离、逾期排除和重启持久化。设置 `PRODUCT_VERIFY_PLAYWRIGHT` 时增加实际 Chromium 页面断言。它不产生真实 Daytona 或真实模型证明。
+
+## 手动真实模块验收：第一段交付
+
+现有 [Manual real-model customer acceptance](https://github.com/Live-yum/ai-rnd-foundation-learning/actions/workflows/real-model.yml) 增加 `scenario=mini-swe-sla`。这是一个可执行的、范围固定的真实执行器验收配置，尚未运行真实模型；不是穷尽所有业务或所有执行器组合的验收声明。既有四路由保持不变。
+
+| 模板 / 数据库 | 实现方式与当前入口 | 明确边界 |
+| --- | --- | --- |
+| python-basic / SQLite | native/declarative 确定性生成；`template-project-acceptance.yml` 三个真实模型规划场景 | 既有入口不覆盖模块执行器；不是三种模板 |
+| python-basic / SQLite | module 的 `bounded_edit`，既有受控编辑和独立隔离验收 | 本轮未增加此执行器的付费完整场景 |
+| python-basic / SQLite | module 的 `mini_swe`；本轮 `mini-swe-sla` | 两个审核固定的 SLA 模块，真实实现代码必须来自模型，不提供 authored 实现回退 |
+| python-basic / PostgreSQL | 既有模板生成及独立运行矩阵 | 当前自定义模块准入只登记 Python/SQLite，不能借此声称 PostgreSQL mini-SWE 已支持 |
+| FastapiAdmin / PostgreSQL | native/declarative 及既有原生工具路径；module 执行 profile 已登记 | 尚无本轮 mini-SWE 完整业务场景；模块 ZIP 原子消费者契约仅支持 Python/SQLite |
+| Yudao / PostgreSQL | 既有 native/declarative 和原生工具验收 | 当前自定义模块执行准入未登记该 profile，不能自动切为 Python 或放开 Agent |
+| 其他组合 / blocked | 继续按既有能力判定拒绝或暂停 | 不把 blocked 自动升级为 module |
+
+新场景复用审核的 SLA **合同**和基础模板生成器，不调用 fixture 的 authored 实现函数。执行顺序是：无密钥 preflight → 同一 Job 的真实浏览器/Daytona 隔离正反例 → 两个真实 mini-SWE 模块（Python3.12 Worker、Daytona 文件通道）→ 每模块独立精确源码验收及晋升 → 重开版本账本、幂等重放晋升且不增加模型调用 → ZIP 解包新目录 → 新的隔离沙箱内使用受信任 `start.py` 冷启动、浏览器/API、数据库保留重启 → 聚合证据及消费者契约检查。新增断言覆盖未认证访问拒绝、其他用户数据隔离、已解决/未来工单排除和基础客户接口保留；生成代码始终不在控制器宿主执行。
+
+恢复证据只覆盖版本账本重新打开和晋升幂等性；**不声称完成 LangGraph/Gate 全流程崩溃恢复**。需求规划、OpenSpec 文档生成及审批在此场景使用审核固定合同，不能视为真实模型规划验收；原生模板 mini-SWE 场景、旧数据库迁移、任意依赖变更及 M6 剩余拆分仍未完成。
+
+### 手动入口和参数
+
+在上述 Actions 页面选择 `feat/modular-production-v2` 分支，输入：
+
+- `scenario`: `mini-swe-sla`（默认仍为 `legacy`，不会意外开启新付费场景）。
+- `reviewed_sha`: 本次已审核分支的完整40位 SHA；必须与实际 checkout 完全一致。
+- `max_cost_usd`: 本次单次手动运行的授权总上限，`0 < 值 <= 10`；默认 `0` 失败关闭。
+- `usd_per_million_tokens`: 运营方核实的输入或输出 token 每百万美元费用的保守最大值，`0 < 值 <= 10000`；默认 `0` 失败关闭，脚本不会猜价格。
+- `remaining_budget_cny`: 保留默认 `0`，仅属旧修复场景，不约束本场景。
+
+Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` 必须非空。只有通过 preflight、真实隔离准入后最后一个执行步骤获得 `secrets.API_KEY`。不新增环境、权限或不安全 HTTP 例外。若 Actions 页面仍显示默认分支的旧输入表单，可由操作者使用 `gh workflow run real-model.yml --ref feat/modular-production-v2` 并传入以上 `-f` 参数；先确认准确 SHA 和费用配置。这里不自动 dispatch，不通过加标签触发。
+
+固定限制：两个模块，每模块最多8步；网关含修复尝试总共最多32次模型请求；每次输出上限8192 tokens；每模块预留总 token 上限2,000,000，总计4,000,000；每模块最多180秒；整个 Job 最多90分钟。总美元上限均分为两个不可借用的模块预算；每轮按最多两次网关尝试预留 `2 × (4 × 40000 + 8192)` tokens 及对应费用。配置必须至少容纳每模块 edit+submit 两轮，否则在持有模型密钥前拒绝。实际账单以服务方为准，保守价格必须覆盖所有计费 token 类别；多个新手动 dispatch 不共享累计预算，每次需重新授权。GitHub 的 Re-run（attempt > 1）不会执行此付费 Job。
+
+仅上传 `reports/live-modules/summary.json` 白名单摘要，含精确 head、预算、源码/合同摘要及已检查的验收布尔项；不上传模型输入输出、产品代码、平台数据库或凭据。preflight 成功的报告明确 `passed=false`、`real_model_acceptance=false`，不能误当真实通过。最终必须同时检查 Job 成功及报告的真实验收标志。
+
+离线验证：`uv run pytest -q tests/test_ci_live_modules.py`；正常 Python acceptance 的 production-v2 Job 同时执行这些契约测试。离线单测使用显式 mock 检查拒绝、预算、步骤顺序和晋升条件，绝不代表此新增完整真实路径已经通过。
 ````

@@ -72,6 +72,7 @@
 - [scripts/ci_guided_browser.py](sources/scripts__ci_guided_browser_py--001.md)：工作台到资讯产品的浏览器验收协调；1 段
 - [scripts/ci_handbook.py](sources/scripts__ci_handbook_py--001.md)：证明一本书足够重建平台；1 段
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_live_modules.py](sources/scripts__ci_live_modules_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_model_feedback.py](sources/scripts__ci_model_feedback_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_security.py](sources/scripts__ci_native_capability_security_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_source.py](sources/scripts__ci_native_capability_source_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -141,6 +142,7 @@
 - [tests/test_capability_startup_paths.py](sources/tests__test_capability_startup_paths_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_startup_session.py](sources/tests__test_capability_startup_session_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段
+- [tests/test_ci_live_modules.py](sources/tests__test_ci_live_modules_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_full_source.py](sources/tests__test_ci_native_capability_full_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_source.py](sources/tests__test_ci_native_capability_source_py--001.md)：可重复的验收用例；1 段

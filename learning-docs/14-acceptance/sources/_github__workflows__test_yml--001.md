@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L441。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17410`。本段原文以LF换行结束。
+本段原始字节数：`17440`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a036dfbbe1837b830c3a21a117b9ee10bb4ee9cdca057b5c7324b28dfd263c5f"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "45c82add3a9ac6e001bf23809883cad263250c211553bab07147f37035ffe923"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -407,7 +407,7 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
-        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py --junitxml=reports/production-v2.xml
+        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py --junitxml=reports/production-v2.xml
       - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
       - uses: actions/upload-artifact@v4
         if: always()

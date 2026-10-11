@@ -4561,8 +4561,8 @@
     },
     {
       "path": ".github/workflows/real-model.yml",
-      "bytes": 6559,
-      "sha256": "1b4fefea4a7d275641e7f7b83b0fa8c10e58424c307627616c8798d178e5fccc",
+      "bytes": 11848,
+      "sha256": "bbfd3d2b23e37bfa481d487e465d26835d8eeef4778aa7f0b628b6c3e9eea30a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__real-model_yml--001.md"
@@ -4579,8 +4579,8 @@
     },
     {
       "path": ".github/workflows/test.yml",
-      "bytes": 17410,
-      "sha256": "a036dfbbe1837b830c3a21a117b9ee10bb4ee9cdca057b5c7324b28dfd263c5f",
+      "bytes": 17440,
+      "sha256": "45c82add3a9ac6e001bf23809883cad263250c211553bab07147f37035ffe923",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__test_yml--001.md"
@@ -4786,8 +4786,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 9175,
-      "sha256": "ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548",
+      "bytes": 14566,
+      "sha256": "cf51a15ce46e9d74ba2ac5b7d14c6ace97c09469bdce8ef74517800aebbc5815",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5088,6 +5088,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_learning_docs_py--001.md"
+      ]
+    },
+    {
+      "path": "scripts/ci_live_modules.py",
+      "bytes": 12693,
+      "sha256": "39d31f5a7a94daccf58bd8750e4ded774bdb36becbdaf94467912aa875765616",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
       ]
     },
     {
@@ -5714,6 +5723,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_ci_live_modules.py",
+      "bytes": 9422,
+      "sha256": "4f9bf20305c0ebca62a07e07627bda0e2e3983f921ddea256e154acebdb502ab",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_ci_live_modules_py--001.md"
       ]
     },
     {

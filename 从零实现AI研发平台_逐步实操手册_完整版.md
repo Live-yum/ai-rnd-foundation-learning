@@ -101,6 +101,42 @@ uv run python -m scripts.build_learning_docs --check
 
 `test_sla_vertical.py` 的代码是审核过的 authored fixture：基础客户工单产品保留，两个模块通过真实 Python3.12 Worker 和 mock 模型/文件环境编辑，解包到新目录启动，独立 API 检查认证、用户隔离、逾期排除和重启持久化。设置 `PRODUCT_VERIFY_PLAYWRIGHT` 时增加实际 Chromium 页面断言。它不产生真实 Daytona 或真实模型证明。
 
+## 手动真实模块验收：第一段交付
+
+现有 [Manual real-model customer acceptance](https://github.com/Live-yum/ai-rnd-foundation-learning/actions/workflows/real-model.yml) 增加 `scenario=mini-swe-sla`。这是一个可执行的、范围固定的真实执行器验收配置，尚未运行真实模型；不是穷尽所有业务或所有执行器组合的验收声明。既有四路由保持不变。
+
+| 模板 / 数据库 | 实现方式与当前入口 | 明确边界 |
+| --- | --- | --- |
+| python-basic / SQLite | native/declarative 确定性生成；`template-project-acceptance.yml` 三个真实模型规划场景 | 既有入口不覆盖模块执行器；不是三种模板 |
+| python-basic / SQLite | module 的 `bounded_edit`，既有受控编辑和独立隔离验收 | 本轮未增加此执行器的付费完整场景 |
+| python-basic / SQLite | module 的 `mini_swe`；本轮 `mini-swe-sla` | 两个审核固定的 SLA 模块，真实实现代码必须来自模型，不提供 authored 实现回退 |
+| python-basic / PostgreSQL | 既有模板生成及独立运行矩阵 | 当前自定义模块准入只登记 Python/SQLite，不能借此声称 PostgreSQL mini-SWE 已支持 |
+| FastapiAdmin / PostgreSQL | native/declarative 及既有原生工具路径；module 执行 profile 已登记 | 尚无本轮 mini-SWE 完整业务场景；模块 ZIP 原子消费者契约仅支持 Python/SQLite |
+| Yudao / PostgreSQL | 既有 native/declarative 和原生工具验收 | 当前自定义模块执行准入未登记该 profile，不能自动切为 Python 或放开 Agent |
+| 其他组合 / blocked | 继续按既有能力判定拒绝或暂停 | 不把 blocked 自动升级为 module |
+
+新场景复用审核的 SLA **合同**和基础模板生成器，不调用 fixture 的 authored 实现函数。执行顺序是：无密钥 preflight → 同一 Job 的真实浏览器/Daytona 隔离正反例 → 两个真实 mini-SWE 模块（Python3.12 Worker、Daytona 文件通道）→ 每模块独立精确源码验收及晋升 → 重开版本账本、幂等重放晋升且不增加模型调用 → ZIP 解包新目录 → 新的隔离沙箱内使用受信任 `start.py` 冷启动、浏览器/API、数据库保留重启 → 聚合证据及消费者契约检查。新增断言覆盖未认证访问拒绝、其他用户数据隔离、已解决/未来工单排除和基础客户接口保留；生成代码始终不在控制器宿主执行。
+
+恢复证据只覆盖版本账本重新打开和晋升幂等性；**不声称完成 LangGraph/Gate 全流程崩溃恢复**。需求规划、OpenSpec 文档生成及审批在此场景使用审核固定合同，不能视为真实模型规划验收；原生模板 mini-SWE 场景、旧数据库迁移、任意依赖变更及 M6 剩余拆分仍未完成。
+
+### 手动入口和参数
+
+在上述 Actions 页面选择 `feat/modular-production-v2` 分支，输入：
+
+- `scenario`: `mini-swe-sla`（默认仍为 `legacy`，不会意外开启新付费场景）。
+- `reviewed_sha`: 本次已审核分支的完整40位 SHA；必须与实际 checkout 完全一致。
+- `max_cost_usd`: 本次单次手动运行的授权总上限，`0 < 值 <= 10`；默认 `0` 失败关闭。
+- `usd_per_million_tokens`: 运营方核实的输入或输出 token 每百万美元费用的保守最大值，`0 < 值 <= 10000`；默认 `0` 失败关闭，脚本不会猜价格。
+- `remaining_budget_cny`: 保留默认 `0`，仅属旧修复场景，不约束本场景。
+
+Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` 必须非空。只有通过 preflight、真实隔离准入后最后一个执行步骤获得 `secrets.API_KEY`。不新增环境、权限或不安全 HTTP 例外。若 Actions 页面仍显示默认分支的旧输入表单，可由操作者使用 `gh workflow run real-model.yml --ref feat/modular-production-v2` 并传入以上 `-f` 参数；先确认准确 SHA 和费用配置。这里不自动 dispatch，不通过加标签触发。
+
+固定限制：两个模块，每模块最多8步；网关含修复尝试总共最多32次模型请求；每次输出上限8192 tokens；每模块预留总 token 上限2,000,000，总计4,000,000；每模块最多180秒；整个 Job 最多90分钟。总美元上限均分为两个不可借用的模块预算；每轮按最多两次网关尝试预留 `2 × (4 × 40000 + 8192)` tokens 及对应费用。配置必须至少容纳每模块 edit+submit 两轮，否则在持有模型密钥前拒绝。实际账单以服务方为准，保守价格必须覆盖所有计费 token 类别；多个新手动 dispatch 不共享累计预算，每次需重新授权。GitHub 的 Re-run（attempt > 1）不会执行此付费 Job。
+
+仅上传 `reports/live-modules/summary.json` 白名单摘要，含精确 head、预算、源码/合同摘要及已检查的验收布尔项；不上传模型输入输出、产品代码、平台数据库或凭据。preflight 成功的报告明确 `passed=false`、`real_model_acceptance=false`，不能误当真实通过。最终必须同时检查 Job 成功及报告的真实验收标志。
+
+离线验证：`uv run pytest -q tests/test_ci_live_modules.py`；正常 Python acceptance 的 production-v2 Job 同时执行这些契约测试。离线单测使用显式 mock 检查拒绝、预算、步骤顺序和晋升条件，绝不代表此新增完整真实路径已经通过。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -143174,6 +143210,255 @@ def test_workflow_has_independent_complete_gates_and_always_run_fail_closed_aggr
     assert "--count 4" in text and "--index ${{ matrix.shard }}" in text
 ````
 
+### `tests/test_ci_live_modules.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.sla_fixture`、`workbench.core.contracts`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `dispatch`（L14–L27）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L15的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": live.REPOSITORY, "GITHUB_EVENT_NAME": "wo…`。
+- `test_preflight_rejects_unreviewed_or_unbounded_dispatch`（L51–L53）：接收`key`、`value`。 调用`pytest.raises`、`live.configuration`、`dispatch`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_preflight_needs_no_key_and_cannot_report_real_acceptance`（L56–L67）：接收`tmp_path`、`monkeypatch`。 控制顺序：L57遍历`dispatch().items()`；L65断言`summary["configuration_valid"] is True`；L66断言`summary["passed"] is summary["real_model_acceptance"] is False`；L67断言`summary["limits"]["max_model_calls"] == 32`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.delenv`、`monkeypatch.setattr`、`pytest.fail`、`live.main`、`json.loads`、`live.REPORT.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_profile_pins_https_costs_and_coding_stage`（L70–L81）：接收`tmp_path`、`monkeypatch`。 控制顺序：L74断言`settings.allow_insecure_model_http is False`；L75断言`settings.mini_swe_enabled is True`；L76断言`settings.mini_swe_max_cost_usd * 2 == 5`；L77断言`settings.mini_swe_usd_per_million_tokens == 1`；L78断言`settings.max_model_calls == 32`；L80断言`profile.base_url == env["BASE_URL"]`；L81断言`profile.max_output_tokens == 8192`。 调用`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`settings.model_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_receipt_never_publishes_raw_provider_error`（L84–L99）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85遍历`dispatch().items()`；L98断言`"secret-and-untrusted" not in raw`；L99断言`json.loads(raw)["real_model_acceptance"] is False`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`live.REPORT.read_text`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_receipt_never_publishes_raw_provider_error.reject`（L91–L92）：接收`*args`。 控制顺序：L92抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reviewed_scenarios_and_consumer_preserve_isolation`（L102–L119）：接收`tmp_path`。 控制顺序：L109断言`len(plan.tasks) == 2`；L110断言`all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)`；L111断言`plan.selection.template == "python-basic" and plan.selection.database == "sqlite"`；L112遍历`plan.scenarios`；L113断言`any(s.status == 401 for s in scenario.steps)`；L114断言`any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)`；L115断言`any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)`；L116断言`any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)`。后续分支沿下方源码相同行号继续阅读。 调用`live.acceptance_design`、`len`、`all`、`any`、`s.body.get`、`s.body.get("due_at", "").startswith`、`s.equals.get`、`generate_basic`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker`（L122–L134）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`live.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker.reject`（L129–L130）：接收`*args`。 控制顺序：L130抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip`（L138–L201）：接收`settings`、`tmp_path`、`monkeypatch`、`reject_proof`。 控制顺序：L187按`reject_proof`分支；L190断言`json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0`；L191断言`not (tmp_path / "delivery.zip").exists()`；L194断言`result["real_model_calls"] == 2`；L195断言`seen == [ ("sla-api-candidate", False), ("sla-dashboard-candidate", False), ("fresh-c…`；L200断言`consumers == ["fresh-consumer"]`；L201断言`result["full_workflow_crash_recovery"] is False`。 调用`monkeypatch.setattr`、`consumers.append`、`pytest.raises`、`live.execute`、`json.loads`、`(tmp_path / "ledger/current.json").read_text`、`(tmp_path / "delivery.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_agent`（L152–L164）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`。 调用`gateway.store.reserve_model_call`、`authored_files`、`(product / "app.py").read_text`、`write_json`、`CapabilityEdits`、`manifest(product).get`、`manifest`、`sources.items`。 返回路径：L158的`CapabilityEdits( explanation="explicit offline fixture", files=[ {"path": name, "before_sh…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_verify`（L166–L173）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 调用`seen.append`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L168的`{ "passed": not reject_proof, "cleanup": "deleted", "plan_digest": digest(plan.model_dump(…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L175–L178）：接收`proof`、`**kwargs`。 控制顺序：L177按`not proof["passed"]`分支；L178抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_only_exposes_key_after_preflight_and_real_security`（L204–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L207断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L208断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L214断言`preflight < security < paid`；L215断言`"API_KEY" not in job["env"]`；L216断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L217断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L218断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_ci_live_modules.py sha256: 4f9bf20305c0ebca62a07e07627bda0e2e3983f921ddea256e154acebdb502ab -->
+````python
+"""Offline contracts only: no paid models, Docker, Daytona or live evidence."""
+
+import json
+
+import pytest
+import yaml
+
+from scripts import ci_live_modules as live
+from scripts.sla_fixture import authored_files
+from workbench.core.contracts import digest
+from workbench.filesystem import manifest, write_json
+
+
+def dispatch():
+    return {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": live.REPOSITORY,
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "REVIEWED_SHA": "a" * 40,
+        "LIVE_SCENARIO": live.SCENARIO,
+        "BASE_URL": "https://model.invalid/v1",
+        "MODE": "offline-contract",
+        "LIVE_MAX_COST_USD": "5",
+        "LIVE_USD_PER_MILLION_TOKENS": "1",
+    }
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("GITHUB_REPOSITORY", "other/repo"),
+        ("GITHUB_EVENT_NAME", "pull_request"),
+        ("GITHUB_RUN_ATTEMPT", "2"),
+        ("REVIEWED_SHA", "b" * 40),
+        ("LIVE_SCENARIO", "yudao-mini-swe"),
+        ("BASE_URL", "http://model.invalid/v1"),
+        ("BASE_URL", "https://user:password@model.invalid/v1"),
+        ("BASE_URL", "https://model.invalid/v1?key=bad"),
+        ("LIVE_MAX_COST_USD", "0"),
+        ("LIVE_MAX_COST_USD", "11"),
+        ("LIVE_MAX_COST_USD", "NaN"),
+        ("LIVE_MAX_COST_USD", "Infinity"),
+        ("LIVE_MAX_COST_USD", "0.0001"),
+        ("LIVE_USD_PER_MILLION_TOKENS", "0"),
+        ("LIVE_USD_PER_MILLION_TOKENS", "garbage"),
+        ("MODE", ""),
+    ],
+)
+def test_preflight_rejects_unreviewed_or_unbounded_dispatch(key, value):
+    with pytest.raises(ValueError):
+        live.configuration({**dispatch(), key: value})
+
+
+def test_preflight_needs_no_key_and_cannot_report_real_acceptance(tmp_path, monkeypatch):
+    for key, value in dispatch().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.setattr(live, "REPORT", tmp_path / "summary.json")
+    monkeypatch.setattr("sys.argv", ["ci_live_modules", "--preflight"])
+    monkeypatch.setattr(live, "execute", lambda *a: pytest.fail("preflight called executor"))
+    live.main()
+    summary = json.loads(live.REPORT.read_text())
+    assert summary["configuration_valid"] is True
+    assert summary["passed"] is summary["real_model_acceptance"] is False
+    assert summary["limits"]["max_model_calls"] == 32
+
+
+def test_live_profile_pins_https_costs_and_coding_stage(tmp_path, monkeypatch):
+    monkeypatch.setattr("scripts.daytona_capability_profile.HOME", tmp_path / "local-profile")
+    env = {**dispatch(), "API_KEY": "offline-fixture-only"}
+    settings = live.live_settings(env, live.configuration(env), tmp_path)
+    assert settings.allow_insecure_model_http is False
+    assert settings.mini_swe_enabled is True
+    assert settings.mini_swe_max_cost_usd * 2 == 5
+    assert settings.mini_swe_usd_per_million_tokens == 1
+    assert settings.max_model_calls == 32
+    profile = settings.model_for("coding")
+    assert profile.base_url == env["BASE_URL"]
+    assert profile.max_output_tokens == 8192
+
+
+def test_failure_receipt_never_publishes_raw_provider_error(tmp_path, monkeypatch):
+    for key, value in dispatch().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(live, "REPORT", tmp_path / "summary.json")
+    monkeypatch.setattr("sys.argv", ["ci_live_modules"])
+    monkeypatch.setattr(live, "live_settings", lambda *a: None)
+
+    def reject(*args):
+        raise RuntimeError("secret-and-untrusted-provider-text")
+
+    monkeypatch.setattr(live, "execute", reject)
+    with pytest.raises(SystemExit):
+        live.main()
+    raw = live.REPORT.read_text()
+    assert "secret-and-untrusted" not in raw
+    assert json.loads(raw)["real_model_acceptance"] is False
+
+
+def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):
+    from workbench.capability_consumer import prepare_consumer
+    from workbench.capability_dependencies import readonly_start_command
+    from workbench.generator import generate_basic
+
+    selected = live.acceptance_design()
+    plan = selected.implementation
+    assert len(plan.tasks) == 2
+    assert all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)
+    assert plan.selection.template == "python-basic" and plan.selection.database == "sqlite"
+    for scenario in plan.scenarios:
+        assert any(s.status == 401 for s in scenario.steps)
+        assert any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)
+        assert any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)
+        assert any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)
+    generate_basic(selected.baseline, tmp_path / "product", plan.selection.model_dump())
+    prepare_consumer(tmp_path / "product", plan)
+    assert readonly_start_command(plan).argv[3] == "app:app"
+
+
+def test_missing_isolation_stops_before_any_model_or_worker(settings, tmp_path, monkeypatch):
+    import workbench.capability_execution as admission
+    import workbench.coding.mini_swe as controller
+
+    monkeypatch.setattr(controller, "worker_python", lambda: live.ROOT / "pyproject.toml")
+    monkeypatch.setattr(controller, "run_agent", lambda *a: pytest.fail("agent started"))
+
+    def reject(*args):
+        raise ValueError("missing same-job security proof")
+
+    monkeypatch.setattr(admission, "capability_execution_prerequisites", reject)
+    with pytest.raises(ValueError, match="same-job"):
+        live.execute(settings, tmp_path)
+
+
+@pytest.mark.parametrize("reject_proof", [False, True])
+def test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip(
+    settings, tmp_path, monkeypatch, reject_proof
+):
+    import workbench.capability_consumer as consumer
+    import workbench.capability_execution as admission
+    import workbench.capability_sandbox as verifier
+    import workbench.coding.mini_swe as controller
+    import workbench.production.candidates as ledger
+    from workbench.planning.contracts import CapabilityEdits
+
+    monkeypatch.setattr(controller, "worker_python", lambda: live.ROOT / "pyproject.toml")
+    monkeypatch.setattr(admission, "capability_execution_prerequisites", lambda *a: None)
+    seen = []
+
+    def mock_agent(settings, gateway, run_id, task, plan, product, workspace, context):
+        gateway.store.reserve_model_call(run_id)
+        sources = authored_files(task, (product / "app.py").read_text())
+        write_json(
+            workspace / "agent-budget.json", {"tokens_reserved": 1, "cost_reserved_usd": 0.1}
+        )
+        return CapabilityEdits(
+            explanation="explicit offline fixture",
+            files=[
+                {"path": name, "before_sha256": manifest(product).get(name), "content": content}
+                for name, content in sources.items()
+            ],
+        )
+
+    def mock_verify(product, plan, scenarios, settings, *, aggregate, selection):
+        seen.append((product.name, aggregate))
+        return {
+            "passed": not reject_proof,
+            "cleanup": "deleted",
+            "plan_digest": digest(plan.model_dump()),
+            "source_digest": digest(manifest(product)),
+        }
+
+    def mock_require(proof, **kwargs):
+        # Testing sequencing only; never substitutes for real require_evidence in the CLI.
+        if not proof["passed"]:
+            raise ValueError("independent rejection")
+
+    monkeypatch.setattr(controller, "run_agent", mock_agent)
+    monkeypatch.setattr(verifier, "verify_capabilities", mock_verify)
+    monkeypatch.setattr(ledger, "require_evidence", mock_require)
+    consumers = []
+    monkeypatch.setattr(
+        consumer, "require_consumer_evidence", lambda *a: consumers.append(a[0].name)
+    )
+    if reject_proof:
+        with pytest.raises(ValueError, match="independent rejection"):
+            live.execute(settings, tmp_path)
+        assert json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0
+        assert not (tmp_path / "delivery.zip").exists()
+    else:
+        result = live.execute(settings, tmp_path)
+        assert result["real_model_calls"] == 2  # Simulated Store reservations, NOT real calls.
+        assert seen == [
+            ("sla-api-candidate", False),
+            ("sla-dashboard-candidate", False),
+            ("fresh-consumer", True),
+        ]
+        assert consumers == ["fresh-consumer"]
+        assert result["full_workflow_crash_recovery"] is False
+
+
+def test_workflow_only_exposes_key_after_preflight_and_real_security():
+    workflow = yaml.safe_load((live.ROOT / ".github/workflows/real-model.yml").read_text())
+    job = workflow["jobs"]["mini-swe-sla"]
+    assert job["environment"] == "rnd" and job["timeout-minutes"] == 90
+    assert "workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]
+    steps = job["steps"]
+    commands = [s.get("run", "") for s in steps]
+    preflight = commands.index("uv run python -m scripts.ci_live_modules --preflight")
+    security = commands.index("uv run python -m scripts.ci_capability_security")
+    paid = commands.index("uv run python -m scripts.ci_live_modules")
+    assert preflight < security < paid
+    assert "API_KEY" not in job["env"]
+    assert [i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]
+    assert "ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)
+    assert workflow["permissions"] == {"contents": "read"}
+````
+
 ### `tests/test_ci_native_capability_full_source.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -198684,6 +198969,342 @@ if __name__ == "__main__":
     main(prepare_artifact=args.prepare_artifact.resolve() if args.prepare_artifact else None)
 ````
 
+### `scripts/ci_live_modules.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_live_modules；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.sla_fixture`、`workbench.filesystem`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `require`（L31–L33）：接收`condition`、`code`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L36–L82）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L70抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L71的`{ "head_sha": head, "scenario": SCENARIO, "max_cost_usd": float(cost), "usd_per_million_to…`。
+- `acceptance_design`（L85–L127）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L92遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L127的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L130–L163）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L139的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L166–L281）：接收`settings`、`directory`。 控制顺序：L206遍历`plan.tasks`。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L266的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L284–L309）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L297按`not args.preflight`分支；L307抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`execute`、`live_settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/ci_live_modules.py sha256: 39d31f5a7a94daccf58bd8750e4ded774bdb36becbdaf94467912aa875765616 -->
+````python
+"""Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
+
+This is not live requirement planning or full LangGraph/Gate crash recovery.
+No authored implementation, mock transport or local execution fallback is used.
+"""
+
+import argparse
+import json
+import os
+import re
+import tempfile
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from scripts.sla_fixture import design
+from workbench.filesystem import manifest, pack_source, unpack, write_json
+from workbench.planning.feature_planner import FeatureDesign
+from workbench.settings import ROOT
+
+REPOSITORY = "Live-yum/ai-rnd-foundation-learning"
+SCENARIO = "mini-swe-sla"
+OUTPUT_TOKENS = 8192
+CONTEXT_CHARS = 40000
+STEPS_PER_TASK = 8
+TOKENS_PER_TASK = 2_000_000
+MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
+REPORT = ROOT / "reports/live-modules/summary.json"
+
+
+def require(condition, code):
+    if not condition:
+        raise ValueError(code)
+
+
+def configuration(env):
+    """No secret access or network: validate the dispatch and conservative ceiling."""
+    head = env.get("GITHUB_SHA", "")
+    require(
+        env.get("GITHUB_ACTIONS") == "true"
+        and env.get("GITHUB_REPOSITORY") == REPOSITORY
+        and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and env.get("GITHUB_RUN_ATTEMPT") == "1"
+        and re.fullmatch(r"[a-f0-9]{40}", head)
+        and env.get("REVIEWED_SHA") == head
+        and env.get("LIVE_SCENARIO") == SCENARIO,
+        "reviewed_first_manual_dispatch_required",
+    )
+    endpoint = env.get("BASE_URL", "").strip().rstrip("/")
+    url = urlsplit(endpoint)
+    require(
+        url.scheme == "https"
+        and url.hostname
+        and not url.username
+        and not url.password
+        and not url.query
+        and not url.fragment,
+        "https_endpoint_required",
+    )
+    require(bool(env.get("MODE", "").strip()), "model_required")
+    try:
+        cost = Decimal(env.get("LIVE_MAX_COST_USD", "0"))
+        price = Decimal(env.get("LIVE_USD_PER_MILLION_TOKENS", "0"))
+        require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
+        require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
+        # Each module needs at least an edit and a submit. Reserve both gateway attempts.
+        minimum = Decimal(2 * 2 * (4 * CONTEXT_CHARS + OUTPUT_TOKENS)) * price / 1_000_000
+        require(cost / 2 >= minimum, "budget_cannot_cover_two_turns_per_module")
+    except InvalidOperation:
+        raise ValueError("invalid_cost_configuration") from None
+    return {
+        "head_sha": head,
+        "scenario": SCENARIO,
+        "max_cost_usd": float(cost),
+        "usd_per_million_tokens": float(price),
+        "max_model_calls": MODEL_CALLS,
+        "max_output_tokens": OUTPUT_TOKENS,
+        "max_steps_per_module": STEPS_PER_TASK,
+        "max_tokens_total": TOKENS_PER_TASK * 2,
+        "max_seconds_per_module": 180,
+        "job_timeout_minutes": 90,
+    }
+
+
+def acceptance_design():
+    """Keep trusted assertions outside model control, strengthen isolation and restart."""
+    data = design().model_dump()
+    data["implementation"]["runtime"]["prepare"] = [
+        {"argv": ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.14"]}
+    ]
+    scenarios = data["implementation"]["scenarios"]
+    for scenario in scenarios:
+        steps = scenario["steps"]
+        create = next(step for step in steps if step["path"] == "/api/tickets")
+        position = steps.index(create) + 1
+        variants = [
+            {**create, "body": {**create["body"], "status": "resolved"}},
+            {**create, "body": {**create["body"], "due_at": "2099-01-01T00:00:00Z"}},
+        ]
+        steps[position:position] = variants
+        register = steps[0]
+        outsider = {
+            **register,
+            "body": {**register["body"], "username": scenario["id"] + "-outsider-${nonce}"},
+            "captures": {"outsider": "$.access_token"},
+        }
+        isolated = {
+            "path": "/sla/summary",
+            "headers": {"Authorization": "Bearer ${outsider}"},
+            "status": 200,
+            "equals": {"$.overdue": 0, "$.urgent_overdue": 0},
+        }
+        steps.extend([outsider, isolated, {"path": "/sla/summary", "status": 401}])
+        steps.extend(
+            [
+                {
+                    "method": "POST",
+                    "path": "/api/customers",
+                    "headers": create["headers"],
+                    "body": {"name": "保留基础客户"},
+                    "status": 201,
+                },
+                {"path": "/api/customers", "headers": create["headers"], "status": 200},
+            ]
+        )
+        scenario["after_restart"].append(isolated)
+    return FeatureDesign.model_validate(data)
+
+
+def live_settings(env, config, directory):
+    from pydantic import SecretStr
+
+    from scripts.daytona_capability_profile import HOME
+    from workbench.settings import Settings
+
+    require(bool(env.get("API_KEY", "").strip()), "model_key_required")
+    # The local service's generated file supplies only its own Daytona configuration.
+    # Every provider field for the tested coding stage is explicitly pinned here.
+    return Settings(
+        _env_file=HOME / "workbench.env",
+        data_dir=directory / "platform",
+        database_url="",
+        checkpoint_url="",
+        coding_base_url=env["BASE_URL"].strip().rstrip("/"),
+        coding_model=env["MODE"].strip(),
+        coding_api_key=SecretStr(env["API_KEY"].strip()),
+        coding_provider="compatible",
+        coding_output_mode="json_object",
+        coding_max_output_tokens=OUTPUT_TOKENS,
+        allow_insecure_model_http=False,
+        mini_swe_enabled=True,
+        mini_swe_max_tokens=TOKENS_PER_TASK,
+        mini_swe_max_cost_usd=config["max_cost_usd"] / 2,
+        mini_swe_usd_per_million_tokens=config["usd_per_million_tokens"],
+        mini_swe_timeout=180,
+        max_model_calls=MODEL_CALLS,
+        max_context_chars=CONTEXT_CHARS,
+        llm_timeout=60,
+        tool_timeout=120,
+        daytona_runtime_timeout=600,
+        capability_execution_enabled=True,
+        capability_profile_directory=HOME,
+    )
+
+
+def execute(settings, directory):
+    from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
+    from workbench.capability_execution import capability_execution_prerequisites
+    from workbench.capability_sandbox import verify_capabilities
+    from workbench.coding.candidates import apply_candidate
+    from workbench.coding.mini_swe import run_agent, worker_python
+    from workbench.generator import generate_basic
+    from workbench.llm import ModelGateway
+    from workbench.production.candidates import ProductLedger
+    from workbench.store import Store
+
+    selected = acceptance_design()
+    plan = selected.implementation
+    selection = plan.selection.model_dump()
+    require(worker_python().is_file(), "locked_worker_required")
+    # Same-job real security/browser/profile proof must exist before any paid request.
+    capability_execution_prerequisites(settings, selection)
+    store = Store(settings)
+    try:
+        store.migrate()
+        project = store.create_project("Reviewed SLA module acceptance", "live-sla")
+        run_id = store.create_run(
+            project["id"],
+            {
+                "requirement": plan.summary,
+                "allow_custom_extensions": True,
+                "module_executor": "mini_swe",
+            },
+            "live-sla-run",
+        )["run_id"]
+        gateway = ModelGateway(settings, store)
+        base = directory / "baseline"
+        generate_basic(selected.baseline, base, selection)
+        prepare_consumer(base, plan)
+        frozen_base = manifest(base)
+        ledger_path = directory / "ledger"
+        ledger = ProductLedger(ledger_path, plan)
+        ledger.baseline(base)
+        product = base
+        budgets = []
+        for task in plan.tasks:
+            before = manifest(product)
+            workspace = directory / (task.id + "-worker")
+            edits = run_agent(
+                settings,
+                gateway,
+                run_id,
+                task,
+                plan,
+                product,
+                workspace,
+                {
+                    "baseline": selected.baseline.model_dump(),
+                    "interfaces": {
+                        "api": "/sla/summary returns overdue and urgent_overdue for the authenticated owner only",
+                        "dashboard": "/sla-dashboard uses #username, #password, #login, #load and #result; result text: 逾期 1；紧急逾期 1",
+                        "preserve": "Keep existing customers/tickets CRUD and authentication; exclude resolved and future tickets",
+                    },
+                },
+            )
+            candidate = directory / (task.id + "-candidate")
+            apply_candidate(product, edits, task, selection, candidate)
+            proof = verify_capabilities(
+                candidate,
+                plan,
+                [s for s in plan.scenarios if s.id in task.scenarios],
+                settings,
+                aggregate=False,
+                selection=selection,
+            )
+            promoted = ledger.promote(candidate, task, proof, before)
+            # Reopen durable state and replay promotion; this is ledger recovery only.
+            calls = store.get_run(run_id)["model_calls"]
+            ledger = ProductLedger(ledger_path, plan)
+            require(ledger.baseline(base) == promoted, "ledger_reopen_failed")
+            require(
+                ledger.promote(candidate, task, proof, before) == promoted,
+                "promotion_replay_failed",
+            )
+            require(store.get_run(run_id)["model_calls"] == calls, "recovery_recalled_model")
+            budgets.append(json.loads((workspace / "agent-budget.json").read_text()))
+            product = candidate
+        archive = directory / "delivery.zip"
+        pack_source(product, archive, template="python-basic")
+        clean = directory / "fresh-consumer"
+        unpack(archive, clean, template="python-basic")
+        require(manifest(clean) == manifest(product), "zip_source_mismatch")
+        proof = verify_capabilities(
+            clean,
+            plan,
+            plan.scenarios,
+            settings,
+            aggregate=True,
+            selection=selection,
+        )
+        require_consumer_evidence(clean, plan, proof)
+        ledger.verified(clean, proof)
+        require(manifest(base) == frozen_base, "baseline_changed")
+        calls = store.get_run(run_id)["model_calls"]
+        require(0 < calls <= MODEL_CALLS, "real_calls_required")
+        return {
+            "real_model_calls": calls,
+            "tokens_reserved": sum(b["tokens_reserved"] for b in budgets),
+            "cost_reserved_usd": sum(b["cost_reserved_usd"] for b in budgets),
+            "independent_product_acceptance": True,
+            "zip_new_directory": True,
+            "consumer_cold_start_and_restart": True,
+            "ledger_reopen_and_idempotent_replay": True,
+            "full_workflow_crash_recovery": False,
+            "live_planning_and_approval": False,
+            "source_digest": proof["source_digest"],
+            "plan_digest": proof["plan_digest"],
+            "cleanup": proof["cleanup"],
+        }
+    finally:
+        store.engine.dispose()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--preflight", action="store_true")
+    args = parser.parse_args()
+    summary = {
+        "passed": False,
+        "real_model_acceptance": False,
+        "scenario": SCENARIO,
+        "phase": "configuration",
+    }
+    try:
+        config = configuration(os.environ)
+        summary.update(configuration_valid=True, limits=config, phase="preflight")
+        if not args.preflight:
+            summary["phase"] = "execution"
+            with tempfile.TemporaryDirectory(prefix="rnd-live-modules-") as temporary:
+                directory = Path(temporary)
+                summary.update(execute(live_settings(os.environ, config, directory), directory))
+                summary.update(passed=True, real_model_acceptance=True, phase="completed")
+    except Exception:
+        # Never publish raw provider/SDK errors, generated code, prompts or credentials.
+        summary.update(passed=False, real_model_acceptance=False)
+        summary["failure"] = "configuration_or_execution_rejected"
+        raise SystemExit(1) from None
+    finally:
+        write_json(REPORT, summary)
+
+
+if __name__ == "__main__":
+    main()
+````
+
 ### `scripts/ci_local_embeddings.py`
 
 **作用：固定真实权重的本机推理验收和服务。** prepare显式下载校验后的公开模型；serve在回环HTTP上用CPU推理且拒绝出站套接字；verify启动自有服务、取固定Vben样本、查缓存及真实融合检索，最后关闭服务。
@@ -217732,14 +218353,27 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/real-model.yml sha256: 1b4fefea4a7d275641e7f7b83b0fa8c10e58424c307627616c8798d178e5fccc -->
+<!-- source-file: .github/workflows/real-model.yml sha256: bbfd3d2b23e37bfa481d487e465d26835d8eeef4778aa7f0b628b6c3e9eea30a -->
 ````yaml
 name: Manual real-model customer acceptance
 on:
   workflow_dispatch:
     inputs:
+      scenario:
+        description: Reviewed acceptance scope; mini-SWE uses HTTPS and its own explicit USD ceiling
+        type: choice
+        options: [legacy, mini-swe-sla]
+        default: legacy
+      max_cost_usd:
+        description: Authorized total USD ceiling for this manual mini-SWE run (greater than 0, maximum 10)
+        type: string
+        default: '0'
+      usd_per_million_tokens:
+        description: Operator-verified conservative USD price per million input OR output tokens (0 fails closed)
+        type: string
+        default: '0'
       reviewed_sha:
-        description: Exact reviewed commit for the bounded model-feedback repair job
+        description: Exact reviewed commit SHA for mini-SWE or the bounded model-feedback repair job
         type: string
         required: false
         default: ''
@@ -217756,7 +218390,7 @@ concurrency:
 jobs:
   model-feedback:
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      github.event_name == 'workflow_dispatch' && inputs.scenario != 'mini-swe-sla' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       github.ref == 'refs/heads/fix/model-feedback-history' &&
       github.run_attempt == 1
@@ -217797,7 +218431,7 @@ jobs:
           retention-days: 7
   real-model:
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      github.event_name == 'workflow_dispatch' && inputs.scenario != 'mini-swe-sla' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/complete-platform-acceptance' || github.ref == 'refs/heads/feat/real-model-acceptance' || github.ref == 'refs/heads/feat/customer-service-acceptance')
     environment: rnd
@@ -217897,6 +218531,88 @@ jobs:
         with:
           name: customer-ui-${{ matrix.template }}-${{ github.sha }}
           path: reports/real-model/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+  mini-swe-sla:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.scenario == 'mini-swe-sla' &&
+      github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.run_attempt == 1
+    environment: rnd
+    env:
+      LIVE_SCENARIO: ${{ inputs.scenario }}
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      LIVE_MAX_COST_USD: ${{ inputs.max_cost_usd }}
+      LIVE_USD_PER_MILLION_TOKENS: ${{ inputs.usd_per_million_tokens }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODE: ${{ vars.MODE }}
+      PLAYWRIGHT_BROWSERS_PATH: '0'
+      PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+      PRODUCT_VERIFY_BROWSER_CHANNEL: 'chrome'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Validate exact dispatch HTTPS endpoint and explicit budget without a model key
+        run: uv run python -m scripts.ci_live_modules --preflight
+      - name: Verify offline live-acceptance contracts
+        run: uv run pytest -q tests/test_ci_live_modules.py
+      - name: Install the isolated pinned Worker
+        run: uv sync --project tools/mini-swe --python 3.12 --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Require sandboxed browser readiness before building the local service
+        run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Build immutable networkless browser worker in this same job
+        run: |
+          docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
+          echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
+      - name: Require real browser network resource and cleanup proof in this same job
+        run: uv run python -m scripts.ci_capability_browser_isolation
+      - name: Create the local control plane with random local credentials
+        run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
+      - name: Build pinned release locally and lock immutable images
+        run: uv run python -m scripts.daytona_local images --directory .data/daytona-capability
+      - name: Build the offline snapshot in the local registry
+        run: uv run python -m scripts.daytona_capability_profile prepare
+      - name: Start local API, Runner, Dex, database, registry and storage
+        run: uv run python -m scripts.daytona_capability_profile up
+      - name: Authenticate through real local Dex and API
+        run: uv run python -m scripts.daytona_bootstrap auth --directory .data/daytona-capability
+      - name: Register the prebuilt snapshot without any hosted service
+        run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
+      - name: Require positive fixed-application isolation profile and real HTTP browser database restart
+        run: uv run python -m scripts.ci_capability_profile
+      - name: Require real adversarial isolation and resource enforcement before source admission
+        run: uv run python -m scripts.ci_capability_security
+      - name: Run real mini-SWE edits and independent fresh-ZIP acceptance
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: uv run python -m scripts.ci_live_modules
+      - name: Stop this local test deployment without deleting persistent volumes
+        if: always()
+        run: |
+          if test -f .data/daytona-capability/compose.capability.lock.yaml; then
+            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-capability -f .data/daytona-capability/compose.capability.lock.yaml down
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
+          path: reports/live-modules/summary.json
           if-no-files-found: error
           retention-days: 7
 ````
@@ -218003,7 +218719,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: a036dfbbe1837b830c3a21a117b9ee10bb4ee9cdca057b5c7324b28dfd263c5f -->
+<!-- source-file: .github/workflows/test.yml sha256: 45c82add3a9ac6e001bf23809883cad263250c211553bab07147f37035ffe923 -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -218395,7 +219111,7 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
-        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py --junitxml=reports/production-v2.xml
+        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py --junitxml=reports/production-v2.xml
       - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
       - uses: actions/upload-artifact@v4
         if: always()
@@ -235366,7 +236082,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: ba5b482bd5463167d3afa7138423fa71bf9de46f26976455229ae15eef366548 -->
+<!-- source-file: docs/modular-production-v2.md sha256: cf51a15ce46e9d74ba2ac5b7d14c6ace97c09469bdce8ef74517800aebbc5815 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -235470,6 +236186,42 @@ uv run python -m scripts.build_learning_docs --check
 ```
 
 `test_sla_vertical.py` 的代码是审核过的 authored fixture：基础客户工单产品保留，两个模块通过真实 Python3.12 Worker 和 mock 模型/文件环境编辑，解包到新目录启动，独立 API 检查认证、用户隔离、逾期排除和重启持久化。设置 `PRODUCT_VERIFY_PLAYWRIGHT` 时增加实际 Chromium 页面断言。它不产生真实 Daytona 或真实模型证明。
+
+## 手动真实模块验收：第一段交付
+
+现有 [Manual real-model customer acceptance](https://github.com/Live-yum/ai-rnd-foundation-learning/actions/workflows/real-model.yml) 增加 `scenario=mini-swe-sla`。这是一个可执行的、范围固定的真实执行器验收配置，尚未运行真实模型；不是穷尽所有业务或所有执行器组合的验收声明。既有四路由保持不变。
+
+| 模板 / 数据库 | 实现方式与当前入口 | 明确边界 |
+| --- | --- | --- |
+| python-basic / SQLite | native/declarative 确定性生成；`template-project-acceptance.yml` 三个真实模型规划场景 | 既有入口不覆盖模块执行器；不是三种模板 |
+| python-basic / SQLite | module 的 `bounded_edit`，既有受控编辑和独立隔离验收 | 本轮未增加此执行器的付费完整场景 |
+| python-basic / SQLite | module 的 `mini_swe`；本轮 `mini-swe-sla` | 两个审核固定的 SLA 模块，真实实现代码必须来自模型，不提供 authored 实现回退 |
+| python-basic / PostgreSQL | 既有模板生成及独立运行矩阵 | 当前自定义模块准入只登记 Python/SQLite，不能借此声称 PostgreSQL mini-SWE 已支持 |
+| FastapiAdmin / PostgreSQL | native/declarative 及既有原生工具路径；module 执行 profile 已登记 | 尚无本轮 mini-SWE 完整业务场景；模块 ZIP 原子消费者契约仅支持 Python/SQLite |
+| Yudao / PostgreSQL | 既有 native/declarative 和原生工具验收 | 当前自定义模块执行准入未登记该 profile，不能自动切为 Python 或放开 Agent |
+| 其他组合 / blocked | 继续按既有能力判定拒绝或暂停 | 不把 blocked 自动升级为 module |
+
+新场景复用审核的 SLA **合同**和基础模板生成器，不调用 fixture 的 authored 实现函数。执行顺序是：无密钥 preflight → 同一 Job 的真实浏览器/Daytona 隔离正反例 → 两个真实 mini-SWE 模块（Python3.12 Worker、Daytona 文件通道）→ 每模块独立精确源码验收及晋升 → 重开版本账本、幂等重放晋升且不增加模型调用 → ZIP 解包新目录 → 新的隔离沙箱内使用受信任 `start.py` 冷启动、浏览器/API、数据库保留重启 → 聚合证据及消费者契约检查。新增断言覆盖未认证访问拒绝、其他用户数据隔离、已解决/未来工单排除和基础客户接口保留；生成代码始终不在控制器宿主执行。
+
+恢复证据只覆盖版本账本重新打开和晋升幂等性；**不声称完成 LangGraph/Gate 全流程崩溃恢复**。需求规划、OpenSpec 文档生成及审批在此场景使用审核固定合同，不能视为真实模型规划验收；原生模板 mini-SWE 场景、旧数据库迁移、任意依赖变更及 M6 剩余拆分仍未完成。
+
+### 手动入口和参数
+
+在上述 Actions 页面选择 `feat/modular-production-v2` 分支，输入：
+
+- `scenario`: `mini-swe-sla`（默认仍为 `legacy`，不会意外开启新付费场景）。
+- `reviewed_sha`: 本次已审核分支的完整40位 SHA；必须与实际 checkout 完全一致。
+- `max_cost_usd`: 本次单次手动运行的授权总上限，`0 < 值 <= 10`；默认 `0` 失败关闭。
+- `usd_per_million_tokens`: 运营方核实的输入或输出 token 每百万美元费用的保守最大值，`0 < 值 <= 10000`；默认 `0` 失败关闭，脚本不会猜价格。
+- `remaining_budget_cny`: 保留默认 `0`，仅属旧修复场景，不约束本场景。
+
+Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` 必须非空。只有通过 preflight、真实隔离准入后最后一个执行步骤获得 `secrets.API_KEY`。不新增环境、权限或不安全 HTTP 例外。若 Actions 页面仍显示默认分支的旧输入表单，可由操作者使用 `gh workflow run real-model.yml --ref feat/modular-production-v2` 并传入以上 `-f` 参数；先确认准确 SHA 和费用配置。这里不自动 dispatch，不通过加标签触发。
+
+固定限制：两个模块，每模块最多8步；网关含修复尝试总共最多32次模型请求；每次输出上限8192 tokens；每模块预留总 token 上限2,000,000，总计4,000,000；每模块最多180秒；整个 Job 最多90分钟。总美元上限均分为两个不可借用的模块预算；每轮按最多两次网关尝试预留 `2 × (4 × 40000 + 8192)` tokens 及对应费用。配置必须至少容纳每模块 edit+submit 两轮，否则在持有模型密钥前拒绝。实际账单以服务方为准，保守价格必须覆盖所有计费 token 类别；多个新手动 dispatch 不共享累计预算，每次需重新授权。GitHub 的 Re-run（attempt > 1）不会执行此付费 Job。
+
+仅上传 `reports/live-modules/summary.json` 白名单摘要，含精确 head、预算、源码/合同摘要及已检查的验收布尔项；不上传模型输入输出、产品代码、平台数据库或凭据。preflight 成功的报告明确 `passed=false`、`real_model_acceptance=false`，不能误当真实通过。最终必须同时检查 Job 成功及报告的真实验收标志。
+
+离线验证：`uv run pytest -q tests/test_ci_live_modules.py`；正常 Python acceptance 的 production-v2 Job 同时执行这些契约测试。离线单测使用显式 mock 检查拒绝、预算、步骤顺序和晋升条件，绝不代表此新增完整真实路径已经通过。
 ````
 
 ### `docs/template-platform.md`
