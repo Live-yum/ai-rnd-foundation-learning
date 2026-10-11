@@ -25,9 +25,9 @@
 
 **创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L293。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13586`。本段原文以LF换行结束。
+本段原始字节数：`13603`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5"} -->
+<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e5f5747b6586bb2b3e846a0dcd5781682a267c1714d0a80567dc07b6e0040106"} -->
 ````python
 # workbench/coding/mini_swe.py
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
@@ -212,7 +212,7 @@ def _run(
                         file_context = {
                             name: {
                                 "sha256": manifest(current).get(name),
-                                "content": inside(current, name).read_text()
+                                "content": inside(current, name).read_bytes().decode("utf-8")
                                 if inside(current, name).is_file()
                                 else None,
                             }

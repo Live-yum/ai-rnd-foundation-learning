@@ -175,6 +175,10 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 同head的Windows截图负例失败（Python运行 `38118890653`，job `114409440268`）是诊断计数4与实际截图请求3不一致：计数递增在共享截止时间检查之前，临界时刻会记录未发送的请求。计数现移到受截止时间保护的CDP发送操作内。可控时钟测试先复现旧代码未发送却计1次，再确认修复为0；已发送但失败仍计1次。漂移/字体/像素断言、总截止时间、不输出不稳定成功截图等要求不变。当前本地缺少Chromium，官方安装端点返回403 Domain forbidden，未绕过；真实像素负例仍须由CI验证。
 
+`d9703ef` 的Python运行 `38122424435` Windows shard1随后暴露了新fixture问题：`write_text("\n")`在Windows创建CRLF基线，而测试动作明确返回LF，两者不是同一未改动内容。候选写入器本来就按动作原文写入；测试现用显式字节构造LF、CRLF及混合换行，在Linux/Windows运行同样的逐字节断言，不忽略或归一化换行。同时，新增真实锁定Worker/mock gateway及真实检查器/mock SDK回归确认生产模型上下文和沙箱初始文件的`read_text()`也会归一化CRLF。仅这两处改用UTF-8字节解码；原样回传的上下文、沙箱文件和候选保持原字节。只改变换行的陈旧前像仍被哈希守卫拒绝，允许路径、预算及隔离不变。
+
+同head手动运行 `38122528136` 于08:07:49 UTC执行步骤退出1；官方日志没有更细异常。artifact `11696606589` 已由官方连接器返回文件引用，但本执行环境下载该ZIP遇到`URLError`，尚未读到本次摘要。因此本次调用计数及模型/候选根因未知，不沿用81c0638的3次调用，也不把上述Windows换行修复视作此线上失败的根因或完整验收证据。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -16522,7 +16526,7 @@ def snapshot_edits(product, snapshot, task, selection):
 - `_run.read_lines`（L132–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133在`True`成立时循环；L139按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `_run.send`（L145–L150）：接收`value`。 控制顺序：L147按`len(raw) > LIMIT`分支；L148抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: 9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5 -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: e5f5747b6586bb2b3e846a0dcd5781682a267c1714d0a80567dc07b6e0040106 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -16706,7 +16710,7 @@ def _run(
                         file_context = {
                             name: {
                                 "sha256": manifest(current).get(name),
-                                "content": inside(current, name).read_text()
+                                "content": inside(current, name).read_bytes().decode("utf-8")
                                 if inside(current, name).is_file()
                                 else None,
                             }
@@ -20471,7 +20475,7 @@ def _cursor(connection):
 - `DaytonaFiles.snapshot`（L35–L44）：接收`paths`。 控制顺序：L36按`paths != self.task.allowed_paths`分支；L37抛异常，停止当前正常路径；L39遍历`paths`；L41按`not isinstance(content, bytes) or len(content) > 100000`分支；L42抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`isinstance`、`len`、`content.decode`。 返回路径：L44的`result`。
 - `coding_environment`（L48–L98）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L68按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L69抛异常，停止当前正常路径；L95按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: 1231faee0f68a0eb824681a422448b7502fd1bd296a90968ab00e129056ebef0 -->
+<!-- source-file: workbench/infrastructure/sandbox/coding.py sha256: 54b38fe97f1a721ca93328f81c6dd3415548b5b41a342be18e0e7764750b3d73 -->
 ````python
 """File-only coding session on the existing admitted private Daytona channel.
 
@@ -20556,7 +20560,7 @@ def coding_environment(settings, task, selection, product):
                 files=[
                     SourceEdit(
                         path=name,
-                        content=inside(product, name).read_text()
+                        content=inside(product, name).read_bytes().decode("utf-8")
                         if inside(product, name).is_file()
                         else "",
                     )
@@ -132295,11 +132299,12 @@ def test_business_proof_rejects_incomplete_or_self_reported_results(mutation):
 - `test_protected_paths_cannot_be_approved_by_model`（L61–L68）：接收`tmp_path`、`path`。 控制顺序：L68断言`not (tmp_path / "candidate").exists()`。 调用`product.mkdir`、`pytest.raises`、`apply_candidate`、`edits`、`task`、`(tmp_path / "candidate").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_and_extra_edits_fail_before_copy`（L71–L90）：接收`tmp_path`。 调用`product.mkdir`、`(product / "app.py").write_text`、`pytest.raises`、`apply_candidate`、`edits`、`task`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths`（L102–L147）：接收`tmp_path`、`names`、`missing`、`extra`、`duplicates`。 控制顺序：L125断言`[ edit.path for edit in action.edits.files ] == names`；L138断言`diagnostic["candidate_files"] == { "approved_count": 2, "returned_count": len(names),…`；L145断言`"private" not in json.dumps(diagnostic)`；L146断言`not destination.exists()`；L147断言`(product / "app.py").read_text() == "# private unchanged source\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`pytest.raises`、`apply_candidate`、`task`、`failure_diagnostic`、`len`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L150–L177）：接收`tmp_path`。 控制顺序：L176断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L177断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`、`(candidate / "sla.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L190–L245）：接收`store`、`names`、`repair`。 控制顺序：L234按`repair`分支；L238断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L242断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L244断言`"every approved" in repair_message`；L245断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L207–L229）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L217的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L153–L180）：接收`tmp_path`、`original`。 控制顺序：L179断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L180断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_bytes`、`AgentTurn.model_validate`、`original.decode`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L193–L248）：接收`store`、`names`、`repair`。 控制顺序：L237按`repair`分支；L241断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L245断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L247断言`"every approved" in repair_message`；L248断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L210–L232）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L220的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_newline_only_preimage_change_is_still_stale`（L254–L264）：接收`tmp_path`、`original`、`replaced`。 控制顺序：L264断言`not candidate.exists() and source.read_bytes() == replaced`。 调用`product.mkdir`、`source.write_bytes`、`edits`、`sha`、`original.decode`、`pytest.raises`、`apply_candidate`、`task`、`candidate.exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_editing.py sha256: 39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781 -->
+<!-- source-file: tests/test_capability_editing.py sha256: 7ec6774aa5cb733253d12483b157e04c709a8cee761b6072ded054b6b87ad648 -->
 ````python
 """Candidate editing must not mutate baselines or execute product code."""
 
@@ -132450,12 +132455,15 @@ def test_invalid_agent_file_sets_are_classified_without_mutation_or_private_path
     assert (product / "app.py").read_text() == "# private unchanged source\n"
 
 
-def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path, original):
     from workbench.coding.ports import AgentTurn
 
     product = tmp_path / "product"
     product.mkdir()
-    (product / "app.py").write_text("# preserved\n")
+    (product / "app.py").write_bytes(original)
     action = AgentTurn.model_validate(
         {
             "operation": "edit",
@@ -132464,7 +132472,7 @@ def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
                 "files": [
                     {
                         "path": "app.py",
-                        "content": "# preserved\n",
+                        "content": original.decode("utf-8"),
                         "before_sha256": sha(product / "app.py"),
                     },
                     {"path": "sla.py", "content": "# new business file\n", "before_sha256": None},
@@ -132546,6 +132554,22 @@ def test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attemp
     repair_message = calls[1]["messages"][-1]["content"]
     assert "every approved" in repair_message
     assert "private.py" not in repair_message and "# fixture" not in repair_message
+
+
+@pytest.mark.parametrize(
+    "original,replaced", [(b"# same\r\n", b"# same\n"), (b"# same\n", b"# same\r\n")]
+)
+def test_newline_only_preimage_change_is_still_stale(tmp_path, original, replaced):
+    product = tmp_path / "product"
+    product.mkdir()
+    source = product / "app.py"
+    source.write_bytes(original)
+    action = edits("app.py", sha(source), original.decode("utf-8"))
+    source.write_bytes(replaced)
+    candidate = tmp_path / "candidate"
+    with pytest.raises(ValueError, match="前像"):
+        apply_candidate(product, action, task(["app.py"]), {"template": "python-basic"}, candidate)
+    assert not candidate.exists() and source.read_bytes() == replaced
 ````
 
 ### `tests/test_capability_execution_gate.py`
@@ -153904,11 +153928,11 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
 - `test_required_profile_verifies_image_id_and_registry_digest`（L922–L937）：接收`locked_profile`、`monkeypatch`。 控制顺序：L932断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_prepare_never_overwrites_existing_profile_or_credentials`（L940–L944）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L950–L955）：接收`inspection`、`options`。 控制顺序：L955断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L961–L1043）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1018按`rejection`分支；L1023断言`not uploaded and operations == ["create", "delete", "close"]`；L1024按`rejection != "egress_enabled"`分支；L1026断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1029按`rejection == "legacy_name"`分支；L1030断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1038断言`environment.snapshot(task.allowed_paths) == { "app.py": "# approved before-image\n", …`；L1042断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_text`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L979–L982）：接收`content`、`path`、`**kwargs`。 控制顺序：L980断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L996–L1008）：接收`parameters`、`**kwargs`。 控制顺序：L997断言`parameters.network_block_all is True and parameters.public is False`；L1000断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1001按`not name.startswith("rnd-source-")`分支；L1003按`rejection == "extra_network"`分支；L1005按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1008的`sandbox`。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L962–L1045）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`、`original`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1019按`rejection`分支；L1024断言`not uploaded and operations == ["create", "delete", "close"]`；L1025按`rejection != "egress_enabled"`分支；L1027断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1030按`rejection == "legacy_name"`分支；L1031断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1039断言`environment.snapshot(task.allowed_paths) == { "app.py": original.decode("utf-8"), "sl…`；L1043断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_bytes`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L980–L983）：接收`content`、`path`、`**kwargs`。 控制顺序：L981断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L997–L1009）：接收`parameters`、`**kwargs`。 控制顺序：L998断言`parameters.network_block_all is True and parameters.public is False`；L1001断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1002按`not name.startswith("rnd-source-")`分支；L1004按`rejection == "extra_network"`分支；L1006按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1009的`sandbox`。
 
-<!-- source-file: tests/test_daytona_capability_profile.py sha256: d42fbc3309ede7f4360a6146417d9cc9ab83e1bff57b8d4948f006d1be8b2483 -->
+<!-- source-file: tests/test_daytona_capability_profile.py sha256: 57d55aabf7715de9ddee274aba503c3ff6b7ec291c239c307f11228b27769af8 -->
 ````python
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
 
@@ -154870,8 +154894,9 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
 @pytest.mark.parametrize(
     "rejection", [None, "legacy_name", "extra_network", "no_limits", "egress_enabled"]
 )
+@pytest.mark.parametrize("original", [b"# approved before-image\n", b"# approved before-image\r\n"])
 def test_coding_sandbox_uses_strict_runner_profile_before_upload(
-    execution_inspection, settings, monkeypatch, rejection
+    execution_inspection, settings, monkeypatch, rejection, original
 ):
     """Real inspector over simulated Docker facts, never live isolation evidence."""
     from scripts.ci_live_modules import acceptance_design
@@ -154924,7 +154949,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("close"))
     product = directory / "coding-product"
     product.mkdir()
-    (product / "app.py").write_text("# approved before-image\n")
+    (product / "app.py").write_bytes(original)
     task = plan.tasks[0]
     context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
     if rejection:
@@ -154948,10 +154973,11 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     else:
         with context as environment:
             assert environment.snapshot(task.allowed_paths) == {
-                "app.py": "# approved before-image\n",
+                "app.py": original.decode("utf-8"),
                 "sla.py": "",
             }
         assert len(uploaded) == 2
+        assert uploaded[coding.REMOTE + "/app.py"] == original
         assert operations[-2:] == ["delete", "close"]
 ````
 
@@ -178275,8 +178301,15 @@ def test_real_product_reload_uses_authenticated_business_readiness(tmp_path, pla
 - `test_restored_design_cannot_change_pinned_run_policy`（L325–L356）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_gateway_requires_an_explicit_output_token_limit`（L359–L395）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L380–L381）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes`（L401–L471）：接收`settings`、`tmp_path`、`original`。 控制顺序：L405按`not worker_python().is_file()`分支；L411遍历`task.files`；L470遍历`task.files`；L471断言`(candidate / name).read_bytes() == (product / name).read_bytes() == original`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`compile_v2`、`design_v1`、`product.mkdir`、`(product / name).parent.mkdir`、`(product / name).write_bytes`、`settings.model_copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway`（L416–L441）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway.complete`（L419–L441）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L421遍历`payload["context"].items()`；L422断言`value["content"].encode("utf-8") == original`；L423断言`value["sha256"] == sha(product / name)`；L424按`self.calls == 2`分支。 调用`payload["context"].items`、`value["content"].encode`、`sha`、`schema`、`schema.model_validate`。 返回路径：L425的`schema(operation="submit")`；L426的`schema.model_validate( { "operation": "edit", "edits": { "explanation": "offline unchanged…`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment`（L443–L448）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.write`（L444–L445）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.snapshot`（L447–L448）：接收`paths`。 调用`dict`。 返回路径：L448的`dict(snapshots)`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.environment`（L451–L452）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: tests/test_production_v2.py sha256: 98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67 -->
+<!-- source-file: tests/test_production_v2.py sha256: 3f5b7f7521ad200efd3b4fe80eac4a98cc1c4c27d371d93a6f6d9a4425fab608 -->
 ````python
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
 
@@ -178673,6 +178706,82 @@ def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path
             tmp_path / "worker",
             {},
         )
+
+
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_real_worker_echo_preserves_context_and_candidate_bytes(settings, tmp_path, original):
+    from workbench.coding.candidates import apply_candidate
+    from workbench.filesystem import sha
+
+    if not worker_python().is_file():
+        pytest.skip("optional locked Python3.12 worker not installed")
+    plan = compile_v2(design_v1(), executor="mini_swe").implementation
+    task = plan.tasks[0]
+    product = tmp_path / "product"
+    product.mkdir()
+    for name in task.files:
+        (product / name).parent.mkdir(parents=True, exist_ok=True)
+        (product / name).write_bytes(original)
+    snapshots = {}
+
+    class Gateway:
+        calls = 0
+
+        def complete(self, run_id, key, instruction, payload, schema):
+            self.calls += 1
+            for name, value in payload["context"].items():
+                assert value["content"].encode("utf-8") == original
+                assert value["sha256"] == sha(product / name)
+            if self.calls == 2:
+                return schema(operation="submit")
+            return schema.model_validate(
+                {
+                    "operation": "edit",
+                    "edits": {
+                        "explanation": "offline unchanged echo",
+                        "files": [
+                            {
+                                "path": name,
+                                "content": value["content"],
+                                "before_sha256": value["sha256"],
+                            }
+                            for name, value in payload["context"].items()
+                        ],
+                    },
+                }
+            )
+
+    class Environment:
+        def write(self, edits):
+            snapshots.update({edit.path: edit.content for edit in edits.files})
+
+        def snapshot(self, paths):
+            return dict(snapshots)
+
+    @contextmanager
+    def environment(*args):
+        yield Environment()
+
+    settings = settings.model_copy(
+        update={"mini_swe_enabled": True, "mini_swe_max_tokens": 2000000}
+    )
+    edits = run_agent(
+        settings,
+        Gateway(),
+        "offline",
+        task,
+        plan,
+        product,
+        tmp_path / "worker",
+        {},
+        environment_factory=environment,
+    )
+    candidate = tmp_path / "candidate"
+    apply_candidate(product, edits, task, plan.selection.model_dump(), candidate)
+    for name in task.files:
+        assert (candidate / name).read_bytes() == (product / name).read_bytes() == original
 ````
 
 ### `tests/test_provider_structured_outputs.py`
@@ -237448,7 +237557,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: a0ce99b6009fe0e27736969db425c904e98feaf5f2f18d61351bed29a06e04d2 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 93159eb3871ee26f3386062de68949297c92ae0ab52096a91a0bf6d359645a43 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -237626,6 +237735,10 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 此前网关仅校验通用AgentTurn，当前任务集合错误直到候选应用才被发现，错过了既有有界结构化修复流程。响应合同现在绑定当前批准任务：每次edit包含全部批准路径（含未改动文件），每个恰好一次，且不允许大小写重复或额外路径；同一约束在候选应用处继续独立检查。使用网关原有最多两次尝试和原预算，不增加调用、步骤或费用额度。模型指令明确完整文件与当前前像要求；不会以自动补文件掩盖未完成任务，语义完成仍由独立验收决定。失败摘要仅新增批准/返回/缺失/未批准/大小写重复数量，不含路径、源码或模型解释。离线mock transport验证错误集合可以在第二次完整响应后通过，连续错误严格在两次内失败。
 
 同head的Windows截图负例失败（Python运行 `38118890653`，job `114409440268`）是诊断计数4与实际截图请求3不一致：计数递增在共享截止时间检查之前，临界时刻会记录未发送的请求。计数现移到受截止时间保护的CDP发送操作内。可控时钟测试先复现旧代码未发送却计1次，再确认修复为0；已发送但失败仍计1次。漂移/字体/像素断言、总截止时间、不输出不稳定成功截图等要求不变。当前本地缺少Chromium，官方安装端点返回403 Domain forbidden，未绕过；真实像素负例仍须由CI验证。
+
+`d9703ef` 的Python运行 `38122424435` Windows shard1随后暴露了新fixture问题：`write_text("\n")`在Windows创建CRLF基线，而测试动作明确返回LF，两者不是同一未改动内容。候选写入器本来就按动作原文写入；测试现用显式字节构造LF、CRLF及混合换行，在Linux/Windows运行同样的逐字节断言，不忽略或归一化换行。同时，新增真实锁定Worker/mock gateway及真实检查器/mock SDK回归确认生产模型上下文和沙箱初始文件的`read_text()`也会归一化CRLF。仅这两处改用UTF-8字节解码；原样回传的上下文、沙箱文件和候选保持原字节。只改变换行的陈旧前像仍被哈希守卫拒绝，允许路径、预算及隔离不变。
+
+同head手动运行 `38122528136` 于08:07:49 UTC执行步骤退出1；官方日志没有更细异常。artifact `11696606589` 已由官方连接器返回文件引用，但本执行环境下载该ZIP遇到`URLError`，尚未读到本次摘要。因此本次调用计数及模型/候选根因未知，不沿用81c0638的3次调用，也不把上述Windows换行修复视作此线上失败的根因或完整验收证据。
 ````
 
 ### `docs/template-platform.md`

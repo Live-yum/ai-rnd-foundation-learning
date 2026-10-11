@@ -81,7 +81,7 @@ def coding_environment(settings, task, selection, product):
                 files=[
                     SourceEdit(
                         path=name,
-                        content=inside(product, name).read_text()
+                        content=inside(product, name).read_bytes().decode("utf-8")
                         if inside(product, name).is_file()
                         else "",
                     )

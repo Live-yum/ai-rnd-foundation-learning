@@ -180,7 +180,7 @@ def _run(
                         file_context = {
                             name: {
                                 "sha256": manifest(current).get(name),
-                                "content": inside(current, name).read_text()
+                                "content": inside(current, name).read_bytes().decode("utf-8")
                                 if inside(current, name).is_file()
                                 else None,
                             }

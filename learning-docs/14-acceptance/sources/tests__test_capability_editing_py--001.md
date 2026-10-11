@@ -21,17 +21,18 @@
 - `test_protected_paths_cannot_be_approved_by_model`（L61–L68）：接收`tmp_path`、`path`。 控制顺序：L68断言`not (tmp_path / "candidate").exists()`。 调用`product.mkdir`、`pytest.raises`、`apply_candidate`、`edits`、`task`、`(tmp_path / "candidate").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_stale_and_extra_edits_fail_before_copy`（L71–L90）：接收`tmp_path`。 调用`product.mkdir`、`(product / "app.py").write_text`、`pytest.raises`、`apply_candidate`、`edits`、`task`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_invalid_agent_file_sets_are_classified_without_mutation_or_private_paths`（L102–L147）：接收`tmp_path`、`names`、`missing`、`extra`、`duplicates`。 控制顺序：L125断言`[ edit.path for edit in action.edits.files ] == names`；L138断言`diagnostic["candidate_files"] == { "approved_count": 2, "returned_count": len(names),…`；L145断言`"private" not in json.dumps(diagnostic)`；L146断言`not destination.exists()`；L147断言`(product / "app.py").read_text() == "# private unchanged source\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`pytest.raises`、`apply_candidate`、`task`、`failure_diagnostic`、`len`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L150–L177）：接收`tmp_path`。 控制顺序：L176断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L177断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_text`、`AgentTurn.model_validate`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`、`(candidate / "sla.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L190–L245）：接收`store`、`names`、`repair`。 控制顺序：L234按`repair`分支；L238断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L242断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L244断言`"every approved" in repair_message`；L245断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L207–L229）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L217的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_agent_must_explicitly_preserve_unchanged_approved_files`（L153–L180）：接收`tmp_path`、`original`。 控制顺序：L179断言`(candidate / "app.py").read_bytes() == (product / "app.py").read_bytes()`；L180断言`(candidate / "sla.py").read_text() == "# new business file\n"`。 调用`product.mkdir`、`(product / "app.py").write_bytes`、`AgentTurn.model_validate`、`original.decode`、`sha`、`apply_candidate`、`task`、`(candidate / "app.py").read_bytes`、`(product / "app.py").read_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts`（L193–L248）：接收`store`、`names`、`repair`。 控制顺序：L237按`repair`分支；L241断言`[edit.path for edit in result.edits.files] == approved.allowed_paths`；L245断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L247断言`"every approved" in repair_message`；L248断言`"private.py" not in repair_message and "# fixture" not in repair_message`。 调用`acceptance_design`、`gateway`、`new_run`、`approved_turn_schema`、`model.complete`、`pytest.raises`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attempts.respond`（L210–L232）：接收`request`。 调用`calls.append`、`json.loads`、`len`、`httpx.Response`、`json.dumps`。 返回路径：L220的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_newline_only_preimage_change_is_still_stale`（L254–L264）：接收`tmp_path`、`original`、`replaced`。 控制顺序：L264断言`not candidate.exists() and source.read_bytes() == replaced`。 调用`product.mkdir`、`source.write_bytes`、`edits`、`sha`、`original.decode`、`pytest.raises`、`apply_candidate`、`task`、`candidate.exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_editing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L245。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_editing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L264。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8066`。本段原文以LF换行结束。
+本段原始字节数：`8870`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781"} -->
+<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7ec6774aa5cb733253d12483b157e04c709a8cee761b6072ded054b6b87ad648"} -->
 ````python
 # tests/test_capability_editing.py
 """Candidate editing must not mutate baselines or execute product code."""
@@ -183,12 +184,15 @@ def test_invalid_agent_file_sets_are_classified_without_mutation_or_private_path
     assert (product / "app.py").read_text() == "# private unchanged source\n"
 
 
-def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path, original):
     from workbench.coding.ports import AgentTurn
 
     product = tmp_path / "product"
     product.mkdir()
-    (product / "app.py").write_text("# preserved\n")
+    (product / "app.py").write_bytes(original)
     action = AgentTurn.model_validate(
         {
             "operation": "edit",
@@ -197,7 +201,7 @@ def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
                 "files": [
                     {
                         "path": "app.py",
-                        "content": "# preserved\n",
+                        "content": original.decode("utf-8"),
                         "before_sha256": sha(product / "app.py"),
                     },
                     {"path": "sla.py", "content": "# new business file\n", "before_sha256": None},
@@ -279,4 +283,20 @@ def test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attemp
     repair_message = calls[1]["messages"][-1]["content"]
     assert "every approved" in repair_message
     assert "private.py" not in repair_message and "# fixture" not in repair_message
+
+
+@pytest.mark.parametrize(
+    "original,replaced", [(b"# same\r\n", b"# same\n"), (b"# same\n", b"# same\r\n")]
+)
+def test_newline_only_preimage_change_is_still_stale(tmp_path, original, replaced):
+    product = tmp_path / "product"
+    product.mkdir()
+    source = product / "app.py"
+    source.write_bytes(original)
+    action = edits("app.py", sha(source), original.decode("utf-8"))
+    source.write_bytes(replaced)
+    candidate = tmp_path / "candidate"
+    with pytest.raises(ValueError, match="前像"):
+        apply_candidate(product, action, task(["app.py"]), {"template": "python-basic"}, candidate)
+    assert not candidate.exists() and source.read_bytes() == replaced
 ````

@@ -958,8 +958,9 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
 @pytest.mark.parametrize(
     "rejection", [None, "legacy_name", "extra_network", "no_limits", "egress_enabled"]
 )
+@pytest.mark.parametrize("original", [b"# approved before-image\n", b"# approved before-image\r\n"])
 def test_coding_sandbox_uses_strict_runner_profile_before_upload(
-    execution_inspection, settings, monkeypatch, rejection
+    execution_inspection, settings, monkeypatch, rejection, original
 ):
     """Real inspector over simulated Docker facts, never live isolation evidence."""
     from scripts.ci_live_modules import acceptance_design
@@ -1012,7 +1013,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("close"))
     product = directory / "coding-product"
     product.mkdir()
-    (product / "app.py").write_text("# approved before-image\n")
+    (product / "app.py").write_bytes(original)
     task = plan.tasks[0]
     context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
     if rejection:
@@ -1036,8 +1037,9 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     else:
         with context as environment:
             assert environment.snapshot(task.allowed_paths) == {
-                "app.py": "# approved before-image\n",
+                "app.py": original.decode("utf-8"),
                 "sla.py": "",
             }
         assert len(uploaded) == 2
+        assert uploaded[coding.REMOTE + "/app.py"] == original
         assert operations[-2:] == ["delete", "close"]

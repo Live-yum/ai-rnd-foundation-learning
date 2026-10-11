@@ -1377,8 +1377,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 13586,
-      "sha256": "9e610dacc7d7bed78cd9cc99097d226da56fb9b6636f3a237fa238f21c7889a5",
+      "bytes": 13603,
+      "sha256": "e5f5747b6586bb2b3e846a0dcd5781682a267c1714d0a80567dc07b6e0040106",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -3895,8 +3895,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 40386,
-      "sha256": "d42fbc3309ede7f4360a6146417d9cc9ab83e1bff57b8d4948f006d1be8b2483",
+      "bytes": 40539,
+      "sha256": "57d55aabf7715de9ddee274aba503c3ff6b7ec291c239c307f11228b27769af8",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md",
@@ -4121,8 +4121,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/coding.py",
-      "bytes": 3952,
-      "sha256": "1231faee0f68a0eb824681a422448b7502fd1bd296a90968ab00e129056ebef0",
+      "bytes": 3969,
+      "sha256": "54b38fe97f1a721ca93328f81c6dd3415548b5b41a342be18e0e7764750b3d73",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 22670,
-      "sha256": "a0ce99b6009fe0e27736969db425c904e98feaf5f2f18d61351bed29a06e04d2",
+      "bytes": 23846,
+      "sha256": "93159eb3871ee26f3386062de68949297c92ae0ab52096a91a0bf6d359645a43",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5484,8 +5484,8 @@
     },
     {
       "path": "tests/test_capability_editing.py",
-      "bytes": 8066,
-      "sha256": "39fd43bb9ee007f3ab192822cc16833284216732d25f9ea4136c039af2a02781",
+      "bytes": 8870,
+      "sha256": "7ec6774aa5cb733253d12483b157e04c709a8cee761b6072ded054b6b87ad648",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_editing_py--001.md"
@@ -6178,8 +6178,8 @@
     },
     {
       "path": "tests/test_production_v2.py",
-      "bytes": 14278,
-      "sha256": "98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67",
+      "bytes": 16891,
+      "sha256": "3f5b7f7521ad200efd3b4fe80eac4a98cc1c4c27d371d93a6f6d9a4425fab608",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_production_v2_py--001.md"

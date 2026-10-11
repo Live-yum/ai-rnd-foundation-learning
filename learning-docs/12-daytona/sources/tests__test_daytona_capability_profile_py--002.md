@@ -20,17 +20,17 @@
 - `test_required_profile_verifies_image_id_and_registry_digest`（L922–L937）：接收`locked_profile`、`monkeypatch`。 控制顺序：L932断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`dependency_record`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_prepare_never_overwrites_existing_profile_or_credentials`（L940–L944）：接收`locked_profile`。 调用`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L950–L955）：接收`inspection`、`options`。 控制顺序：L955断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L961–L1043）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1018按`rejection`分支；L1023断言`not uploaded and operations == ["create", "delete", "close"]`；L1024按`rejection != "egress_enabled"`分支；L1026断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1029按`rejection == "legacy_name"`分支；L1030断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1038断言`environment.snapshot(task.allowed_paths) == { "app.py": "# approved before-image\n", …`；L1042断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_text`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L979–L982）：接收`content`、`path`、`**kwargs`。 控制顺序：L980断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L996–L1008）：接收`parameters`、`**kwargs`。 控制顺序：L997断言`parameters.network_block_all is True and parameters.public is False`；L1000断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1001按`not name.startswith("rnd-source-")`分支；L1003按`rejection == "extra_network"`分支；L1005按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1008的`sandbox`。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload`（L962–L1045）：接收`execution_inspection`、`settings`、`monkeypatch`、`rejection`、`original`。 源码说明：Real inspector over simulated Docker facts, never live isolation evidence.。 控制顺序：L1019按`rejection`分支；L1024断言`not uploaded and operations == ["create", "delete", "close"]`；L1025按`rejection != "egress_enabled"`分支；L1027断言`diagnostic["container_rejection"] == ( "resource_limits" if rejection == "no_limits" …`；L1030按`rejection == "legacy_name"`分支；L1031断言`diagnostic == { "container_rejection": "sandbox_network", "network_mode": "bridge", "…`；L1039断言`environment.snapshot(task.allowed_paths) == { "app.py": original.decode("utf-8"), "sl…`；L1043断言`len(uploaded) == 2`。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_design`、`profile.require_profile`、`monkeypatch.setattr`、`SimpleNamespace`、`operations.append`、`product.mkdir`、`(product / "app.py").write_bytes`、`coding.coding_environment`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.upload`（L980–L983）：接收`content`、`path`、`**kwargs`。 控制顺序：L981断言`len(calls) == 4`。 调用`len`、`operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_coding_sandbox_uses_strict_runner_profile_before_upload.create`（L997–L1009）：接收`parameters`、`**kwargs`。 控制顺序：L998断言`parameters.network_block_all is True and parameters.public is False`；L1001断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in profile.LIMIT_INSERT`；L1002按`not name.startswith("rnd-source-")`分支；L1004按`rejection == "extra_network"`分支；L1006按`rejection == "no_limits"`分支。 调用`name.startswith`、`inner["HostConfig"].update`、`operations.append`。 返回路径：L1009的`sandbox`。
 
 </details>
 
-**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L886–L1043。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L886–L1045。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7190`。本段原文以LF换行结束。
+本段原始字节数：`7343`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "ba66fe22fb3b755180a3f87ad265ff0dc8aa8d873b071a3e7f242fbfec2992ef"} -->
+<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "cdef5b9cd7ef11ac933d62b0426c1205f610257b1929292c505278d09332087c"} -->
 ````python
 # tests/test_daytona_capability_profile.py
 def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
@@ -108,8 +108,9 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
 @pytest.mark.parametrize(
     "rejection", [None, "legacy_name", "extra_network", "no_limits", "egress_enabled"]
 )
+@pytest.mark.parametrize("original", [b"# approved before-image\n", b"# approved before-image\r\n"])
 def test_coding_sandbox_uses_strict_runner_profile_before_upload(
-    execution_inspection, settings, monkeypatch, rejection
+    execution_inspection, settings, monkeypatch, rejection, original
 ):
     """Real inspector over simulated Docker facts, never live isolation evidence."""
     from scripts.ci_live_modules import acceptance_design
@@ -162,7 +163,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     monkeypatch.setattr(coding, "close_client", lambda *a: operations.append("close"))
     product = directory / "coding-product"
     product.mkdir()
-    (product / "app.py").write_text("# approved before-image\n")
+    (product / "app.py").write_bytes(original)
     task = plan.tasks[0]
     context = coding.coding_environment(settings, task, plan.selection.model_dump(), product)
     if rejection:
@@ -186,9 +187,10 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
     else:
         with context as environment:
             assert environment.snapshot(task.allowed_paths) == {
-                "app.py": "# approved before-image\n",
+                "app.py": original.decode("utf-8"),
                 "sla.py": "",
             }
         assert len(uploaded) == 2
+        assert uploaded[coding.REMOTE + "/app.py"] == original
         assert operations[-2:] == ["delete", "close"]
 ````

@@ -25,9 +25,9 @@
 
 **创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L98。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3952`。本段原文以LF换行结束。
+本段原始字节数：`3969`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1231faee0f68a0eb824681a422448b7502fd1bd296a90968ab00e129056ebef0"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "54b38fe97f1a721ca93328f81c6dd3415548b5b41a342be18e0e7764750b3d73"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -113,7 +113,7 @@ def coding_environment(settings, task, selection, product):
                 files=[
                     SourceEdit(
                         path=name,
-                        content=inside(product, name).read_text()
+                        content=inside(product, name).read_bytes().decode("utf-8")
                         if inside(product, name).is_file()
                         else "",
                     )

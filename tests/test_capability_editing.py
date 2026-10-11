@@ -147,12 +147,15 @@ def test_invalid_agent_file_sets_are_classified_without_mutation_or_private_path
     assert (product / "app.py").read_text() == "# private unchanged source\n"
 
 
-def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path, original):
     from workbench.coding.ports import AgentTurn
 
     product = tmp_path / "product"
     product.mkdir()
-    (product / "app.py").write_text("# preserved\n")
+    (product / "app.py").write_bytes(original)
     action = AgentTurn.model_validate(
         {
             "operation": "edit",
@@ -161,7 +164,7 @@ def test_agent_must_explicitly_preserve_unchanged_approved_files(tmp_path):
                 "files": [
                     {
                         "path": "app.py",
-                        "content": "# preserved\n",
+                        "content": original.decode("utf-8"),
                         "before_sha256": sha(product / "app.py"),
                     },
                     {"path": "sla.py", "content": "# new business file\n", "before_sha256": None},
@@ -243,3 +246,19 @@ def test_task_bound_gateway_repairs_invalid_sets_only_within_existing_two_attemp
     repair_message = calls[1]["messages"][-1]["content"]
     assert "every approved" in repair_message
     assert "private.py" not in repair_message and "# fixture" not in repair_message
+
+
+@pytest.mark.parametrize(
+    "original,replaced", [(b"# same\r\n", b"# same\n"), (b"# same\n", b"# same\r\n")]
+)
+def test_newline_only_preimage_change_is_still_stale(tmp_path, original, replaced):
+    product = tmp_path / "product"
+    product.mkdir()
+    source = product / "app.py"
+    source.write_bytes(original)
+    action = edits("app.py", sha(source), original.decode("utf-8"))
+    source.write_bytes(replaced)
+    candidate = tmp_path / "candidate"
+    with pytest.raises(ValueError, match="前像"):
+        apply_candidate(product, action, task(["app.py"]), {"template": "python-basic"}, candidate)
+    assert not candidate.exists() and source.read_bytes() == replaced

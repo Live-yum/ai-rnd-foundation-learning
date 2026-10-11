@@ -38,14 +38,21 @@
 - `test_restored_design_cannot_change_pinned_run_policy`（L325–L356）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_gateway_requires_an_explicit_output_token_limit`（L359–L395）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L380–L381）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes`（L401–L471）：接收`settings`、`tmp_path`、`original`。 控制顺序：L405按`not worker_python().is_file()`分支；L411遍历`task.files`；L470遍历`task.files`；L471断言`(candidate / name).read_bytes() == (product / name).read_bytes() == original`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`compile_v2`、`design_v1`、`product.mkdir`、`(product / name).parent.mkdir`、`(product / name).write_bytes`、`settings.model_copy`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway`（L416–L441）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway.complete`（L419–L441）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L421遍历`payload["context"].items()`；L422断言`value["content"].encode("utf-8") == original`；L423断言`value["sha256"] == sha(product / name)`；L424按`self.calls == 2`分支。 调用`payload["context"].items`、`value["content"].encode`、`sha`、`schema`、`schema.model_validate`。 返回路径：L425的`schema(operation="submit")`；L426的`schema.model_validate( { "operation": "edit", "edits": { "explanation": "offline unchanged…`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment`（L443–L448）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.write`（L444–L445）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.snapshot`（L447–L448）：接收`paths`。 调用`dict`。 返回路径：L448的`dict(snapshots)`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.environment`（L451–L452）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L395。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L471。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14278`。本段原文以LF换行结束。
+本段原始字节数：`16891`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "98fa7445ca9fb19d055e1210bce6ee530d8d41fe93ffc3868cb77938f450fe67"} -->
+<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3f5b7f7521ad200efd3b4fe80eac4a98cc1c4c27d371d93a6f6d9a4425fab608"} -->
 ````python
 # tests/test_production_v2.py
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
@@ -443,4 +450,80 @@ def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path
             tmp_path / "worker",
             {},
         )
+
+
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_real_worker_echo_preserves_context_and_candidate_bytes(settings, tmp_path, original):
+    from workbench.coding.candidates import apply_candidate
+    from workbench.filesystem import sha
+
+    if not worker_python().is_file():
+        pytest.skip("optional locked Python3.12 worker not installed")
+    plan = compile_v2(design_v1(), executor="mini_swe").implementation
+    task = plan.tasks[0]
+    product = tmp_path / "product"
+    product.mkdir()
+    for name in task.files:
+        (product / name).parent.mkdir(parents=True, exist_ok=True)
+        (product / name).write_bytes(original)
+    snapshots = {}
+
+    class Gateway:
+        calls = 0
+
+        def complete(self, run_id, key, instruction, payload, schema):
+            self.calls += 1
+            for name, value in payload["context"].items():
+                assert value["content"].encode("utf-8") == original
+                assert value["sha256"] == sha(product / name)
+            if self.calls == 2:
+                return schema(operation="submit")
+            return schema.model_validate(
+                {
+                    "operation": "edit",
+                    "edits": {
+                        "explanation": "offline unchanged echo",
+                        "files": [
+                            {
+                                "path": name,
+                                "content": value["content"],
+                                "before_sha256": value["sha256"],
+                            }
+                            for name, value in payload["context"].items()
+                        ],
+                    },
+                }
+            )
+
+    class Environment:
+        def write(self, edits):
+            snapshots.update({edit.path: edit.content for edit in edits.files})
+
+        def snapshot(self, paths):
+            return dict(snapshots)
+
+    @contextmanager
+    def environment(*args):
+        yield Environment()
+
+    settings = settings.model_copy(
+        update={"mini_swe_enabled": True, "mini_swe_max_tokens": 2000000}
+    )
+    edits = run_agent(
+        settings,
+        Gateway(),
+        "offline",
+        task,
+        plan,
+        product,
+        tmp_path / "worker",
+        {},
+        environment_factory=environment,
+    )
+    candidate = tmp_path / "candidate"
+    apply_candidate(product, edits, task, plan.selection.model_dump(), candidate)
+    for name in task.files:
+        assert (candidate / name).read_bytes() == (product / name).read_bytes() == original
 ````

@@ -393,3 +393,79 @@ def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path
             tmp_path / "worker",
             {},
         )
+
+
+@pytest.mark.parametrize(
+    "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
+)
+def test_real_worker_echo_preserves_context_and_candidate_bytes(settings, tmp_path, original):
+    from workbench.coding.candidates import apply_candidate
+    from workbench.filesystem import sha
+
+    if not worker_python().is_file():
+        pytest.skip("optional locked Python3.12 worker not installed")
+    plan = compile_v2(design_v1(), executor="mini_swe").implementation
+    task = plan.tasks[0]
+    product = tmp_path / "product"
+    product.mkdir()
+    for name in task.files:
+        (product / name).parent.mkdir(parents=True, exist_ok=True)
+        (product / name).write_bytes(original)
+    snapshots = {}
+
+    class Gateway:
+        calls = 0
+
+        def complete(self, run_id, key, instruction, payload, schema):
+            self.calls += 1
+            for name, value in payload["context"].items():
+                assert value["content"].encode("utf-8") == original
+                assert value["sha256"] == sha(product / name)
+            if self.calls == 2:
+                return schema(operation="submit")
+            return schema.model_validate(
+                {
+                    "operation": "edit",
+                    "edits": {
+                        "explanation": "offline unchanged echo",
+                        "files": [
+                            {
+                                "path": name,
+                                "content": value["content"],
+                                "before_sha256": value["sha256"],
+                            }
+                            for name, value in payload["context"].items()
+                        ],
+                    },
+                }
+            )
+
+    class Environment:
+        def write(self, edits):
+            snapshots.update({edit.path: edit.content for edit in edits.files})
+
+        def snapshot(self, paths):
+            return dict(snapshots)
+
+    @contextmanager
+    def environment(*args):
+        yield Environment()
+
+    settings = settings.model_copy(
+        update={"mini_swe_enabled": True, "mini_swe_max_tokens": 2000000}
+    )
+    edits = run_agent(
+        settings,
+        Gateway(),
+        "offline",
+        task,
+        plan,
+        product,
+        tmp_path / "worker",
+        {},
+        environment_factory=environment,
+    )
+    candidate = tmp_path / "candidate"
+    apply_candidate(product, edits, task, plan.selection.model_dump(), candidate)
+    for name in task.files:
+        assert (candidate / name).read_bytes() == (product / name).read_bytes() == original
