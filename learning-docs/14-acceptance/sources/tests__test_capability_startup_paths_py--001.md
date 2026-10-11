@@ -55,25 +55,25 @@
 - `test_frontend_smoke_uses_same_guard_identity_environment_and_frontend_cwd.read`（L621–L623）：接收`sandbox`、`path`、`timeout`、`limit`、`tail`。 控制顺序：L622断言`timeout == 1 and limit == 512 and tail is True`。 调用`json.dumps`。 返回路径：L623的`json.dumps(checks)`。
 - `test_source_free_node_smoke_runs_as_owned_fixture`（L641–L661）：接收`tmp_path`、`node_options`、`expected`。 控制顺序：L645按`node_options is not None`分支；L656断言`result.returncode == 0 and result.stderr == ""`；L658断言`set(value) == {"version_matches", "executable_matches", "cwd_matches", "no_preload"}`；L659断言`all(type(item) is bool for item in value.values())`；L660断言`value["no_preload"] is expected and value["cwd_matches"] is False`；L661断言`len(result.stdout.encode()) < diagnostic.SMOKE_OUTPUT_LIMIT`。 调用`os.environ.items`、`subprocess.run`、`shutil.which`、`json.loads`、`set`、`all`、`type`、`value.values`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_invalid_probe_roles_do_not_execute`（L665–L673）：接收`monkeypatch`、`role`。 控制顺序：L669断言`diagnostic.native_startup_paths(object(), 5, role=role) == {"status": "unknown"}`；L670断言`diagnostic.native_startup_smoke(object(), native_plan(), {}, {}, 5, role=role)["check…`。 调用`monkeypatch.setattr`、`pytest.fail`、`diagnostic.native_startup_paths`、`object`、`diagnostic.native_startup_smoke`、`native_plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients`（L679–L874）：接收`monkeypatch`、`failed_role`、`status`、`phase`。 控制顺序：L705按`phase == "restart"`分支；L859断言`state["target"] == { "role": failed_role, "interpreter": "node" if failed_role == "fr…`；L867断言`state["command_exit_code"] == (1 if type(status) is int and status == 1 else None)`；L868断言`events.count(("status", failed_role)) == 1`；L869断言`("node_error" in state) is (failed_role == "frontend")`；L870断言`("closed", failed_role) in events and ("closed", "backend") in events`；L871断言`events[-1] == ("deleted", True) and scope["receipt"]["cleanup"] == "deleted"`；L872断言`scope["receipt"]["passed"] is False`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ast.parse`、`source.read_text`、`next`、`ast.walk`、`isinstance`、`any`、`enumerate`、`range`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client`（L742–L756）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.__init__`（L743–L744）：接收`base_url`、`**kwargs`。 调用`base_url.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.stream`（L747–L753）：接收`method`、`endpoint`。 控制顺序：L748断言`method == "GET"`；L749断言`endpoint == ("/" if self.role == "frontend" else plan.runtime.health_path)`。 调用`events.append`、`SimpleNamespace`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.close`（L755–L756）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.redirect`（L758–L762）：接收`argv`。 调用`diagnostic.redirected_command`。 返回路径：L762的`command, path`。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.submit`（L764–L767）：接收`session`、`request`、`**kwargs`。 调用`SimpleNamespace`。 返回路径：L767的`SimpleNamespace(cmd_id=role + "-owned-id")`。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.command_status`（L769–L777）：接收`session`、`command`。 控制顺序：L770断言`session == sessions[failed_role]`；L771断言`command == failed_role + "-owned-id"`；L773按`status == "missing"`分支。 调用`events.append`、`SimpleNamespace`。 返回路径：L774的`None`；L775的`SimpleNamespace( id="another-owned-id" if status == "wrong-command" else command, exit_cod…`。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.read`（L779–L783）：接收`sandbox`、`path`、`timeout`、`limit`、`tail`。 控制顺序：L780断言`path == outputs[failed_role] and limit == diagnostic.NATIVE_TAIL_LIMIT and tail is Tr…`。 返回路径：L783的`"private-sentinel"`。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.paths`（L785–L788）：接收`sandbox`、`timeout`、`role`。 控制顺序：L786断言`role == failed_role and timeout == 5`。 调用`events.append`。 返回路径：L788的`{"status": "unknown"}`。
-- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.smoke`（L790–L793）：接收`sandbox`、`passed_plan`、`database`、`identity`、`timeout`、`role`。 控制顺序：L791断言`role == failed_role and passed_plan is plan and timeout == 5`。 调用`events.append`。 返回路径：L793的`{"exit_status": "unknown", "output_shapes": [], "checks": None}`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients`（L680–L908）：接收`monkeypatch`、`failed_role`、`status`、`phase`、`handle_failure`。 控制顺序：L707按`phase == "restart"`分支；L743断言`len(initializers) == 1`；L883按`handle_failure`分支；L884断言`len(failures) == 1`；L885断言`failures[0][0] == scope["receipt_path"]`；L886断言`failures[0][1] is scope["diagnostic_error"]`；L887断言`isinstance(scope["diagnostic_error"], CheckFailure)`；L888断言`"健康检查" in scope["receipt"]["error"]`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ast.parse`、`source.read_text`、`next`、`ast.walk`、`isinstance`、`any`、`enumerate`、`range`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client`（L761–L775）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.__init__`（L762–L763）：接收`base_url`、`**kwargs`。 调用`base_url.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.stream`（L766–L772）：接收`method`、`endpoint`。 控制顺序：L767断言`method == "GET"`；L768断言`endpoint == ("/" if self.role == "frontend" else plan.runtime.health_path)`。 调用`events.append`、`SimpleNamespace`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.Client.close`（L774–L775）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.redirect`（L777–L781）：接收`argv`。 调用`diagnostic.redirected_command`。 返回路径：L781的`command, path`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.submit`（L783–L786）：接收`session`、`request`、`**kwargs`。 调用`SimpleNamespace`。 返回路径：L786的`SimpleNamespace(cmd_id=role + "-owned-id")`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.command_status`（L788–L796）：接收`session`、`command`。 控制顺序：L789断言`session == sessions[failed_role]`；L790断言`command == failed_role + "-owned-id"`；L792按`status == "missing"`分支。 调用`events.append`、`SimpleNamespace`。 返回路径：L793的`None`；L794的`SimpleNamespace( id="another-owned-id" if status == "wrong-command" else command, exit_cod…`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.read`（L798–L802）：接收`sandbox`、`path`、`timeout`、`limit`、`tail`。 控制顺序：L799断言`path == outputs[failed_role] and limit == diagnostic.NATIVE_TAIL_LIMIT and tail is Tr…`。 返回路径：L802的`"private-sentinel"`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.paths`（L804–L807）：接收`sandbox`、`timeout`、`role`。 控制顺序：L805断言`role == failed_role and timeout == 5`。 调用`events.append`。 返回路径：L807的`{"status": "unknown"}`。
+- `test_actual_sequential_start_binds_failed_target_and_closes_both_clients.smoke`（L809–L812）：接收`sandbox`、`passed_plan`、`database`、`identity`、`timeout`、`role`。 控制顺序：L810断言`role == failed_role and passed_plan is plan and timeout == 5`。 调用`events.append`。 返回路径：L812的`{"exit_status": "unknown", "output_shapes": [], "checks": None}`。
 
 </details>
 
-**创建路径：** `tests/test_capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L874。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L908。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35147`。本段原文以LF换行结束。
+本段原始字节数：`36596`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bd6a06ed6c306b60d5ffdec32b8a5248802ef818c0038f2dd1d73c7fc493c47e"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0109fc8c617c20471fe6cdcfe82809701569e6abea06fd84d3db399d21e77cfd"} -->
 ````python
 # tests/test_capability_startup_paths.py
 """Finite metadata from real owned launch fixtures, without candidate execution."""
@@ -754,18 +754,20 @@ def test_invalid_probe_roles_do_not_execute(monkeypatch, role):
 @pytest.mark.parametrize("failed_role", ["backend", "frontend"])
 @pytest.mark.parametrize("status", [1, None, True, "1", -1, 256, "wrong-command", "missing"])
 @pytest.mark.parametrize("phase", ["initial", "restart"])
+@pytest.mark.parametrize("handle_failure", [False, True])
 def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
-    monkeypatch, failed_role, status, phase
+    monkeypatch, failed_role, status, phase, handle_failure
 ):
-    from contextlib import closing, contextmanager
+    from contextlib import closing, contextmanager, nullcontext
     from pathlib import Path
 
     from daytona import SessionExecuteRequest
     from test_capability_startup_session import native_plan as complete_native_plan
 
+    from workbench.capability_isolation import IsolationUnavailable
     from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
     from workbench.capability_sandbox import startup_command_exit_facts, startup_failure_diagnostic
-    from workbench.capability_verification import CheckFailure
+    from workbench.capability_verification import BrowserFailure, CheckFailure
 
     source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
     tree = ast.parse(source.read_text())
@@ -805,7 +807,24 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
             i for i in range(begin, len(parent.body)) if isinstance(parent.body[i], ast.With)
         )
         body = [outer.body[first], *parent.body[begin : finish + 1]]
-    tested = ast.Try(body=body, handlers=[], orelse=[], finalbody=outer.finalbody)
+    # Copy the actual enclosing initialization with the cleanup block. A synthetic
+    # default here would hide changes to the production scope this fixture tests.
+    verify = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_verify")
+    initializers = [
+        n
+        for n in verify.body[: verify.body.index(outer)]
+        if isinstance(n, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "diagnostic_error" for target in n.targets
+        )
+    ]
+    assert len(initializers) == 1
+    tested = ast.Try(
+        body=body,
+        handlers=outer.handlers if handle_failure else [],
+        orelse=[],
+        finalbody=outer.finalbody,
+    )
     plan = complete_native_plan()
     plan.obligations = []  # Authored native diagnostic fixture, not atomic SQLite acceptance.
     plan.runtime.health_path = "/private-health-sentinel"
@@ -924,15 +943,30 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "write_json": lambda *a: None,
         "receipt_path": "unused",
     }
-    with pytest.raises(CheckFailure, match="健康检查"):
+    failures = []
+    scope.update(
+        IsolationUnavailable=IsolationUnavailable,
+        BrowserFailure=BrowserFailure,
+        record_failure=lambda path, error: failures.append((path, error)),
+    )
+    with nullcontext() if handle_failure else pytest.raises(CheckFailure, match="健康检查"):
         exec(
             compile(
-                ast.fix_missing_locations(ast.Module([tested], [])),
+                ast.fix_missing_locations(ast.Module([*initializers, tested], [])),
                 "actual-sequential-start-and-cleanup",
                 "exec",
             ),
             scope,
         )
+    if handle_failure:
+        assert len(failures) == 1
+        assert failures[0][0] == scope["receipt_path"]
+        assert failures[0][1] is scope["diagnostic_error"]
+        assert isinstance(scope["diagnostic_error"], CheckFailure)
+        assert "健康检查" in scope["receipt"]["error"]
+    else:
+        assert scope["diagnostic_error"] is None
+        assert failures == []
     state = scope["receipt"]["startup_diagnostic"]
     assert state["target"] == {
         "role": failed_role,

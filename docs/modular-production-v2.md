@@ -231,3 +231,13 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 普通Python38132702803的Windows shard0/job114450143346为另一个失败：官方日志定位business-browser.cjs第14行，管理员分配后切换service-a登录，workspace在原15秒内未显示；2207通过、1失败、71跳过。页面显示工作区前等待schema和业务面板请求；日志没有这些请求状态，无法区分请求错误、同步或真实权限回归。本轮不修改UI/RBAC/超时，不以推测修复。PostgreSQL38132702844的资源证明失败仍保留：其pre_start、post_start_return、pre_post_delta均null，零增量仅是三次observed_delta，最后采样峰值不是完整退出期证据；终止来源未知，不扩大诊断或调整压力。
 
 本轮仅本地准备；等待dba4ffc剩余矩阵终态再推，不取消、不额外dispatch或重跑三SQLite，复杂场景未启用。
+
+### efc8e2a 离线启动夹具的 AST 作用域修复（本地）
+
+efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试阶段失败，尚未到本轮资源或产品验收，不能沿用旧PG OOM结论。生产_verify在外层try之前已初始化diagnostic_error；test_capability_startup_paths.py却只抽取start及其后片段和外层finally，漏掉该初始化，32个参数场景在合成作用域中触发NameError。此前较小测试集合遗漏了这一AST消费者。
+
+本次仅修复测试：从同一个真实_verify AST中抽取外层初始化语句并在合成try前执行，不硬写测试默认值，也不移动或绕过生产初始化。原32个后端/前端、初次启动/重启、不同退出状态场景保留异常传播路径，并新增32个使用原生产except处理器的场景；全部保留启动目标绑定、两个客户端关闭、沙箱删除、失败状态及脱敏断言，新路径另检查实际异常对象进入诊断。已审同源AST消费者：startup_session只提取会话构建语句，capability_obligations只提取重启段；只有startup_paths复制外层finally。生产实现、安全scope、工作流及资源门禁均未改。
+
+按两个workflow的完整离线命令解析实际文件集合：SQLite为53文件，PG为55文件且包含前者；使用PG完整集合覆盖两套，始终保留RND_REQUIRE_NODE_TESTS=1、RND_REQUIRE_LANDLOCK=1、RND_REQUIRE_SECCOMP_BPF=1。修复前37失败/2469通过/13跳过，其中32个NameError、5个Landlock强制检查返回78；修复后5失败/2533通过/13跳过，仅剩相同5个主机内核条件失败。三个AST消费者专项200项通过。13个跳过涉及缺少原生Node/Vite工具树与测试数据库；本地Python3.14.7、Node24.19.0，不冒充Actions的Node22和内核环境，也不关闭强制标志伪造全绿。
+
+本轮仅本地准备，未推送、取消或重跑真实模型；等待当前efc8e2a全部运行终态。已有模型、Windows业务登录与环境资源证明的未知原因保持原边界，复杂场景未启用。
