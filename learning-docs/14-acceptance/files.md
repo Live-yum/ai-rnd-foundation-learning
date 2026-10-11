@@ -96,6 +96,7 @@
 - [scripts/template_acceptance_cases.py](sources/scripts__template_acceptance_cases_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_runtime.py](sources/scripts__template_acceptance_runtime_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [tests/capability_dependency_fixtures.py](sources/tests__capability_dependency_fixtures_py--001.md)：可重复的验收用例；1 段
+- [tests/resources/browser_fixture_cleanup.cjs](sources/tests__resources__browser_fixture_cleanup_cjs--001.md)：可重复的验收用例；1 段
 - [tests/resources/live-service/README.md](sources/tests__resources__live-service__README_md--001.md)：可重复的验收用例；1 段
 - [tests/resources/live-service/caddy-root.pem](sources/tests__resources__live-service__caddy-root_pem--001.md)：可重复的验收用例；1 段
 - [tests/test_batches.py](sources/tests__test_batches_py--001.md)：可重复的验收用例；1 段

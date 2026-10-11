@@ -193,6 +193,15 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 启动前或退出后的cgroup可能不存在，缺失样本明确为null，不假设初始计数为零。`pre_post_delta`只有真实前后样本都可用且身份一致时才存在；首末可见样本的`observed_delta`单独记录，不能冒充完整压力区间。该补丁仅准备后续有目标的诊断，不能追补已删除容器的事实，也不宣称解决了此次资源证明失败。
 
+
+### 登录夹具清理生命周期（本地准备）
+
+453c24a的Windows Python运行38126100115/job114430670410由父线程提供的证据显示：generic-fastapi/missing-main原负例断言完成后，browser.close超过夹具独立3秒限制；2193通过、1失败、69跳过。此处并非导航业务断言或先前换行/截图计数回归。子线程重新读取正式日志及mini-SWE运行38126262748的artifact11697773853均返回ConnectError，后者调用次数及根因仍未知。
+
+本地夹具改为显式context，释放挂起图片后先停止HTTP服务并关闭其连接，再依次关闭context/browser；所有关闭共享启动后29秒的截止点，Python原30秒总上限及业务1800毫秒断言保持不变。清理拒绝或超时不吞掉：保留Node事件循环直至Python按原总上限回收该夹具进程树，防止Node提前退出后无法再确认后代归属。Windows taskkill非零退出也必须报错。现有POSIX身份/启动tick检查及Windows精确PID /T /F范围保持不变，不使用全局进程名终止。
+
+离线Node回归覆盖超过旧3秒但仍在总预算内的完成、context/browser/server拒绝、挂起以及父进程实际回收；真实Chromium与Windows结果仍待后续CI，不将夹具修复或本地测试描述为实时产品验收通过。本轮不推送、不重跑工作流。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -118995,6 +119004,39 @@ def news_requirement():
     )
 ````
 
+### `tests/resources/browser_fixture_cleanup.cjs`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/resources/browser_fixture_cleanup.cjs sha256: 25667ba67491caf2ed0925a5ec40a4d9a70c1ddc71fe7e813ae6e36bbb4c6036 -->
+````javascript
+// Test-fixture lifecycle only. A failed close must leave Node alive for its
+// Python owner to terminate the owned tree, rather than orphaning Chromium.
+async function cleanupFixture({ browser, context, services, stage, deadline }) {
+  const ownership = setInterval(() => {}, 1000);
+  const remaining = () => Math.max(1, deadline - Date.now());
+  // Stop serving before closing the context; release in-flight HTTP sockets too.
+  const servers = services.map(([service, name]) => stage(name + '-cleanup', () =>
+    new Promise((resolve, reject) => {
+      service.close(error => error && error.code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());
+      service.closeAllConnections();
+    }), remaining()));
+  const browserCleanup = stage('browser-cleanup', async () => {
+    if (context) await context.close();
+    if (browser) await browser.close();
+  }, remaining());
+  await Promise.all([...servers, browserCleanup]);
+  // Clear only after every close succeeds. Timeout/rejection remains a failure,
+  // and the unchanged outer deadline then invokes owned-tree recovery.
+  clearInterval(ownership);
+}
+module.exports = { cleanupFixture };
+````
+
 ### `tests/resources/live-service/README.md`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -172639,28 +172681,32 @@ def test_invalid_generated_java_does_not_get_silently_repaired():
 
 **逐个入口与控制逻辑：**
 
-- `test_native_login_requires_authentication_permissions_route_and_shell`（L234–L238）：接收`fault`、`driver`、`tmp_path`。 控制顺序：L236按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`_run_driver`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout`（L241–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L246断言`"await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in l…`；L247断言`"page.setDefaultTimeout(45000)" in login`；L248断言`login.index("await loginNativeSession(") < login.index("report.checks.push(")`；L249断言`"await checked(response); const identity = await checked(info)" in source`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split(" async function login(role) {", 1)[1].split`、`source.split`、`login.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generic_native_journey_uses_checked_login_before_actual_list_and_ui`（L252–L260）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L255断言`"page.setDefaultTimeout(45000)" in main`；L256断言`"await submitNativeLogin(page, base, fastapi, observe, checked);" in main`；L257断言`main.index("await submitNativeLogin(") < main.index("await checked(listing)")`；L258断言`main.index("await checked(listing)") < main.index("const pageResult =")`；L259断言`"native_shell_visible: true" in main`；L260断言`"Native boolean option was not selected" in main`。 调用`(ROOT / "scripts/native_browser.cjs").read_text`、`source.split`、`main.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_process_identity`（L263–L269）：接收`pid`。 源码说明：Read only process identity/ancestry, never command lines or environment.。 调用`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(") "…`、`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`、`int`。 返回路径：L267的`int(fields[1]), fields[19]`；L269的`None`。
-- `_stop_owned_tree`（L272–L309）：接收`process`。 源码说明：Kill only descendants of this still-owned fixture, including detached Chromium.。 控制顺序：L274按`process.poll() is not None`分支；L276按`os.name == "nt"`分支；L286按`own_identity is None`分支；L287抛异常，停止当前正常路径；L289遍历`Path("/proc").iterdir()`；L290按`path.name.isdecimal() and (identity := _process_identity(int(path.name)))`分支；L293在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环；L301遍历`reversed(list(owned.items()))`。后续分支沿下方源码相同行号继续阅读。 调用`process.poll`、`subprocess.run`、`str`、`process.wait`、`_process_identity`、`RuntimeError`、`Path("/proc").iterdir`、`Path`、`path.name.isdecimal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_read_diagnostic`（L312–L328）：接收`output`、`limit`。 源码说明：Retain startup and final phase evidence without unbounded output reads.。 控制顺序：L316按`size <= limit`分支。 调用`output.seek`、`output.read(limit).decode`、`output.read`、`len`、`prefix.decode`、`marker.decode`、`output.read(last).decode`。 返回路径：L317的`output.read(limit).decode("utf-8", errors="replace")`；L324的`prefix.decode("utf-8", errors="ignore") + marker.decode() + output.read(last).decode("utf-…`。
-- `_run_driver`（L331–L365）：接收`fault`、`driver`、`module`、`tmp_path`。 控制顺序：L361断言`not timed_out`；L364断言`cleanup_error is None`；L365断言`process.returncode == 0`。 调用`(tmp_path / "browser-runtime").resolve`、`runtime_dir.mkdir`、`extras.update`、`str`、`tempfile.TemporaryFile`、`subprocess.Popen`、`shutil.which`、`clean_env`、`process_options`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids`（L368–L403）：接收`monkeypatch`。 控制顺序：L402断言`killed == [(102, signal.SIGKILL), (101, signal.SIGKILL), (100, signal.SIGKILL)]`；L403断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`str`、`killed.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids.identity`（L381–L387）：接收`pid`。 控制顺序：L383按`pid == 102 and reads[pid] > 1`分支；L385按`pid == 103 and reads[pid] > 1`分支。 调用`reads.get`。 返回路径：L384的`(1, "renderer-start")`；L386的`(100, "recycled-start")`；L387的`identities[pid]`。
-- `test_owned_cleanup_refuses_missing_root_identity`（L406–L414）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`pytest.fail`、`pytest.raises`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_does_nothing_after_fixture_exit`（L417–L421）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`pytest.fail`、`_stop_owned_tree`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child`（L424–L436）：接收`monkeypatch`。 控制顺序：L430断言`called == [ ( ["taskkill", "/PID", "100", "/T", "/F"], {"capture_output": True, "time…`；L436断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`monkeypatch.setattr`、`called.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap`（L440–L468）：接收`monkeypatch`、`tmp_path`、`cleanup_fails`。 控制顺序：L464断言`"exceeded unchanged 30 s cap" in message`；L465断言`'{"phase":"browser-start","event":"start"}' in message`；L466按`cleanup_fails`分支；L467断言`"Owned fixture cleanup failed: RuntimeError: fixture cleanup canary" in message`；L468断言`waited == [{"timeout": 30}]`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`monkeypatch.setitem`、`globals`、`pytest.raises`、`_run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap.timed_out`（L444–L446）：接收`**kwargs`。 控制顺序：L446抛异常，停止当前正常路径。 调用`waited.append`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap.launch`（L450–L452）：接收`command`、`**kwargs`。 调用`kwargs["stdout"].write`。 返回路径：L452的`process`。
-- `test_timeout_retains_phase_receipt_and_original_cap.cleanup`（L454–L457）：接收`_`。 控制顺序：L455按`cleanup_fails`分支；L456抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fixture_tmpdir_extras_are_owned_and_do_not_broaden_clean_env`（L471–L493）：接收`monkeypatch`、`tmp_path`。 控制顺序：L487断言`{key: kwargs["env"][key] for key in ("TMPDIR", "TMP", "TEMP")} == { key: expected for…`；L490断言`kwargs["env"]["PLAYWRIGHT_BROWSERS_PATH"] == "0"`；L491断言`"FIXTURE_UNRELATED_ENV_CANARY" not in kwargs["env"]`；L492断言`"TMPDIR" not in clean_env()`；L493断言`command[-4:] == ["none", "/fixture/playwright", "1800", "business"]`。 调用`monkeypatch.setenv`、`monkeypatch.setattr`、`_run_driver`、`str`、`(tmp_path / "browser-runtime").resolve`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fixture_tmpdir_extras_are_owned_and_do_not_broaden_clean_env.launch`（L478–L481）：接收`command`、`**kwargs`。 控制顺序：L480断言`Path(kwargs["env"]["TMPDIR"]).is_dir()`。 调用`calls.append`、`Path(kwargs["env"]["TMPDIR"]).is_dir`、`Path`、`SimpleNamespace`。 返回路径：L481的`SimpleNamespace(pid=100, wait=lambda **kw: None, poll=lambda: 0, returncode=0)`。
-- `test_fixture_diagnostics_and_cleanup_preserve_original_readiness_budgets`（L496–L507）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L497断言`"page.setDefaultTimeout(1800)" in DRIVER`；L498断言`"page.setDefaultNavigationTimeout(Number(oldTimeout))" in DRIVER`；L499断言`"stage('released-image-load', () => page.waitForLoadState('load'))" in DRIVER`；L500断言`"timestamp: new Date().toISOString()" in DRIVER`；L501遍历`("'received'", "'finish'", "'close'", "'release'")`；L502断言`event in DRIVER`；L503断言`"page.on('load', () => mark('page-load', 'delivered'))" in DRIVER`；L504断言`"['requestfinished', 'requestfailed']" in DRIVER`。后续分支沿下方源码相同行号继续阅读。 调用`DRIVER.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_diagnostic_output_is_bounded_and_retains_first_and_last_phase`（L510–L518）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L513断言`len(result.encode("utf-8")) <= 512`；L514断言`result.startswith('{"phase":"browser-start"}')`；L515断言`result.endswith('{"phase":"browser-cleanup"}\n')`；L516断言`"diagnostic bytes omitted" in result`；L518断言`_read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")`。 调用`_read_diagnostic`、`io.BytesIO`、`len`、`result.encode`、`result.startswith`、`result.endswith`、`small.decode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_login_requires_authentication_permissions_route_and_shell`（L230–L234）：接收`fault`、`driver`、`tmp_path`。 控制顺序：L232按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`_run_driver`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout`（L237–L245）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242断言`"await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in l…`；L243断言`"page.setDefaultTimeout(45000)" in login`；L244断言`login.index("await loginNativeSession(") < login.index("report.checks.push(")`；L245断言`"await checked(response); const identity = await checked(info)" in source`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split(" async function login(role) {", 1)[1].split`、`source.split`、`login.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_native_journey_uses_checked_login_before_actual_list_and_ui`（L248–L256）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251断言`"page.setDefaultTimeout(45000)" in main`；L252断言`"await submitNativeLogin(page, base, fastapi, observe, checked);" in main`；L253断言`main.index("await submitNativeLogin(") < main.index("await checked(listing)")`；L254断言`main.index("await checked(listing)") < main.index("const pageResult =")`；L255断言`"native_shell_visible: true" in main`；L256断言`"Native boolean option was not selected" in main`。 调用`(ROOT / "scripts/native_browser.cjs").read_text`、`source.split`、`main.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_process_identity`（L259–L265）：接收`pid`。 源码说明：Read only process identity/ancestry, never command lines or environment.。 调用`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(") "…`、`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`、`int`。 返回路径：L263的`int(fields[1]), fields[19]`；L265的`None`。
+- `_stop_owned_tree`（L268–L305）：接收`process`。 源码说明：Kill only descendants of this still-owned fixture, including detached Chromium.。 控制顺序：L270按`process.poll() is not None`分支；L272按`os.name == "nt"`分支；L282按`own_identity is None`分支；L283抛异常，停止当前正常路径；L285遍历`Path("/proc").iterdir()`；L286按`path.name.isdecimal() and (identity := _process_identity(int(path.name)))`分支；L289在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环；L297遍历`reversed(list(owned.items()))`。后续分支沿下方源码相同行号继续阅读。 调用`process.poll`、`subprocess.run`、`str`、`process.wait`、`_process_identity`、`RuntimeError`、`Path("/proc").iterdir`、`Path`、`path.name.isdecimal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_read_diagnostic`（L308–L324）：接收`output`、`limit`。 源码说明：Retain startup and final phase evidence without unbounded output reads.。 控制顺序：L312按`size <= limit`分支。 调用`output.seek`、`output.read(limit).decode`、`output.read`、`len`、`prefix.decode`、`marker.decode`、`output.read(last).decode`。 返回路径：L313的`output.read(limit).decode("utf-8", errors="replace")`；L320的`prefix.decode("utf-8", errors="ignore") + marker.decode() + output.read(last).decode("utf-…`。
+- `_run_driver`（L327–L361）：接收`fault`、`driver`、`module`、`tmp_path`。 控制顺序：L357断言`not timed_out`；L360断言`cleanup_error is None`；L361断言`process.returncode == 0`。 调用`(tmp_path / "browser-runtime").resolve`、`runtime_dir.mkdir`、`extras.update`、`str`、`tempfile.TemporaryFile`、`subprocess.Popen`、`shutil.which`、`clean_env`、`process_options`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids`（L364–L399）：接收`monkeypatch`。 控制顺序：L398断言`killed == [(102, signal.SIGKILL), (101, signal.SIGKILL), (100, signal.SIGKILL)]`；L399断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`str`、`killed.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids.identity`（L377–L383）：接收`pid`。 控制顺序：L379按`pid == 102 and reads[pid] > 1`分支；L381按`pid == 103 and reads[pid] > 1`分支。 调用`reads.get`。 返回路径：L380的`(1, "renderer-start")`；L382的`(100, "recycled-start")`；L383的`identities[pid]`。
+- `test_owned_cleanup_refuses_missing_root_identity`（L402–L410）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`pytest.fail`、`pytest.raises`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_does_nothing_after_fixture_exit`（L413–L417）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`pytest.fail`、`_stop_owned_tree`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child`（L420–L432）：接收`monkeypatch`。 控制顺序：L426断言`called == [ ( ["taskkill", "/PID", "100", "/T", "/F"], {"capture_output": True, "time…`；L432断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`monkeypatch.setattr`、`called.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap`（L436–L464）：接收`monkeypatch`、`tmp_path`、`cleanup_fails`。 控制顺序：L460断言`"exceeded unchanged 30 s cap" in message`；L461断言`'{"phase":"browser-start","event":"start"}' in message`；L462按`cleanup_fails`分支；L463断言`"Owned fixture cleanup failed: RuntimeError: fixture cleanup canary" in message`；L464断言`waited == [{"timeout": 30}]`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`monkeypatch.setitem`、`globals`、`pytest.raises`、`_run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap.timed_out`（L440–L442）：接收`**kwargs`。 控制顺序：L442抛异常，停止当前正常路径。 调用`waited.append`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap.launch`（L446–L448）：接收`command`、`**kwargs`。 调用`kwargs["stdout"].write`。 返回路径：L448的`process`。
+- `test_timeout_retains_phase_receipt_and_original_cap.cleanup`（L450–L453）：接收`_`。 控制顺序：L451按`cleanup_fails`分支；L452抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_tmpdir_extras_are_owned_and_do_not_broaden_clean_env`（L467–L489）：接收`monkeypatch`、`tmp_path`。 控制顺序：L483断言`{key: kwargs["env"][key] for key in ("TMPDIR", "TMP", "TEMP")} == { key: expected for…`；L486断言`kwargs["env"]["PLAYWRIGHT_BROWSERS_PATH"] == "0"`；L487断言`"FIXTURE_UNRELATED_ENV_CANARY" not in kwargs["env"]`；L488断言`"TMPDIR" not in clean_env()`；L489断言`command[-4:] == ["none", "/fixture/playwright", "1800", "business"]`。 调用`monkeypatch.setenv`、`monkeypatch.setattr`、`_run_driver`、`str`、`(tmp_path / "browser-runtime").resolve`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_tmpdir_extras_are_owned_and_do_not_broaden_clean_env.launch`（L474–L477）：接收`command`、`**kwargs`。 控制顺序：L476断言`Path(kwargs["env"]["TMPDIR"]).is_dir()`。 调用`calls.append`、`Path(kwargs["env"]["TMPDIR"]).is_dir`、`Path`、`SimpleNamespace`。 返回路径：L477的`SimpleNamespace(pid=100, wait=lambda **kw: None, poll=lambda: 0, returncode=0)`。
+- `test_fixture_diagnostics_and_cleanup_preserve_original_readiness_budgets`（L492–L506）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L493断言`"page.setDefaultTimeout(1800)" in DRIVER`；L494断言`"page.setDefaultNavigationTimeout(Number(oldTimeout))" in DRIVER`；L495断言`"stage('released-image-load', () => page.waitForLoadState('load'))" in DRIVER`；L496断言`"timestamp: new Date().toISOString()" in DRIVER`；L497遍历`("'received'", "'finish'", "'close'", "'release'")`；L498断言`event in DRIVER`；L499断言`"page.on('load', () => mark('page-load', 'delivered'))" in DRIVER`；L500断言`"['requestfinished', 'requestfailed']" in DRIVER`。后续分支沿下方源码相同行号继续阅读。 调用`DRIVER.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_output_is_bounded_and_retains_first_and_last_phase`（L509–L517）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L512断言`len(result.encode("utf-8")) <= 512`；L513断言`result.startswith('{"phase":"browser-start"}')`；L514断言`result.endswith('{"phase":"browser-cleanup"}\n')`；L515断言`"diagnostic bytes omitted" in result`；L517断言`_read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")`。 调用`_read_diagnostic`、`io.BytesIO`、`len`、`result.encode`、`result.startswith`、`result.endswith`、`small.decode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_graceful_cleanup_can_use_spare_outer_budget`（L556–L566）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L565断言`result.returncode == 0`；L566断言`result.stdout.strip() == "cleanup-complete"`。 调用`subprocess.run`、`shutil.which`、`clean_env`、`result.stdout.strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_cleanup_failure_keeps_owned_root_alive_for_recovery`（L570–L591）：接收`mode`。 控制顺序：L586断言`process.returncode != 0`；L590断言`expected in diagnostic`；L591断言`"cleanup-complete" not in diagnostic`。 调用`tempfile.TemporaryFile`、`subprocess.Popen`、`shutil.which`、`clean_env`、`process_options`、`pytest.raises`、`process.wait`、`_stop_owned_tree`、`_read_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_taskkill_failure_is_not_reported_as_success`（L594–L603）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_taskkill_failure_is_not_reported_as_success.reject`（L597–L599）：接收`command`、`**kwargs`。 控制顺序：L598断言`kwargs["check"] is True`；L599抛异常，停止当前正常路径。 调用`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_login_readiness.py sha256: aa7fa97ce22b702f4107e5138965fa71b7c5b7e0c4b6e52f295ecf75cdbcdfcb -->
+<!-- source-file: tests/test_native_login_readiness.py sha256: fc4592537d5795907cf13572acfc2e444b061f6b1b47a9288794aeb7d2d5a99b -->
 ````python
 """Real HTTP/Chromium regressions for the native login driver, not stack acceptance."""
 
@@ -172685,6 +172731,7 @@ const { loginNativeSession } = require('./scripts/business_yudao_browser.cjs');
 const { submitNativeLogin } = require('./scripts/native_browser.cjs');
 const [fault, playwrightPath, oldTimeout = '1800', driver = 'business'] = process.argv.slice(1);
 const { chromium } = require(playwrightPath);
+const { cleanupFixture } = require('./tests/resources/browser_fixture_cleanup.cjs');
 const actor = { username: 'fixture-manager', password: 'fixture-only-password' };
 const started = Date.now(), workDeadline = started + 25000; // Leave cleanup inside the unchanged 30 s outer cap.
 const remaining = () => Math.max(1, workDeadline - Date.now());
@@ -172777,7 +172824,7 @@ const server = http.createServer(async (req, res) => {
     </script>`);
 });
 (async () => {
-  let browser;
+  let browser, context;
   try {
     await stage('foreign-server-start', () => new Promise((resolve, reject) => {
       foreign.once('error', reject); foreign.listen(0, '127.0.0.1', resolve);
@@ -172786,7 +172833,8 @@ const server = http.createServer(async (req, res) => {
       server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
     }));
     browser = await stage('browser-start', () => chromium.launch({ headless: true, timeout: remaining() }));
-    const page = await stage('page-start', () => browser.newPage()); page.setDefaultTimeout(1800);
+    context = await stage('context-start', () => browser.newContext());
+    const page = await stage('page-start', () => context.newPage()); page.setDefaultTimeout(1800);
     page.setDefaultNavigationTimeout(Number(oldTimeout));
     page.on('load', () => mark('page-load', 'delivered'));
     for (const event of ['requestfinished', 'requestfailed']) page.on(event, request => {
@@ -172867,14 +172915,8 @@ const server = http.createServer(async (req, res) => {
     console.log('Native login HTTP/Chromium fixture verified: ' + driver + '/' + fault + '; old load timeout=' + oldTimeout);
   } finally {
     closing = true; releaseHeldImages('cleanup');
-    try {
-      if (browser) await stage('browser-cleanup', () => browser.close(), 3000);
-    } finally {
-      await Promise.all([[server, 'server'], [foreign, 'foreign-server']].map(([service, name]) =>
-        stage(name + '-cleanup', () => new Promise(resolve => {
-          service.close(resolve); service.closeAllConnections();
-        }), 1000)));
-    }
+    await cleanupFixture({ browser, context, services: [[server, 'server'], [foreign, 'foreign-server']],
+      stage, deadline: started + 29000 }); // Reserve 1 s before the unchanged 30 s parent timeout.
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """
@@ -172942,7 +172984,7 @@ def _stop_owned_tree(process):
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True,
             timeout=3,
-            check=False,
+            check=True,
         )
         process.wait(timeout=3)
         return
@@ -173094,7 +173136,7 @@ def test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child(monke
     assert called == [
         (
             ["taskkill", "/PID", "100", "/T", "/F"],
-            {"capture_output": True, "timeout": 3, "check": False},
+            {"capture_output": True, "timeout": 3, "check": True},
         )
     ]
     assert waited == [{"timeout": 3}]
@@ -173166,9 +173208,12 @@ def test_fixture_diagnostics_and_cleanup_preserve_original_readiness_budgets():
         assert event in DRIVER
     assert "page.on('load', () => mark('page-load', 'delivered'))" in DRIVER
     assert "['requestfinished', 'requestfailed']" in DRIVER
-    assert DRIVER.index("let browser;\n  try {") < DRIVER.index("stage('foreign-server-start'")
-    assert "} finally {\n      await Promise.all([[server, 'server']" in DRIVER
-    assert "service.close(resolve); service.closeAllConnections();" in DRIVER
+    assert DRIVER.index("let browser, context;\n  try {") < DRIVER.index(
+        "stage('foreign-server-start'"
+    )
+    assert "services: [[server, 'server'], [foreign, 'foreign-server']]" in DRIVER
+    assert "deadline: started + 29000" in DRIVER
+    assert "context.newPage()" in DRIVER
 
 
 def test_diagnostic_output_is_bounded_and_retains_first_and_last_phase():
@@ -173180,6 +173225,92 @@ def test_diagnostic_output_is_bounded_and_retains_first_and_last_phase():
     assert "diagnostic bytes omitted" in result
     small = b'{"phase":"assertions","event":"done"}\n'
     assert _read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")
+
+
+# Execute the actual cleanup helper without needing a downloaded browser.
+CLEANUP_PROBE = r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const { cleanupFixture } = require('./tests/resources/browser_fixture_cleanup.cjs');
+const mode = process.argv[1], order = [];
+const server = http.createServer((request, response) => {});
+const stage = async (name, operation, budget) => {
+  let timer;
+  try {
+    return await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(name + ' timed out')), budget);
+    })]);
+  } finally { clearTimeout(timer); }
+};
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const context = { close: async () => {
+    assert.equal(server.listening, false); order.push('context');
+    if (mode === 'context-error') throw new Error('context close rejected');
+  }};
+  const browser = { close: async () => {
+    order.push('browser');
+    if (mode === 'browser-error') throw new Error('browser close rejected');
+    if (mode === 'hung') return new Promise(() => {});
+    if (mode === 'slow') await new Promise(resolve => setTimeout(resolve, 3100));
+  }};
+  if (mode === 'server-error') server.close = callback => callback(new Error('server close rejected'));
+  await cleanupFixture({ context, browser, services: [[server, 'server']], stage,
+    deadline: Date.now() + (mode === 'slow' ? 5000 : 100) });
+  assert.deepEqual(order, ['context', 'browser']);
+  console.log('cleanup-complete');
+})().catch(error => { console.error(error.message); process.exitCode = 1; });
+"""
+
+
+def test_fixture_graceful_cleanup_can_use_spare_outer_budget():
+    result = subprocess.run(
+        [shutil.which("node"), "-e", CLEANUP_PROBE, "slow"],
+        cwd=ROOT,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=8,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "cleanup-complete"
+
+
+@pytest.mark.parametrize("mode", ["hung", "browser-error", "context-error", "server-error"])
+def test_fixture_cleanup_failure_keeps_owned_root_alive_for_recovery(mode):
+    with tempfile.TemporaryFile(mode="w+b") as output:
+        process = subprocess.Popen(
+            [shutil.which("node"), "-e", CLEANUP_PROBE, mode],
+            cwd=ROOT,
+            env=clean_env(),
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            **process_options(),
+        )
+        try:
+            with pytest.raises(subprocess.TimeoutExpired):
+                process.wait(timeout=2)
+        finally:
+            _stop_owned_tree(process)
+        diagnostic = _read_diagnostic(output)
+    assert process.returncode != 0
+    expected = (
+        "browser-cleanup timed out" if mode == "hung" else mode.split("-")[0] + " close rejected"
+    )
+    assert expected in diagnostic
+    assert "cleanup-complete" not in diagnostic
+
+
+def test_windows_taskkill_failure_is_not_reported_as_success(monkeypatch):
+    monkeypatch.setitem(globals(), "os", SimpleNamespace(name="nt"))
+
+    def reject(command, **kwargs):
+        assert kwargs["check"] is True
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(subprocess, "run", reject)
+    with pytest.raises(subprocess.CalledProcessError):
+        _stop_owned_tree(SimpleNamespace(pid=100, poll=lambda: None))
 ````
 
 ### `tests/test_native_managed.py`
@@ -238198,7 +238329,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 62bfcec008b62c056d9428cb99021cdfe9965d6e677634a14d2a6350b15df5d6 -->
+<!-- source-file: docs/modular-production-v2.md sha256: c09f9e68439b6ba01e4d1704524fabfeeb9d91c6ccc9cd0b13fcfe23efb34680 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -238394,6 +238525,15 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 如果原检查没有确认容器停止（包括超时、仍运行或检查失败），先停止只读采样，不等待线程、不额外读计数器或查询Docker事件，避免诊断延迟原有清理。只有已确认停止的容器才进行最多0.5秒收尾等待和2秒事件查询。Docker历史事件缓存有限，查询为空不证明没有OOM或kill；这些观测仅辅助定位，不能替代原有受信资源证明。
 
 启动前或退出后的cgroup可能不存在，缺失样本明确为null，不假设初始计数为零。`pre_post_delta`只有真实前后样本都可用且身份一致时才存在；首末可见样本的`observed_delta`单独记录，不能冒充完整压力区间。该补丁仅准备后续有目标的诊断，不能追补已删除容器的事实，也不宣称解决了此次资源证明失败。
+
+
+### 登录夹具清理生命周期（本地准备）
+
+453c24a的Windows Python运行38126100115/job114430670410由父线程提供的证据显示：generic-fastapi/missing-main原负例断言完成后，browser.close超过夹具独立3秒限制；2193通过、1失败、69跳过。此处并非导航业务断言或先前换行/截图计数回归。子线程重新读取正式日志及mini-SWE运行38126262748的artifact11697773853均返回ConnectError，后者调用次数及根因仍未知。
+
+本地夹具改为显式context，释放挂起图片后先停止HTTP服务并关闭其连接，再依次关闭context/browser；所有关闭共享启动后29秒的截止点，Python原30秒总上限及业务1800毫秒断言保持不变。清理拒绝或超时不吞掉：保留Node事件循环直至Python按原总上限回收该夹具进程树，防止Node提前退出后无法再确认后代归属。Windows taskkill非零退出也必须报错。现有POSIX身份/启动tick检查及Windows精确PID /T /F范围保持不变，不使用全局进程名终止。
+
+离线Node回归覆盖超过旧3秒但仍在总预算内的完成、context/browser/server拒绝、挂起以及父进程实际回收；真实Chromium与Windows结果仍待后续CI，不将夹具修复或本地测试描述为实时产品验收通过。本轮不推送、不重跑工作流。
 ````
 
 ### `docs/template-platform.md`

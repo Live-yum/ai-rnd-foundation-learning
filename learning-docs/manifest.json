@@ -4283,8 +4283,8 @@
     },
     {
       "path": "tests/test_native_login_readiness.py",
-      "bytes": 25397,
-      "sha256": "aa7fa97ce22b702f4107e5138965fa71b7c5b7e0c4b6e52f295ecf75cdbcdfcb",
+      "bytes": 28853,
+      "sha256": "fc4592537d5795907cf13572acfc2e444b061f6b1b47a9288794aeb7d2d5a99b",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_login_readiness_py--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 26996,
-      "sha256": "62bfcec008b62c056d9428cb99021cdfe9965d6e677634a14d2a6350b15df5d6",
+      "bytes": 28347,
+      "sha256": "c09f9e68439b6ba01e4d1704524fabfeeb9d91c6ccc9cd0b13fcfe23efb34680",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5308,6 +5308,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/resources/browser_fixture_cleanup.cjs",
+      "bytes": 1152,
+      "sha256": "25667ba67491caf2ed0925a5ec40a4d9a70c1ddc71fe7e813ae6e36bbb4c6036",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__resources__browser_fixture_cleanup_cjs--001.md"
       ]
     },
     {

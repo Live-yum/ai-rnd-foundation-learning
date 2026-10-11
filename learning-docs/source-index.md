@@ -620,6 +620,7 @@
 - [scripts/template_acceptance_cases.py](14-acceptance/sources/scripts__template_acceptance_cases_py--001.md)（1 段）
 - [scripts/template_acceptance_runtime.py](14-acceptance/sources/scripts__template_acceptance_runtime_py--001.md)（1 段）
 - [tests/capability_dependency_fixtures.py](14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md)（1 段）
+- [tests/resources/browser_fixture_cleanup.cjs](14-acceptance/sources/tests__resources__browser_fixture_cleanup_cjs--001.md)（1 段）
 - [tests/resources/live-service/README.md](14-acceptance/sources/tests__resources__live-service__README_md--001.md)（1 段）
 - [tests/resources/live-service/caddy-root.pem](14-acceptance/sources/tests__resources__live-service__caddy-root_pem--001.md)（1 段）
 - [tests/test_batches.py](14-acceptance/sources/tests__test_batches_py--001.md)（1 段）
