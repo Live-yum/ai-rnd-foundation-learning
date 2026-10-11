@@ -655,8 +655,8 @@
     },
     {
       "path": "workbench/capability_browser_isolation.py",
-      "bytes": 26553,
-      "sha256": "b2d94211803c0a4d0c389b918e9b27aa3aa9eae7fe5f7ac2f359d8303ddb4bba",
+      "bytes": 26598,
+      "sha256": "16f80e53f6e5a15b2e8e3c8a7ca54748c3212c9c29281de4673251bae1f43ec2",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 24573,
-      "sha256": "3bd29e72b77adfa7296869c4b3bb01ec40a9d82091b5f156952191f5804bf8d1",
+      "bytes": 26996,
+      "sha256": "62bfcec008b62c056d9428cb99021cdfe9965d6e677634a14d2a6350b15df5d6",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -4873,6 +4873,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__workflow-optimization_md--001.md"
+      ]
+    },
+    {
+      "path": "scripts/browser_memory_observation.py",
+      "bytes": 8859,
+      "sha256": "3d282f5cefc34c1c460d10847135f3850e417f89287545dc177b77e605b645e7",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__browser_memory_observation_py--001.md"
       ]
     },
     {
@@ -5012,8 +5021,8 @@
     },
     {
       "path": "scripts/ci_capability_browser_isolation.py",
-      "bytes": 8583,
-      "sha256": "a1bdbf48b563752191012f80d8ec4058faeb75ff706acb881344c09f20fab98f",
+      "bytes": 8947,
+      "sha256": "9a310ff66240a7a7e11bbdac3b17efb7b5f481cda00f69f704936e0e53596b2b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md"
@@ -5329,6 +5338,15 @@
       ]
     },
     {
+      "path": "tests/test_browser_memory_observation.py",
+      "bytes": 8512,
+      "sha256": "aa68851b935fb58e4e0a19139a190d63a6dbe11a55dbe0833cdfc4ae488792ec",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_browser_memory_observation_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_business_workflow_branches.py",
       "bytes": 16195,
       "sha256": "3d5dfb1694eb1fa9f30091a163212322c83cc835ed9b57b12b6db188d99fc95e",
@@ -5375,8 +5393,8 @@
     },
     {
       "path": "tests/test_capability_browser_oom_diagnostics.py",
-      "bytes": 5764,
-      "sha256": "5c746d8ba9630867cb25dde90dcf65da9d2c93373d7eb84ebdb4cd7a2735f0e5",
+      "bytes": 6963,
+      "sha256": "9bcec87cf969ad956aa115795ad8e1f8693bd5778a3c060067a9a6e78e337403",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md"

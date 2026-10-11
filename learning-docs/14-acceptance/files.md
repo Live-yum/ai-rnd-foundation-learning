@@ -48,6 +48,7 @@
 - [docs/template-platform.md](sources/docs__template-platform_md--001.md)：本教材正文的源文件；1 段
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/workflow-optimization.md](sources/docs__workflow-optimization_md--001.md)：本教材正文的源文件；1 段
+- [scripts/browser_memory_observation.py](sources/scripts__browser_memory_observation_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
 - [scripts/build_learning_docs.py](sources/scripts__build_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser.cjs](sources/scripts__capability_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
@@ -98,6 +99,7 @@
 - [tests/resources/live-service/README.md](sources/tests__resources__live-service__README_md--001.md)：可重复的验收用例；1 段
 - [tests/resources/live-service/caddy-root.pem](sources/tests__resources__live-service__caddy-root_pem--001.md)：可重复的验收用例；1 段
 - [tests/test_batches.py](sources/tests__test_batches_py--001.md)：可重复的验收用例；1 段
+- [tests/test_browser_memory_observation.py](sources/tests__test_browser_memory_observation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_business_workflow_branches.py](sources/tests__test_business_workflow_branches_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_activation_review.py](sources/tests__test_capability_browser_activation_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_apparmor.py](sources/tests__test_capability_browser_apparmor_py--001.md)：可重复的验收用例；1 段

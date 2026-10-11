@@ -7,6 +7,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 
+from scripts.browser_memory_observation import observe_memory
 from workbench.capability_browser_isolation import (
     DOCKER,
     browser_image_identity,
@@ -125,24 +126,28 @@ def main():
         oom_command[-1:-1] = ["--entrypoint=node"]
         oom_command.extend(["-e", "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024,255))"])
         run(oom_command)
-        require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
-        try:
-            oom_run = subprocess.run(
-                [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
-            )
-        except subprocess.TimeoutExpired:
-            report["diagnostic"] = memory_probe_diagnostic(None, {}, timed_out=True)
-            raise
-        try:
-            state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
-            if type(state) is not dict:
-                raise ValueError("Memory probe container state is malformed")
-        except Exception:
-            report["diagnostic"] = memory_probe_diagnostic(oom_run, {}, inspection_failed=True)
-            raise
-        if state.get("OOMKilled") is not True or state.get("Running") is not False:
-            report["diagnostic"] = memory_probe_diagnostic(oom_run, state)
-            raise RuntimeError("Memory cgroup did not stop abusive worker")
+        inspection = json.loads(run([*DOCKER, "inspect", name]))
+        require_worker_inspection(inspection, image)
+        with observe_memory(inspection, name, DOCKER) as observation:
+            report["memory_observation"] = observation
+            try:
+                oom_run = subprocess.run(
+                    [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
+                )
+            except subprocess.TimeoutExpired:
+                report["diagnostic"] = memory_probe_diagnostic(None, {}, timed_out=True)
+                raise
+            try:
+                state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+                if type(state) is not dict:
+                    raise ValueError("Memory probe container state is malformed")
+            except Exception:
+                report["diagnostic"] = memory_probe_diagnostic(oom_run, {}, inspection_failed=True)
+                raise
+            observation["container_stopped"] = state.get("Running") is False
+            if state.get("OOMKilled") is not True or state.get("Running") is not False:
+                report["diagnostic"] = memory_probe_diagnostic(oom_run, state)
+                raise RuntimeError("Memory cgroup did not stop abusive worker")
         run([*DOCKER, "rm", "-f", name])
         report["checks"]["memory_exhaustion"] = True
         for mode in ("positive", "error", "abuse"):

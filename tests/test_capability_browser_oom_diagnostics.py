@@ -61,11 +61,33 @@ def test_malformed_memory_state_can_only_produce_empty_finite_facts(state):
         ("malformed_state", False, False, 0),
     ],
 )
+@pytest.mark.parametrize("observation", ["unavailable", "oom_counters", "finish_failure"])
 def test_oom_gate_preserves_original_proof_budget_and_cleanup(
-    monkeypatch, tmp_path, case, oom, running, exit_code
+    monkeypatch, tmp_path, case, oom, running, exit_code, observation
 ):
+    from scripts import browser_memory_observation
+
     image = "sha256:" + "a" * 64
     operations = []
+
+    class Observer:
+        def __init__(self, *args):
+            pass
+
+        def start(self):
+            pass
+
+        def finish(self, *, stopped):
+            operations.append("diagnostic_finished")
+            assert stopped is (not running and case not in {"inspect_failure", "malformed_state"})
+            if observation == "finish_failure":
+                raise RuntimeError("secret diagnostic failure")
+            return {
+                "available": observation == "oom_counters",
+                "observed_delta": {"oom_kill": 1} if observation == "oom_counters" else None,
+            }
+
+    monkeypatch.setattr(browser_memory_observation, "MemoryObservation", Observer)
     inspections = 0
     state = {
         "Status": "running" if running else "exited",
@@ -97,8 +119,15 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
 
     def run(args, timeout=30):
         nonlocal inspections
+        if "-e" in args:
+            assert (
+                args[args.index("-e") + 1]
+                == "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024,255))"
+            )
         if "inspect" in args:
             inspections += 1
+            if inspections == 3:
+                assert "diagnostic_finished" not in operations
             if inspections == 3 and case == "inspect_failure":
                 raise RuntimeError("secret inspection failure")
             value = [] if case == "malformed_state" else state
@@ -141,7 +170,13 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
     report = json.loads((tmp_path / "reports/capability-browser-isolation.json").read_bytes())
     assert report["passed"] is (case == "genuine_oom")
     assert report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None)
-    assert operations == ["memory_start", "final_cleanup", "server_shutdown", "server_close"]
+    assert operations == [
+        "memory_start",
+        "diagnostic_finished",
+        "final_cleanup",
+        "server_shutdown",
+        "server_close",
+    ]
     assert "secret" not in json.dumps(report)
     if case != "genuine_oom":
         assert report["diagnostic"]["timed_out"] is (case == "timeout")

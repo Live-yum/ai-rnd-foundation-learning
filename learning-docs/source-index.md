@@ -572,6 +572,7 @@
 - [docs/template-platform.md](14-acceptance/sources/docs__template-platform_md--001.md)（1 段）
 - [docs/toolchain.md](14-acceptance/sources/docs__toolchain_md--001.md)（1 段）
 - [docs/workflow-optimization.md](14-acceptance/sources/docs__workflow-optimization_md--001.md)（1 段）
+- [scripts/browser_memory_observation.py](14-acceptance/sources/scripts__browser_memory_observation_py--001.md)（1 段）
 - [scripts/build_handbook.py](14-acceptance/sources/scripts__build_handbook_py--001.md)（1 段）
 - [scripts/build_learning_docs.py](14-acceptance/sources/scripts__build_learning_docs_py--001.md)（1 段）
 - [scripts/capability_browser.cjs](14-acceptance/sources/scripts__capability_browser_cjs--001.md)（1 段）
@@ -622,6 +623,7 @@
 - [tests/resources/live-service/README.md](14-acceptance/sources/tests__resources__live-service__README_md--001.md)（1 段）
 - [tests/resources/live-service/caddy-root.pem](14-acceptance/sources/tests__resources__live-service__caddy-root_pem--001.md)（1 段）
 - [tests/test_batches.py](14-acceptance/sources/tests__test_batches_py--001.md)（1 段）
+- [tests/test_browser_memory_observation.py](14-acceptance/sources/tests__test_browser_memory_observation_py--001.md)（1 段）
 - [tests/test_business_workflow_branches.py](14-acceptance/sources/tests__test_business_workflow_branches_py--001.md)（1 段）
 - [tests/test_capability_browser_activation_review.py](14-acceptance/sources/tests__test_capability_browser_activation_review_py--001.md)（1 段）
 - [tests/test_capability_browser_apparmor.py](14-acceptance/sources/tests__test_capability_browser_apparmor_py--001.md)（1 段）

@@ -180,3 +180,15 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 同head手动运行 `38122528136` 于08:07:49 UTC执行步骤退出1。父线程随后通过正式文件下载读取artifact `11696606589`，ZIP SHA256为 `57993571bc1867d29ad18d2a7794aa6e8b168171349e54860981e3fc2f38ad75`。本次模型调用预留/HTTP尝试/响应均为2，失败为`DaytonaError / coding_sandbox / d9703ef第40行`，不是81c0638的候选文件集合错误。该行调用`download_file(path, timeout=...)`；锁定SDK0.190.0的重载标注支持关键字，但实际实现仅接受位置参数。离线真实SDK复现其在下载HTTP前将TypeError包装为DaytonaError，确认调用签名缺陷。
 
 本次最小修复仅把超时改为`download_file(path, timeout)`位置参数，不改SDK版本、端点、批准路径、原超时、100000字节限制或UTF-8要求，不增加请求/重试。保持空文件及CRLF字节支持；实际SDK+mock HTTP回归覆盖空文件、恰好100000字节、超限、非法UTF-8、截断multipart及401/403/404/500失败，并检查响应关闭和原读写超时传递。此修复与独立的Windows换行修复均仅有离线证据，完整双模块/ZIP实时验收仍待新SHA结果。
+
+### 浏览器内存失败的只读观测（尚非修复证明）
+
+453c24a的PostgreSQL隔离运行38126100189在浏览器资源证明处失败，尚未进入PG产品验收。正式artifact11697318126（ZIP SHA256 `f07e5a8d369ee2bd7be0bbf9ebb58ebfa48799f91c6dbe5cf85d0e5f60f46b2e`）记录退出码及docker start返回码137，OOMKilled=false、Running=false、Status=exited，既非超时也非检查失败。进程终止不证明该容器内存上限导致OOM；该失败保留，不能归因于模型或仅凭137通过。
+
+本地诊断补丁新增可选`memory_observation`，只绑定已检查的完整容器ID与本次随机名称。仅尝试`/sys/fs/cgroup/system.slice/docker-<ID>.scope`和`/sys/fs/cgroup/docker/<ID>`两个准确路径，禁止符号链接，检测组身份变化；不扫描进程、不读取其他组或父组信息、不调用sudo或新增权限。只保留有界`memory.max/current/peak`及`memory.events.local`计数，最多30秒/300次只读轮询。Docker事件仅查询同一ID、同一时间区间的oom/kill/die，2秒超时、有限行数，仅输出事件类型和时间，不读取日志、标签、环境或原始错误。
+
+原Node压力循环、768MiB内存/同额MemorySwap/CPU/PID限制、30秒启动超时及`OOMKilled is True and Running is False`判据保持不变。诊断收尾发生在原状态采样和判定之后，不用等待事件来改变原采样结果；诊断构造/读取/权限/收尾失败均不替代原结果。`oom_kill`增量不是通过条件。新辅助代码纳入源码身份摘要，策略JSON和scope不变。
+
+如果原检查没有确认容器停止（包括超时、仍运行或检查失败），先停止只读采样，不等待线程、不额外读计数器或查询Docker事件，避免诊断延迟原有清理。只有已确认停止的容器才进行最多0.5秒收尾等待和2秒事件查询。Docker历史事件缓存有限，查询为空不证明没有OOM或kill；这些观测仅辅助定位，不能替代原有受信资源证明。
+
+启动前或退出后的cgroup可能不存在，缺失样本明确为null，不假设初始计数为零。`pre_post_delta`只有真实前后样本都可用且身份一致时才存在；首末可见样本的`observed_delta`单独记录，不能冒充完整压力区间。该补丁仅准备后续有目标的诊断，不能追补已删除容器的事实，也不宣称解决了此次资源证明失败。
