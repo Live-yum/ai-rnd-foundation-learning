@@ -88,7 +88,7 @@ def test_failure_receipt_never_publishes_raw_provider_error(tmp_path, monkeypatc
     monkeypatch.setattr("sys.argv", ["ci_live_modules"])
     monkeypatch.setattr(live, "live_settings", lambda *a: None)
 
-    def reject(*args):
+    def reject(*args, **kwargs):
         raise RuntimeError("secret-and-untrusted-provider-text")
 
     monkeypatch.setattr(live, "execute", reject)
@@ -97,6 +97,99 @@ def test_failure_receipt_never_publishes_raw_provider_error(tmp_path, monkeypatc
     raw = live.REPORT.read_text()
     assert "secret-and-untrusted" not in raw
     assert json.loads(raw)["real_model_acceptance"] is False
+    assert json.loads(raw)["failure_diagnostic"]["exception_type"] == "RuntimeError"
+
+
+def test_diagnostic_locates_real_sandbox_boundary_without_sdk_text(settings, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from workbench.infrastructure.sandbox import coding
+
+    closed = []
+
+    def reject(*args, **kwargs):
+        raise RuntimeError("private endpoint key headers prompt")
+
+    client = SimpleNamespace(create=reject)
+    monkeypatch.setattr(coding, "capability_execution_prerequisites", lambda *a: (tmp_path, {}))
+    monkeypatch.setattr(coding, "client_for", lambda *a: client)
+    monkeypatch.setattr(coding, "close_client", lambda value: closed.append(value))
+    plan = live.acceptance_design().implementation
+    with pytest.raises(RuntimeError) as captured:
+        with coding.coding_environment(
+            settings, plan.tasks[0], plan.selection.model_dump(), tmp_path
+        ):
+            pytest.fail("unadmitted sandbox yielded")
+    diagnostic = live.failure_diagnostic(captured.value)
+    assert diagnostic["stage"] == "coding_sandbox"
+    assert diagnostic["exception_type"] == "RuntimeError"
+    assert type(diagnostic["trusted_source_line"]) is int
+    assert "private" not in json.dumps(diagnostic)
+    assert closed == [client]
+
+
+def test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames():
+    error = type("private-provider-content", (Exception,), {})("private-message")
+    try:
+        raise error
+    except Exception as exc:
+        diagnostic = live.failure_diagnostic(exc)
+    assert diagnostic == {"exception_type": "other", "stage": "other"}
+
+
+def test_diagnostic_retains_only_bounded_inspector_facts():
+    from workbench.capability_isolation import ContainerInspectionRejected
+
+    error = ContainerInspectionRejected(
+        "private docker inspect output",
+        category="container_policy",
+        facts={"network_mode": "private-network-name", "secret": "private-key"},
+    )
+    diagnostic = live.failure_diagnostic(error)
+    assert diagnostic["container"] == {
+        "container_rejection": "container_policy",
+        "network_mode": "other",
+    }
+    assert "private" not in json.dumps(diagnostic)
+
+
+def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypatch):
+    """Exercise pre-call orchestration; this supplies no real sandbox/model evidence."""
+    from contextlib import contextmanager
+
+    import httpx
+
+    import workbench.capability_execution as admission
+    from workbench.coding.mini_swe import worker_python
+    from workbench.infrastructure.sandbox import coding
+
+    if not worker_python().is_file():
+        pytest.skip("optional locked Python3.12 worker not installed")
+
+    @contextmanager
+    def offline_environment(*args):
+        yield None  # Stop at the first transport call, before any edits.
+
+    monkeypatch.setattr(admission, "capability_execution_prerequisites", lambda *a: None)
+    monkeypatch.setattr(coding, "coding_environment", offline_environment)
+    monkeypatch.setattr("scripts.daytona_capability_profile.HOME", tmp_path / "absent-profile")
+    env = {**dispatch(), "API_KEY": "offline-fixture-only"}
+    settings = live.live_settings(env, live.configuration(env), tmp_path)
+    seen = []
+
+    def stop(request):
+        seen.append(request.url.path)
+        raise RuntimeError("offline pre-call boundary reached")
+
+    class OfflineTransport(httpx.MockTransport):
+        calls = 0
+        responses = 0
+
+    progress = {}
+    with OfflineTransport(stop) as transport, pytest.raises(Exception):
+        live.execute(settings, tmp_path, transport=transport, progress=progress)
+    assert seen == ["/v1/chat/completions"]
+    assert progress["model_call_reservations"] == 1
 
 
 def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):

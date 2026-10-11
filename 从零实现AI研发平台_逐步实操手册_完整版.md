@@ -157,6 +157,14 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 另一个独立的三 SQLite 运行 `38114286680` 在 `c5bb8de` 已完成3/3场景、7次真实模型请求（需求分析/规划），不证明 mini-SWE 执行器；无需为本 scope 修复重跑。两个手动 workflow 使用不同 concurrency group，且均不取消运行中的任务；本修复不修改事件或 concurrency。
 
+### 模型调用前失败的安全诊断
+
+`f0447dfce11388f6f434c273d7615b417b199622` 的手动运行 `38115731003` 通过严格 TLS、限定浏览器 scope 和真实隔离正反例后，在模块执行步骤退出1。回执 `11693670965` 的模型调用预留、HTTP尝试与响应均为0；在线步骤日志只有退出码，无法确定具体异常。不能将此结果归因为模型失败，也不能宣称 mini-SWE 已通过。
+
+失败摘要现在额外保存固定白名单异常类型、固定受信代码阶段及该代码帧的行号；容器检查拒绝沿用现有严格过滤的类别/布尔/数字事实。未知异常名称和仓库外帧被抑制，不保存原始异常、堆栈文本、局部变量、SDK响应、提示词或凭据。离线回归使用真实锁定 Worker、正式场景上下文和模型网关，替换隔离环境及HTTP transport，已确认可到达首次调用预留和模拟 transport；这不是在线沙箱或真实模型成功证据。
+
+此变更仅补齐故障可观测性，尚未确认或修复上述运行的根因。沙箱控制用户、权限、CA、预算和准入策略均未更改；不自动 dispatch 或重跑已通过的三 SQLite 场景。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -143487,18 +143495,26 @@ def test_workflow_has_independent_complete_gates_and_always_run_fail_closed_aggr
 - `test_preflight_rejects_unreviewed_or_unbounded_dispatch`（L51–L53）：接收`key`、`value`。 调用`pytest.raises`、`live.configuration`、`dispatch`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_preflight_needs_no_key_and_cannot_report_real_acceptance`（L56–L67）：接收`tmp_path`、`monkeypatch`。 控制顺序：L57遍历`dispatch().items()`；L65断言`summary["configuration_valid"] is True`；L66断言`summary["passed"] is summary["real_model_acceptance"] is False`；L67断言`summary["limits"]["max_model_calls"] == 32`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.delenv`、`monkeypatch.setattr`、`pytest.fail`、`live.main`、`json.loads`、`live.REPORT.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_profile_pins_https_costs_and_coding_stage`（L70–L81）：接收`tmp_path`、`monkeypatch`。 控制顺序：L74断言`settings.allow_insecure_model_http is False`；L75断言`settings.mini_swe_enabled is True`；L76断言`settings.mini_swe_max_cost_usd * 2 == 5`；L77断言`settings.mini_swe_usd_per_million_tokens == 1`；L78断言`settings.max_model_calls == 32`；L80断言`profile.base_url == env["BASE_URL"]`；L81断言`profile.max_output_tokens == 8192`。 调用`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`settings.model_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failure_receipt_never_publishes_raw_provider_error`（L84–L99）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85遍历`dispatch().items()`；L98断言`"secret-and-untrusted" not in raw`；L99断言`json.loads(raw)["real_model_acceptance"] is False`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`live.REPORT.read_text`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failure_receipt_never_publishes_raw_provider_error.reject`（L91–L92）：接收`*args`。 控制顺序：L92抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_reviewed_scenarios_and_consumer_preserve_isolation`（L102–L119）：接收`tmp_path`。 控制顺序：L109断言`len(plan.tasks) == 2`；L110断言`all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)`；L111断言`plan.selection.template == "python-basic" and plan.selection.database == "sqlite"`；L112遍历`plan.scenarios`；L113断言`any(s.status == 401 for s in scenario.steps)`；L114断言`any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)`；L115断言`any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)`；L116断言`any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)`。后续分支沿下方源码相同行号继续阅读。 调用`live.acceptance_design`、`len`、`all`、`any`、`s.body.get`、`s.body.get("due_at", "").startswith`、`s.equals.get`、`generate_basic`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_isolation_stops_before_any_model_or_worker`（L122–L134）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`live.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_isolation_stops_before_any_model_or_worker.reject`（L129–L130）：接收`*args`。 控制顺序：L130抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip`（L138–L201）：接收`settings`、`tmp_path`、`monkeypatch`、`reject_proof`。 控制顺序：L187按`reject_proof`分支；L190断言`json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0`；L191断言`not (tmp_path / "delivery.zip").exists()`；L194断言`result["real_model_calls"] == 2`；L195断言`seen == [ ("sla-api-candidate", False), ("sla-dashboard-candidate", False), ("fresh-c…`；L200断言`consumers == ["fresh-consumer"]`；L201断言`result["full_workflow_crash_recovery"] is False`。 调用`monkeypatch.setattr`、`consumers.append`、`pytest.raises`、`live.execute`、`json.loads`、`(tmp_path / "ledger/current.json").read_text`、`(tmp_path / "delivery.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_agent`（L152–L164）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`。 调用`gateway.store.reserve_model_call`、`authored_files`、`(product / "app.py").read_text`、`write_json`、`CapabilityEdits`、`manifest(product).get`、`manifest`、`sources.items`。 返回路径：L158的`CapabilityEdits( explanation="explicit offline fixture", files=[ {"path": name, "before_sh…`。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_verify`（L166–L173）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 调用`seen.append`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L168的`{ "passed": not reject_proof, "cleanup": "deleted", "plan_digest": digest(plan.model_dump(…`。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L175–L178）：接收`proof`、`**kwargs`。 控制顺序：L177按`not proof["passed"]`分支；L178抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_only_exposes_key_after_preflight_and_real_security`（L204–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L207断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L208断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L214断言`preflight < security < paid`；L215断言`"API_KEY" not in job["env"]`；L216断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L217断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L218断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_receipt_never_publishes_raw_provider_error`（L84–L100）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85遍历`dispatch().items()`；L98断言`"secret-and-untrusted" not in raw`；L99断言`json.loads(raw)["real_model_acceptance"] is False`；L100断言`json.loads(raw)["failure_diagnostic"]["exception_type"] == "RuntimeError"`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`live.REPORT.read_text`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_receipt_never_publishes_raw_provider_error.reject`（L91–L92）：接收`*args`、`**kwargs`。 控制顺序：L92抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text`（L103–L128）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L124断言`diagnostic["stage"] == "coding_sandbox"`；L125断言`diagnostic["exception_type"] == "RuntimeError"`；L126断言`type(diagnostic["trusted_source_line"]) is int`；L127断言`"private" not in json.dumps(diagnostic)`；L128断言`closed == [client]`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`closed.append`、`live.acceptance_design`、`pytest.raises`、`coding.coding_environment`、`plan.selection.model_dump`、`pytest.fail`、`live.failure_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text.reject`（L110–L111）：接收`*args`、`**kwargs`。 控制顺序：L111抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames`（L131–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134抛异常，停止当前正常路径；L137断言`diagnostic == {"exception_type": "other", "stage": "other"}`。 调用`type("private-provider-content", (Exception,), {})`、`type`、`live.failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_retains_only_bounded_inspector_facts`（L140–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149断言`diagnostic["container"] == { "container_rejection": "container_policy", "network_mode…`；L153断言`"private" not in json.dumps(diagnostic)`。 调用`ContainerInspectionRejected`、`live.failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport`（L156–L192）：接收`tmp_path`、`monkeypatch`。 源码说明：Exercise pre-call orchestration; this supplies no real sandbox/model evidence.。 控制顺序：L166按`not worker_python().is_file()`分支；L191断言`seen == ["/v1/chat/completions"]`；L192断言`progress["model_call_reservations"] == 1`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`OfflineTransport`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport.offline_environment`（L170–L171）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_real_worker_and_live_context_reach_offline_transport.stop`（L180–L182）：接收`request`。 控制顺序：L182抛异常，停止当前正常路径。 调用`seen.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport.OfflineTransport`（L184–L186）：继承`httpx.MockTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_reviewed_scenarios_and_consumer_preserve_isolation`（L195–L212）：接收`tmp_path`。 控制顺序：L202断言`len(plan.tasks) == 2`；L203断言`all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)`；L204断言`plan.selection.template == "python-basic" and plan.selection.database == "sqlite"`；L205遍历`plan.scenarios`；L206断言`any(s.status == 401 for s in scenario.steps)`；L207断言`any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)`；L208断言`any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)`；L209断言`any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)`。后续分支沿下方源码相同行号继续阅读。 调用`live.acceptance_design`、`len`、`all`、`any`、`s.body.get`、`s.body.get("due_at", "").startswith`、`s.equals.get`、`generate_basic`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker`（L215–L227）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`live.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker.reject`（L222–L223）：接收`*args`。 控制顺序：L223抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip`（L231–L294）：接收`settings`、`tmp_path`、`monkeypatch`、`reject_proof`。 控制顺序：L280按`reject_proof`分支；L283断言`json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0`；L284断言`not (tmp_path / "delivery.zip").exists()`；L287断言`result["real_model_calls"] == 2`；L288断言`seen == [ ("sla-api-candidate", False), ("sla-dashboard-candidate", False), ("fresh-c…`；L293断言`consumers == ["fresh-consumer"]`；L294断言`result["full_workflow_crash_recovery"] is False`。 调用`monkeypatch.setattr`、`consumers.append`、`pytest.raises`、`live.execute`、`json.loads`、`(tmp_path / "ledger/current.json").read_text`、`(tmp_path / "delivery.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_agent`（L245–L257）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`。 调用`gateway.store.reserve_model_call`、`authored_files`、`(product / "app.py").read_text`、`write_json`、`CapabilityEdits`、`manifest(product).get`、`manifest`、`sources.items`。 返回路径：L251的`CapabilityEdits( explanation="explicit offline fixture", files=[ {"path": name, "before_sh…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_verify`（L259–L266）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 调用`seen.append`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L261的`{ "passed": not reject_proof, "cleanup": "deleted", "plan_digest": digest(plan.model_dump(…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L268–L271）：接收`proof`、`**kwargs`。 控制顺序：L270按`not proof["passed"]`分支；L271抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_only_exposes_key_after_preflight_and_real_security`（L297–L311）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L300断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L301断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L307断言`preflight < security < paid`；L308断言`"API_KEY" not in job["env"]`；L309断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L310断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L311断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_ci_live_modules.py sha256: 4f9bf20305c0ebca62a07e07627bda0e2e3983f921ddea256e154acebdb502ab -->
+<!-- source-file: tests/test_ci_live_modules.py sha256: 154e5a7bda730f65694563e8cae3caaf4b0a447f51d83dc51318149ff32f835f -->
 ````python
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
 
@@ -143590,7 +143606,7 @@ def test_failure_receipt_never_publishes_raw_provider_error(tmp_path, monkeypatc
     monkeypatch.setattr("sys.argv", ["ci_live_modules"])
     monkeypatch.setattr(live, "live_settings", lambda *a: None)
 
-    def reject(*args):
+    def reject(*args, **kwargs):
         raise RuntimeError("secret-and-untrusted-provider-text")
 
     monkeypatch.setattr(live, "execute", reject)
@@ -143599,6 +143615,99 @@ def test_failure_receipt_never_publishes_raw_provider_error(tmp_path, monkeypatc
     raw = live.REPORT.read_text()
     assert "secret-and-untrusted" not in raw
     assert json.loads(raw)["real_model_acceptance"] is False
+    assert json.loads(raw)["failure_diagnostic"]["exception_type"] == "RuntimeError"
+
+
+def test_diagnostic_locates_real_sandbox_boundary_without_sdk_text(settings, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from workbench.infrastructure.sandbox import coding
+
+    closed = []
+
+    def reject(*args, **kwargs):
+        raise RuntimeError("private endpoint key headers prompt")
+
+    client = SimpleNamespace(create=reject)
+    monkeypatch.setattr(coding, "capability_execution_prerequisites", lambda *a: (tmp_path, {}))
+    monkeypatch.setattr(coding, "client_for", lambda *a: client)
+    monkeypatch.setattr(coding, "close_client", lambda value: closed.append(value))
+    plan = live.acceptance_design().implementation
+    with pytest.raises(RuntimeError) as captured:
+        with coding.coding_environment(
+            settings, plan.tasks[0], plan.selection.model_dump(), tmp_path
+        ):
+            pytest.fail("unadmitted sandbox yielded")
+    diagnostic = live.failure_diagnostic(captured.value)
+    assert diagnostic["stage"] == "coding_sandbox"
+    assert diagnostic["exception_type"] == "RuntimeError"
+    assert type(diagnostic["trusted_source_line"]) is int
+    assert "private" not in json.dumps(diagnostic)
+    assert closed == [client]
+
+
+def test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames():
+    error = type("private-provider-content", (Exception,), {})("private-message")
+    try:
+        raise error
+    except Exception as exc:
+        diagnostic = live.failure_diagnostic(exc)
+    assert diagnostic == {"exception_type": "other", "stage": "other"}
+
+
+def test_diagnostic_retains_only_bounded_inspector_facts():
+    from workbench.capability_isolation import ContainerInspectionRejected
+
+    error = ContainerInspectionRejected(
+        "private docker inspect output",
+        category="container_policy",
+        facts={"network_mode": "private-network-name", "secret": "private-key"},
+    )
+    diagnostic = live.failure_diagnostic(error)
+    assert diagnostic["container"] == {
+        "container_rejection": "container_policy",
+        "network_mode": "other",
+    }
+    assert "private" not in json.dumps(diagnostic)
+
+
+def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypatch):
+    """Exercise pre-call orchestration; this supplies no real sandbox/model evidence."""
+    from contextlib import contextmanager
+
+    import httpx
+
+    import workbench.capability_execution as admission
+    from workbench.coding.mini_swe import worker_python
+    from workbench.infrastructure.sandbox import coding
+
+    if not worker_python().is_file():
+        pytest.skip("optional locked Python3.12 worker not installed")
+
+    @contextmanager
+    def offline_environment(*args):
+        yield None  # Stop at the first transport call, before any edits.
+
+    monkeypatch.setattr(admission, "capability_execution_prerequisites", lambda *a: None)
+    monkeypatch.setattr(coding, "coding_environment", offline_environment)
+    monkeypatch.setattr("scripts.daytona_capability_profile.HOME", tmp_path / "absent-profile")
+    env = {**dispatch(), "API_KEY": "offline-fixture-only"}
+    settings = live.live_settings(env, live.configuration(env), tmp_path)
+    seen = []
+
+    def stop(request):
+        seen.append(request.url.path)
+        raise RuntimeError("offline pre-call boundary reached")
+
+    class OfflineTransport(httpx.MockTransport):
+        calls = 0
+        responses = 0
+
+    progress = {}
+    with OfflineTransport(stop) as transport, pytest.raises(Exception):
+        live.execute(settings, tmp_path, transport=transport, progress=progress)
+    assert seen == ["/v1/chat/completions"]
+    assert progress["model_call_reservations"] == 1
 
 
 def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):
@@ -199525,14 +199634,15 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `require`（L32–L34）：接收`condition`、`code`。 控制顺序：L33按`not condition`分支；L34抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L37–L90）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L67按`billing == "declared_free"`分支；L77抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L78的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L93–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L100遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L135的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L138–L174）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L147的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L177–L297）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L218遍历`plan.tasks`；L293按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L278的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L300–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L315按`not args.preflight`分支；L338抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_diagnostic`（L32–L79）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L72在`frame is not None`成立时循环；L74按`stage is not None`分支；L77按`type(exc) is ContainerInspectionRejected`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`。 返回路径：L79的`result`。
+- `require`（L82–L84）：接收`condition`、`code`。 控制顺序：L83按`not condition`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L87–L140）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L117按`billing == "declared_free"`分支；L127抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L128的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L143–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L150遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L185的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L188–L224）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L197的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L227–L347）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L268遍历`plan.tasks`；L343按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L328的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L350–L391）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L365按`not args.preflight`分支；L389抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_live_modules.py sha256: 0667a653d38df34dde8d8f9f55eb3df0ff47bd86e1ef3cdc66aa389f8a625638 -->
+<!-- source-file: scripts/ci_live_modules.py sha256: 980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4 -->
 ````python
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
 
@@ -199563,6 +199673,56 @@ STEPS_PER_TASK = 8
 TOKENS_PER_TASK = 2_000_000
 MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
 REPORT = ROOT / "reports/live-modules/summary.json"
+
+
+def failure_diagnostic(exc):
+    """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
+    from workbench.capability_isolation import ContainerInspectionRejected
+
+    stages = {
+        "scripts/ci_live_modules.py": "acceptance_controller",
+        "workbench/coding/mini_swe.py": "agent_controller",
+        "workbench/infrastructure/sandbox/coding.py": "coding_sandbox",
+        "workbench/capability_execution.py": "isolation_admission",
+        "scripts/daytona_capability_profile.py": "container_inspection",
+        "workbench/capability_isolation.py": "container_evidence",
+        "workbench/infrastructure/llm/gateway.py": "model_gateway",
+        "workbench/coding/candidates.py": "candidate_application",
+        "workbench/production/candidates.py": "product_ledger",
+        "workbench/capability_sandbox.py": "independent_verification",
+    }
+    # Membership produces a fixed value; unknown/provider-defined names are suppressed.
+    names = {
+        name: name
+        for name in (
+            "ValueError",
+            "TypeError",
+            "KeyError",
+            "RuntimeError",
+            "OSError",
+            "FileNotFoundError",
+            "PermissionError",
+            "TimeoutError",
+            "ValidationError",
+            "UnsupportedScope",
+            "ModelFailure",
+            "IsolationUnavailable",
+            "ContainerInspectionRejected",
+            "DaytonaError",
+            "DaytonaNotFoundError",
+        )
+    }
+    result = {"exception_type": names.get(type(exc).__name__, "other"), "stage": "other"}
+    trusted = {str(ROOT / path): stage for path, stage in stages.items()}
+    frame = exc.__traceback__
+    while frame is not None:
+        stage = trusted.get(frame.tb_frame.f_code.co_filename)
+        if stage is not None:
+            result.update(stage=stage, trusted_source_line=frame.tb_lineno)
+        frame = frame.tb_next
+    if type(exc) is ContainerInspectionRejected:
+        result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    return result
 
 
 def require(condition, code):
@@ -199867,10 +200027,11 @@ def main():
                 finally:
                     transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
-    except Exception:
+    except Exception as exc:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.
         summary.update(passed=False, real_model_acceptance=False)
         summary["failure"] = "configuration_or_execution_rejected"
+        summary["failure_diagnostic"] = failure_diagnostic(exc)
         raise SystemExit(1) from None
     finally:
         write_json(REPORT, summary)
@@ -236907,7 +237068,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 1d79c6b4e8a34ed518d077f23f8671c497c39cdef5b05ad1bc8fbe2a9e9f3abb -->
+<!-- source-file: docs/modular-production-v2.md sha256: 587325389ae17e3075e71898fabf812594b0d0e347ddd0924691a59c72231504 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -237067,6 +237228,14 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 策略字节/SHA、Docker/内核/镜像来源检查、非 root、无网络、只读根目录、权限及资源限制均不变。新 scope 配置与离线回归不是实时隔离证明，下一次须在精确修复 head 重新通过全部隔离正反例，才能执行真实模块。
 
 另一个独立的三 SQLite 运行 `38114286680` 在 `c5bb8de` 已完成3/3场景、7次真实模型请求（需求分析/规划），不证明 mini-SWE 执行器；无需为本 scope 修复重跑。两个手动 workflow 使用不同 concurrency group，且均不取消运行中的任务；本修复不修改事件或 concurrency。
+
+### 模型调用前失败的安全诊断
+
+`f0447dfce11388f6f434c273d7615b417b199622` 的手动运行 `38115731003` 通过严格 TLS、限定浏览器 scope 和真实隔离正反例后，在模块执行步骤退出1。回执 `11693670965` 的模型调用预留、HTTP尝试与响应均为0；在线步骤日志只有退出码，无法确定具体异常。不能将此结果归因为模型失败，也不能宣称 mini-SWE 已通过。
+
+失败摘要现在额外保存固定白名单异常类型、固定受信代码阶段及该代码帧的行号；容器检查拒绝沿用现有严格过滤的类别/布尔/数字事实。未知异常名称和仓库外帧被抑制，不保存原始异常、堆栈文本、局部变量、SDK响应、提示词或凭据。离线回归使用真实锁定 Worker、正式场景上下文和模型网关，替换隔离环境及HTTP transport，已确认可到达首次调用预留和模拟 transport；这不是在线沙箱或真实模型成功证据。
+
+此变更仅补齐故障可观测性，尚未确认或修复上述运行的根因。沙箱控制用户、权限、CA、预算和准入策略均未更改；不自动 dispatch 或重跑已通过的三 SQLite 场景。
 ````
 
 ### `docs/template-platform.md`

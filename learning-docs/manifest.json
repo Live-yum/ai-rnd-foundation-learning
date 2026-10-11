@@ -4786,8 +4786,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 18206,
-      "sha256": "1d79c6b4e8a34ed518d077f23f8671c497c39cdef5b05ad1bc8fbe2a9e9f3abb",
+      "bytes": 19403,
+      "sha256": "587325389ae17e3075e71898fabf812594b0d0e347ddd0924691a59c72231504",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5092,8 +5092,8 @@
     },
     {
       "path": "scripts/ci_live_modules.py",
-      "bytes": 14269,
-      "sha256": "0667a653d38df34dde8d8f9f55eb3df0ff47bd86e1ef3cdc66aa389f8a625638",
+      "bytes": 16403,
+      "sha256": "980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
@@ -5754,8 +5754,8 @@
     },
     {
       "path": "tests/test_ci_live_modules.py",
-      "bytes": 9422,
-      "sha256": "4f9bf20305c0ebca62a07e07627bda0e2e3983f921ddea256e154acebdb502ab",
+      "bytes": 13164,
+      "sha256": "154e5a7bda730f65694563e8cae3caaf4b0a447f51d83dc51318149ff32f835f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_live_modules_py--001.md"

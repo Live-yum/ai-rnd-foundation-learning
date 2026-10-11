@@ -15,20 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `require`（L32–L34）：接收`condition`、`code`。 控制顺序：L33按`not condition`分支；L34抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L37–L90）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L67按`billing == "declared_free"`分支；L77抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L78的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L93–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L100遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L135的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L138–L174）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L147的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L177–L297）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L218遍历`plan.tasks`；L293按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L278的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L300–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L315按`not args.preflight`分支；L338抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `failure_diagnostic`（L32–L79）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L72在`frame is not None`成立时循环；L74按`stage is not None`分支；L77按`type(exc) is ContainerInspectionRejected`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`。 返回路径：L79的`result`。
+- `require`（L82–L84）：接收`condition`、`code`。 控制顺序：L83按`not condition`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L87–L140）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L117按`billing == "declared_free"`分支；L127抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L128的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L143–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L150遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L185的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L188–L224）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L197的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L227–L347）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L268遍历`plan.tasks`；L343按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L328的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L350–L391）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L365按`not args.preflight`分支；L389抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L344。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L395。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14269`。本段原文以LF换行结束。
+本段原始字节数：`16403`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0667a653d38df34dde8d8f9f55eb3df0ff47bd86e1ef3cdc66aa389f8a625638"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "980cce51364e43fe212574dfb781a32df7a620fd73924c7b624e763d33d121d4"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -60,6 +61,56 @@ STEPS_PER_TASK = 8
 TOKENS_PER_TASK = 2_000_000
 MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
 REPORT = ROOT / "reports/live-modules/summary.json"
+
+
+def failure_diagnostic(exc):
+    """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
+    from workbench.capability_isolation import ContainerInspectionRejected
+
+    stages = {
+        "scripts/ci_live_modules.py": "acceptance_controller",
+        "workbench/coding/mini_swe.py": "agent_controller",
+        "workbench/infrastructure/sandbox/coding.py": "coding_sandbox",
+        "workbench/capability_execution.py": "isolation_admission",
+        "scripts/daytona_capability_profile.py": "container_inspection",
+        "workbench/capability_isolation.py": "container_evidence",
+        "workbench/infrastructure/llm/gateway.py": "model_gateway",
+        "workbench/coding/candidates.py": "candidate_application",
+        "workbench/production/candidates.py": "product_ledger",
+        "workbench/capability_sandbox.py": "independent_verification",
+    }
+    # Membership produces a fixed value; unknown/provider-defined names are suppressed.
+    names = {
+        name: name
+        for name in (
+            "ValueError",
+            "TypeError",
+            "KeyError",
+            "RuntimeError",
+            "OSError",
+            "FileNotFoundError",
+            "PermissionError",
+            "TimeoutError",
+            "ValidationError",
+            "UnsupportedScope",
+            "ModelFailure",
+            "IsolationUnavailable",
+            "ContainerInspectionRejected",
+            "DaytonaError",
+            "DaytonaNotFoundError",
+        )
+    }
+    result = {"exception_type": names.get(type(exc).__name__, "other"), "stage": "other"}
+    trusted = {str(ROOT / path): stage for path, stage in stages.items()}
+    frame = exc.__traceback__
+    while frame is not None:
+        stage = trusted.get(frame.tb_frame.f_code.co_filename)
+        if stage is not None:
+            result.update(stage=stage, trusted_source_line=frame.tb_lineno)
+        frame = frame.tb_next
+    if type(exc) is ContainerInspectionRejected:
+        result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    return result
 
 
 def require(condition, code):
@@ -364,10 +415,11 @@ def main():
                 finally:
                     transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
-    except Exception:
+    except Exception as exc:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.
         summary.update(passed=False, real_model_acceptance=False)
         summary["failure"] = "configuration_or_execution_rejected"
+        summary["failure_diagnostic"] = failure_diagnostic(exc)
         raise SystemExit(1) from None
     finally:
         write_json(REPORT, summary)

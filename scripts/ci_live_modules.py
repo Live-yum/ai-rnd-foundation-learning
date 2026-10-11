@@ -29,6 +29,56 @@ MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
 REPORT = ROOT / "reports/live-modules/summary.json"
 
 
+def failure_diagnostic(exc):
+    """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
+    from workbench.capability_isolation import ContainerInspectionRejected
+
+    stages = {
+        "scripts/ci_live_modules.py": "acceptance_controller",
+        "workbench/coding/mini_swe.py": "agent_controller",
+        "workbench/infrastructure/sandbox/coding.py": "coding_sandbox",
+        "workbench/capability_execution.py": "isolation_admission",
+        "scripts/daytona_capability_profile.py": "container_inspection",
+        "workbench/capability_isolation.py": "container_evidence",
+        "workbench/infrastructure/llm/gateway.py": "model_gateway",
+        "workbench/coding/candidates.py": "candidate_application",
+        "workbench/production/candidates.py": "product_ledger",
+        "workbench/capability_sandbox.py": "independent_verification",
+    }
+    # Membership produces a fixed value; unknown/provider-defined names are suppressed.
+    names = {
+        name: name
+        for name in (
+            "ValueError",
+            "TypeError",
+            "KeyError",
+            "RuntimeError",
+            "OSError",
+            "FileNotFoundError",
+            "PermissionError",
+            "TimeoutError",
+            "ValidationError",
+            "UnsupportedScope",
+            "ModelFailure",
+            "IsolationUnavailable",
+            "ContainerInspectionRejected",
+            "DaytonaError",
+            "DaytonaNotFoundError",
+        )
+    }
+    result = {"exception_type": names.get(type(exc).__name__, "other"), "stage": "other"}
+    trusted = {str(ROOT / path): stage for path, stage in stages.items()}
+    frame = exc.__traceback__
+    while frame is not None:
+        stage = trusted.get(frame.tb_frame.f_code.co_filename)
+        if stage is not None:
+            result.update(stage=stage, trusted_source_line=frame.tb_lineno)
+        frame = frame.tb_next
+    if type(exc) is ContainerInspectionRejected:
+        result["container"] = ContainerInspectionRejected.diagnostic(exc)
+    return result
+
+
 def require(condition, code):
     if not condition:
         raise ValueError(code)
@@ -331,10 +381,11 @@ def main():
                 finally:
                     transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
-    except Exception:
+    except Exception as exc:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.
         summary.update(passed=False, real_model_acceptance=False)
         summary["failure"] = "configuration_or_execution_rejected"
+        summary["failure_diagnostic"] = failure_diagnostic(exc)
         raise SystemExit(1) from None
     finally:
         write_json(REPORT, summary)
