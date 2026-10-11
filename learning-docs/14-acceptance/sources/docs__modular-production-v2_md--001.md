@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L275。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L291。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`45748`。本段原文以LF换行结束。
+本段原始字节数：`50892`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5331d50c11ff67c53e7c9a8eecc5318641da1987a1740ed5c85c894f3ceb8d70"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "74869b84cf1d6c31d5a3a4943929e96d5657cc51ab69f82b66642fea49e5c7ae"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -292,4 +292,20 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 普通/SSE两条真实网关集成路径覆盖超时后信封失败、正文失败、合法响应、明确截断，保留2预留/2HTTP尝试/1响应、原请求与JSON模式及原接受/拒绝结果；污染/缺失/非法状态/旧记录回归确认安全导出。补充实际观察器ValueError负例，确认非解析本地异常不会被误标为信封或正文解码；原错误代码及两次尝试保持不变。网关、流式、反馈及真实验收脚本相关463项通过。改动不改变模型请求、预算、超时、权限、scope、严格校验、清理或晋升门禁；仅本地准备，等待89f88e7剩余普通CI终态后再决定发布，不推送、不取消、不dispatch或重跑三SQLite。
 
 最终代码再次执行两个workflow的完整55文件集合，三项RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF保持1：2542通过、5失败、13跳过；五项仍为本地Landlock返回78，跳过仍为原生工具树/Vite与测试数据库。没有关闭强制标志，本地Python3.14.7/Node24.19.0不冒充Actions环境。Ruff、diff及完整手册/771份教材一致性检查通过。此提交仅使未来安全回执能定位解析层级，不修复或追补本轮模型失败，不代表DATA_DIR已通过真实验证。
+
+### ce175a5 模型前API构建停滞与限定脚本观测（本地方案）
+
+第15轮38148774162/job114497616525在API镜像构建2400秒超时，模型步骤未执行，没有新JSON分型。官方日志显示yarn install --immutable解析及下载完成，3594包/1.53GiB的Fetch耗时22.202秒，Link开始于步骤23.57秒；77.15秒出现并行安装脚本列表，最后80.38秒仅见cpu-features的node-gyp请求返回HTTP200，不能证明响应体下载完成或它是唯一阻塞者。API命令第105秒起日志恒为53599字节，直到2400秒；至少2295秒无新增输出。上一轮38145005717/job114486410100的API约196秒完成，整批镜像约532秒。两个提交的构建脚本及工作流没有变化，但固定上游Dockerfile仍引用node:24-slim和未指定版本的Corepack，现有日志不证明所有外部输入完全相同。没有实施依赖、缓存、超时或安装脚本的猜测性修复。
+
+本地最小诊断方案利用[Yarn官方wrapScriptExecution钩子](https://yarnpkg.com/api/yarnpkg-core/interface/hooks#wrapScriptExecution)，通过[Yarn4.13配置支持的YARN_PLUGINS入口](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/Configuration.ts)只在API的两个原有immutable安装命令中加载受信观察器。先核对完整上游Dockerfile blob，再复制唯一观察器文件；其SHA256写入生成recipe，纳入现有recipe摘要，原镜像ID与源码/补丁锁定检查不变。不编辑package.json、yarn.lock或.yarnrc.yml，不关闭脚本，不重定向或压制其原输出。
+
+观察器只记录固定安装脚本名、公开依赖白名单名（其他为other）、有限数字版本、定位符摘要、随机会话标识、开始/返回/抛出和有界退出码。执行器只调用一次，原返回值及异常原样传播。每30秒输出最多32个尚未返回脚本及其耗时，状态仅为awaiting_script_exit，不宣称已识别网络、锁或内核等待。最多跟踪256次调用，超限明确标记；定时器unref不延长工具生命周期，日志写入失败不改变脚本结果。会话分开记录，避免嵌套Yarn或重复配置初始化混淆。没有宿主进程枚举、PID、环境、完整命令行、路径、脚本正文或子进程输出采集。
+
+[Yarn4.13源码](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/scriptUtils.ts)明确区分executePackageScript和executePackageShellcode：此官方钩子只覆盖命名manifest脚本，不覆盖隐式shell构建。回执固定coverage=manifest_scripts_only，不能将零活动脚本解释成所有构建完成；不猴子补丁Yarn内部执行器来伪造完整覆盖。Corepack通过当前构建容器内既有corepack --version读取，2秒/SIGKILL/1KiB输出上限，失败unknown；YarnVersion来自正在执行的Yarn，Node版本来自同一进程。所有诊断开销仍位于原2400秒命令预算内。
+
+宿主只过滤既有run_command的有界首尾日志：从本次BuildKit实际FROM记录提取builder/daytona的node:24-slim摘要，不用后来解析标签来冒充当时身份；日志缺失就不填。版本、阶段、状态和数值再次过滤，最多4会话/64事件，标记日志摘录及会话/脚本截断。成功和ToolFailure都会保存独立api-build-observation.json；写入失败不替代构建结果，失败后仍拒绝image inspect/晋升。该诊断不是镜像准入证据，原始日志行为不变。原mini-SWE artifact仅增加这个精确JSON文件；[upload-artifact对隐藏路径的规则](https://github.com/actions/upload-artifact#uploading-hidden-files)要求include-hidden-files，因此只对原步骤的五个精确安全JSON路径开启，回归拒绝目录或通配符扩张，不上传.data目录或原始构建日志。
+
+离线使用真实Yarn4.13.0及禁止网络的合成项目验证成功/退出7两条路径，观察器前后接受结果一致且三份输入文件逐字节不变；另用31秒合成脚本验证真实30秒等待快照及正常结束。Node钩子回归覆盖挂起、原异常对象、原返回码、日志写失败、只执行一次、不读额外脚本/环境信息和非安装脚本不拦截；解析器覆盖污染、非法数值、会话隔离和缺失输出，构建回归保留2400秒、原ToolFailure对象和失败禁止镜像检查。实际包/构建仍未复现，不据此宣称停滞已修复。仅本地准备，是否发布及下一次有界构建由父线程审阅后协调；未推送、取消、dispatch或重跑三案。
+
+验证结果：相关原有及新增离线测试116项通过，精确artifact路径补充回归另1项通过（合计117）；其中真实Yarn4.13.0三项均实际执行，未按缺工具跳过。完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1：2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。没有进行Docker/API昂贵复现，也没有真实模型调用；本地主机与真实Actions环境边界保留。Node语法、Ruff、diff及两套生成文档一致性检查通过。
 ````

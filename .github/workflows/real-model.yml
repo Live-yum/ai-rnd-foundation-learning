@@ -278,10 +278,13 @@ jobs:
         if: always()
         with:
           name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
+          # Only the exact sanitized JSON files below; never upload .data itself.
+          include-hidden-files: true
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
             reports/capability-browser-isolation.json
             reports/capability-browser-memory-diagnostic.json
+            .data/daytona-capability/api-build-observation.json
           if-no-files-found: error
           retention-days: 7

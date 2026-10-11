@@ -16,7 +16,7 @@ from pathlib import Path
 
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
-from workbench.tools import run_command
+from workbench.tools import ToolFailure, run_command
 
 BUILT = frozenset({"api", "proxy", "runner", "minio"})
 MINIO_SOURCE = "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"
@@ -62,7 +62,22 @@ def recipe(service, source):
     text = raw.decode("utf-8")
     if "ENV CI=true\n" not in text:
         raise ValueError("Daytona构建环境标记缺失")
-    return target, text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)
+    text = text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)
+    if service == "api":
+        observer = ROOT / "tools/daytona/yarn-observer.cjs"
+        content = observer.read_bytes()
+        # The additional context is exclusively this reviewed observer, never host data.
+        destination = Path(source) / ".rnd-build-observe"
+        destination.mkdir(exist_ok=True)
+        (destination / "yarn-observer.cjs").write_bytes(content)
+        digest = hashlib.sha256(content).hexdigest()
+        text = text.replace(
+            "RUN yarn install --immutable\n",
+            "# observer-sha256=" + digest + "\n"
+            "COPY .rnd-build-observe/ /opt/rnd-build-observe/\n"
+            "RUN YARN_PLUGINS=/opt/rnd-build-observe/yarn-observer.cjs yarn install --immutable\n",
+        )
+    return target, text
 
 
 def api_patch_identity():
@@ -230,31 +245,38 @@ def build_exported(directory, context, docker):
         label_args = [
             arg for key, value in patch_labels.items() for arg in ("--label", key + "=" + value)
         ]
-        log = run_command(
-            [
-                "docker",
-                "build",
-                "--progress=plain",
-                "--platform=linux/amd64",
-                "--file",
-                str(dockerfile),
-                "--target",
-                target,
-                "--build-arg",
-                "VERSION=" + DAYTONA_VERSION,
-                "--label",
-                "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
-                "--label",
-                "org.opencontainers.image.version=" + DAYTONA_VERSION,
-                *label_args,
-                "--tag",
-                local_tag(service),
-                str(build_context),
-            ],
-            ROOT,
-            timeout=2400,
-            heartbeat="Local Daytona " + service,
-        )
+        command = [
+            "docker",
+            "build",
+            "--progress=plain",
+            "--platform=linux/amd64",
+            "--file",
+            str(dockerfile),
+            "--target",
+            target,
+            "--build-arg",
+            "VERSION=" + DAYTONA_VERSION,
+            "--label",
+            "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
+            "--label",
+            "org.opencontainers.image.version=" + DAYTONA_VERSION,
+            *label_args,
+            "--tag",
+            local_tag(service),
+            str(build_context),
+        ]
+        try:
+            log = run_command(command, ROOT, timeout=2400, heartbeat="Local Daytona " + service)
+        except ToolFailure as error:
+            if service == "api":
+                from scripts.daytona_build_observation import retain
+
+                retain(directory, getattr(error, "log", ""))
+            raise
+        if service == "api":
+            from scripts.daytona_build_observation import retain
+
+            retain(directory, log["log"])
         (directory / (service + "-build.log")).write_text(log["log"], encoding="utf-8")
         details = json.loads(docker("image", "inspect", local_tag(service)))[0]
         labels = details.get("Config", {}).get("Labels") or {}

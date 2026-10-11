@@ -8,6 +8,7 @@
 - [scripts/ci_daytona_matrix.py](sources/scripts__ci_daytona_matrix_py--001.md)：数据库与模板矩阵的沙箱验收入口；1 段
 - [scripts/daytona_bootstrap.py](sources/scripts__daytona_bootstrap_py--001.md)：真实本机身份认证与快照注册；1 段
 - [scripts/daytona_build.py](sources/scripts__daytona_build_py--001.md)：从固定来源构建并锁定本机镜像；1 段
+- [scripts/daytona_build_observation.py](sources/scripts__daytona_build_observation_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/daytona_capability_profile.py](sources/scripts__daytona_capability_profile_py--001.md)：本机维护、构建或集成验收入口；2 段
 - [scripts/daytona_dependency_build.lock.json](sources/scripts__daytona_dependency_build_lock_json--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/daytona_dependency_build.py](sources/scripts__daytona_dependency_build_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -21,6 +22,7 @@
 - [tests/test_daytona_api_digest.py](sources/tests__test_daytona_api_digest_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_bootstrap_contract.py](sources/tests__test_daytona_bootstrap_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_build.py](sources/tests__test_daytona_build_py--001.md)：可重复的验收用例；1 段
+- [tests/test_daytona_build_observation.py](sources/tests__test_daytona_build_observation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；2 段
 - [tests/test_daytona_dependency_build.py](sources/tests__test_daytona_dependency_build_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_dependency_image.py](sources/tests__test_daytona_dependency_image_py--001.md)：可重复的验收用例；1 段
@@ -42,6 +44,7 @@
 - [tools/daytona/runner-entry.sh](sources/tools__daytona__runner-entry_sh--001.md)：本机Runner启动顺序与退出清理；1 段
 - [tools/daytona/runner.Dockerfile](sources/tools__daytona__runner_Dockerfile--001.md)：本机Runner服务镜像；1 段
 - [tools/daytona/warm.py](sources/tools__daytona__warm_py--001.md)：本机Daytona的预热镜像；1 段
+- [tools/daytona/yarn-observer.cjs](sources/tools__daytona__yarn-observer_cjs--001.md)：本机Daytona的预热镜像；1 段
 - [workbench/daytona_diagnostics.py](sources/workbench__daytona_diagnostics_py--001.md)：本次自有沙箱的有界启动诊断；1 段
 - [workbench/daytona_sessions.py](sources/workbench__daytona_sessions_py--001.md)：长时间沙箱检查的单次异步提交；1 段
 - [workbench/daytona_worker.py](sources/workbench__daytona_worker_py--001.md)：SDK专用的本机网络子进程；1 段

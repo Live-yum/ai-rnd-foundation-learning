@@ -447,6 +447,7 @@
 - [scripts/ci_daytona_matrix.py](12-daytona/sources/scripts__ci_daytona_matrix_py--001.md)（1 段）
 - [scripts/daytona_bootstrap.py](12-daytona/sources/scripts__daytona_bootstrap_py--001.md)（1 段）
 - [scripts/daytona_build.py](12-daytona/sources/scripts__daytona_build_py--001.md)（1 段）
+- [scripts/daytona_build_observation.py](12-daytona/sources/scripts__daytona_build_observation_py--001.md)（1 段）
 - [scripts/daytona_capability_profile.py](12-daytona/sources/scripts__daytona_capability_profile_py--001.md)（2 段）
 - [scripts/daytona_dependency_build.lock.json](12-daytona/sources/scripts__daytona_dependency_build_lock_json--001.md)（1 段）
 - [scripts/daytona_dependency_build.py](12-daytona/sources/scripts__daytona_dependency_build_py--001.md)（1 段）
@@ -460,6 +461,7 @@
 - [tests/test_daytona_api_digest.py](12-daytona/sources/tests__test_daytona_api_digest_py--001.md)（1 段）
 - [tests/test_daytona_bootstrap_contract.py](12-daytona/sources/tests__test_daytona_bootstrap_contract_py--001.md)（1 段）
 - [tests/test_daytona_build.py](12-daytona/sources/tests__test_daytona_build_py--001.md)（1 段）
+- [tests/test_daytona_build_observation.py](12-daytona/sources/tests__test_daytona_build_observation_py--001.md)（1 段）
 - [tests/test_daytona_capability_profile.py](12-daytona/sources/tests__test_daytona_capability_profile_py--001.md)（2 段）
 - [tests/test_daytona_dependency_build.py](12-daytona/sources/tests__test_daytona_dependency_build_py--001.md)（1 段）
 - [tests/test_daytona_dependency_image.py](12-daytona/sources/tests__test_daytona_dependency_image_py--001.md)（1 段）
@@ -481,6 +483,7 @@
 - [tools/daytona/runner-entry.sh](12-daytona/sources/tools__daytona__runner-entry_sh--001.md)（1 段）
 - [tools/daytona/runner.Dockerfile](12-daytona/sources/tools__daytona__runner_Dockerfile--001.md)（1 段）
 - [tools/daytona/warm.py](12-daytona/sources/tools__daytona__warm_py--001.md)（1 段）
+- [tools/daytona/yarn-observer.cjs](12-daytona/sources/tools__daytona__yarn-observer_cjs--001.md)（1 段）
 - [workbench/daytona_diagnostics.py](12-daytona/sources/workbench__daytona_diagnostics_py--001.md)（1 段）
 - [workbench/daytona_sessions.py](12-daytona/sources/workbench__daytona_sessions_py--001.md)（1 段）
 - [workbench/daytona_worker.py](12-daytona/sources/workbench__daytona_worker_py--001.md)（1 段）

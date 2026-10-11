@@ -274,6 +274,22 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 
 最终代码再次执行两个workflow的完整55文件集合，三项RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF保持1：2542通过、5失败、13跳过；五项仍为本地Landlock返回78，跳过仍为原生工具树/Vite与测试数据库。没有关闭强制标志，本地Python3.14.7/Node24.19.0不冒充Actions环境。Ruff、diff及完整手册/771份教材一致性检查通过。此提交仅使未来安全回执能定位解析层级，不修复或追补本轮模型失败，不代表DATA_DIR已通过真实验证。
 
+### ce175a5 模型前API构建停滞与限定脚本观测（本地方案）
+
+第15轮38148774162/job114497616525在API镜像构建2400秒超时，模型步骤未执行，没有新JSON分型。官方日志显示yarn install --immutable解析及下载完成，3594包/1.53GiB的Fetch耗时22.202秒，Link开始于步骤23.57秒；77.15秒出现并行安装脚本列表，最后80.38秒仅见cpu-features的node-gyp请求返回HTTP200，不能证明响应体下载完成或它是唯一阻塞者。API命令第105秒起日志恒为53599字节，直到2400秒；至少2295秒无新增输出。上一轮38145005717/job114486410100的API约196秒完成，整批镜像约532秒。两个提交的构建脚本及工作流没有变化，但固定上游Dockerfile仍引用node:24-slim和未指定版本的Corepack，现有日志不证明所有外部输入完全相同。没有实施依赖、缓存、超时或安装脚本的猜测性修复。
+
+本地最小诊断方案利用[Yarn官方wrapScriptExecution钩子](https://yarnpkg.com/api/yarnpkg-core/interface/hooks#wrapScriptExecution)，通过[Yarn4.13配置支持的YARN_PLUGINS入口](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/Configuration.ts)只在API的两个原有immutable安装命令中加载受信观察器。先核对完整上游Dockerfile blob，再复制唯一观察器文件；其SHA256写入生成recipe，纳入现有recipe摘要，原镜像ID与源码/补丁锁定检查不变。不编辑package.json、yarn.lock或.yarnrc.yml，不关闭脚本，不重定向或压制其原输出。
+
+观察器只记录固定安装脚本名、公开依赖白名单名（其他为other）、有限数字版本、定位符摘要、随机会话标识、开始/返回/抛出和有界退出码。执行器只调用一次，原返回值及异常原样传播。每30秒输出最多32个尚未返回脚本及其耗时，状态仅为awaiting_script_exit，不宣称已识别网络、锁或内核等待。最多跟踪256次调用，超限明确标记；定时器unref不延长工具生命周期，日志写入失败不改变脚本结果。会话分开记录，避免嵌套Yarn或重复配置初始化混淆。没有宿主进程枚举、PID、环境、完整命令行、路径、脚本正文或子进程输出采集。
+
+[Yarn4.13源码](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/scriptUtils.ts)明确区分executePackageScript和executePackageShellcode：此官方钩子只覆盖命名manifest脚本，不覆盖隐式shell构建。回执固定coverage=manifest_scripts_only，不能将零活动脚本解释成所有构建完成；不猴子补丁Yarn内部执行器来伪造完整覆盖。Corepack通过当前构建容器内既有corepack --version读取，2秒/SIGKILL/1KiB输出上限，失败unknown；YarnVersion来自正在执行的Yarn，Node版本来自同一进程。所有诊断开销仍位于原2400秒命令预算内。
+
+宿主只过滤既有run_command的有界首尾日志：从本次BuildKit实际FROM记录提取builder/daytona的node:24-slim摘要，不用后来解析标签来冒充当时身份；日志缺失就不填。版本、阶段、状态和数值再次过滤，最多4会话/64事件，标记日志摘录及会话/脚本截断。成功和ToolFailure都会保存独立api-build-observation.json；写入失败不替代构建结果，失败后仍拒绝image inspect/晋升。该诊断不是镜像准入证据，原始日志行为不变。原mini-SWE artifact仅增加这个精确JSON文件；[upload-artifact对隐藏路径的规则](https://github.com/actions/upload-artifact#uploading-hidden-files)要求include-hidden-files，因此只对原步骤的五个精确安全JSON路径开启，回归拒绝目录或通配符扩张，不上传.data目录或原始构建日志。
+
+离线使用真实Yarn4.13.0及禁止网络的合成项目验证成功/退出7两条路径，观察器前后接受结果一致且三份输入文件逐字节不变；另用31秒合成脚本验证真实30秒等待快照及正常结束。Node钩子回归覆盖挂起、原异常对象、原返回码、日志写失败、只执行一次、不读额外脚本/环境信息和非安装脚本不拦截；解析器覆盖污染、非法数值、会话隔离和缺失输出，构建回归保留2400秒、原ToolFailure对象和失败禁止镜像检查。实际包/构建仍未复现，不据此宣称停滞已修复。仅本地准备，是否发布及下一次有界构建由父线程审阅后协调；未推送、取消、dispatch或重跑三案。
+
+验证结果：相关原有及新增离线测试116项通过，精确artifact路径补充回归另1项通过（合计117）；其中真实Yarn4.13.0三项均实际执行，未按缺工具跳过。完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1：2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。没有进行Docker/API昂贵复现，也没有真实模型调用；本地主机与真实Actions环境边界保留。Node语法、Ruff、diff及两套生成文档一致性检查通过。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -155323,6 +155339,313 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
         local.compose(tmp_path, "up", "-d", "--pull", "never")
 ````
 
+### `tests/test_daytona_build_observation.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.daytona_build_observation`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `marker`（L16–L17）：接收`value`。 调用`json.dumps`。 返回路径：L17的`"#14 20.1 RND_BUILD_OBSERVATION " + json.dumps({"session": "a" * 16, **value}) + "\n"`。
+- `test_projection_drops_private_values_bounds_fields_and_keeps_session_separation`（L20–L72）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62断言`value["bases"] == {"builder": "sha256:" + "b" * 64}`；L64断言`current["tools"] == {"node": "24.21.0", "yarn": "4.13.0", "corepack": "unknown"}`；L65断言`current["pending"]["started"] is None`；L66断言`len(current["pending"]["scripts"]) == 32`；L67断言`current["pending"]["scripts"][0]["state"] == "awaiting_script_exit"`；L68断言`value["sessions"]["b" * 16]["pending"]["active_count"] == 0`；L69断言`value["events"][0]["exit_code"] is None`；L70断言`"private" not in json.dumps(value)`。后续分支沿下方源码相同行号继续阅读。 调用`marker`、`observation`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_exact_api_recipe_gets_observer_and_immutable_installs_remain`（L75–L90）：接收`tmp_path`、`monkeypatch`。 控制顺序：L83断言`text.count("yarn install --immutable") == 2`；L84断言`text.count("YARN_PLUGINS=/opt/rnd-build-observe/yarn-observer.cjs") == 2`；L85断言`hashlib.sha256(OBSERVER.read_bytes()).hexdigest() in text`；L86断言`(tmp_path / ".rnd-build-observe/yarn-observer.cjs").read_bytes() == OBSERVER.read_byt…`；L87断言`path.read_bytes() == raw`。 调用`path.parent.mkdir`、`path.write_bytes`、`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`、`monkeypatch.setitem`、`build.recipe`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_write_failure_is_nonfatal`（L93–L95）：接收`tmp_path`。 调用`(tmp_path / "api-build-observation.json").mkdir`、`retain`、`marker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_artifact_includes_only_the_exact_sanitized_hidden_diagnostic`（L98–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L107断言`upload["with"]["include-hidden-files"] is True`；L108断言`set(upload["with"]["path"].splitlines()) == { "reports/live-modules/summary.json", "r…`。 调用`yaml.safe_load`、`(build.ROOT / ".github/workflows/real-model.yml").read_text`、`next`、`step.get`、`set`、`upload["with"]["path"].splitlines`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_node_hook_waiting_throw_logger_failure_and_once_only_execution`（L117–L160）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L119按`not node`分支；L159断言`result.returncode == 0`；L160断言`result.stdout.strip() == "observer-contracts-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`、`clean_env`、`result.stdout.strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_api_build_timeout_keeps_original_failure_and_does_not_inspect_image`（L163–L187）：接收`tmp_path`、`monkeypatch`。 控制顺序：L185断言`caught.value is original and caught.value.timed_out`；L187断言`value["sessions"]["a" * 16]["tools"]["yarn"] == "4.13.0"`。 调用`context.mkdir`、`monkeypatch.setattr`、`ToolFailure`、`marker`、`pytest.raises`、`build.build_exported`、`pytest.fail`、`json.loads`、`(tmp_path / "api-build-observation.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_api_build_timeout_keeps_original_failure_and_does_not_inspect_image.timeout`（L175–L178）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L176断言`kwargs == {"timeout": 2400, "heartbeat": "Local Daytona api"}`；L177断言`command[:3] == ["docker", "build", "--progress=plain"]`；L178抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_yarn_413_offline_install_preserves_result_and_immutable_inputs`（L191–L239）：接收`tmp_path`、`exit_code`。 控制顺序：L194按`not yarn or not node`分支；L196断言`subprocess.check_output([node, yarn, "--version"], text=True).strip() == "4.13.0"`；L212断言`setup.returncode == 0`；L231断言`result.returncode == baseline.returncode == (0 if exit_code == 0 else 1)`；L233断言`len(value["sessions"]) == 1`；L235断言`current["tools"]["yarn"] == "4.13.0"`；L236断言`[e["event"] for e in value["events"]] == ["start", "end"]`；L237断言`value["events"][-1]["exit_code"] == exit_code`。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`pytest.skip`、`subprocess.check_output([node, yarn, "--version"], text=True).str…`、`subprocess.check_output`、`(tmp_path / "package.json").write_text`、`json.dumps`、`(tmp_path / ".yarnrc.yml").write_text`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_yarn_pending_script_emits_30_second_snapshot_then_completes`（L242–L280）：接收`tmp_path`。 控制顺序：L246按`not yarn or not node`分支；L276断言`pending and pending[0]["scripts"][0]["package"] == "nx"`；L277断言`pending[0]["scripts"][0]["state"] == "awaiting_script_exit"`；L278断言`28 <= pending[0]["scripts"][0]["elapsed_seconds"] <= 31`；L279断言`result["returncode"] == 0`；L280断言`[event for event in events if event["event"] == "end"][0]["exit_code"] == 0`。 调用`os.environ.get`、`shutil.which`、`pytest.skip`、`(tmp_path / "package.json").write_text`、`json.dumps`、`(tmp_path / ".yarnrc.yml").write_text`、`run_command`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_build_observation.py sha256: fe757beb28d61e39e4bfc5d2370a7d4018c4654588d6cd85cdc51d0e33418616 -->
+````python
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+
+import pytest
+
+from scripts import daytona_build as build
+from scripts.daytona_build_observation import observation, retain
+from workbench.tools import clean_env
+
+OBSERVER = build.ROOT / "tools/daytona/yarn-observer.cjs"
+
+
+def marker(value):
+    return "#14 20.1 RND_BUILD_OBSERVATION " + json.dumps({"session": "a" * 16, **value}) + "\n"
+
+
+def test_projection_drops_private_values_bounds_fields_and_keeps_session_separation():
+    item = {
+        "id": "1" * 64,
+        "script": "postinstall",
+        "package": "private-name",
+        "version": "private-version",
+        "elapsed_seconds": 90,
+        "command": "private-command",
+        "env": "private-env",
+    }
+    log = "#5 [builder 1/18] FROM docker.io/library/node:24-slim@sha256:" + "b" * 64 + "\n"
+    log += marker(
+        {
+            "event": "tools",
+            "node": "24.21.0",
+            "yarn": "4.13.0",
+            "corepack": "private-token",
+            "headers": "private-header",
+        }
+    )
+    log += marker(
+        {
+            "event": "pending",
+            "started": True,
+            "completed": -1,
+            "active_count": 300,
+            "overflow": False,
+            "scripts": [item] * 40,
+        }
+    )
+    log += marker(
+        {
+            "session": "b" * 16,
+            "event": "pending",
+            "started": 0,
+            "completed": 0,
+            "active_count": 0,
+            "scripts": [],
+        }
+    )
+    log += marker({"event": "end", **item, "state": "private-state", "exit_code": True})
+    value = observation(log)
+    assert value["bases"] == {"builder": "sha256:" + "b" * 64}
+    current = value["sessions"]["a" * 16]
+    assert current["tools"] == {"node": "24.21.0", "yarn": "4.13.0", "corepack": "unknown"}
+    assert current["pending"]["started"] is None
+    assert len(current["pending"]["scripts"]) == 32
+    assert current["pending"]["scripts"][0]["state"] == "awaiting_script_exit"
+    assert value["sessions"]["b" * 16]["pending"]["active_count"] == 0
+    assert value["events"][0]["exit_code"] is None
+    assert "private" not in json.dumps(value)
+    assert observation("RND_BUILD_OBSERVATION {bad}")["events"] == []
+    assert observation(marker({"event": "start", "id": ["private"]}))["events"] == []
+
+
+def test_only_exact_api_recipe_gets_observer_and_immutable_installs_remain(tmp_path, monkeypatch):
+    raw = b"FROM node:24-slim AS builder\nENV CI=true\nRUN yarn install --immutable\nFROM node:24-slim AS daytona\nENV CI=true\nRUN yarn install --immutable\n"
+    path = tmp_path / "apps/api/Dockerfile"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(raw)
+    digest = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+    monkeypatch.setitem(build.SOURCE_RECIPES, "api", ("daytona", digest))
+    _, text = build.recipe("api", tmp_path)
+    assert text.count("yarn install --immutable") == 2
+    assert text.count("YARN_PLUGINS=/opt/rnd-build-observe/yarn-observer.cjs") == 2
+    assert hashlib.sha256(OBSERVER.read_bytes()).hexdigest() in text
+    assert (tmp_path / ".rnd-build-observe/yarn-observer.cjs").read_bytes() == OBSERVER.read_bytes()
+    assert path.read_bytes() == raw
+    path.write_bytes(raw + b"# drift\n")
+    with pytest.raises(ValueError):
+        build.recipe("api", tmp_path)
+
+
+def test_diagnostic_write_failure_is_nonfatal(tmp_path):
+    (tmp_path / "api-build-observation.json").mkdir()
+    retain(tmp_path, marker({"event": "tools", "yarn": "4.13.0"}))
+
+
+def test_artifact_includes_only_the_exact_sanitized_hidden_diagnostic():
+    import yaml
+
+    workflow = yaml.safe_load((build.ROOT / ".github/workflows/real-model.yml").read_text())
+    upload = next(
+        step
+        for step in workflow["jobs"]["mini-swe-sla"]["steps"]
+        if step.get("uses") == "actions/upload-artifact@v4"
+    )
+    assert upload["with"]["include-hidden-files"] is True
+    assert set(upload["with"]["path"].splitlines()) == {
+        "reports/live-modules/summary.json",
+        "reports/live-tls.json",
+        "reports/capability-browser-isolation.json",
+        "reports/capability-browser-memory-diagnostic.json",
+        ".data/daytona-capability/api-build-observation.json",
+    }
+
+
+def test_real_node_hook_waiting_throw_logger_failure_and_once_only_execution():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for the actual hook contract")
+    script = r"""
+const fs = require('node:fs'), vm = require('node:vm'), assert = require('node:assert/strict');
+let clock = 0, tick, writes = [], failed = false, calls = 0, intervals = 0;
+const context = {module:{exports:{}}, process:{versions:{node:'24.21.0'}, hrtime:{bigint:()=>BigInt(clock)*1000000000n}},
+ setInterval(fn, ms) { assert.equal(ms,30000); tick=fn; intervals++; return {unref(){}}; }};
+vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'), context);
+const load = name => name === '@yarnpkg/core' ? {YarnVersion:'4.13.0'} :
+ name === 'node:fs' ? {writeSync(fd,text){assert.equal(fd,1); if(failed) throw Error('private-output'); writes.push(JSON.parse(text.split('RND_BUILD_OBSERVATION ')[1]));}} :
+ name === 'node:child_process' ? {spawnSync(command,args,opts){assert.equal(command,'corepack');assert.deepEqual(Array.from(args),['--version']);assert.equal(opts.timeout,2000);return {status:0,stdout:Buffer.from('0.34.6')}}} : require(name);
+(async()=>{
+ const plugin=context.module.exports.factory(load);
+ assert.equal(context.module.exports.factory(load),plugin); assert.equal(intervals,1);
+ const project={storedPackages:new Map([['opaque',{name:'nx',version:'21.4.1'}]])};
+ const locator={locatorHash:'opaque'};
+ const extra=new Proxy({}, {get(){throw Error('must-not-read-private-script-env-path')}});
+ let finish;
+ const run=await plugin.hooks.wrapScriptExecution(()=>{calls++;return new Promise(resolve=>finish=resolve)},project,locator,'postinstall',extra);
+ const pending=run(); clock=90; tick();
+ const snapshot=writes.filter(x=>x.event==='pending').at(-1);
+ assert.equal(snapshot.scripts[0].state,'awaiting_script_exit'); assert.equal(snapshot.scripts[0].elapsed_seconds,90);
+ assert.equal(snapshot.active_count,1); finish(7); assert.equal(await pending,7); assert.equal(calls,1);
+ const original=Error('private-original');
+ const reject=await plugin.hooks.wrapScriptExecution(()=>{throw original},project,locator,'install',extra);
+ await assert.rejects(reject(), error=>error===original);
+ assert.equal(writes.filter(x=>x.event==='end').at(-1).state,'threw');
+ failed=true; const success=await plugin.hooks.wrapScriptExecution(()=>Promise.resolve(0),project,locator,'install',extra);
+ assert.equal(await success(),0); tick();
+ const untouched=()=>0; assert.equal(await plugin.hooks.wrapScriptExecution(untouched,project,locator,'build',extra),untouched);
+ assert(!JSON.stringify(writes).includes('private')); console.log('observer-contracts-passed');
+})().catch(()=>process.exitCode=1);
+"""
+    result = subprocess.run(
+        [node, "-e", script, str(OBSERVER)],
+        capture_output=True,
+        text=True,
+        env=clean_env(),
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert result.stdout.strip() == "observer-contracts-passed"
+
+
+def test_api_build_timeout_keeps_original_failure_and_does_not_inspect_image(tmp_path, monkeypatch):
+    from workbench.tools import ToolFailure
+
+    context = tmp_path / "source"
+    context.mkdir()
+    monkeypatch.setattr(build, "patch_api_image_reference", lambda *_: {})
+    monkeypatch.setattr(build, "download_runner", lambda *_: None)
+    monkeypatch.setattr(build, "recipe", lambda *_: ("daytona", "FROM node:24-slim\n"))
+    original = ToolFailure("original timeout")
+    original.timed_out = True
+    original.log = marker({"event": "tools", "yarn": "4.13.0"})
+
+    def timeout(command, cwd, **kwargs):
+        assert kwargs == {"timeout": 2400, "heartbeat": "Local Daytona api"}
+        assert command[:3] == ["docker", "build", "--progress=plain"]
+        raise original
+
+    monkeypatch.setattr(build, "run_command", timeout)
+    with pytest.raises(ToolFailure) as caught:
+        build.build_exported(
+            tmp_path, context, lambda *_: pytest.fail("no image admission after timeout")
+        )
+    assert caught.value is original and caught.value.timed_out
+    value = json.loads((tmp_path / "api-build-observation.json").read_text())
+    assert value["sessions"]["a" * 16]["tools"]["yarn"] == "4.13.0"
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_actual_yarn_413_offline_install_preserves_result_and_immutable_inputs(tmp_path, exit_code):
+    yarn = os.environ.get("RND_TEST_YARN_CLI")
+    node = shutil.which("node")
+    if not yarn or not node:
+        pytest.skip("Requires an explicitly supplied Yarn 4.13.0 CLI for offline integration")
+    assert subprocess.check_output([node, yarn, "--version"], text=True).strip() == "4.13.0"
+    package = {
+        "name": "nx",
+        "version": "21.4.1",
+        "packageManager": "yarn@4.13.0",
+        "scripts": {"postinstall": f'node -e "process.exit({exit_code})"'},
+    }
+    (tmp_path / "package.json").write_text(json.dumps(package))
+    (tmp_path / ".yarnrc.yml").write_text(
+        "nodeLinker: node-modules\nenableNetwork: false\nenableTelemetry: false\nglobalFolder: ./.global\nenableGlobalCache: false\n"
+    )
+    env = clean_env()
+    command = [node, yarn, "install"]
+    setup = subprocess.run(
+        [*command, "--mode=update-lockfile"], cwd=tmp_path, env=env, capture_output=True, timeout=15
+    )
+    assert setup.returncode == 0
+    protected = {
+        name: (tmp_path / name).read_bytes()
+        for name in ("package.json", "yarn.lock", ".yarnrc.yml")
+    }
+    baseline = subprocess.run(
+        [*command, "--immutable"], cwd=tmp_path, env=env, capture_output=True, timeout=15
+    )
+    # Remove only this test's generated state to exercise the script a second time.
+    shutil.rmtree(tmp_path / "node_modules")
+    (tmp_path / ".yarn/install-state.gz").unlink()
+    result = subprocess.run(
+        [*command, "--immutable"],
+        cwd=tmp_path,
+        env={**env, "YARN_PLUGINS": str(OBSERVER)},
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == baseline.returncode == (0 if exit_code == 0 else 1)
+    value = observation(result.stdout)
+    assert len(value["sessions"]) == 1
+    current = next(iter(value["sessions"].values()))
+    assert current["tools"]["yarn"] == "4.13.0"
+    assert [e["event"] for e in value["events"]] == ["start", "end"]
+    assert value["events"][-1]["exit_code"] == exit_code
+    for name, content in protected.items():
+        assert (tmp_path / name).read_bytes() == content
+
+
+def test_actual_yarn_pending_script_emits_30_second_snapshot_then_completes(tmp_path):
+    from workbench.tools import run_command
+
+    yarn, node = os.environ.get("RND_TEST_YARN_CLI"), shutil.which("node")
+    if not yarn or not node:
+        pytest.skip("Requires explicitly supplied Yarn 4.13.0; no download in tests")
+    (tmp_path / "package.json").write_text(
+        json.dumps(
+            {
+                "name": "nx",
+                "version": "21.4.1",
+                "packageManager": "yarn@4.13.0",
+                "scripts": {"postinstall": 'node -e "setTimeout(()=>{},31000)"'},
+            }
+        )
+    )
+    (tmp_path / ".yarnrc.yml").write_text(
+        "nodeLinker: node-modules\nenableNetwork: false\nenableTelemetry: false\nglobalFolder: ./.global\nenableGlobalCache: false\n"
+    )
+    run_command([node, yarn, "install", "--mode=update-lockfile"], tmp_path, timeout=15)
+    result = run_command(
+        [node, yarn, "install", "--immutable"],
+        tmp_path,
+        timeout=40,
+        extra_env={"YARN_PLUGINS": str(OBSERVER)},
+    )
+    events = [
+        json.loads(line.split("RND_BUILD_OBSERVATION ", 1)[1])
+        for line in result["log"].splitlines()
+        if line.startswith("RND_BUILD_OBSERVATION ")
+    ]
+    pending = [
+        event for event in events if event["event"] == "pending" and event["active_count"] == 1
+    ]
+    assert pending and pending[0]["scripts"][0]["package"] == "nx"
+    assert pending[0]["scripts"][0]["state"] == "awaiting_script_exit"
+    assert 28 <= pending[0]["scripts"][0]["elapsed_seconds"] <= 31
+    assert result["returncode"] == 0
+    assert [event for event in events if event["event"] == "end"][0]["exit_code"] == 0
+````
+
 ### `tests/test_daytona_capability_profile.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -209644,18 +209967,18 @@ if __name__ == "__main__":
 **逐个入口与控制逻辑：**
 
 - `local_tag`（L47–L52）：接收`service`。 控制顺序：L48按`service == "minio"`分支；L50按`service not in BUILT`分支；L51抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L49的`f"rnd-local/minio:{MINIO_RELEASE}-{MINIO_SOURCE[:12]}"`；L52的`f"rnd-local/daytona-{service}:{DAYTONA_VERSION}-{DAYTONA_SOURCE[:12]}"`。
-- `recipe`（L55–L65）：接收`service`、`source`。先验证上游Dockerfile完整前像的Git对象哈希，再加入禁用云构建、远程缓存和遥测的环境变量；不匹配即停止。 源码说明：Verify the complete upstream preimage before disabling hosted build caches.。 控制顺序：L60按`identity != expected`分支；L61抛异常，停止当前正常路径；L63按`"ENV CI=true\n" not in text`分支；L64抛异常，停止当前正常路径。 调用`(Path(source) / f"apps/{service}/Dockerfile").read_bytes`、`Path`、`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`、`ValueError`、`raw.decode`等。 返回路径：L65的`target, text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)`。
-- `api_patch_identity`（L68–L79）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：The current reviewed API provenance, also required by runtime lock readers.。 控制顺序：L70按`DAYTONA_SOURCE != API_PATCH_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L71抛异常，停止当前正常路径；L72按`hashlib.sha256((ROOT / API_IMAGE_PATCH).read_bytes()).hexdigest() != API_IMAGE_PATCH_…`分支；L73抛异常，停止当前正常路径。 调用`ValueError`、`hashlib.sha256((ROOT / API_IMAGE_PATCH).read_bytes()).hexdigest`、`hashlib.sha256`、`(ROOT / API_IMAGE_PATCH).read_bytes`。 返回路径：L74的`{ "path": API_IMAGE_FILE, "preimage_blob": API_IMAGE_BLOB, "patched_sha256": API_IMAGE_PAT…`。
-- `api_patch_labels`（L82–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L83的`{ "rnd.daytona.api-source-sha256": API_IMAGE_PATCHED_SHA256, "rnd.daytona.api-patch-sha256…`。
-- `require_api_image`（L89–L113）：接收`record`、`docker`。 源码说明：Reject old/tampered locks and inspect the exact API ID before service admission.。 控制顺序：L92按`type(record) is not dict or record.get("source_patch") != expected or record.get("sou…`分支；L99抛异常，停止当前正常路径；L101按`type(inspected) is not list or len(inspected) != 1 or type(inspected[0]) is not dict`分支；L102抛异常，停止当前正常路径；L105按`image.get("Id") != record["image_id"] or any( labels.get(key) != value for key, value…`分支；L113抛异常，停止当前正常路径。 调用`api_patch_identity`、`type`、`record.get`、`local_tag`、`re.fullmatch`、`str`、`ValueError`、`json.loads`、`docker`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `patch_api_image_reference`（L116–L140）：接收`source`。 源码说明：Preserve immutable digest separators in the pinned API's exported source only.。 控制顺序：L122按`identity != API_IMAGE_BLOB or raw.count(API_IMAGE_OLD.encode()) != 1`分支；L123抛异常，停止当前正常路径；L134按`patch != expected_patch or hashlib.sha256(updated.encode()).hexdigest() != expected["…`分支；L138抛异常，停止当前正常路径。 调用`api_patch_identity`、`Path`、`target.read_bytes`、`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`、`raw.count`等。 返回路径：L140的`expected`。
-- `download_runner`（L143–L169）：接收`destination`。发布文件大小与SHA256固定写在源码中，下载时逐块累计、校验通过才原子落盘；已有损坏文件不能执行。 源码说明：The expected hash is committed, not trusted from a newly downloaded manifest.。 控制顺序：L146按`destination.exists()`分支；L149按`destination.stat().st_size == RUNNER_BYTES and valid`分支；L151抛异常，停止当前正常路径；L158在`block := response.read(1024 * 1024)`成立时循环；L160按`total > RUNNER_BYTES`分支；L161抛异常，停止当前正常路径；L164按`total != RUNNER_BYTES or digest.hexdigest() != RUNNER_SHA256`分支；L165抛异常，停止当前正常路径。 调用`Path`、`destination.exists`、`destination.open`、`hashlib.file_digest(existing, "sha256").hexdigest`、`hashlib.file_digest`、`destination.stat`、`ValueError`、`destination.with_suffix`、`urllib.request.build_opener`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `export_source`（L172–L192）：接收`directory`、`command`、`context`、`revision`、`source_name`。 源码说明：Git archive excludes untracked files, local .env and .git credentials.。 控制顺序：L177按`command(["git", "rev-parse", "HEAD"], cwd=source) != revision`分支；L178抛异常，停止当前正常路径；L190按`source_name == "upstream"`分支。 调用`Path`、`command`、`ValueError`、`str`、`tarfile.open`、`stream.extractall`、`archive.unlink`、`(context / "go.work.sum").touch`。 返回路径：L192的`context`。
-- `build_images`（L195–L204）：接收`directory`、`command`、`docker`。确认Docker是本机Linux x86_64后，从固定Git对象导出临时上下文；构建在本机进行，返回可审计的镜像ID与来源哈希。 源码说明：All builds execute on the explicitly selected local Docker daemon.。 控制顺序：L199按`info.get("OSType") != "linux" or info.get("Architecture") not in {"x86_64", "amd64"}`分支；L200抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`json.loads`、`docker`、`info.get`、`ValueError`、`build_storage`、`tempfile.TemporaryDirectory`、`export_source`等。 返回路径：L204的`{"minio": storage, **build_exported(directory, context, docker)}`。
-- `build_exported`（L207–L277）：接收`directory`、`context`、`docker`。 控制顺序：L221遍历`("api", "proxy", "runner")`；L222按`service in SOURCE_RECIPES`分支；L261按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("org.…`分支；L266抛异常，停止当前正常路径；L273按`service == "runner"`分支；L275按`service == "api"`分支。 调用`patch_api_image_reference`、`recipes.mkdir`、`runner_context.mkdir`、`download_runner`、`(runner_context / "runner-entry.sh").write_bytes`、`(ROOT / "tools/daytona/runner-entry.sh").read_bytes`、`recipe`、`dockerfile.write_text`、`api_patch_labels`等。 返回路径：L277的`metadata`。
-- `build_storage`（L280–L341）：接收`directory`、`command`、`docker`。从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。 源码说明：Build the local object store from its own fixed release, not a mutable image.。 控制顺序：L283按`not source.exists()`分支；L330按`labels.get("org.opencontainers.image.revision") != MINIO_SOURCE or labels.get("org.op…`分支；L334抛异常，停止当前正常路径。 调用`source.exists`、`source.mkdir`、`command`、`tempfile.TemporaryDirectory`、`export_source`、`str`、`run_command`、`local_tag`、`(directory / "minio-build.log").write_text`等。 返回路径：L335的`{ "tag": local_tag("minio"), "image_id": image["Id"], "source_sha": MINIO_SOURCE, "release…`。
+- `recipe`（L55–L80）：接收`service`、`source`。先验证上游Dockerfile完整前像的Git对象哈希，再加入禁用云构建、远程缓存和遥测的环境变量；不匹配即停止。 源码说明：Verify the complete upstream preimage before disabling hosted build caches.。 控制顺序：L60按`identity != expected`分支；L61抛异常，停止当前正常路径；L63按`"ENV CI=true\n" not in text`分支；L64抛异常，停止当前正常路径；L66按`service == "api"`分支。 调用`(Path(source) / f"apps/{service}/Dockerfile").read_bytes`、`Path`、`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`、`ValueError`、`raw.decode`等。 返回路径：L80的`target, text`。
+- `api_patch_identity`（L83–L94）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：The current reviewed API provenance, also required by runtime lock readers.。 控制顺序：L85按`DAYTONA_SOURCE != API_PATCH_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L86抛异常，停止当前正常路径；L87按`hashlib.sha256((ROOT / API_IMAGE_PATCH).read_bytes()).hexdigest() != API_IMAGE_PATCH_…`分支；L88抛异常，停止当前正常路径。 调用`ValueError`、`hashlib.sha256((ROOT / API_IMAGE_PATCH).read_bytes()).hexdigest`、`hashlib.sha256`、`(ROOT / API_IMAGE_PATCH).read_bytes`。 返回路径：L89的`{ "path": API_IMAGE_FILE, "preimage_blob": API_IMAGE_BLOB, "patched_sha256": API_IMAGE_PAT…`。
+- `api_patch_labels`（L97–L101）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L98的`{ "rnd.daytona.api-source-sha256": API_IMAGE_PATCHED_SHA256, "rnd.daytona.api-patch-sha256…`。
+- `require_api_image`（L104–L128）：接收`record`、`docker`。 源码说明：Reject old/tampered locks and inspect the exact API ID before service admission.。 控制顺序：L107按`type(record) is not dict or record.get("source_patch") != expected or record.get("sou…`分支；L114抛异常，停止当前正常路径；L116按`type(inspected) is not list or len(inspected) != 1 or type(inspected[0]) is not dict`分支；L117抛异常，停止当前正常路径；L120按`image.get("Id") != record["image_id"] or any( labels.get(key) != value for key, value…`分支；L128抛异常，停止当前正常路径。 调用`api_patch_identity`、`type`、`record.get`、`local_tag`、`re.fullmatch`、`str`、`ValueError`、`json.loads`、`docker`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `patch_api_image_reference`（L131–L155）：接收`source`。 源码说明：Preserve immutable digest separators in the pinned API's exported source only.。 控制顺序：L137按`identity != API_IMAGE_BLOB or raw.count(API_IMAGE_OLD.encode()) != 1`分支；L138抛异常，停止当前正常路径；L149按`patch != expected_patch or hashlib.sha256(updated.encode()).hexdigest() != expected["…`分支；L153抛异常，停止当前正常路径。 调用`api_patch_identity`、`Path`、`target.read_bytes`、`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`、`raw.count`等。 返回路径：L155的`expected`。
+- `download_runner`（L158–L184）：接收`destination`。发布文件大小与SHA256固定写在源码中，下载时逐块累计、校验通过才原子落盘；已有损坏文件不能执行。 源码说明：The expected hash is committed, not trusted from a newly downloaded manifest.。 控制顺序：L161按`destination.exists()`分支；L164按`destination.stat().st_size == RUNNER_BYTES and valid`分支；L166抛异常，停止当前正常路径；L173在`block := response.read(1024 * 1024)`成立时循环；L175按`total > RUNNER_BYTES`分支；L176抛异常，停止当前正常路径；L179按`total != RUNNER_BYTES or digest.hexdigest() != RUNNER_SHA256`分支；L180抛异常，停止当前正常路径。 调用`Path`、`destination.exists`、`destination.open`、`hashlib.file_digest(existing, "sha256").hexdigest`、`hashlib.file_digest`、`destination.stat`、`ValueError`、`destination.with_suffix`、`urllib.request.build_opener`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `export_source`（L187–L207）：接收`directory`、`command`、`context`、`revision`、`source_name`。 源码说明：Git archive excludes untracked files, local .env and .git credentials.。 控制顺序：L192按`command(["git", "rev-parse", "HEAD"], cwd=source) != revision`分支；L193抛异常，停止当前正常路径；L205按`source_name == "upstream"`分支。 调用`Path`、`command`、`ValueError`、`str`、`tarfile.open`、`stream.extractall`、`archive.unlink`、`(context / "go.work.sum").touch`。 返回路径：L207的`context`。
+- `build_images`（L210–L219）：接收`directory`、`command`、`docker`。确认Docker是本机Linux x86_64后，从固定Git对象导出临时上下文；构建在本机进行，返回可审计的镜像ID与来源哈希。 源码说明：All builds execute on the explicitly selected local Docker daemon.。 控制顺序：L214按`info.get("OSType") != "linux" or info.get("Architecture") not in {"x86_64", "amd64"}`分支；L215抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`json.loads`、`docker`、`info.get`、`ValueError`、`build_storage`、`tempfile.TemporaryDirectory`、`export_source`等。 返回路径：L219的`{"minio": storage, **build_exported(directory, context, docker)}`。
+- `build_exported`（L222–L299）：接收`directory`、`context`、`docker`。 控制顺序：L236遍历`("api", "proxy", "runner")`；L237按`service in SOURCE_RECIPES`分支；L271按`service == "api"`分支；L275抛异常，停止当前正常路径；L276按`service == "api"`分支；L283按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("org.…`分支；L288抛异常，停止当前正常路径；L295按`service == "runner"`分支。后续分支沿下方源码相同行号继续阅读。 调用`patch_api_image_reference`、`recipes.mkdir`、`runner_context.mkdir`、`download_runner`、`(runner_context / "runner-entry.sh").write_bytes`、`(ROOT / "tools/daytona/runner-entry.sh").read_bytes`、`recipe`、`dockerfile.write_text`、`api_patch_labels`等。 返回路径：L299的`metadata`。
+- `build_storage`（L302–L363）：接收`directory`、`command`、`docker`。从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。 源码说明：Build the local object store from its own fixed release, not a mutable image.。 控制顺序：L305按`not source.exists()`分支；L352按`labels.get("org.opencontainers.image.revision") != MINIO_SOURCE or labels.get("org.op…`分支；L356抛异常，停止当前正常路径。 调用`source.exists`、`source.mkdir`、`command`、`tempfile.TemporaryDirectory`、`export_source`、`str`、`run_command`、`local_tag`、`(directory / "minio-build.log").write_text`等。 返回路径：L357的`{ "tag": local_tag("minio"), "image_id": image["Id"], "source_sha": MINIO_SOURCE, "release…`。
 
-<!-- source-file: scripts/daytona_build.py sha256: b200039a1ba2e28c2b09da4434d614f9cdeb26a98e488ca8ea5adc317d2821a2 -->
+<!-- source-file: scripts/daytona_build.py sha256: 6d72d27a02176bbb54ff32c4e93e092d431c5b6a451b17c4901fb210016c1d5b -->
 ````python
 """Build v0.190.0 locally; no hosted builder, mutable release fallback or credentials.
 
@@ -209675,7 +209998,7 @@ from pathlib import Path
 
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
-from workbench.tools import run_command
+from workbench.tools import ToolFailure, run_command
 
 BUILT = frozenset({"api", "proxy", "runner", "minio"})
 MINIO_SOURCE = "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"
@@ -209721,7 +210044,22 @@ def recipe(service, source):
     text = raw.decode("utf-8")
     if "ENV CI=true\n" not in text:
         raise ValueError("Daytona构建环境标记缺失")
-    return target, text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)
+    text = text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)
+    if service == "api":
+        observer = ROOT / "tools/daytona/yarn-observer.cjs"
+        content = observer.read_bytes()
+        # The additional context is exclusively this reviewed observer, never host data.
+        destination = Path(source) / ".rnd-build-observe"
+        destination.mkdir(exist_ok=True)
+        (destination / "yarn-observer.cjs").write_bytes(content)
+        digest = hashlib.sha256(content).hexdigest()
+        text = text.replace(
+            "RUN yarn install --immutable\n",
+            "# observer-sha256=" + digest + "\n"
+            "COPY .rnd-build-observe/ /opt/rnd-build-observe/\n"
+            "RUN YARN_PLUGINS=/opt/rnd-build-observe/yarn-observer.cjs yarn install --immutable\n",
+        )
+    return target, text
 
 
 def api_patch_identity():
@@ -209889,31 +210227,38 @@ def build_exported(directory, context, docker):
         label_args = [
             arg for key, value in patch_labels.items() for arg in ("--label", key + "=" + value)
         ]
-        log = run_command(
-            [
-                "docker",
-                "build",
-                "--progress=plain",
-                "--platform=linux/amd64",
-                "--file",
-                str(dockerfile),
-                "--target",
-                target,
-                "--build-arg",
-                "VERSION=" + DAYTONA_VERSION,
-                "--label",
-                "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
-                "--label",
-                "org.opencontainers.image.version=" + DAYTONA_VERSION,
-                *label_args,
-                "--tag",
-                local_tag(service),
-                str(build_context),
-            ],
-            ROOT,
-            timeout=2400,
-            heartbeat="Local Daytona " + service,
-        )
+        command = [
+            "docker",
+            "build",
+            "--progress=plain",
+            "--platform=linux/amd64",
+            "--file",
+            str(dockerfile),
+            "--target",
+            target,
+            "--build-arg",
+            "VERSION=" + DAYTONA_VERSION,
+            "--label",
+            "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
+            "--label",
+            "org.opencontainers.image.version=" + DAYTONA_VERSION,
+            *label_args,
+            "--tag",
+            local_tag(service),
+            str(build_context),
+        ]
+        try:
+            log = run_command(command, ROOT, timeout=2400, heartbeat="Local Daytona " + service)
+        except ToolFailure as error:
+            if service == "api":
+                from scripts.daytona_build_observation import retain
+
+                retain(directory, getattr(error, "log", ""))
+            raise
+        if service == "api":
+            from scripts.daytona_build_observation import retain
+
+            retain(directory, log["log"])
         (directory / (service + "-build.log")).write_text(log["log"], encoding="utf-8")
         details = json.loads(docker("image", "inspect", local_tag(service)))[0]
         labels = details.get("Config", {}).get("Labels") or {}
@@ -209998,6 +210343,161 @@ def build_storage(directory, command, docker):
         "release": MINIO_RELEASE,
         "recipe_sha256": hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
     }
+````
+
+### `scripts/daytona_build_observation.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.daytona_build_observation；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `version`（L25–L30）：接收`value`。 调用`type`、`re.fullmatch`。 返回路径：L26的`value if type(value) is str and re.fullmatch(r"\d{1,5}\.\d{1,5}\.\d{1,5}", value) else "un…`。
+- `script_fact`（L33–L51）：接收`value`。 控制顺序：L34按`not isinstance(value, dict)`分支；L39按`not ( type(identifier) is str and re.fullmatch(r"[a-f0-9]{64}", identifier) and type(…`分支。 调用`isinstance`、`value.get`、`type`、`re.fullmatch`、`version`。 返回路径：L35的`None`；L45的`None`；L46的`{ "id": identifier, "script": script, "package": package if type(package) is str and packa…`。
+- `observation`（L54–L125）：接收`log`。 控制顺序：L65按`not isinstance(log, str)`分支；L67遍历`log[:64064].splitlines()`；L72按`match`分支；L74按`len(line) > 16000 or "RND_BUILD_OBSERVATION " not in line`分支；L80按`not isinstance(data, dict)`分支；L83按`type(session) is not str or not re.fullmatch(r"[a-f0-9]{16}", session)`分支；L85按`session not in result["sessions"]`分支；L86按`len(result["sessions"]) == 4`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`log[:64064].splitlines`、`re.search`、`len`、`json.loads`、`line.split`、`data.get`、`type`、`re.fullmatch`等。 返回路径：L66的`result`；L125的`result`。
+- `retain`（L128–L136）：接收`directory`、`log`。 源码说明：Diagnostics never replace a build result or authorize an image.。 调用`observation`、`json.dumps`、`(directory / "api-build-observation.json").write_text`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/daytona_build_observation.py sha256: 6ce65830ccc1d505f0a2d2f8cae5c2cada9a0d2b2631f11cd219e791b6d3acff -->
+````python
+"""Bounded optional facts from this build's output, never admission evidence."""
+
+import json
+import re
+
+PACKAGES = {
+    "@nestjs/core",
+    "@swc/core",
+    "esbuild",
+    "sharp",
+    "msw",
+    "nx",
+    "core-js",
+    "sqlite3",
+    "@parcel/watcher",
+    "protobufjs",
+    "@scarf/scarf",
+    "unrs-resolver",
+    "cpu-features",
+    "core-js-pure",
+    "other",
+}
+
+
+def version(value):
+    return (
+        value
+        if type(value) is str and re.fullmatch(r"\d{1,5}\.\d{1,5}\.\d{1,5}", value)
+        else "unknown"
+    )
+
+
+def script_fact(value):
+    if not isinstance(value, dict):
+        return None
+    identifier = value.get("id")
+    script = value.get("script")
+    package = value.get("package")
+    if not (
+        type(identifier) is str
+        and re.fullmatch(r"[a-f0-9]{64}", identifier)
+        and type(script) is str
+        and script in {"preinstall", "install", "postinstall"}
+    ):
+        return None
+    return {
+        "id": identifier,
+        "script": script,
+        "package": package if type(package) is str and package in PACKAGES else "other",
+        "version": version(value.get("version")),
+    }
+
+
+def observation(log):
+    result = {
+        "schema": 1,
+        "coverage": "manifest_scripts_only",
+        "log_excerpt": True,
+        "session_limit_reached": False,
+        "bases": {},
+        "sessions": {},
+        "events": [],
+    }
+    # run_command already supplies only the bounded head/tail of its own output.
+    if not isinstance(log, str):
+        return result
+    for line in log[:64064].splitlines():
+        match = re.search(
+            r"\[(builder|daytona) [^\]]{1,32}\] FROM (?:docker\.io/)?library/node:24-slim@(sha256:[a-f0-9]{64})(?:\s|$)",
+            line,
+        )
+        if match:
+            result["bases"][match[1]] = match[2]
+        if len(line) > 16000 or "RND_BUILD_OBSERVATION " not in line:
+            continue
+        try:
+            data = json.loads(line.split("RND_BUILD_OBSERVATION ", 1)[1])
+        except ValueError, RecursionError:
+            continue
+        if not isinstance(data, dict):
+            continue
+        session = data.get("session")
+        if type(session) is not str or not re.fullmatch(r"[a-f0-9]{16}", session):
+            continue
+        if session not in result["sessions"]:
+            if len(result["sessions"]) == 4:
+                result["session_limit_reached"] = True
+                continue
+            result["sessions"][session] = {"tools": None, "pending": None}
+        current = result["sessions"][session]
+        event = data.get("event")
+        if event == "tools":
+            current["tools"] = {key: version(data.get(key)) for key in ("node", "yarn", "corepack")}
+        elif event == "pending":
+            pending = {}
+            for key in ("started", "completed", "active_count"):
+                value = data.get(key)
+                pending[key] = value if type(value) is int and 0 <= value <= 256 else None
+            pending["overflow"] = (
+                data.get("overflow") if type(data.get("overflow")) is bool else None
+            )
+            pending["scripts"] = []
+            items = data.get("scripts")
+            for item in items[:32] if isinstance(items, list) else []:
+                safe = script_fact(item)
+                elapsed = item.get("elapsed_seconds") if isinstance(item, dict) else None
+                if safe and type(elapsed) is int and 0 <= elapsed <= 2400:
+                    pending["scripts"].append(
+                        {**safe, "state": "awaiting_script_exit", "elapsed_seconds": elapsed}
+                    )
+            current["pending"] = pending
+            pending["scripts_truncated"] = pending["active_count"] is not None and pending[
+                "active_count"
+            ] > len(pending["scripts"])
+        elif event in ("start", "end") and (safe := script_fact(data)):
+            safe["session"] = session
+            safe["event"] = event
+            if event == "end":
+                safe["state"] = (
+                    data.get("state") if data.get("state") in ("returned", "threw") else "unknown"
+                )
+                code = data.get("exit_code")
+                safe["exit_code"] = code if type(code) is int and 0 <= code <= 255 else None
+            result["events"] = (result["events"] + [safe])[-64:]
+    return result
+
+
+def retain(directory, log):
+    """Diagnostics never replace a build result or authorize an image."""
+    try:
+        safe = observation(log)
+        text = json.dumps(safe, sort_keys=True)
+        (directory / "api-build-observation.json").write_text(text + "\n", encoding="utf-8")
+        print("Local Daytona API build observation: " + text, flush=True)
+    except OSError, ValueError, TypeError:
+        pass
 ````
 
 ### `scripts/daytona_capability_profile.py`
@@ -221897,7 +222397,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/real-model.yml sha256: 9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f -->
+<!-- source-file: .github/workflows/real-model.yml sha256: d7de5e2897e7d3f31acd49c7996d170f4f5a8a986f20dc0977ed01fa2d99d9b2 -->
 ````yaml
 name: Manual real-model customer acceptance
 on:
@@ -222179,11 +222679,14 @@ jobs:
         if: always()
         with:
           name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
+          # Only the exact sanitized JSON files below; never upload .data itself.
+          include-hidden-files: true
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
             reports/capability-browser-isolation.json
             reports/capability-browser-memory-diagnostic.json
+            .data/daytona-capability/api-build-observation.json
           if-no-files-found: error
           retention-days: 7
 ````
@@ -227727,6 +228230,91 @@ else:
         prepared=True,
     )
 print("Locked native dependencies prepared; no runtime result asserted.")
+````
+
+### `tools/daytona/yarn-observer.cjs`
+
+**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+
+**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/daytona/yarn-observer.cjs sha256: 95ff643cd4fadb739ff920b7c955911433db23fcd928a6a69654be0fa4ceff83 -->
+````javascript
+// Yarn's supported hook observes manifest scripts, not implicit shell builds.
+// No dependency commands, environments, paths, output or network URLs are read.
+let plugin;
+module.exports = {
+  name: "rnd-build-observer",
+  factory(require) {
+    if (plugin) return plugin;
+    const { YarnVersion } = require("@yarnpkg/core");
+    const { createHash, randomBytes } = require("node:crypto");
+    const session = randomBytes(8).toString("hex");
+    const { writeSync } = require("node:fs");
+    const { spawnSync } = require("node:child_process");
+    const names = new Set([
+      "@nestjs/core", "@swc/core", "esbuild", "sharp", "msw", "nx",
+      "core-js", "sqlite3", "@parcel/watcher", "protobufjs", "@scarf/scarf",
+      "unrs-resolver", "cpu-features", "core-js-pure",
+    ]);
+    const version = value => typeof value === "string" && /^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(value) ? value : "unknown";
+    const active = new Map();
+    let started = 0, completed = 0, overflow = false;
+    const now = () => Number(process.hrtime.bigint() / 1000000000n);
+    const emit = value => {
+      try { writeSync(1, "RND_BUILD_OBSERVATION " + JSON.stringify({session, ...value}) + "\n"); } catch {}
+    };
+    let corepack = "unknown";
+    try {
+      const result = spawnSync("corepack", ["--version"], {
+        timeout: 2000, killSignal: "SIGKILL", maxBuffer: 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      if (result.status === 0) corepack = version(result.stdout.toString().trim());
+    } catch {}
+    const tools = { event: "tools", node: version(process.versions.node), yarn: version(YarnVersion), corepack,
+      coverage: "manifest_scripts_only" };
+    emit(tools);
+    const snapshot = () => { emit(tools); emit({
+      event: "pending", started, completed, active_count: active.size, overflow,
+      scripts: [...active.values()].slice(0, 32).map(({ since, ...item }) => ({
+        ...item, state: "awaiting_script_exit", elapsed_seconds: Math.min(2400, now() - since),
+      })),
+    }); };
+    const timer = setInterval(snapshot, 30000);
+    timer.unref();
+    return plugin = { hooks: {
+      async wrapScriptExecution(executor, project, locator, scriptName) {
+        if (!["preinstall", "install", "postinstall"].includes(scriptName)) return executor;
+        return async () => {
+          if (started >= 256) { overflow = true; return await executor(); }
+          const pkg = project.storedPackages.get(locator.locatorHash);
+          const name = pkg && (pkg.scope ? "@" + pkg.scope + "/" : "") + pkg.name;
+          const id = createHash("sha256").update(String(locator.locatorHash)).digest("hex");
+          const item = { id, package: names.has(name) ? name : "other", version: version(pkg?.version), script: scriptName };
+          const key = ++started;
+          active.set(key, { ...item, since: now() });
+          emit({ event: "start", ...item });
+          let state = "threw", exit_code = null;
+          try {
+            const result = await executor();
+            state = "returned";
+            exit_code = Number.isInteger(result) && result >= 0 && result <= 255 ? result : null;
+            return result;
+          } finally {
+            completed++;
+            active.delete(key);
+            emit({ event: "end", ...item, state, exit_code });
+            if (active.size === 0) snapshot();
+          }
+        };
+      },
+      afterAllInstalled() { snapshot(); },
+    } };
+  },
+};
 ````
 
 ### `tools/browser/Dockerfile`
@@ -239701,7 +240289,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 5331d50c11ff67c53e7c9a8eecc5318641da1987a1740ed5c85c894f3ceb8d70 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 74869b84cf1d6c31d5a3a4943929e96d5657cc51ab69f82b66642fea49e5c7ae -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -239978,6 +240566,22 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 普通/SSE两条真实网关集成路径覆盖超时后信封失败、正文失败、合法响应、明确截断，保留2预留/2HTTP尝试/1响应、原请求与JSON模式及原接受/拒绝结果；污染/缺失/非法状态/旧记录回归确认安全导出。补充实际观察器ValueError负例，确认非解析本地异常不会被误标为信封或正文解码；原错误代码及两次尝试保持不变。网关、流式、反馈及真实验收脚本相关463项通过。改动不改变模型请求、预算、超时、权限、scope、严格校验、清理或晋升门禁；仅本地准备，等待89f88e7剩余普通CI终态后再决定发布，不推送、不取消、不dispatch或重跑三SQLite。
 
 最终代码再次执行两个workflow的完整55文件集合，三项RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF保持1：2542通过、5失败、13跳过；五项仍为本地Landlock返回78，跳过仍为原生工具树/Vite与测试数据库。没有关闭强制标志，本地Python3.14.7/Node24.19.0不冒充Actions环境。Ruff、diff及完整手册/771份教材一致性检查通过。此提交仅使未来安全回执能定位解析层级，不修复或追补本轮模型失败，不代表DATA_DIR已通过真实验证。
+
+### ce175a5 模型前API构建停滞与限定脚本观测（本地方案）
+
+第15轮38148774162/job114497616525在API镜像构建2400秒超时，模型步骤未执行，没有新JSON分型。官方日志显示yarn install --immutable解析及下载完成，3594包/1.53GiB的Fetch耗时22.202秒，Link开始于步骤23.57秒；77.15秒出现并行安装脚本列表，最后80.38秒仅见cpu-features的node-gyp请求返回HTTP200，不能证明响应体下载完成或它是唯一阻塞者。API命令第105秒起日志恒为53599字节，直到2400秒；至少2295秒无新增输出。上一轮38145005717/job114486410100的API约196秒完成，整批镜像约532秒。两个提交的构建脚本及工作流没有变化，但固定上游Dockerfile仍引用node:24-slim和未指定版本的Corepack，现有日志不证明所有外部输入完全相同。没有实施依赖、缓存、超时或安装脚本的猜测性修复。
+
+本地最小诊断方案利用[Yarn官方wrapScriptExecution钩子](https://yarnpkg.com/api/yarnpkg-core/interface/hooks#wrapScriptExecution)，通过[Yarn4.13配置支持的YARN_PLUGINS入口](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/Configuration.ts)只在API的两个原有immutable安装命令中加载受信观察器。先核对完整上游Dockerfile blob，再复制唯一观察器文件；其SHA256写入生成recipe，纳入现有recipe摘要，原镜像ID与源码/补丁锁定检查不变。不编辑package.json、yarn.lock或.yarnrc.yml，不关闭脚本，不重定向或压制其原输出。
+
+观察器只记录固定安装脚本名、公开依赖白名单名（其他为other）、有限数字版本、定位符摘要、随机会话标识、开始/返回/抛出和有界退出码。执行器只调用一次，原返回值及异常原样传播。每30秒输出最多32个尚未返回脚本及其耗时，状态仅为awaiting_script_exit，不宣称已识别网络、锁或内核等待。最多跟踪256次调用，超限明确标记；定时器unref不延长工具生命周期，日志写入失败不改变脚本结果。会话分开记录，避免嵌套Yarn或重复配置初始化混淆。没有宿主进程枚举、PID、环境、完整命令行、路径、脚本正文或子进程输出采集。
+
+[Yarn4.13源码](https://raw.githubusercontent.com/yarnpkg/berry/@yarnpkg/cli/4.13.0/packages/yarnpkg-core/sources/scriptUtils.ts)明确区分executePackageScript和executePackageShellcode：此官方钩子只覆盖命名manifest脚本，不覆盖隐式shell构建。回执固定coverage=manifest_scripts_only，不能将零活动脚本解释成所有构建完成；不猴子补丁Yarn内部执行器来伪造完整覆盖。Corepack通过当前构建容器内既有corepack --version读取，2秒/SIGKILL/1KiB输出上限，失败unknown；YarnVersion来自正在执行的Yarn，Node版本来自同一进程。所有诊断开销仍位于原2400秒命令预算内。
+
+宿主只过滤既有run_command的有界首尾日志：从本次BuildKit实际FROM记录提取builder/daytona的node:24-slim摘要，不用后来解析标签来冒充当时身份；日志缺失就不填。版本、阶段、状态和数值再次过滤，最多4会话/64事件，标记日志摘录及会话/脚本截断。成功和ToolFailure都会保存独立api-build-observation.json；写入失败不替代构建结果，失败后仍拒绝image inspect/晋升。该诊断不是镜像准入证据，原始日志行为不变。原mini-SWE artifact仅增加这个精确JSON文件；[upload-artifact对隐藏路径的规则](https://github.com/actions/upload-artifact#uploading-hidden-files)要求include-hidden-files，因此只对原步骤的五个精确安全JSON路径开启，回归拒绝目录或通配符扩张，不上传.data目录或原始构建日志。
+
+离线使用真实Yarn4.13.0及禁止网络的合成项目验证成功/退出7两条路径，观察器前后接受结果一致且三份输入文件逐字节不变；另用31秒合成脚本验证真实30秒等待快照及正常结束。Node钩子回归覆盖挂起、原异常对象、原返回码、日志写失败、只执行一次、不读额外脚本/环境信息和非安装脚本不拦截；解析器覆盖污染、非法数值、会话隔离和缺失输出，构建回归保留2400秒、原ToolFailure对象和失败禁止镜像检查。实际包/构建仍未复现，不据此宣称停滞已修复。仅本地准备，是否发布及下一次有界构建由父线程审阅后协调；未推送、取消、dispatch或重跑三案。
+
+验证结果：相关原有及新增离线测试116项通过，精确artifact路径补充回归另1项通过（合计117）；其中真实Yarn4.13.0三项均实际执行，未按缺工具跳过。完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1：2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。没有进行Docker/API昂贵复现，也没有真实模型调用；本地主机与真实Actions环境边界保留。Node语法、Ruff、diff及两套生成文档一致性检查通过。
 ````
 
 ### `docs/template-platform.md`

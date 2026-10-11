@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L287。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L290。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12990`。本段原文以LF换行结束。
+本段原始字节数：`13173`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7de5e2897e7d3f31acd49c7996d170f4f5a8a986f20dc0977ed01fa2d99d9b2"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
@@ -297,11 +297,14 @@ jobs:
         if: always()
         with:
           name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
+          # Only the exact sanitized JSON files below; never upload .data itself.
+          include-hidden-files: true
           path: |
             reports/live-modules/summary.json
             reports/live-tls.json
             reports/capability-browser-isolation.json
             reports/capability-browser-memory-diagnostic.json
+            .data/daytona-capability/api-build-observation.json
           if-no-files-found: error
           retention-days: 7
 ````

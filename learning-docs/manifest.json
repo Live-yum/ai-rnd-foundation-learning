@@ -3777,11 +3777,20 @@
     },
     {
       "path": "scripts/daytona_build.py",
-      "bytes": 14784,
-      "sha256": "b200039a1ba2e28c2b09da4434d614f9cdeb26a98e488ca8ea5adc317d2821a2",
+      "bytes": 15807,
+      "sha256": "6d72d27a02176bbb54ff32c4e93e092d431c5b6a451b17c4901fb210016c1d5b",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_build_py--001.md"
+      ]
+    },
+    {
+      "path": "scripts/daytona_build_observation.py",
+      "bytes": 4786,
+      "sha256": "6ce65830ccc1d505f0a2d2f8cae5c2cada9a0d2b2631f11cd219e791b6d3acff",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/scripts__daytona_build_observation_py--001.md"
       ]
     },
     {
@@ -3900,6 +3909,15 @@
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_build_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_daytona_build_observation.py",
+      "bytes": 12444,
+      "sha256": "fe757beb28d61e39e4bfc5d2370a7d4018c4654588d6cd85cdc51d0e33418616",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/tests__test_daytona_build_observation_py--001.md"
       ]
     },
     {
@@ -4090,6 +4108,15 @@
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tools__daytona__warm_py--001.md"
+      ]
+    },
+    {
+      "path": "tools/daytona/yarn-observer.cjs",
+      "bytes": 3439,
+      "sha256": "95ff643cd4fadb739ff920b7c955911433db23fcd928a6a69654be0fa4ceff83",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/tools__daytona__yarn-observer_cjs--001.md"
       ]
     },
     {
@@ -4571,8 +4598,8 @@
     },
     {
       "path": ".github/workflows/real-model.yml",
-      "bytes": 12990,
-      "sha256": "9ba39f0cbd202f2ad257f5b9f330a9fe56095a0c63079ad57359edb00f24da0f",
+      "bytes": 13173,
+      "sha256": "d7de5e2897e7d3f31acd49c7996d170f4f5a8a986f20dc0977ed01fa2d99d9b2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__real-model_yml--001.md"
@@ -4796,8 +4823,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 45748,
-      "sha256": "5331d50c11ff67c53e7c9a8eecc5318641da1987a1740ed5c85c894f3ceb8d70",
+      "bytes": 50892,
+      "sha256": "74869b84cf1d6c31d5a3a4943929e96d5657cc51ab69f82b66642fea49e5c7ae",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
