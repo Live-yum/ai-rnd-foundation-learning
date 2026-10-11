@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L150。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L158。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16977`。本段原文以LF换行结束。
+本段原始字节数：`18206`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d64e20d53650e9ef1e9e63c7217b850bb50e2f8a27cd916c5b8097bbc642ba29"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1d79c6b4e8a34ed518d077f23f8671c497c39cdef5b05ad1bc8fbe2a9e9f3abb"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -167,4 +167,12 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 在模型密钥仅对最后执行步骤可用之前，Actions 先请求不带认证的 `/v1/models`：严格 TLS 成功且服务返回200或401才继续。证书 SHA256 必须匹配固定指纹；SSLContext 保留 `CERT_REQUIRED`、主机/IP SAN、有效期和链验证。专用 transport 只允许准确服务的探测及 Chat Completions 路径，拒绝其他主机、端口、API根和重定向。没有 `verify=False`、HTTP回退、系统根安装或代理配置变更；旧三场景 workflow 的 HTTP 例外已移除。私有根正确不等于服务器叶证书正确；Actions 如仍遇IP SAN、链或访问拒绝，会在使用模型密钥前停止。
 
 上述代码与离线测试不能代表真实调用成功。只有本次精确head的 Actions 终态及对应回执可以证明运行结果；TLS探测、三业务场景、mini-SWE模块路径分别报告，不互相替代。
+
+### 经用户明确批准的浏览器 scope 扩展
+
+首次 mini-SWE 运行 `38114248980` 已通过严格无认证 TLS 探测，但在模型调用前被浏览器策略的 workflow 名称门禁拒绝。用户随后明确批准仅该手动场景的 scope 扩展：准确仓库、`real-model.yml` 文件与名称、`mini-swe-sla` Job/场景、首次 `workflow_dispatch`，以及相同的完整 `REVIEWED_SHA`、`GITHUB_SHA`、`GITHUB_WORKFLOW_SHA`。workflow 引用还必须匹配当前分支；不把新名称直接加入旧三个 scope 的白名单。审计条件见 `tools/browser/review-only-v2/README.md`。
+
+策略字节/SHA、Docker/内核/镜像来源检查、非 root、无网络、只读根目录、权限及资源限制均不变。新 scope 配置与离线回归不是实时隔离证明，下一次须在精确修复 head 重新通过全部隔离正反例，才能执行真实模块。
+
+另一个独立的三 SQLite 运行 `38114286680` 在 `c5bb8de` 已完成3/3场景、7次真实模型请求（需求分析/规划），不证明 mini-SWE 执行器；无需为本 scope 修复重跑。两个手动 workflow 使用不同 concurrency group，且均不取消运行中的任务；本修复不修改事件或 concurrency。
 ````

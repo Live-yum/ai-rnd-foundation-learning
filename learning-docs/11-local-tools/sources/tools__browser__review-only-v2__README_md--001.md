@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/browser/review-only-v2/README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L108。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/browser/review-only-v2/README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L132。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6491`。本段原文以LF换行结束。
+本段原始字节数：`7847`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/browser/review-only-v2/README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ac7d3070874970f00f1a4743571d34d1da881d658d43540bcdbe8ca4a68d222c"} -->
+<!-- learning-source: {"path": "tools/browser/review-only-v2/README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "834e42da5c1acf939b814610357d533847ad20e6756c8764b15d16062c0e8d25"} -->
 ````markdown
 <!-- tools/browser/review-only-v2/README.md -->
 # Actions-only v2: native-amd64 Chromium namespace profile
@@ -25,6 +25,30 @@ fixed-hash selector, approved repository/workflow and observed native-amd64
 Docker 28.0.4 target. Ordinary callers retain their existing default profile.
 This configuration is not a live certification; all positive and adversarial
 checks must pass on the published commit before candidate admission.
+
+### Additional approved scope, 2026-10-11
+
+The user explicitly approved the following extension after the first manual
+mini-SWE run was rejected by the existing workflow-name gate. The original
+three workflow scopes remain unchanged; the new workflow name is **not** added
+as a general allowance.
+
+Only repository `Live-yum/ai-rnd-foundation-learning`, workflow name
+`Manual real-model customer acceptance`, exact workflow file
+`.github/workflows/real-model.yml`, job `mini-swe-sla`, event
+`workflow_dispatch`, attempt `1`, and scenario `mini-swe-sla` qualify. The
+workflow reference must match that repository/file and the current branch ref;
+`GITHUB_SHA`, `GITHUB_WORKFLOW_SHA`, and the operator's `REVIEWED_SHA` must be
+the same complete 40-character commit SHA. The existing Actions, run-ID and
+policy-hash gates continue to apply.
+
+This authorizes the existing disposable offline browser worker to verify
+model-generated products in that one job. It does not approve the workflow's
+other jobs, legacy scenarios, PR/push triggers, repeat attempts, or other
+workflow files. It does not modify policy JSON, runtime provenance assertions,
+container isolation, credentials, TLS or model budgets. Existing and new
+offline positive/negative scope tests are not substitutes for fresh live
+positive/adversarial isolation evidence at the newly dispatched SHA.
 
 ## Provenance and exact changes
 

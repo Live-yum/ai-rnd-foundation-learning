@@ -664,8 +664,8 @@
     },
     {
       "path": "workbench/capability_browser_policy.py",
-      "bytes": 10812,
-      "sha256": "4427209e32348f52c815d7c36f567f03d33bc7e1a62b27fe5edd5986c9b7b30d",
+      "bytes": 11724,
+      "sha256": "7a66388f8026daaccd7c00e5db41d802cdaf7034c5ffac72508dd8ff47c57bba",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_browser_policy_py--001.md"
@@ -3462,8 +3462,8 @@
     },
     {
       "path": "tools/browser/review-only-v2/README.md",
-      "bytes": 6491,
-      "sha256": "ac7d3070874970f00f1a4743571d34d1da881d658d43540bcdbe8ca4a68d222c",
+      "bytes": 7847,
+      "sha256": "834e42da5c1acf939b814610357d533847ad20e6756c8764b15d16062c0e8d25",
       "stage": "11-local-tools",
       "parts": [
         "11-local-tools/sources/tools__browser__review-only-v2__README_md--001.md"
@@ -4786,8 +4786,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 16977,
-      "sha256": "d64e20d53650e9ef1e9e63c7217b850bb50e2f8a27cd916c5b8097bbc642ba29",
+      "bytes": 18206,
+      "sha256": "1d79c6b4e8a34ed518d077f23f8671c497c39cdef5b05ad1bc8fbe2a9e9f3abb",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5392,8 +5392,8 @@
     },
     {
       "path": "tests/test_capability_browser_policy.py",
-      "bytes": 11606,
-      "sha256": "31e8b204a8cbe61164def1d65ea7fd0dba14c554fb83628a45b01d7675564b33",
+      "bytes": 14962,
+      "sha256": "ce019549ec549ecf22e92b0857fbcd7000cdf1eb0c18fde47a35c279ec30b800",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_policy_py--001.md"

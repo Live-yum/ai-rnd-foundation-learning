@@ -7,6 +7,30 @@ Docker 28.0.4 target. Ordinary callers retain their existing default profile.
 This configuration is not a live certification; all positive and adversarial
 checks must pass on the published commit before candidate admission.
 
+### Additional approved scope, 2026-10-11
+
+The user explicitly approved the following extension after the first manual
+mini-SWE run was rejected by the existing workflow-name gate. The original
+three workflow scopes remain unchanged; the new workflow name is **not** added
+as a general allowance.
+
+Only repository `Live-yum/ai-rnd-foundation-learning`, workflow name
+`Manual real-model customer acceptance`, exact workflow file
+`.github/workflows/real-model.yml`, job `mini-swe-sla`, event
+`workflow_dispatch`, attempt `1`, and scenario `mini-swe-sla` qualify. The
+workflow reference must match that repository/file and the current branch ref;
+`GITHUB_SHA`, `GITHUB_WORKFLOW_SHA`, and the operator's `REVIEWED_SHA` must be
+the same complete 40-character commit SHA. The existing Actions, run-ID and
+policy-hash gates continue to apply.
+
+This authorizes the existing disposable offline browser worker to verify
+model-generated products in that one job. It does not approve the workflow's
+other jobs, legacy scenarios, PR/push triggers, repeat attempts, or other
+workflow files. It does not modify policy JSON, runtime provenance assertions,
+container isolation, credentials, TLS or model budgets. Existing and new
+offline positive/negative scope tests are not substitutes for fresh live
+positive/adversarial isolation evidence at the newly dispatched SHA.
+
 ## Provenance and exact changes
 
 The baseline remains the byte-verified Docker 28.0.4 profile and license in

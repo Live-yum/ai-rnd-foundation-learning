@@ -15,21 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `selected_policy`（L28–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30按`not selected`分支；L32按`selected != POLICY_SHA256 or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ…`分支；L39抛异常，停止当前正常路径；L42按`hashlib.sha256(raw).hexdigest() != POLICY_SHA256`分支；L43抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`、`path.read_bytes`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L31的`None`；L44的`path`。
-- `_read_json`（L47–L51）：接收`args`。 控制顺序：L49按`value.returncode or len(value.stdout) > 100000`分支；L50抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`ValueError`、`json.loads`。 返回路径：L51的`json.loads(value.stdout)`。
-- `_text`（L54–L55）：接收`value`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L55的`isinstance(value, str) and bool(re.fullmatch(r"[a-zA-Z0-9._+ /()-]{1,160}", value))`。
-- `validate_target`（L58–L118）：接收`version`、`info`、`image`、`expected_image`。 控制顺序：L60按`not isinstance(info, dict) or not isinstance(image, list) or len(image) != 1`分支；L61抛异常，停止当前正常路径；L73按`server.get("Version") != "28.0.4" or server.get("Os") != "linux" or server.get("Arch"…`分支；L99抛异常，停止当前正常路径。 调用`isinstance`、`version.get`、`len`、`ValueError`、`server.get`、`part.get`、`details.get("runc", {}).get`、`details.get`、`info.get("Runtimes", {}).get`等。 返回路径：L103的`{ "policy_sha256": POLICY_SHA256, "engine": "28.0.4", "daemon_arch": "amd64", "image_arch"…`。
-- `runtime_identity`（L121–L154）：接收`image`。 控制顺序：L122按`selected_policy() is None`分支；L133按`version.returncode or len(version.stdout) > 4096`分支；L134抛异常，停止当前正常路径；L139按`not runtime or not library or not commit or commit[1] != identity["runc_reported_comm…`分支；L146抛异常，停止当前正常路径；L148按`not 0 < binary.stat().st_size <= 32 * 1024 * 1024`分支；L149抛异常，停止当前正常路径。 调用`selected_policy`、`validate_target`、`_read_json`、`subprocess.run`、`clean_env`、`len`、`ValueError`、`version.stdout.decode`、`re.search`等。 返回路径：L123的`{"policy_sha256": None, "mode": "docker-default"}`；L154的`identity`。
-- `security_options_match`（L157–L177）：接收`options`。 控制顺序：L159按`path is None`分支；L161按`not isinstance(options, list) or len(options) != 3`分支；L163按`options.count("no-new-privileges:true") != 1 or options.count("apparmor=docker-defaul…`分支；L169按`len(selected) != 1`分支。 调用`selected_policy`、`isinstance`、`len`、`options.count`、`v.startswith`、`json.loads`、`path.read_bytes`。 返回路径：L160的`options == ["no-new-privileges:true"]`；L162的`False`；L167的`False`。
-- `require_raw_probe`（L209–L272）：接收`value`。 控制顺序：L210按`not isinstance(value, dict) or set(value) != { "protocol", "architecture", "expected_…`分支；L231抛异常，停止当前正常路径；L232遍历`value["observations"].items()`；L233按`not isinstance(observation, dict) or set(observation) != {"returned", "return", "errn…`分支；L245抛异常，停止当前正常路径；L246按`name.endswith("_killed")`分支；L270按`not meaningful`分支；L271抛异常，停止当前正常路径。 调用`isinstance`、`set`、`value.get`、`any`、`value["checks"].values`、`ValueError`、`value["observations"].items`、`type`、`abs`等。 返回路径：L272的`True`。
+- `approved_manual_module_scope`（L28–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：User-approved 2026-10-11 extension, not a workflow-wide name allowance.。 调用`env.get`、`bool`、`re.fullmatch`。 返回路径：L32的`env.get("GITHUB_WORKFLOW") == "Manual real-model customer acceptance" and env.get("GITHUB_…`。
+- `selected_policy`（L47–L63）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`not selected`分支；L51按`selected != POLICY_SHA256 or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ…`分支；L58抛异常，停止当前正常路径；L61按`hashlib.sha256(raw).hexdigest() != POLICY_SHA256`分支；L62抛异常，停止当前正常路径。 调用`os.environ.get`、`approved_manual_module_scope`、`re.fullmatch`、`ValueError`、`path.read_bytes`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L50的`None`；L63的`path`。
+- `_read_json`（L66–L70）：接收`args`。 控制顺序：L68按`value.returncode or len(value.stdout) > 100000`分支；L69抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`ValueError`、`json.loads`。 返回路径：L70的`json.loads(value.stdout)`。
+- `_text`（L73–L74）：接收`value`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L74的`isinstance(value, str) and bool(re.fullmatch(r"[a-zA-Z0-9._+ /()-]{1,160}", value))`。
+- `validate_target`（L77–L137）：接收`version`、`info`、`image`、`expected_image`。 控制顺序：L79按`not isinstance(info, dict) or not isinstance(image, list) or len(image) != 1`分支；L80抛异常，停止当前正常路径；L92按`server.get("Version") != "28.0.4" or server.get("Os") != "linux" or server.get("Arch"…`分支；L118抛异常，停止当前正常路径。 调用`isinstance`、`version.get`、`len`、`ValueError`、`server.get`、`part.get`、`details.get("runc", {}).get`、`details.get`、`info.get("Runtimes", {}).get`等。 返回路径：L122的`{ "policy_sha256": POLICY_SHA256, "engine": "28.0.4", "daemon_arch": "amd64", "image_arch"…`。
+- `runtime_identity`（L140–L173）：接收`image`。 控制顺序：L141按`selected_policy() is None`分支；L152按`version.returncode or len(version.stdout) > 4096`分支；L153抛异常，停止当前正常路径；L158按`not runtime or not library or not commit or commit[1] != identity["runc_reported_comm…`分支；L165抛异常，停止当前正常路径；L167按`not 0 < binary.stat().st_size <= 32 * 1024 * 1024`分支；L168抛异常，停止当前正常路径。 调用`selected_policy`、`validate_target`、`_read_json`、`subprocess.run`、`clean_env`、`len`、`ValueError`、`version.stdout.decode`、`re.search`等。 返回路径：L142的`{"policy_sha256": None, "mode": "docker-default"}`；L173的`identity`。
+- `security_options_match`（L176–L196）：接收`options`。 控制顺序：L178按`path is None`分支；L180按`not isinstance(options, list) or len(options) != 3`分支；L182按`options.count("no-new-privileges:true") != 1 or options.count("apparmor=docker-defaul…`分支；L188按`len(selected) != 1`分支。 调用`selected_policy`、`isinstance`、`len`、`options.count`、`v.startswith`、`json.loads`、`path.read_bytes`。 返回路径：L179的`options == ["no-new-privileges:true"]`；L181的`False`；L186的`False`。
+- `require_raw_probe`（L228–L291）：接收`value`。 控制顺序：L229按`not isinstance(value, dict) or set(value) != { "protocol", "architecture", "expected_…`分支；L250抛异常，停止当前正常路径；L251遍历`value["observations"].items()`；L252按`not isinstance(observation, dict) or set(observation) != {"returned", "return", "errn…`分支；L264抛异常，停止当前正常路径；L265按`name.endswith("_killed")`分支；L289按`not meaningful`分支；L290抛异常，停止当前正常路径。 调用`isinstance`、`set`、`value.get`、`any`、`value["checks"].values`、`ValueError`、`value["observations"].items`、`type`、`abs`等。 返回路径：L291的`True`。
 
 </details>
 
-**创建路径：** `workbench/capability_browser_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L272。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_browser_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L291。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10812`。本段原文以LF换行结束。
+本段原始字节数：`11724`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_browser_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4427209e32348f52c815d7c36f567f03d33bc7e1a62b27fe5edd5986c9b7b30d"} -->
+<!-- learning-source: {"path": "workbench/capability_browser_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7a66388f8026daaccd7c00e5db41d802cdaf7034c5ffac72508dd8ff47c57bba"} -->
 ````python
 # workbench/capability_browser_policy.py
 """Fixed, explicitly approved Actions-only browser policy selection.
@@ -59,6 +60,25 @@ WORKFLOWS = {
 }
 
 
+def approved_manual_module_scope():
+    """User-approved 2026-10-11 extension, not a workflow-wide name allowance."""
+    env = os.environ
+    head, ref = env.get("GITHUB_SHA", ""), env.get("GITHUB_REF", "")
+    return (
+        env.get("GITHUB_WORKFLOW") == "Manual real-model customer acceptance"
+        and env.get("GITHUB_JOB") == "mini-swe-sla"
+        and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and env.get("GITHUB_RUN_ATTEMPT") == "1"
+        and env.get("LIVE_SCENARIO") == "mini-swe-sla"
+        and bool(re.fullmatch(r"[a-f0-9]{40}", head))
+        and env.get("REVIEWED_SHA") == head
+        and env.get("GITHUB_WORKFLOW_SHA") == head
+        and bool(re.fullmatch(r"refs/heads/[A-Za-z0-9._/-]+", ref))
+        and env.get("GITHUB_WORKFLOW_REF")
+        == "Live-yum/ai-rnd-foundation-learning/.github/workflows/real-model.yml@" + ref
+    )
+
+
 def selected_policy():
     selected = os.environ.get("CAPABILITY_BROWSER_APPROVED_POLICY", "")
     if not selected:
@@ -67,7 +87,7 @@ def selected_policy():
         selected != POLICY_SHA256
         or os.environ.get("GITHUB_ACTIONS") != "true"
         or os.environ.get("GITHUB_REPOSITORY") != "Live-yum/ai-rnd-foundation-learning"
-        or os.environ.get("GITHUB_WORKFLOW") not in WORKFLOWS
+        or not (os.environ.get("GITHUB_WORKFLOW") in WORKFLOWS or approved_manual_module_scope())
         or not re.fullmatch(r"[1-9][0-9]{0,19}", os.environ.get("GITHUB_RUN_ID", ""))
     ):
         raise ValueError("Reviewed browser policy requires its approved Actions scope")
