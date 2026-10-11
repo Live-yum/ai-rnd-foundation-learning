@@ -37,7 +37,9 @@ class DaytonaFiles:
             raise ValueError("snapshot paths differ from task")
         result = {}
         for name in paths:
-            content = self.sandbox.fs.download_file(REMOTE + "/" + name, timeout=self.timeout)
+            # SDK 0.190.0 overloads advertise timeout=, but its implementation
+            # accepts only positional arguments. Keep empty-file support too.
+            content = self.sandbox.fs.download_file(REMOTE + "/" + name, self.timeout)
             if not isinstance(content, bytes) or len(content) > 100000:
                 raise ValueError("sandbox file exceeds source budget")
             result[name] = content.decode("utf-8")

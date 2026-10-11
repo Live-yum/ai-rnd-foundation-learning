@@ -15,19 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `DaytonaFiles`（L23–L44）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DaytonaFiles`（L23–L46）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `DaytonaFiles.__init__`（L24–L25）：接收`sandbox`、`task`、`timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `DaytonaFiles.write`（L27–L33）：接收`edits`。 控制顺序：L28按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L29抛异常，停止当前正常路径；L30遍历`edits.files`。 调用`set`、`ValueError`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.snapshot`（L35–L44）：接收`paths`。 控制顺序：L36按`paths != self.task.allowed_paths`分支；L37抛异常，停止当前正常路径；L39遍历`paths`；L41按`not isinstance(content, bytes) or len(content) > 100000`分支；L42抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`isinstance`、`len`、`content.decode`。 返回路径：L44的`result`。
-- `coding_environment`（L48–L98）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L52按`task_path_errors(task, selection)`分支；L53抛异常，停止当前正常路径；L68按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L69抛异常，停止当前正常路径；L95按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `DaytonaFiles.snapshot`（L35–L46）：接收`paths`。 控制顺序：L36按`paths != self.task.allowed_paths`分支；L37抛异常，停止当前正常路径；L39遍历`paths`；L43按`not isinstance(content, bytes) or len(content) > 100000`分支；L44抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`isinstance`、`len`、`content.decode`。 返回路径：L46的`result`。
+- `coding_environment`（L50–L100）：接收`settings`、`task`、`selection`、`product`。 控制顺序：L54按`task_path_errors(task, selection)`分支；L55抛异常，停止当前正常路径；L70按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L71抛异常，停止当前正常路径；L97按`sandbox is not None`分支。 调用`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`client.create`、`params_for`、`uuid.uuid4`、`sandbox.refresh_data`、`require_container_evidence`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L98。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L100。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3969`。本段原文以LF换行结束。
+本段原始字节数：`4118`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "54b38fe97f1a721ca93328f81c6dd3415548b5b41a342be18e0e7764750b3d73"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f196c603943732b0c0152ff90acd447bd41374bb72def8464884194ad3eadb5b"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -69,7 +69,9 @@ class DaytonaFiles:
             raise ValueError("snapshot paths differ from task")
         result = {}
         for name in paths:
-            content = self.sandbox.fs.download_file(REMOTE + "/" + name, timeout=self.timeout)
+            # SDK 0.190.0 overloads advertise timeout=, but its implementation
+            # accepts only positional arguments. Keep empty-file support too.
+            content = self.sandbox.fs.download_file(REMOTE + "/" + name, self.timeout)
             if not isinstance(content, bytes) or len(content) > 100000:
                 raise ValueError("sandbox file exceeds source budget")
             result[name] = content.decode("utf-8")

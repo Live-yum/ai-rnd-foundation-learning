@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L180。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L182。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23846`。本段原文以LF换行结束。
+本段原始字节数：`24573`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "93159eb3871ee26f3386062de68949297c92ae0ab52096a91a0bf6d359645a43"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3bd29e72b77adfa7296869c4b3bb01ec40a9d82091b5f156952191f5804bf8d1"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -196,5 +196,7 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 `d9703ef` 的Python运行 `38122424435` Windows shard1随后暴露了新fixture问题：`write_text("\n")`在Windows创建CRLF基线，而测试动作明确返回LF，两者不是同一未改动内容。候选写入器本来就按动作原文写入；测试现用显式字节构造LF、CRLF及混合换行，在Linux/Windows运行同样的逐字节断言，不忽略或归一化换行。同时，新增真实锁定Worker/mock gateway及真实检查器/mock SDK回归确认生产模型上下文和沙箱初始文件的`read_text()`也会归一化CRLF。仅这两处改用UTF-8字节解码；原样回传的上下文、沙箱文件和候选保持原字节。只改变换行的陈旧前像仍被哈希守卫拒绝，允许路径、预算及隔离不变。
 
-同head手动运行 `38122528136` 于08:07:49 UTC执行步骤退出1；官方日志没有更细异常。artifact `11696606589` 已由官方连接器返回文件引用，但本执行环境下载该ZIP遇到`URLError`，尚未读到本次摘要。因此本次调用计数及模型/候选根因未知，不沿用81c0638的3次调用，也不把上述Windows换行修复视作此线上失败的根因或完整验收证据。
+同head手动运行 `38122528136` 于08:07:49 UTC执行步骤退出1。父线程随后通过正式文件下载读取artifact `11696606589`，ZIP SHA256为 `57993571bc1867d29ad18d2a7794aa6e8b168171349e54860981e3fc2f38ad75`。本次模型调用预留/HTTP尝试/响应均为2，失败为`DaytonaError / coding_sandbox / d9703ef第40行`，不是81c0638的候选文件集合错误。该行调用`download_file(path, timeout=...)`；锁定SDK0.190.0的重载标注支持关键字，但实际实现仅接受位置参数。离线真实SDK复现其在下载HTTP前将TypeError包装为DaytonaError，确认调用签名缺陷。
+
+本次最小修复仅把超时改为`download_file(path, timeout)`位置参数，不改SDK版本、端点、批准路径、原超时、100000字节限制或UTF-8要求，不增加请求/重试。保持空文件及CRLF字节支持；实际SDK+mock HTTP回归覆盖空文件、恰好100000字节、超限、非法UTF-8、截断multipart及401/403/404/500失败，并检查响应关闭和原读写超时传递。此修复与独立的Windows换行修复均仅有离线证据，完整双模块/ZIP实时验收仍待新SHA结果。
 ````

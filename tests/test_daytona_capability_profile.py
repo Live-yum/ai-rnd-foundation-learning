@@ -990,7 +990,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
         fs=SimpleNamespace(
             create_folder=lambda *a: None,
             upload_file=upload,
-            download_file=lambda path, **k: uploaded[path],
+            download_file=lambda path, timeout: uploaded[path],
         ),
     )
 

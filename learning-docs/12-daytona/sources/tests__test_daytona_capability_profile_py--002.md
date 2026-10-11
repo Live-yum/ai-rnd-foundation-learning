@@ -28,9 +28,9 @@
 
 **创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L886–L1045。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7343`。本段原文以LF换行结束。
+本段原始字节数：`7347`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "cdef5b9cd7ef11ac933d62b0426c1205f610257b1929292c505278d09332087c"} -->
+<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "bac030f67e35d1e035b5c1bf986aefe63481aedef3c44b529bd0f3042b61742c"} -->
 ````python
 # tests/test_daytona_capability_profile.py
 def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
@@ -140,7 +140,7 @@ def test_coding_sandbox_uses_strict_runner_profile_before_upload(
         fs=SimpleNamespace(
             create_folder=lambda *a: None,
             upload_file=upload,
-            download_file=lambda path, **k: uploaded[path],
+            download_file=lambda path, timeout: uploaded[path],
         ),
     )
 
