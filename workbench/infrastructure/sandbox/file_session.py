@@ -18,6 +18,23 @@ from workbench.infrastructure.sandbox.cleanup import delete_owned, receipt
 from workbench.tools import clean_env, process_options
 
 LIMIT = 1_200_000
+SUPERVISION_PHASES = {"terminate", "wait", "reader", "pipes", "job_close", "delete", "journal"}
+SUPERVISION_KINDS = {
+    "OSError",
+    "PermissionError",
+    "ValueError",
+    "TimeoutExpired",
+    "UnsupportedScope",
+    "other",
+}
+
+
+def supervision_failure(phase, error):
+    kind = type(error).__name__
+    return {
+        "supervision_failure_phase": phase if phase in SUPERVISION_PHASES else "journal",
+        "supervision_failure_kind": kind if kind in SUPERVISION_KINDS else "other",
+    }
 
 
 PHASES = {
@@ -52,8 +69,11 @@ def preserve_state(path, binding, name, identifier, error, failure):
             or value.get("sandbox_id") != identifier
         ):
             raise ValueError("Stale cleanup state")
-    except OSError, ValueError, TypeError, AttributeError:
-        value = receipt(binding, name, identifier, "deletion_unconfirmed")
+    except (OSError, ValueError, TypeError, AttributeError) as exc:
+        value = {
+            **receipt(binding, name, identifier, "deletion_unconfirmed"),
+            **supervision_failure("journal", exc),
+        }
     if error is not None and value.get("status") not in {"unconfirmed"}:
         value.update(status="unconfirmed", reason="deletion_unconfirmed")
     value.update(failure)
@@ -221,12 +241,18 @@ class Session:
             except UnsupportedScope:
                 pass  # Parent RPC/finally observes the stored terminal error.
 
+    def remember_error(self, error, phase):
+        if self.error is None:
+            self.error = error
+            self.failure.update(supervision_failure(phase, error))
+
     def finish(self):
         with self.lock:
             owner = not self.closing
             self.closing = True
         if owner:
             self.cancel.set()
+            phase = "terminate"
             try:
                 try:
                     if self.process is not None:
@@ -240,26 +266,30 @@ class Session:
                                 self.process.kill()  # Job setup failed before any request was sent.
                         except ProcessLookupError:
                             pass
+                        phase = "wait"
                         self.process.wait(
                             timeout=max(0.001, min(2, self.deadline - time.monotonic()))
                         )
+                        phase = "reader"
                         if hasattr(self, "reader"):
                             self.reader.join(timeout=0.2)
                             if self.reader.is_alive():
                                 raise UnsupportedScope(
                                     "File RPC pipe did not close after tree termination"
                                 )
+                        phase = "pipes"
                         close_pipes_bounded(self.process)
                 except BaseException as exc:
-                    self.error = exc
+                    self.remember_error(exc, phase)
                 finally:
                     if self.windows_job is not None:
                         try:
                             self.windows_job.close()
                         except BaseException as exc:
-                            self.error = self.error or exc
+                            self.remember_error(exc, "job_close")
                 # A local reaping error must not suppress the owned remote deletion attempt.
                 # Both paths retain the original deadline; local failure still rejects the run.
+                phase = "delete"
                 delete_owned(
                     self.settings,
                     self.name,
@@ -269,7 +299,7 @@ class Session:
                     self.deadline,
                 )
             except BaseException as exc:
-                self.error = self.error or exc
+                self.remember_error(exc, phase)
             finally:
                 try:
                     preserve_state(

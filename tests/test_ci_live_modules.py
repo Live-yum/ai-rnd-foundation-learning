@@ -181,6 +181,7 @@ def test_real_worker_and_live_context_reach_offline_transport(
     seen = []
 
     def stop(request):
+        assert json.loads(request.content).get("stream", False) is False
         seen.append(request.url.path)
         raise RuntimeError("offline pre-call boundary reached")
 
@@ -201,6 +202,15 @@ def test_real_worker_and_live_context_reach_offline_transport(
     assert seen == ["/v1/chat/completions"]
     assert progress["model_call_reservations"] == 1
     assert progress["model_failure_receipts"] == (None if receipt_read_fails else [])
+    timing = progress["model_turn_timings"][0]
+    assert timing["task"] == "sla-api" and len(timing["turns"]) == 1
+    turn = timing["turns"][0]
+    assert turn["step"] == 0 and 0 < turn["timeout_seconds"] <= 60
+    assert 0 < turn["work_remaining_seconds"] < turn["module_remaining_seconds"] <= 180
+    assert turn["payload_chars"] > 0 and turn["elapsed_seconds"] >= 0
+    assert (
+        progress["model_http_timings"] == []
+    )  # This fixture stops before its transport accounting.
 
 
 def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):

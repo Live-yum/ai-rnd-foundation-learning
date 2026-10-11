@@ -21,6 +21,7 @@
 - [workbench/coding/diff_guard.py](sources/workbench__coding__diff_guard_py--001.md)：项目根配置或说明；1 段
 - [workbench/coding/mini_swe.py](sources/workbench__coding__mini_swe_py--001.md)：项目根配置或说明；1 段
 - [workbench/coding/ports.py](sources/workbench__coding__ports_py--001.md)：项目根配置或说明；1 段
+- [workbench/coding/timing.py](sources/workbench__coding__timing_py--001.md)：项目根配置或说明；1 段
 - [workbench/continue_index.py](sources/workbench__continue_index_py--001.md)：固定Continue全文索引组件的本机适配器；1 段
 - [workbench/daytona_profiles.py](sources/workbench__daytona_profiles_py--001.md)：按技术栈登记离线快照和验收合同；1 段
 - [workbench/flow.py](sources/workbench__flow_py--001.md)：需求到交付的LangGraph状态机；1 段

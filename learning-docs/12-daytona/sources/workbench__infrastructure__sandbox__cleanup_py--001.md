@@ -21,16 +21,16 @@
 - `delete_owned`（L64–L123）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L65按`not NAME.fullmatch(name)`分支；L66抛异常，停止当前正常路径；L98按`not process.returncode and len(output) <= 4096`分支；L100按`diagnostic.get("binding") == binding and diagnostic.get("deleted") is False and diagn…`分支；L107按`late or unresolved_create`分支；L108抛异常，停止当前正常路径；L109按`time.monotonic() >= end or process.returncode or len(output) > 4096`分支；L110抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`NAME.fullmatch`、`UnsupportedScope`、`time.monotonic`、`receipt`、`write_json`、`getattr`、`settings.daytona_api_key.get_secret_value`、`subprocess.Popen`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `perform`（L126–L144）：接收`payload`。 控制顺序：L132按`not NAME.fullmatch(payload["name"])`分支；L133抛异常，停止当前正常路径；L137按`target.name != payload["name"] or ( payload["identifier"] is not None and target.id !…`分支；L140抛异常，停止当前正常路径。 调用`install_loopback_guard`、`NAME.fullmatch`、`ValueError`、`client_for`、`Settings`、`client.get`、`confirm_deleted`、`close_client`。 返回路径：L142的`{"binding": payload["binding"], "deleted": True}`。
 - `main`（L147–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L152按`len(body) > 16384`分支；L153抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`open`、`contextlib.redirect_stdout`、`json.loads`、`perform`、`failure_kind`、`print`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `public_receipt`（L168–L215）：接收`path`、`task`、`plan`。 控制顺序：L173按`path.stat().st_size > 4096`分支；L177按`set(bound) != {"task", "plan", "source", "nonce"} or bound["task"] != digest(task.mod…`分支；L203按`value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS`分支；L205按`value.get("cleanup_failure_kind") in FAILURE_KINDS`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`set`、`digest`、`task.model_dump`、`plan.model_dump`、`type`、`re.fullmatch`等。 返回路径：L174的`unknown`；L199的`unknown`；L207的`{ **extra, "status": value["status"], "reason": value["reason"], "binding": bound, "sandbo…`。
-- `checkpoint_receipts`（L218–L262）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L225遍历`range(1, 9)`；L228按`not path.exists()`分支；L232按`path.stat().st_size > 1_000_000`分支；L233抛异常，停止当前正常路径；L236按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L247抛异常，停止当前正常路径。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L262的`result`。
+- `public_receipt`（L168–L227）：接收`path`、`task`、`plan`。 控制顺序：L173按`path.stat().st_size > 4096`分支；L177按`set(bound) != {"task", "plan", "source", "nonce"} or bound["task"] != digest(task.mod…`分支；L207按`value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS`分支；L209按`value.get("cleanup_failure_kind") in FAILURE_KINDS`分支；L211按`value.get("supervision_failure_phase") in SUPERVISION_PHASES and value.get("supervisi…`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`set`、`digest`、`task.model_dump`、`plan.model_dump`、`type`、`re.fullmatch`等。 返回路径：L174的`unknown`；L199的`unknown`；L219的`{ **extra, "status": value["status"], "reason": value["reason"], "binding": bound, "sandbo…`。
+- `checkpoint_receipts`（L230–L274）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L237遍历`range(1, 9)`；L240按`not path.exists()`分支；L244按`path.stat().st_size > 1_000_000`分支；L245抛异常，停止当前正常路径；L248按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L259抛异常，停止当前正常路径。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L274的`result`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/cleanup.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L266。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/cleanup.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L278。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9920`。本段原文以LF换行结束。
+本段原始字节数：`10374`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/cleanup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "249ce2bd8a3af394fc09b003d8a6062f377af0631499bf8b190cb3edfd0f8827"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/cleanup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3e06492d07abe222df05ae1772c1102bebd2877ac45e8cb60619a6f99512d3bc"} -->
 ````python
 # workbench/infrastructure/sandbox/cleanup.py
 """Owned coding-sandbox deletion; the parent alone publishes terminal cleanup state."""
@@ -233,12 +233,24 @@ def public_receipt(path, task, plan):
         ):
             return unknown
         extra = {}
-        from workbench.infrastructure.sandbox.file_session import PHASES
+        from workbench.infrastructure.sandbox.file_session import (
+            PHASES,
+            SUPERVISION_KINDS,
+            SUPERVISION_PHASES,
+        )
 
         if value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS:
             extra.update(failure_phase=value["failure_phase"], failure_kind=value["failure_kind"])
         if value.get("cleanup_failure_kind") in FAILURE_KINDS:
             extra["cleanup_failure_kind"] = value["cleanup_failure_kind"]
+        if (
+            value.get("supervision_failure_phase") in SUPERVISION_PHASES
+            and value.get("supervision_failure_kind") in SUPERVISION_KINDS
+        ):
+            extra.update(
+                supervision_failure_phase=value["supervision_failure_phase"],
+                supervision_failure_kind=value["supervision_failure_kind"],
+            )
         return {
             **extra,
             "status": value["status"],

@@ -460,6 +460,20 @@ def execute(settings, directory, *, transport=None, progress=None):
             progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
             progress["model_http_attempts"] = transport.calls if transport else 0
             progress["model_http_responses"] = transport.responses if transport else 0
+            from workbench.coding.timing import read_turns, timing_receipts
+
+            progress["model_turn_timings"] = [
+                {
+                    "task": task.id if task.id in {"sla-api", "sla-dashboard"} else "other",
+                    "turns": read_turns(
+                        directory / (task.id + "-worker") / "agent-model-timings.json"
+                    ),
+                }
+                for task in plan.tasks[:2]
+            ]
+            progress["model_http_timings"] = timing_receipts(
+                getattr(transport, "timings", []), attempts=True
+            )
             # Optional evidence must never replace the original result or cleanup.
             try:
                 progress["model_failure_receipts"] = model_failure_receipts(

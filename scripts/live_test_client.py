@@ -6,6 +6,7 @@ import json
 import os
 import re
 import ssl
+import time
 
 import httpx
 
@@ -65,6 +66,7 @@ class TestServiceTransport(httpx.BaseTransport):
             verify=test_context(self.endpoint, mode), retries=0, trust_env=False
         )
         self.calls = self.responses = 0
+        self.timings = []
 
     def handle_request(self, request):
         allowed = (
@@ -76,13 +78,56 @@ class TestServiceTransport(httpx.BaseTransport):
             raise ValueError("test_transport_destination_rejected")
         if request.method == "POST":
             self.calls += 1
-        response = self.inner.handle_request(request)
+        timing = None
+        started = time.monotonic()
+        if request.method == "POST" and len(self.timings) < 32:
+            timing = {
+                "attempt": self.calls,
+                "request_body_bytes": len(request.content),
+                "read_timeout_seconds": request.extensions.get("timeout", {}).get("read"),
+                "headers_seconds": None,
+                "elapsed_seconds": None,
+                "response_bytes": 0,
+            }
+            self.timings.append(timing)
+        try:
+            response = self.inner.handle_request(request)
+        except BaseException:
+            if timing is not None:
+                timing["elapsed_seconds"] = max(0, time.monotonic() - started)
+            raise
         if request.method == "POST":
             self.responses += 1
+        if timing is not None:
+            timing["headers_seconds"] = max(0, time.monotonic() - started)
+            response.stream = TimedResponseStream(response.stream, timing, started)
         return response
 
     def close(self):
         self.inner.close()
+
+
+class TimedResponseStream(httpx.SyncByteStream):
+    def __init__(self, inner, timing, started):
+        self.inner, self.timing, self.started = inner, timing, started
+
+    def finish(self):
+        if self.timing["elapsed_seconds"] is None:
+            self.timing["elapsed_seconds"] = max(0, time.monotonic() - self.started)
+
+    def __iter__(self):
+        try:
+            for chunk in self.inner:
+                self.timing["response_bytes"] += len(chunk)
+                yield chunk
+        finally:
+            self.finish()
+
+    def close(self):
+        try:
+            self.inner.close()
+        finally:
+            self.finish()
 
 
 def probe(env):

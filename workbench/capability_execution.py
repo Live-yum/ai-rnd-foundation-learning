@@ -41,6 +41,7 @@ SOURCE_FILES = (
     "workbench/coding/diff_guard.py",
     "workbench/coding/mini_swe.py",
     "workbench/coding/ports.py",
+    "workbench/coding/timing.py",
     "workbench/production/__init__.py",
     "workbench/production/candidates.py",
     "workbench/production/dispatcher.py",

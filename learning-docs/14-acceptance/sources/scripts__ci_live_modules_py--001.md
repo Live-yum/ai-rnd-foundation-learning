@@ -22,16 +22,16 @@
 - `configuration`（L179–L232）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L209按`billing == "declared_free"`分支；L219抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L220的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
 - `acceptance_design`（L235–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L242遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L277的`FeatureDesign.model_validate(data)`。
 - `live_settings`（L280–L316）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L289的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L319–L470）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L360遍历`plan.tasks`；L439按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L424的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L473–L514）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L488按`not args.preflight`分支；L512抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `execute`（L319–L484）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L360遍历`plan.tasks`；L439按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L424的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L487–L528）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L502按`not args.preflight`分支；L526抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L518。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L532。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21243`。本段原文以LF换行结束。
+本段原始字节数：`21845`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "579e280774ee57851279c6d0b28dd387de3892e5c49e329b6a6505c74bf45ab9"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "79e47c79d3eab72416c32f4f470c9ac3b59d090181f354499f1fad6bbae31406"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -496,6 +496,20 @@ def execute(settings, directory, *, transport=None, progress=None):
             progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
             progress["model_http_attempts"] = transport.calls if transport else 0
             progress["model_http_responses"] = transport.responses if transport else 0
+            from workbench.coding.timing import read_turns, timing_receipts
+
+            progress["model_turn_timings"] = [
+                {
+                    "task": task.id if task.id in {"sla-api", "sla-dashboard"} else "other",
+                    "turns": read_turns(
+                        directory / (task.id + "-worker") / "agent-model-timings.json"
+                    ),
+                }
+                for task in plan.tasks[:2]
+            ]
+            progress["model_http_timings"] = timing_receipts(
+                getattr(transport, "timings", []), attempts=True
+            )
             # Optional evidence must never replace the original result or cleanup.
             try:
                 progress["model_failure_receipts"] = model_failure_receipts(

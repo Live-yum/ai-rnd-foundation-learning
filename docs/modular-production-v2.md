@@ -375,3 +375,15 @@ RPC仅支持批准业务文件的write/snapshot，不增加命令、文件权限
 Windows接口依据Microsoft官方文档：[TerminateJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)及[JOBOBJECT_EXTENDED_LIMIT_INFORMATION](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_extended_limit_information)。本轮保持原模型预算、隔离策略、独立最终oracle及失败关闭标准；旧CI结束前不推送、不取消、不重跑。
 
 独立审查e384194另复现一项P2：reader或pipe本地回收失败时，已回收SDK进程且仍有14.8秒清理预算，却跳过已知沙箱删除。该版本未推送。修复把本地回收和远端删除错误分开处理，先尝试Windows Job关闭，再无论本地回收结果如何都按原deadline调用owned cleanup；保留首次错误，最终仍拒绝候选及保持unconfirmed。两个故障注入回归要求原沙箱ID及原deadline恰好传入一次删除，即使删除替身写入成功回执，本地回收失败也不能因此晋升为正常成功。此项修复须再交同一独立审查者确认，不把作者测试等同独立复审。
+
+### 第19轮进展、Windows夹具定位与安全计时（本地，未新增外部运行）
+
+父线程及监控正式读取9c0e223真实运行38172191014/artifact11714534217：模型预留/HTTP尝试/响应4/4/2，两个失败回执均read_timeout，最终ModelFailure/model_gateway:349。sla-api有一次绑定有效的checkpoint，backend_health=true、checks_count=1、passed=true、cleanup=deleted；节点验证同样通过1项检查。sla-dashboard没有checkpoint，两个agent文件沙箱均deleted/confirmed_absent。完整双模块ZIP仍未通过，也没有失败→反馈→修复闭环已经发生的证据。browser_count=0、obligation_checks=0、restarted=false不能误写为浏览器或重启验收通过。
+
+实际job日志只给出完整执行阶段20:47:50.3739319—20:51:25.4595140 UTC，约215.086秒，包含两模块、节点验证及清理，不能作为dashboard单请求耗时。旧summary没有elapsed/duration/deadline字段。当前live网关明确非流式，SDK max_retries=0，平台每轮最多两次尝试及首次失败后0.2秒等待；实际llm_timeout=min(60,(原模块remaining−15−1)/2)。两次尝试共享本轮选定timeout，原180秒模块及15秒清理保留不变。4次尝试仅2个response对象，不证明服务商内部故障。固定基础输入离线测量为task约407/428字符、schema1068、baseline1497、app.py8483字符；真实API修改后的候选已清理，这不是实际dashboard请求长度。现无证据断定原预算物理不足，也不据此删需求或盲目增加超时。
+
+新增诊断只记录数值和固定task枚举：每轮起始模块/工作剩余时间、实际选定timeout、结束剩余与超窗秒数、payload字符数、HTTP计数前后及轮次耗时；每次HTTP记录序号、完整请求body字节数、传输实际read timeout、收到response headers耗时、传输完成/失败耗时和已读取响应字节数。headers未收到保留null。HTTP耗时止于body迭代完成/失败或关闭，不冒充模型服务内部生成时间；完整模型轮次另行计时。最多8轮/模块、32个HTTP计时记录，非法/超范围数字转null，额外字段丢弃；不保存模型文本、请求内容、凭据或headers。诊断不能授权候选、延长截止或增加重试，仍为非流式。直接改streaming可能改变read timeout的间隔语义，不能把它当作无条件修复或隐式扩窗；后续只根据实际计时再提出最小方案。
+
+Windows普通CI38172056666的checkpoint失败已由正式JUnit11714728237确认：communicate在约0.47665秒截止后，stop_process内wait(timeout=15)再超时，总测试15.613秒。源码发现测试夹具替换了共享subprocess.Popen，所有命令都被改成sleep30的验证器，包括生产stop_process调用的taskkill。因此本次只让夹具拦截准确verifier启动命令，其他命令原样透传，并验证Windows确实调用taskkill；不修改生产15秒回收等待、不降低冻结早到成功回执的要求。
+
+另一Windows idle的正式JUnit11715057043经SHA256核对一致，测试耗时12.638秒，只有原第1122行unconfirmed!=deleted断言，没有底层错误或安全locals；不能借上述taskkill夹具缺陷解释。独立诊断用真实watchdog/finish时序及子进程，证明reader、pipe、Job terminate或Job close不同错误都能满足已有“<14秒、已知ID、删除替身调用一次、进程已回收”断言而最终unconfirmed；Linux原idle测试10.33秒通过。当前没有该Windows实例的首次父回收错误，故不猜0.2秒过紧，也不声称idle根因已修。父回执现附固定supervision_failure_phase/kind，保留首次错误及journal读取/绑定异常阶段；测试失败消息只显示这些固定诊断字段和原因，便于后续Windows证据归因。原14秒断言、0.2秒回收界限、typed404标准、Linux终止行为及unconfirmed拒绝均不变。

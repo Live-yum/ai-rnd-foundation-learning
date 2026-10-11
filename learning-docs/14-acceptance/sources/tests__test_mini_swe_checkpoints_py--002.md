@@ -16,39 +16,41 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `test_file_cleanup_tracks_expected_candidate_even_after_partial_upload.run`（L896–L908）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L907按`fail_write`分支；L908抛异常，停止当前正常路径。 调用`coding._local_environment`、`plan.selection.model_dump`、`time.monotonic`、`environment.bind_candidate`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_checkpoint_parent_kills_child_and_freezes_early_success`（L918–L968）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L965断言`children[0].poll() is not None`；L967断言`value["passed"] is False and value["cleanup"] == "unconfirmed"`；L968断言`value["checkpoint"] == checkpoint and "repairable_failure" not in value`。 调用`fixed_application`、`monkeypatch.setattr`、`digest`、`plan.tasks[0].model_dump`、`time.monotonic`、`pytest.raises`、`verifier.verify_capabilities`、`plan.selection.model_dump`、`children[0].poll`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_checkpoint_parent_kills_child_and_freezes_early_success.launch`（L944–L947）：接收`command`、`**kwargs`。 调用`original`、`children.append`。 返回路径：L947的`process`。
-- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline`（L972–L987）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L987断言`10 <= elapsed < 11.5`。 调用`time.monotonic`、`CheckpointDeadline`、`controller.enter_cleanup`、`pytest.raises`、`cleanup_call`、`pytest.mark.skipif`、`hasattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline.cleanup_call`（L978–L979）：接收`timeout`。 调用`time.sleep`、`with_timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_preview_gateway_errors_cannot_authorize_business_repair`（L991–L1005）：接收`status`。 控制顺序：L1005断言`not isinstance(error.value, BusinessCheckFailure)`。 调用`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`httpx.ByteStream`、`pytest.raises`、`run_steps`、`HttpStep`、`isinstance`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_entire_file_sdk_lifecycle_is_supervised`（L1009–L1133）：接收`settings`、`tmp_path`、`monkeypatch`、`phase`。 源码说明：Event-blocked real SDK refresh/API transport in a real child, no external network.。 控制顺序：L1101按`phase == "success"`分支；L1102断言`environment.snapshot(task.allowed_paths) == { p: "" for p in task.allowed_paths }`；L1105按`phase == "write"`分支；L1113按`phase == "snapshot"`分支；L1115按`phase == "idle"`分支；L1116断言`environment.done.wait(12)`；L1118断言`time.monotonic() - start < 14`；L1119断言`len(cleaned) == 1 and cleaned[0][1] < start + 25`。后续分支沿下方源码相同行号继续阅读。 调用`cleanup_binding`、`monkeypatch.setattr`、`time.monotonic`、`nullcontext`、`pytest.raises`、`coding_environment`、`plan.selection.model_dump`、`environment.snapshot`、`environment.bind_candidate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_entire_file_sdk_lifecycle_is_supervised.launch`（L1065–L1070）：接收`command`、`**kwargs`。 调用`(tmp_path / "child-errors").open`、`original`、`str`、`children.append`。 返回路径：L1070的`process`。
-- `test_entire_file_sdk_lifecycle_is_supervised.cleanup`（L1075–L1084）：接收`settings`、`name`、`identifier`、`bound`、`path`、`deadline`。 控制顺序：L1080按`identifier is not None`分支；L1083按`identifier is None`分支；L1084抛异常，停止当前正常路径。 调用`cleaned.append`、`time.monotonic`、`dict`、`file_session.receipt`、`value.update`、`write_json`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_file_entrypoint_rechecks_forwarded_scope`（L1137–L1262）：接收`settings`、`tmp_path`、`monkeypatch`、`mutation`。 源码说明：Real Session/main/local-environment/browser gate; stop before SDK/network use.。 控制顺序：L1152遍历`("API_KEY", "GITHUB_TOKEN", "HTTP_PROXY", "HTTPS_PROXY")`；L1256断言`len(children) == 1 and children[0].poll() is not None`；L1257断言`marker.exists() is (mutation is None)`；L1259断言`value["failure_phase"] == ("client" if mutation is None else "admission")`；L1260断言`value["failure_kind"] in {"UnsupportedScope", "PrerequisiteError", "ValueError"}`；L1261断言`value["status"] == "unconfirmed" and value["reason"] == "create_unconfirmed"`；L1262断言`"private" not in path.read_text()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`browser.write_text`、`json.dumps`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_file_entrypoint_rechecks_forwarded_scope.launch`（L1221–L1236）：接收`command`、`**kwargs`。 控制顺序：L1223断言`env["GITHUB_SHA"] == env["REVIEWED_SHA"] == env["GITHUB_WORKFLOW_SHA"]`；L1224按`mutation == "missing"`分支；L1226按`mutation is not None`分支。 调用`env.pop`、`original`、`str`、`children.append`。 返回路径：L1236的`process`。
-- `test_real_file_entrypoint_rechecks_forwarded_scope.unresolved`（L1240–L1241）：接收`*args`。 控制顺序：L1241抛异常，停止当前正常路径。 调用`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_file_session_rejects_extra_scope_before_launch`（L1269–L1293）：接收`settings`、`tmp_path`、`monkeypatch`、`bad_scope`。 控制顺序：L1293断言`not launches and not path.exists()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`launches.append`、`cleanup_binding`、`pytest.raises`、`file_session.Session`、`plan.selection.model_dump`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_sdk_deletion_requires_timely_typed_absence`（L1297–L1385）：接收`monkeypatch`、`mode`。 源码说明：Actual pinned SDK get/delete/error interception, only HTTP transport synthesized.。 控制顺序：L1371按`mode in {"absent", "eventual"}`分支；L1373断言`calls[-1] == ("GET", 404)`；L1383断言`("DELETE", 204) in calls`。 调用`monkeypatch.setattr`、`Daytona`、`DaytonaConfig`、`client.get`、`confirm_deleted`、`time.monotonic`、`pytest.raises`、`close_client`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_sdk_deletion_requires_timely_typed_absence.deny`（L1309–L1310）：接收`*a`、`**k`。 控制顺序：L1310抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_sdk_deletion_requires_timely_typed_absence.request`（L1342–L1366）：接收`method`、`url`、`**kwargs`。 控制顺序：L1344按`method == "DELETE"`分支；L1347按`state["deleted"]`分支；L1349按`mode == "late"`分支。 调用`time.sleep`、`calls.append`、`HTTPResponse`、`io.BytesIO`、`json.dumps(body).encode`、`json.dumps`。 返回路径：L1361的`HTTPResponse( status=status, body=io.BytesIO(json.dumps(body).encode() if body else b""), …`。
-- `test_windows_job_owns_subtree_and_fails_closed`（L1399–L1450）：接收`failure`。 控制顺序：L1430按`failure is None`分支；L1435断言`[name for name, _ in calls] == [ "CreateJobObjectW", "SetInformationJobObject", "Assi…`；L1442断言`calls[2][1] == (99, 7)`；L1443断言`calls[3][1] == (99, 1)`；L1449按`failure in {"SetInformationJobObject", "AssignProcessToJobObject"}`分支；L1450断言`calls[-1][0] == "CloseHandle"`。 调用`SimpleNamespace`、`Function`、`WindowsJob`、`job.terminate`、`job.close`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_windows_job_owns_subtree_and_fails_closed.Function`（L1406–L1416）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_windows_job_owns_subtree_and_fails_closed.Function.__init__`（L1407–L1408）：接收`name`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_windows_job_owns_subtree_and_fails_closed.Function.__call__`（L1410–L1416）：接收`*args`。 控制顺序：L1412按`self.name == "SetInformationJobObject"`分支；L1414断言`limits.BasicLimitInformation.LimitFlags == 0x2000`；L1415断言`args[1] == 9 and args[3] == ctypes.sizeof(ExtendedLimits)`。 调用`calls.append`、`ctypes.cast`、`ctypes.POINTER`、`ctypes.sizeof`。 返回路径：L1416的`0 if self.name == failure else 99 if self.name == "CreateJobObjectW" else 1`。
-- `test_native_windows_job_kills_pipe_holding_descendant`（L1454–L1507）：接收`tmp_path`。 控制顺序：L1488在`not marker.exists() and time.monotonic() < deadline`成立时循环；L1490断言`marker.exists()`；L1492断言`descendant`；L1496断言`api.WaitForSingleObject(descendant, 2000) == 0`；L1498断言`time.monotonic() - start < 4`；L1500按`job is not None`分支；L1504按`descendant`分支。 调用`subprocess.Popen`、`str`、`ctypes.WinDLL`、`WindowsJob`、`process.stdin.write`、`process.stdin.flush`、`time.monotonic`、`marker.exists`、`time.sleep`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pipe_reaping_has_independent_bound`（L1510–L1526）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1524断言`time.monotonic() - start < 1`。 调用`threading.Event`、`SimpleNamespace`、`release.wait`、`time.monotonic`、`pytest.raises`、`close_pipes_bounded`、`release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cleanup_child_exports_only_bound_failure_kind`（L1530–L1575）：接收`settings`、`tmp_path`、`monkeypatch`、`known`。 控制顺序：L1569断言`value["status"] == "unconfirmed"`；L1570断言`value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")`；L1571断言`value["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1572断言`"private" not in path.read_text()`；L1574断言`exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1575断言`exported["status"] == "unconfirmed"`。 调用`monkeypatch.setattr`、`original`、`cleanup_binding`、`pytest.raises`、`cleanup.delete_owned`、`time.monotonic`、`json.loads`、`path.read_text`、`cleanup.public_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_reap_failure_still_attempts_owned_deletion`（L1579–L1653）：接收`tmp_path`、`monkeypatch`、`phase`。 控制顺序：L1604按`os.name == "nt"`分支；L1635按`phase == "pipe"`分支；L1643断言`process.poll() is not None and session.deadline - time.monotonic() > 10`；L1644断言`calls == [session.identifier]`；L1646断言`value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"`；L1647断言`session.done.is_set()`；L1650按`hasattr(session, "reader")`分支。 调用`subprocess.Popen`、`process_options`、`file_session.Session.__new__`、`time.monotonic`、`threading.Lock`、`threading.Event`、`WindowsJob`、`SimpleNamespace`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_reap_failure_still_attempts_owned_deletion.deletion`（L1618–L1624）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L1619断言`identifier == session.identifier and binding == session.binding`；L1620断言`deadline == session.deadline and time.monotonic() < deadline`。 调用`time.monotonic`、`calls.append`、`file_session.receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_reap_failure_still_attempts_owned_deletion.blocked_close`（L1626–L1632）：接收`_`。 调用`original_close`、`SimpleNamespace`、`release.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_checkpoint_parent_kills_child_and_freezes_early_success`（L918–L972）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L968断言`len(children) == 1 and children[0].poll() is not None`；L969断言`auxiliary == (["taskkill"] if os.name == "nt" else [])`；L971断言`value["passed"] is False and value["cleanup"] == "unconfirmed"`；L972断言`value["checkpoint"] == checkpoint and "repairable_failure" not in value`。 调用`fixed_application`、`monkeypatch.setattr`、`digest`、`plan.tasks[0].model_dump`、`time.monotonic`、`pytest.raises`、`verifier.verify_capabilities`、`plan.selection.model_dump`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_checkpoint_parent_kills_child_and_freezes_early_success.launch`（L944–L950）：接收`command`、`**kwargs`。 控制顺序：L945按`command != [sys.executable, "-m", "workbench.capability_sandbox"]`分支。 调用`auxiliary.append`、`original`、`children.append`。 返回路径：L947的`original(command, **kwargs)`；L950的`process`。
+- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline`（L976–L991）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L991断言`10 <= elapsed < 11.5`。 调用`time.monotonic`、`CheckpointDeadline`、`controller.enter_cleanup`、`pytest.raises`、`cleanup_call`、`pytest.mark.skipif`、`hasattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_cleanup_cannot_extend_original_checkpoint_deadline.cleanup_call`（L982–L983）：接收`timeout`。 调用`time.sleep`、`with_timeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_preview_gateway_errors_cannot_authorize_business_repair`（L995–L1009）：接收`status`。 控制顺序：L1009断言`not isinstance(error.value, BusinessCheckFailure)`。 调用`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`httpx.ByteStream`、`pytest.raises`、`run_steps`、`HttpStep`、`isinstance`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_entire_file_sdk_lifecycle_is_supervised`（L1013–L1148）：接收`settings`、`tmp_path`、`monkeypatch`、`phase`。 源码说明：Event-blocked real SDK refresh/API transport in a real child, no external network.。 控制顺序：L1105按`phase == "success"`分支；L1106断言`environment.snapshot(task.allowed_paths) == { p: "" for p in task.allowed_paths }`；L1109按`phase == "write"`分支；L1117按`phase == "snapshot"`分支；L1119按`phase == "idle"`分支；L1120断言`environment.done.wait(12)`；L1122断言`time.monotonic() - start < 14`；L1123断言`len(cleaned) == 1 and cleaned[0][1] < start + 25`。后续分支沿下方源码相同行号继续阅读。 调用`cleanup_binding`、`monkeypatch.setattr`、`time.monotonic`、`nullcontext`、`pytest.raises`、`coding_environment`、`plan.selection.model_dump`、`environment.snapshot`、`environment.bind_candidate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_entire_file_sdk_lifecycle_is_supervised.launch`（L1069–L1074）：接收`command`、`**kwargs`。 调用`(tmp_path / "child-errors").open`、`original`、`str`、`children.append`。 返回路径：L1074的`process`。
+- `test_entire_file_sdk_lifecycle_is_supervised.cleanup`（L1079–L1088）：接收`settings`、`name`、`identifier`、`bound`、`path`、`deadline`。 控制顺序：L1084按`identifier is not None`分支；L1087按`identifier is None`分支；L1088抛异常，停止当前正常路径。 调用`cleaned.append`、`time.monotonic`、`dict`、`file_session.receipt`、`value.update`、`write_json`、`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_file_entrypoint_rechecks_forwarded_scope`（L1152–L1277）：接收`settings`、`tmp_path`、`monkeypatch`、`mutation`。 源码说明：Real Session/main/local-environment/browser gate; stop before SDK/network use.。 控制顺序：L1167遍历`("API_KEY", "GITHUB_TOKEN", "HTTP_PROXY", "HTTPS_PROXY")`；L1271断言`len(children) == 1 and children[0].poll() is not None`；L1272断言`marker.exists() is (mutation is None)`；L1274断言`value["failure_phase"] == ("client" if mutation is None else "admission")`；L1275断言`value["failure_kind"] in {"UnsupportedScope", "PrerequisiteError", "ValueError"}`；L1276断言`value["status"] == "unconfirmed" and value["reason"] == "create_unconfirmed"`；L1277断言`"private" not in path.read_text()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`browser.write_text`、`json.dumps`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_file_entrypoint_rechecks_forwarded_scope.launch`（L1236–L1251）：接收`command`、`**kwargs`。 控制顺序：L1238断言`env["GITHUB_SHA"] == env["REVIEWED_SHA"] == env["GITHUB_WORKFLOW_SHA"]`；L1239按`mutation == "missing"`分支；L1241按`mutation is not None`分支。 调用`env.pop`、`original`、`str`、`children.append`。 返回路径：L1251的`process`。
+- `test_real_file_entrypoint_rechecks_forwarded_scope.unresolved`（L1255–L1256）：接收`*args`。 控制顺序：L1256抛异常，停止当前正常路径。 调用`UnsupportedScope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_file_session_rejects_extra_scope_before_launch`（L1284–L1308）：接收`settings`、`tmp_path`、`monkeypatch`、`bad_scope`。 控制顺序：L1308断言`not launches and not path.exists()`。 调用`monkeypatch.setattr`、`approved_manual`、`monkeypatch.setenv`、`launches.append`、`cleanup_binding`、`pytest.raises`、`file_session.Session`、`plan.selection.model_dump`、`time.monotonic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence`（L1312–L1400）：接收`monkeypatch`、`mode`。 源码说明：Actual pinned SDK get/delete/error interception, only HTTP transport synthesized.。 控制顺序：L1386按`mode in {"absent", "eventual"}`分支；L1388断言`calls[-1] == ("GET", 404)`；L1398断言`("DELETE", 204) in calls`。 调用`monkeypatch.setattr`、`Daytona`、`DaytonaConfig`、`client.get`、`confirm_deleted`、`time.monotonic`、`pytest.raises`、`close_client`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence.deny`（L1324–L1325）：接收`*a`、`**k`。 控制顺序：L1325抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_sdk_deletion_requires_timely_typed_absence.request`（L1357–L1381）：接收`method`、`url`、`**kwargs`。 控制顺序：L1359按`method == "DELETE"`分支；L1362按`state["deleted"]`分支；L1364按`mode == "late"`分支。 调用`time.sleep`、`calls.append`、`HTTPResponse`、`io.BytesIO`、`json.dumps(body).encode`、`json.dumps`。 返回路径：L1376的`HTTPResponse( status=status, body=io.BytesIO(json.dumps(body).encode() if body else b""), …`。
+- `test_windows_job_owns_subtree_and_fails_closed`（L1414–L1465）：接收`failure`。 控制顺序：L1445按`failure is None`分支；L1450断言`[name for name, _ in calls] == [ "CreateJobObjectW", "SetInformationJobObject", "Assi…`；L1457断言`calls[2][1] == (99, 7)`；L1458断言`calls[3][1] == (99, 1)`；L1464按`failure in {"SetInformationJobObject", "AssignProcessToJobObject"}`分支；L1465断言`calls[-1][0] == "CloseHandle"`。 调用`SimpleNamespace`、`Function`、`WindowsJob`、`job.terminate`、`job.close`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_job_owns_subtree_and_fails_closed.Function`（L1421–L1431）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_windows_job_owns_subtree_and_fails_closed.Function.__init__`（L1422–L1423）：接收`name`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_job_owns_subtree_and_fails_closed.Function.__call__`（L1425–L1431）：接收`*args`。 控制顺序：L1427按`self.name == "SetInformationJobObject"`分支；L1429断言`limits.BasicLimitInformation.LimitFlags == 0x2000`；L1430断言`args[1] == 9 and args[3] == ctypes.sizeof(ExtendedLimits)`。 调用`calls.append`、`ctypes.cast`、`ctypes.POINTER`、`ctypes.sizeof`。 返回路径：L1431的`0 if self.name == failure else 99 if self.name == "CreateJobObjectW" else 1`。
+- `test_native_windows_job_kills_pipe_holding_descendant`（L1469–L1522）：接收`tmp_path`。 控制顺序：L1503在`not marker.exists() and time.monotonic() < deadline`成立时循环；L1505断言`marker.exists()`；L1507断言`descendant`；L1511断言`api.WaitForSingleObject(descendant, 2000) == 0`；L1513断言`time.monotonic() - start < 4`；L1515按`job is not None`分支；L1519按`descendant`分支。 调用`subprocess.Popen`、`str`、`ctypes.WinDLL`、`WindowsJob`、`process.stdin.write`、`process.stdin.flush`、`time.monotonic`、`marker.exists`、`time.sleep`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pipe_reaping_has_independent_bound`（L1525–L1541）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1539断言`time.monotonic() - start < 1`。 调用`threading.Event`、`SimpleNamespace`、`release.wait`、`time.monotonic`、`pytest.raises`、`close_pipes_bounded`、`release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cleanup_child_exports_only_bound_failure_kind`（L1545–L1590）：接收`settings`、`tmp_path`、`monkeypatch`、`known`。 控制顺序：L1584断言`value["status"] == "unconfirmed"`；L1585断言`value["reason"] == ("deletion_unconfirmed" if known else "create_unconfirmed")`；L1586断言`value["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1587断言`"private" not in path.read_text()`；L1589断言`exported["cleanup_failure_kind"] == "DaytonaAuthorizationError"`；L1590断言`exported["status"] == "unconfirmed"`。 调用`monkeypatch.setattr`、`original`、`cleanup_binding`、`pytest.raises`、`cleanup.delete_owned`、`time.monotonic`、`json.loads`、`path.read_text`、`cleanup.public_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion`（L1594–L1670）：接收`tmp_path`、`monkeypatch`、`phase`。 控制顺序：L1619按`os.name == "nt"`分支；L1650按`phase == "pipe"`分支；L1658断言`process.poll() is not None and session.deadline - time.monotonic() > 10`；L1659断言`calls == [session.identifier]`；L1661断言`value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"`；L1662断言`value["supervision_failure_phase"] == ("reader" if phase == "reader" else "pipes")`；L1663断言`value["supervision_failure_kind"] == "UnsupportedScope"`；L1664断言`session.done.is_set()`。后续分支沿下方源码相同行号继续阅读。 调用`subprocess.Popen`、`process_options`、`file_session.Session.__new__`、`time.monotonic`、`threading.Lock`、`threading.Event`、`WindowsJob`、`SimpleNamespace`、`cleanup_binding`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.deletion`（L1633–L1639）：接收`settings`、`name`、`identifier`、`binding`、`path`、`deadline`。 控制顺序：L1634断言`identifier == session.identifier and binding == session.binding`；L1635断言`deadline == session.deadline and time.monotonic() < deadline`。 调用`time.monotonic`、`calls.append`、`file_session.receipt`、`value.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_reap_failure_still_attempts_owned_deletion.blocked_close`（L1641–L1647）：接收`_`。 调用`original_close`、`SimpleNamespace`、`release.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_turn_timing_preserves_failed_outcome_and_original_budget`（L1673–L1707）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1685抛异常，停止当前正常路径；L1686断言`found.value is failure`；L1688断言`value == { "step": 0, "module_remaining_seconds": 80, "work_remaining_seconds": 65, "…`；L1700断言`"private" not in path.read_text()`；L1706抛异常，停止当前正常路径；L1707断言`found.value is failure`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`RuntimeError`、`pytest.raises`、`timing.record_turn`、`timing.read_turns`、`len`、`json.dumps`、`path.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_supervision_diagnostics_are_fixed_and_cannot_upgrade_cleanup`（L1710–L1733）：接收`tmp_path`。 控制顺序：L1716遍历`file_session.SUPERVISION_PHASES`；L1724断言`result["status"] == "unconfirmed"`；L1725断言`result["supervision_failure_phase"] == phase`；L1726断言`result["supervision_failure_kind"] == "OSError"`；L1727断言`"private" not in json.dumps(result)`；L1730断言`"private" not in json.dumps(cleanup.public_receipt(path, task, plan))`；L1733断言`cleanup.public_receipt(path, task, plan)["supervision_failure_phase"] == "journal"`。 调用`cleanup_binding`、`file_session.receipt`、`value.update`、`path.write_text`、`json.dumps`、`OSError`、`file_session.supervision_failure`、`file_session.preserve_state`、`cleanup.public_receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 2 段**。本段覆盖源文件 L896–L1653。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_mini_swe_checkpoints.py`；**本文件共有 2 段**。本段覆盖源文件 L896–L1733。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29366`。本段原文以LF换行结束。
+本段原始字节数：`32903`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "57ba8e3cc17390a880694339675a69bd6af4d22ce549a92e3ee5d7ae04fc4b7d"} -->
+<!-- learning-source: {"path": "tests/test_mini_swe_checkpoints.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "d3de30af21e6f64c2096621be5878357c6b0c64b95d10bca66cddeed005d1676"} -->
 ````python
 # tests/test_mini_swe_checkpoints.py
     def run():
@@ -97,9 +99,12 @@ Path(p['receipt']).write_text(json.dumps({'passed':True,'cleanup':'deleted','che
 time.sleep(30)
 """
     original = subprocess.Popen
-    children = []
+    children, auxiliary = [], []
 
     def launch(command, **kwargs):
+        if command != [sys.executable, "-m", "workbench.capability_sandbox"]:
+            auxiliary.append(command[0])
+            return original(command, **kwargs)
         process = original([sys.executable, "-c", child], **kwargs)
         children.append(process)
         return process
@@ -120,7 +125,8 @@ time.sleep(30)
             checkpoint=checkpoint,
             selection=plan.selection.model_dump(),
         )
-    assert children[0].poll() is not None
+    assert len(children) == 1 and children[0].poll() is not None
+    assert auxiliary == (["taskkill"] if os.name == "nt" else [])
     value = json.loads((tmp_path / "product-node-verification.json").read_text())
     assert value["passed"] is False and value["cleanup"] == "unconfirmed"
     assert value["checkpoint"] == checkpoint and "repairable_failure" not in value
@@ -277,7 +283,18 @@ with patch.object(coding,'client_for',lambda *a:client),patch.object(coding,'cap
     assert len(cleaned) == 1 and cleaned[0][1] < start + 25
     assert children[0].poll() is not None
     value = json.loads(path.read_text())
-    assert value["status"] == ("unconfirmed" if phase == "create" else "deleted")
+    safe_failure = {
+        key: value.get(key)
+        for key in (
+            "reason",
+            "supervision_failure_phase",
+            "supervision_failure_kind",
+            "failure_phase",
+            "failure_kind",
+            "cleanup_failure_kind",
+        )
+    }
+    assert value["status"] == ("unconfirmed" if phase == "create" else "deleted"), safe_failure
     assert value["binding"]["source"] == ("c" * 64 if phase == "write" else binding["source"])
     if phase not in {"idle", "success"}:
         assert marker.read_text() == "entered"
@@ -802,6 +819,8 @@ def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch,
         assert calls == [session.identifier]
         value = json.loads(session.path.read_text())
         assert value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"
+        assert value["supervision_failure_phase"] == ("reader" if phase == "reader" else "pipes")
+        assert value["supervision_failure_kind"] == "UnsupportedScope"
         assert session.done.is_set()
     finally:
         release.set()
@@ -809,4 +828,67 @@ def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch,
             session.reader.join(1)
         process.wait(timeout=2)
         original_close(process)
+
+
+def test_model_turn_timing_preserves_failed_outcome_and_original_budget(tmp_path, monkeypatch):
+    from workbench.coding import timing
+
+    clock = [100.0]
+    monkeypatch.setattr(timing, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    transport = SimpleNamespace(calls=2)
+    path = tmp_path / "timing.json"
+    failure = RuntimeError("private-model-failure")
+    with pytest.raises(RuntimeError) as found:
+        with timing.record_turn(path, 0, 180, 31.5, {"secret": "private-prompt"}, transport):
+            clock[0] = 164
+            transport.calls = 4
+            raise failure
+    assert found.value is failure
+    value = timing.read_turns(path)[0]
+    assert value == {
+        "step": 0,
+        "module_remaining_seconds": 80,
+        "work_remaining_seconds": 65,
+        "timeout_seconds": 31.5,
+        "elapsed_seconds": 64,
+        "remaining_after_seconds": 16,
+        "overrun_seconds": 0,
+        "payload_chars": len(json.dumps({"secret": "private-prompt"})),
+        "http_attempts_before": 2,
+        "http_attempts_after": 4,
+    }
+    assert "private" not in path.read_text()
+    monkeypatch.setattr(
+        timing, "write_json", lambda *a: (_ for _ in ()).throw(OSError("private-io"))
+    )
+    with pytest.raises(RuntimeError) as found:
+        with timing.record_turn(path, 1, 180, 7, {}, transport):
+            raise failure
+    assert found.value is failure
+
+
+def test_supervision_diagnostics_are_fixed_and_cannot_upgrade_cleanup(tmp_path):
+    from workbench.infrastructure.sandbox import cleanup, file_session
+
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "cleanup.json"
+    name = "rnd-source-agent-" + "a" * 32
+    for phase in file_session.SUPERVISION_PHASES:
+        value = file_session.receipt(binding, name, "owned-id")
+        value.update(status="deleted", reason="confirmed_absent")
+        path.write_text(json.dumps(value))
+        error = OSError("private local details")
+        failure = file_session.supervision_failure(phase, error)
+        file_session.preserve_state(path, binding, name, "owned-id", error, failure)
+        result = cleanup.public_receipt(path, task, plan)
+        assert result["status"] == "unconfirmed"
+        assert result["supervision_failure_phase"] == phase
+        assert result["supervision_failure_kind"] == "OSError"
+        assert "private" not in json.dumps(result)
+    value.update(supervision_failure_phase="private-phase", supervision_failure_kind="private-kind")
+    path.write_text(json.dumps(value))
+    assert "private" not in json.dumps(cleanup.public_receipt(path, task, plan))
+    path.write_text("{}")
+    file_session.preserve_state(path, binding, name, "owned-id", None, {})
+    assert cleanup.public_receipt(path, task, plan)["supervision_failure_phase"] == "journal"
 ````

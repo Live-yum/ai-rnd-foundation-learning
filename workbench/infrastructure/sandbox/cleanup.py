@@ -198,12 +198,24 @@ def public_receipt(path, task, plan):
         ):
             return unknown
         extra = {}
-        from workbench.infrastructure.sandbox.file_session import PHASES
+        from workbench.infrastructure.sandbox.file_session import (
+            PHASES,
+            SUPERVISION_KINDS,
+            SUPERVISION_PHASES,
+        )
 
         if value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS:
             extra.update(failure_phase=value["failure_phase"], failure_kind=value["failure_kind"])
         if value.get("cleanup_failure_kind") in FAILURE_KINDS:
             extra["cleanup_failure_kind"] = value["cleanup_failure_kind"]
+        if (
+            value.get("supervision_failure_phase") in SUPERVISION_PHASES
+            and value.get("supervision_failure_kind") in SUPERVISION_KINDS
+        ):
+            extra.update(
+                supervision_failure_phase=value["supervision_failure_phase"],
+                supervision_failure_kind=value["supervision_failure_kind"],
+            )
         return {
             **extra,
             "status": value["status"],

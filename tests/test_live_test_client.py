@@ -174,3 +174,75 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
     else:
         with pytest.raises(UnsupportedScope):
             invoke()
+
+
+@pytest.mark.parametrize("failure", [None, "headers", "body"])
+def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, failure):
+    import json
+
+    from workbench.coding.timing import timing_receipts
+
+    clock = [10.0]
+    monkeypatch.setattr(
+        client, "time", type("Clock", (), {"monotonic": staticmethod(lambda: clock[0])})
+    )
+    closed = []
+
+    class Body(httpx.SyncByteStream):
+        def __iter__(self):
+            clock[0] += 2
+            yield b"private-model-text"
+            clock[0] += 3
+            if failure == "body":
+                raise httpx.ReadTimeout("private-server-detail")
+            yield b"done"
+
+        def close(self):
+            closed.append(True)
+
+    def request(req):
+        assert req.extensions["timeout"]["read"] == 7
+        clock[0] += 4
+        if failure == "headers":
+            raise httpx.ReadTimeout("private-server-detail")
+        return httpx.Response(200, stream=Body())
+
+    monkeypatch.setattr(client.httpx, "HTTPTransport", lambda **kw: httpx.MockTransport(request))
+    transport = client.TestServiceTransport(client.ENDPOINT)
+    with httpx.Client(transport=transport, timeout=7, trust_env=False) as http:
+        if failure:
+            with pytest.raises(httpx.ReadTimeout):
+                http.post(client.ENDPOINT + "/chat/completions", content=b"private-request")
+        else:
+            assert (
+                http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content
+                == b"private-model-textdone"
+            )
+    assert transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)
+    data = timing_receipts(transport.timings, attempts=True)
+    assert data == [
+        {
+            "attempt": 1,
+            "request_body_bytes": 15,
+            "read_timeout_seconds": 7,
+            "headers_seconds": None if failure == "headers" else 4,
+            "elapsed_seconds": 4 if failure == "headers" else 9,
+            "response_bytes": 0 if failure == "headers" else 18 if failure == "body" else 22,
+        }
+    ]
+    assert bool(closed) is (failure != "headers")
+    assert "private" not in json.dumps(data)
+
+
+def test_timing_projection_rejects_non_numeric_data_and_limits_inventory():
+    import json
+
+    from workbench.coding.timing import ATTEMPT_FIELDS, TURN_FIELDS, timing_receipts
+
+    for attempts, fields, limit in ((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32)):
+        for poison in ("private-text", True, -1, float("nan"), float("inf"), 10**1000, {}, []):
+            values = [{**dict.fromkeys(fields, poison), "raw": "private-key"}] * 40
+            result = timing_receipts(values, attempts=attempts)
+            assert len(result) == limit
+            assert all(value is None for row in result for value in row.values())
+            assert "private" not in json.dumps(result)

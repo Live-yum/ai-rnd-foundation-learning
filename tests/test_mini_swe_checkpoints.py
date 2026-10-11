@@ -939,9 +939,12 @@ Path(p['receipt']).write_text(json.dumps({'passed':True,'cleanup':'deleted','che
 time.sleep(30)
 """
     original = subprocess.Popen
-    children = []
+    children, auxiliary = [], []
 
     def launch(command, **kwargs):
+        if command != [sys.executable, "-m", "workbench.capability_sandbox"]:
+            auxiliary.append(command[0])
+            return original(command, **kwargs)
         process = original([sys.executable, "-c", child], **kwargs)
         children.append(process)
         return process
@@ -962,7 +965,8 @@ time.sleep(30)
             checkpoint=checkpoint,
             selection=plan.selection.model_dump(),
         )
-    assert children[0].poll() is not None
+    assert len(children) == 1 and children[0].poll() is not None
+    assert auxiliary == (["taskkill"] if os.name == "nt" else [])
     value = json.loads((tmp_path / "product-node-verification.json").read_text())
     assert value["passed"] is False and value["cleanup"] == "unconfirmed"
     assert value["checkpoint"] == checkpoint and "repairable_failure" not in value
@@ -1119,7 +1123,18 @@ with patch.object(coding,'client_for',lambda *a:client),patch.object(coding,'cap
     assert len(cleaned) == 1 and cleaned[0][1] < start + 25
     assert children[0].poll() is not None
     value = json.loads(path.read_text())
-    assert value["status"] == ("unconfirmed" if phase == "create" else "deleted")
+    safe_failure = {
+        key: value.get(key)
+        for key in (
+            "reason",
+            "supervision_failure_phase",
+            "supervision_failure_kind",
+            "failure_phase",
+            "failure_kind",
+            "cleanup_failure_kind",
+        )
+    }
+    assert value["status"] == ("unconfirmed" if phase == "create" else "deleted"), safe_failure
     assert value["binding"]["source"] == ("c" * 64 if phase == "write" else binding["source"])
     if phase not in {"idle", "success"}:
         assert marker.read_text() == "entered"
@@ -1644,6 +1659,8 @@ def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch,
         assert calls == [session.identifier]
         value = json.loads(session.path.read_text())
         assert value["status"] == "unconfirmed" and value["reason"] == "deletion_unconfirmed"
+        assert value["supervision_failure_phase"] == ("reader" if phase == "reader" else "pipes")
+        assert value["supervision_failure_kind"] == "UnsupportedScope"
         assert session.done.is_set()
     finally:
         release.set()
@@ -1651,3 +1668,66 @@ def test_local_reap_failure_still_attempts_owned_deletion(tmp_path, monkeypatch,
             session.reader.join(1)
         process.wait(timeout=2)
         original_close(process)
+
+
+def test_model_turn_timing_preserves_failed_outcome_and_original_budget(tmp_path, monkeypatch):
+    from workbench.coding import timing
+
+    clock = [100.0]
+    monkeypatch.setattr(timing, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    transport = SimpleNamespace(calls=2)
+    path = tmp_path / "timing.json"
+    failure = RuntimeError("private-model-failure")
+    with pytest.raises(RuntimeError) as found:
+        with timing.record_turn(path, 0, 180, 31.5, {"secret": "private-prompt"}, transport):
+            clock[0] = 164
+            transport.calls = 4
+            raise failure
+    assert found.value is failure
+    value = timing.read_turns(path)[0]
+    assert value == {
+        "step": 0,
+        "module_remaining_seconds": 80,
+        "work_remaining_seconds": 65,
+        "timeout_seconds": 31.5,
+        "elapsed_seconds": 64,
+        "remaining_after_seconds": 16,
+        "overrun_seconds": 0,
+        "payload_chars": len(json.dumps({"secret": "private-prompt"})),
+        "http_attempts_before": 2,
+        "http_attempts_after": 4,
+    }
+    assert "private" not in path.read_text()
+    monkeypatch.setattr(
+        timing, "write_json", lambda *a: (_ for _ in ()).throw(OSError("private-io"))
+    )
+    with pytest.raises(RuntimeError) as found:
+        with timing.record_turn(path, 1, 180, 7, {}, transport):
+            raise failure
+    assert found.value is failure
+
+
+def test_supervision_diagnostics_are_fixed_and_cannot_upgrade_cleanup(tmp_path):
+    from workbench.infrastructure.sandbox import cleanup, file_session
+
+    task, plan, binding = cleanup_binding()
+    path = tmp_path / "cleanup.json"
+    name = "rnd-source-agent-" + "a" * 32
+    for phase in file_session.SUPERVISION_PHASES:
+        value = file_session.receipt(binding, name, "owned-id")
+        value.update(status="deleted", reason="confirmed_absent")
+        path.write_text(json.dumps(value))
+        error = OSError("private local details")
+        failure = file_session.supervision_failure(phase, error)
+        file_session.preserve_state(path, binding, name, "owned-id", error, failure)
+        result = cleanup.public_receipt(path, task, plan)
+        assert result["status"] == "unconfirmed"
+        assert result["supervision_failure_phase"] == phase
+        assert result["supervision_failure_kind"] == "OSError"
+        assert "private" not in json.dumps(result)
+    value.update(supervision_failure_phase="private-phase", supervision_failure_kind="private-kind")
+    path.write_text(json.dumps(value))
+    assert "private" not in json.dumps(cleanup.public_receipt(path, task, plan))
+    path.write_text("{}")
+    file_session.preserve_state(path, binding, name, "owned-id", None, {})
+    assert cleanup.public_receipt(path, task, plan)["supervision_failure_phase"] == "journal"

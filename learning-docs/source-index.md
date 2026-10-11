@@ -173,6 +173,7 @@
 - [workbench/coding/diff_guard.py](07-orchestration/sources/workbench__coding__diff_guard_py--001.md)（1 段）
 - [workbench/coding/mini_swe.py](07-orchestration/sources/workbench__coding__mini_swe_py--001.md)（1 段）
 - [workbench/coding/ports.py](07-orchestration/sources/workbench__coding__ports_py--001.md)（1 段）
+- [workbench/coding/timing.py](07-orchestration/sources/workbench__coding__timing_py--001.md)（1 段）
 - [workbench/continue_index.py](07-orchestration/sources/workbench__continue_index_py--001.md)（1 段）
 - [workbench/daytona_profiles.py](07-orchestration/sources/workbench__daytona_profiles_py--001.md)（1 段）
 - [workbench/flow.py](07-orchestration/sources/workbench__flow_py--001.md)（1 段）
