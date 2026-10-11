@@ -2,6 +2,8 @@
 
 import io
 import json
+import subprocess
+import sys
 import zipfile
 from types import SimpleNamespace
 
@@ -19,6 +21,7 @@ from workbench.domain import digest
 from workbench.filesystem import atomic_text, manifest
 from workbench.generator import PrerequisiteError
 from workbench.sandbox import checks_for, harness_archive, params_for, verify_in_daytona
+from workbench.settings import ROOT
 from workbench.tools import clean_env
 
 
@@ -197,10 +200,55 @@ def test_trusted_harness_contains_only_allowlisted_source():
         names = archive.namelist()
         assert "harness/scripts/daytona_matrix_probe.py" in names
         assert "harness/scripts/native_browser.cjs" in names
+        assert (
+            archive.read("harness/templates/product/fields.py")
+            == (ROOT / "templates/product/fields.py").read_bytes()
+        )
         assert all(name.endswith((".py", ".cjs")) for name in names)
         assert not any(
             ".env" in name or "node_modules" in name or "/.git/" in name for name in names
         )
+
+
+def assert_isolated_verifier_helper(verifier, product):
+    """Exercise actual CLI import resolution, including a missing trusted helper."""
+    helper = verifier.parent / "fields.py"
+    assert helper.read_bytes() == (ROOT / "templates/product/fields.py").read_bytes()
+    poison_marker = product / "untrusted-helper-imported"
+    atomic_text(
+        product / "fields.py",
+        "from pathlib import Path\n"
+        f"Path({str(poison_marker)!r}).touch()\n"
+        "raise RuntimeError('untrusted product helper imported')\n",
+    )
+
+    def run():
+        return subprocess.run(
+            [sys.executable, "-B", str(verifier), "--help"],
+            cwd=product,
+            env=clean_env(),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert "--product" in result.stdout
+    assert not poison_marker.exists()
+    helper.unlink()
+    result = run()
+    assert result.returncode != 0
+    assert "ModuleNotFoundError: No module named 'fields'" in result.stderr
+    assert not poison_marker.exists()
+
+
+def test_matrix_verifier_uses_only_packaged_trusted_helper(tmp_path):
+    with zipfile.ZipFile(io.BytesIO(harness_archive())) as archive:
+        archive.extractall(tmp_path)
+    product = tmp_path / "product"
+    product.mkdir()
+    assert_isolated_verifier_helper(tmp_path / "harness/templates/product/verify.py", product)
 
 
 @pytest.mark.parametrize(
@@ -215,6 +263,8 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     settings.daytona_api_key = SecretStr("local-test-token")
     settings.daytona_snapshot = "registered-matrix"
     events = []
+    uploads = {}
+    atomic_text(product / "fields.py", "raise RuntimeError('untrusted product helper')\n")
     value = report("fastapiadmin")
     value["source_digest"] = digest(manifest(product))
     if failure == "report":
@@ -226,6 +276,7 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
 
         def upload_file(self, data, path, **kwargs):
             assert b"local-test-token" not in data
+            uploads[path] = data
             events.append("upload")
 
         def download_file_stream(self, *args, **kwargs):
@@ -277,6 +328,16 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     assert events[-1] == "delete"
     saved = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
     assert saved["passed"] is (failure is None)
+    assert (
+        uploads["/tmp/rnd-verification/fields.py"]
+        == (ROOT / "templates/product/fields.py").read_bytes()
+    )
+    if failure is None:
+        isolated = tmp_path / "uploaded-verifier"
+        isolated.mkdir()
+        for name in ("trusted-verify.py", "fields.py"):
+            (isolated / name).write_bytes(uploads["/tmp/rnd-verification/" + name])
+        assert_isolated_verifier_helper(isolated / "trusted-verify.py", product)
     if failure in {"session", "timeout", "command"}:
         assert events.count("session-submit") == 1
         assert saved["checks"][0]["mode"] == "async-session"

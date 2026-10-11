@@ -39636,13 +39636,13 @@ sys.modules[__name__] = _implementation
 - `close_client.attempt`（L87–L91）：接收`operation`。 调用`operation`、`failures.append`、`type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `params_for`（L116–L130）：接收`settings`、`name`、`template`、`selection`。 调用`CreateSandboxFromSnapshotParams`、`snapshot_for`、`profile_key`。 返回路径：L119的`CreateSandboxFromSnapshotParams( snapshot=snapshot_for(settings, template, selection), nam…`。
 - `checks_for`（L133–L175）：接收`template`、`selection`。 控制顺序：L137抛异常，停止当前正常路径；L138按`key == "python-basic/sqlite"`分支。 调用`profile_key`、`PrerequisiteError`、`str`、`key.split`。 返回路径：L139的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L160的`[ ( "independent-database-build-http-browser-restart", [ "env", "PYTHONPATH=" + REMOTE + "…`。
-- `harness_archive`（L178–L195）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only trusted, committed verifier code; never user files, keys or host caches.。 控制顺序：L193遍历`sorted(names)`。 调用`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "workbench").rglob`、`io.BytesIO`、`zipfile.ZipFile`、`sorted`、`archive.writestr`、`(ROOT / name).read_bytes`、`buffer.getvalue`。 返回路径：L195的`buffer.getvalue()`。
-- `source_archive`（L198–L210）：接收`product`。 控制顺序：L200按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L201抛异常，停止当前正常路径；L204遍历`rows`；L205按`Path(name).name == ".npmrc"`分支；L207按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L208抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L210的`buffer.getvalue()`。
-- `read_runtime_report`（L213–L240）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L226遍历`chunks`；L227按`not isinstance(chunk, bytes)`分支；L228抛异常，停止当前正常路径；L229按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L230抛异常，停止当前正常路径；L235抛异常，停止当前正常路径；L236按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L239抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L240的`runtime`。
-- `verify_in_daytona`（L243–L249）：接收`product`、`template`、`settings`、`client`。 控制顺序：L245按`client is None`分支。 调用`validate_configuration`、`selection_for`、`run_isolated`、`_verify_in_daytona`。 返回路径：L248的`run_isolated(product, template, settings)`；L249的`_verify_in_daytona(product, template, settings, client=client)`。
-- `_verify_in_daytona`（L252–L396）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L253按`settings.sandbox_provider != "daytona"`分支；L254抛异常，停止当前正常路径；L301遍历`("verify_business.py", "verify-business-browser.cjs")`；L311按`extraction.exit_code != 0`分支；L312抛异常，停止当前正常路径；L313按`key != "python-basic/sqlite"`分支；L321按`unpack.exit_code != 0`分支；L322抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L396的`receipt`。
+- `harness_archive`（L178–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only trusted, committed verifier code; never user files, keys or host caches.。 控制顺序：L194遍历`sorted(names)`。 调用`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "workbench").rglob`、`io.BytesIO`、`zipfile.ZipFile`、`sorted`、`archive.writestr`、`(ROOT / name).read_bytes`、`buffer.getvalue`。 返回路径：L196的`buffer.getvalue()`。
+- `source_archive`（L199–L211）：接收`product`。 控制顺序：L201按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L202抛异常，停止当前正常路径；L205遍历`rows`；L206按`Path(name).name == ".npmrc"`分支；L208按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L209抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L211的`buffer.getvalue()`。
+- `read_runtime_report`（L214–L241）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L227遍历`chunks`；L228按`not isinstance(chunk, bytes)`分支；L229抛异常，停止当前正常路径；L230按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L231抛异常，停止当前正常路径；L236抛异常，停止当前正常路径；L237按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L240抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L241的`runtime`。
+- `verify_in_daytona`（L244–L250）：接收`product`、`template`、`settings`、`client`。 控制顺序：L246按`client is None`分支。 调用`validate_configuration`、`selection_for`、`run_isolated`、`_verify_in_daytona`。 返回路径：L249的`run_isolated(product, template, settings)`；L250的`_verify_in_daytona(product, template, settings, client=client)`。
+- `_verify_in_daytona`（L253–L397）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L254按`settings.sandbox_provider != "daytona"`分支；L255抛异常，停止当前正常路径；L302遍历`("fields.py", "verify_business.py", "verify-business-browser.cjs"…`；L312按`extraction.exit_code != 0`分支；L313抛异常，停止当前正常路径；L314按`key != "python-basic/sqlite"`分支；L322按`unpack.exit_code != 0`分支；L323抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L397的`receipt`。
 
-<!-- source-file: workbench/sandbox.py sha256: 6bfca2345f86cc3db5ffe3dd4c84b3827b9e0efe74c8dc3e61eda3c65d214d1d -->
+<!-- source-file: workbench/sandbox.py sha256: f74eaf2ba52af163825468a449852313d1fb10c9ed9c1d9edd0154fca643810e -->
 ````python
 """Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
 
@@ -39830,6 +39830,7 @@ def harness_archive():
         "scripts/business_fastapi_browser.cjs",
         "scripts/business_yudao_browser.cjs",
         "templates/product/verify.py",
+        "templates/product/fields.py",
         "templates/product/verify-browser.cjs",
         "templates/product/verify_business.py",
         "templates/product/verify-business-browser.cjs",
@@ -39944,7 +39945,7 @@ def _verify_in_daytona(product, template, settings, *, client):
             REMOTE + "/verify-browser.cjs",
             timeout=settings.tool_timeout,
         )
-        for helper in ("verify_business.py", "verify-business-browser.cjs"):
+        for helper in ("fields.py", "verify_business.py", "verify-business-browser.cjs"):
             sandbox.fs.upload_file(
                 (ROOT / "templates/product" / helper).read_bytes(),
                 REMOTE + "/" + helper,
@@ -155741,47 +155742,52 @@ def test_production_targets_are_only_registered_docker_services():
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.daytona_bootstrap`、`workbench.daytona_profiles`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.sandbox`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.daytona_bootstrap`、`workbench.daytona_profiles`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.sandbox`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `test_exact_registered_profiles`（L34–L44）：接收`template`、`database`、`settings`。 控制顺序：L35断言`profile_key(template, {"database": database}) == template + "/" + database`；L38断言`snapshot_for(settings, template, {"database": database}) == "selected-local-snapshot"`；L40断言`params.network_block_all is True and params.public is False`；L41断言`params.snapshot == "selected-local-snapshot"`；L42断言`params.auto_stop_interval >= ( 5 if database == "sqlite" else settings.daytona_runtim…`。 调用`profile_key`、`snapshot_for`、`params_for`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unregistered_profiles_are_not_guessed`（L51–L55）：接收`template`、`database`。 调用`pytest.raises`、`profile_key`、`checks_for`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `report`（L58–L82）：接收`template`。 返回路径：L59的`{ key: True for key in ( "passed", "http", "restart", "fresh_database", "locked_install", …`。
-- `test_every_runtime_gate_requires_actual_boolean_success`（L104–L108）：接收`key`、`bad`。 调用`report`、`pytest.raises`、`require_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_identity_and_no_host_database_must_match`（L122–L126）：接收`key`、`bad`。 调用`report`、`pytest.raises`、`require_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_accepts_complete_matching_report_only`（L129–L130）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`require_runtime_report`、`report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_identity_does_not_use_host_keys_or_cached_binaries`（L133–L141）：接收`tmp_path`。 控制顺序：L139断言`dependency_identity(tmp_path) == initial`；L141断言`dependency_identity(tmp_path) != initial`。 调用`atomic_text`、`dependency_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_metadata`（L144–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L145的`{ "image": "registry:6000/rnd-yudao-vben:" + "a" * 16, "snapshot": "rnd-yudao-vben-" + "a"…`。
-- `test_matrix_snapshot_is_independent_of_the_default_python_warmup`（L160–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`resources == {"cpu": 2, "memory": 10, "disk": 30}`；L163断言`wait is False`。 调用`snapshot_resources`、`snapshot_metadata`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_snapshot_cannot_select_cloud_or_unbounded_resources`（L177–L181）：接收`key`、`value`。 调用`snapshot_metadata`、`pytest.raises`、`snapshot_resources`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_offline_subprocess_policy_preserves_only_explicit_local_cache`（L184–L192）：接收`monkeypatch`。 控制顺序：L190断言`value["UV_OFFLINE"] == "1" and value["COREPACK_ENABLE_NETWORK"] == "0"`；L191断言`value["UV_CACHE_DIR"] == "/local/cache"`；L192断言`"API_KEY" not in value and "HTTP_PROXY" not in value`。 调用`monkeypatch.setenv`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_trusted_harness_contains_only_allowlisted_source`（L195–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198断言`"harness/scripts/daytona_matrix_probe.py" in names`；L199断言`"harness/scripts/native_browser.cjs" in names`；L200断言`all(name.endswith((".py", ".cjs")) for name in names)`；L201断言`not any( ".env" in name or "node_modules" in name or "/.git/" in name for name in nam…`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.namelist`、`all`、`name.endswith`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back`（L209–L283）：接收`settings`、`tmp_path`、`failure`。 控制顺序：L220按`failure == "report"`分支；L271按`failure`分支；L276断言`result["passed"] and result["scope"] == "independent-runtime"`；L277断言`events[-1] == "delete"`；L279断言`saved["passed"] is (failure is None)`；L280按`failure in {"session", "timeout", "command"}`分支；L281断言`events.count("session-submit") == 1`；L282断言`saved["checks"][0]["mode"] == "async-session"`。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`atomic_text`、`SecretStr`、`report`、`digest`、`manifest`、`pytest.raises`、`verify_in_daytona`、`Client`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files`（L223–L232）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.create_folder`（L224–L225）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.upload_file`（L227–L229）：接收`data`、`path`、`**kwargs`。 控制顺序：L228断言`b"local-test-token" not in data`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.download_file_stream`（L231–L232）：接收`*args`、`**kwargs`。 调用`json.dumps(value).encode`、`json.dumps`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process`（L234–L257）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.exec`（L235–L239）：接收`command`、`**kwargs`。 调用`events.append`、`SimpleNamespace`。 返回路径：L237的`SimpleNamespace( exit_code=1 if failure == "exec" else 0, result="explicit-protocol-fixtur…`。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.create_session`（L241–L242）：接收`session_id`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.execute_session_command`（L244–L251）：接收`session_id`、`request`、`**kwargs`。 控制顺序：L245断言`request.run_async is True`；L247按`failure == "session"`分支；L248抛异常，停止当前正常路径；L249按`failure == "timeout"`分支；L250抛异常，停止当前正常路径。 调用`events.append`、`ConnectionError`、`TimeoutError`、`SimpleNamespace`。 返回路径：L251的`SimpleNamespace(cmd_id="command-fixture")`。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.get_session_command`（L253–L254）：接收`session_id`、`command_id`。 调用`SimpleNamespace`。 返回路径：L254的`SimpleNamespace(exit_code=3 if failure == "command" else 0)`。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.get_session_command_logs`（L256–L257）：接收`session_id`、`command_id`。 调用`SimpleNamespace`。 返回路径：L257的`SimpleNamespace(output="explicit-protocol-fixture")`。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client`（L259–L269）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client.create`（L260–L263）：接收`params`、`**kwargs`。 控制顺序：L261断言`params.network_block_all and params.snapshot == "registered-matrix"`。 调用`events.append`、`SimpleNamespace`、`Files`、`Process`。 返回路径：L263的`SimpleNamespace(id="owned", fs=Files(), process=Process())`。
-- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client.delete`（L265–L269）：接收`sandbox`、`**kwargs`。 控制顺序：L266断言`sandbox.id == "owned"`；L268按`failure == "cleanup"`分支；L269抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_python_runtime_descriptor_does_not_replace_matrix_database_identity`（L287–L297）：接收`database`。 控制顺序：L292断言`result["database"] == database`；L293断言`result["runtime_database"] == "real-isolated-" + database`；L294断言`result["fresh_database"] is True`；L295断言`raw["database"] == "real-isolated-" + database`。 调用`basic_runtime_evidence`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_python_runtime_descriptor_normalization_never_hides_failed_checks`（L302–L313）：接收`key`、`bad`。 调用`pytest.raises`、`basic_runtime_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix`（L316–L327）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`"/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in docke…`；L323断言`"--global --prefix /usr/local" in dockerfile`；L327断言`user < assertion < warm`。 调用`(ROOT / "tools/daytona/matrix.Dockerfile").read_text`、`dockerfile.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_trusted_harness_imports_moved_contracts_without_checkout`（L330–L356）：接收`tmp_path`。 控制顺序：L355断言`result.returncode == 0`；L356断言`"--template" in result.stdout`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.extractall`、`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_registered_profiles`（L37–L47）：接收`template`、`database`、`settings`。 控制顺序：L38断言`profile_key(template, {"database": database}) == template + "/" + database`；L41断言`snapshot_for(settings, template, {"database": database}) == "selected-local-snapshot"`；L43断言`params.network_block_all is True and params.public is False`；L44断言`params.snapshot == "selected-local-snapshot"`；L45断言`params.auto_stop_interval >= ( 5 if database == "sqlite" else settings.daytona_runtim…`。 调用`profile_key`、`snapshot_for`、`params_for`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unregistered_profiles_are_not_guessed`（L54–L58）：接收`template`、`database`。 调用`pytest.raises`、`profile_key`、`checks_for`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `report`（L61–L85）：接收`template`。 返回路径：L62的`{ key: True for key in ( "passed", "http", "restart", "fresh_database", "locked_install", …`。
+- `test_every_runtime_gate_requires_actual_boolean_success`（L107–L111）：接收`key`、`bad`。 调用`report`、`pytest.raises`、`require_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_identity_and_no_host_database_must_match`（L125–L129）：接收`key`、`bad`。 调用`report`、`pytest.raises`、`require_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_accepts_complete_matching_report_only`（L132–L133）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`require_runtime_report`、`report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_identity_does_not_use_host_keys_or_cached_binaries`（L136–L144）：接收`tmp_path`。 控制顺序：L142断言`dependency_identity(tmp_path) == initial`；L144断言`dependency_identity(tmp_path) != initial`。 调用`atomic_text`、`dependency_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_metadata`（L147–L160）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L148的`{ "image": "registry:6000/rnd-yudao-vben:" + "a" * 16, "snapshot": "rnd-yudao-vben-" + "a"…`。
+- `test_matrix_snapshot_is_independent_of_the_default_python_warmup`（L163–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165断言`resources == {"cpu": 2, "memory": 10, "disk": 30}`；L166断言`wait is False`。 调用`snapshot_resources`、`snapshot_metadata`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_snapshot_cannot_select_cloud_or_unbounded_resources`（L180–L184）：接收`key`、`value`。 调用`snapshot_metadata`、`pytest.raises`、`snapshot_resources`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_offline_subprocess_policy_preserves_only_explicit_local_cache`（L187–L195）：接收`monkeypatch`。 控制顺序：L193断言`value["UV_OFFLINE"] == "1" and value["COREPACK_ENABLE_NETWORK"] == "0"`；L194断言`value["UV_CACHE_DIR"] == "/local/cache"`；L195断言`"API_KEY" not in value and "HTTP_PROXY" not in value`。 调用`monkeypatch.setenv`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_harness_contains_only_allowlisted_source`（L198–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201断言`"harness/scripts/daytona_matrix_probe.py" in names`；L202断言`"harness/scripts/native_browser.cjs" in names`；L203断言`archive.read("harness/templates/product/fields.py") == (ROOT / "templates/product/fie…`；L207断言`all(name.endswith((".py", ".cjs")) for name in names)`；L208断言`not any( ".env" in name or "node_modules" in name or "/.git/" in name for name in nam…`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.namelist`、`archive.read`、`(ROOT / "templates/product/fields.py").read_bytes`、`all`、`name.endswith`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_isolated_verifier_helper`（L213–L243）：接收`verifier`、`product`。 源码说明：Exercise actual CLI import resolution, including a missing trusted helper.。 控制顺序：L216断言`helper.read_bytes() == (ROOT / "templates/product/fields.py").read_bytes()`；L236断言`result.returncode == 0`；L237断言`"--product" in result.stdout`；L238断言`not poison_marker.exists()`；L241断言`result.returncode != 0`；L242断言`"ModuleNotFoundError: No module named 'fields'" in result.stderr`；L243断言`not poison_marker.exists()`。 调用`helper.read_bytes`、`(ROOT / "templates/product/fields.py").read_bytes`、`atomic_text`、`str`、`run`、`poison_marker.exists`、`helper.unlink`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_isolated_verifier_helper.run`（L225–L233）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`subprocess.run`、`str`、`clean_env`。 返回路径：L226的`subprocess.run( [sys.executable, "-B", str(verifier), "--help"], cwd=product, env=clean_en…`。
+- `test_matrix_verifier_uses_only_packaged_trusted_helper`（L246–L251）：接收`tmp_path`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.extractall`、`product.mkdir`、`assert_isolated_verifier_helper`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back`（L257–L344）：接收`settings`、`tmp_path`、`failure`。 控制顺序：L270按`failure == "report"`分支；L322按`failure`分支；L327断言`result["passed"] and result["scope"] == "independent-runtime"`；L328断言`events[-1] == "delete"`；L330断言`saved["passed"] is (failure is None)`；L331断言`uploads["/tmp/rnd-verification/fields.py"] == (ROOT / "templates/product/fields.py").…`；L335按`failure is None`分支；L338遍历`("trusted-verify.py", "fields.py")`。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`atomic_text`、`SecretStr`、`report`、`digest`、`manifest`、`pytest.raises`、`verify_in_daytona`、`Client`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files`（L273–L283）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.create_folder`（L274–L275）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.upload_file`（L277–L280）：接收`data`、`path`、`**kwargs`。 控制顺序：L278断言`b"local-test-token" not in data`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Files.download_file_stream`（L282–L283）：接收`*args`、`**kwargs`。 调用`json.dumps(value).encode`、`json.dumps`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process`（L285–L308）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.exec`（L286–L290）：接收`command`、`**kwargs`。 调用`events.append`、`SimpleNamespace`。 返回路径：L288的`SimpleNamespace( exit_code=1 if failure == "exec" else 0, result="explicit-protocol-fixtur…`。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.create_session`（L292–L293）：接收`session_id`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.execute_session_command`（L295–L302）：接收`session_id`、`request`、`**kwargs`。 控制顺序：L296断言`request.run_async is True`；L298按`failure == "session"`分支；L299抛异常，停止当前正常路径；L300按`failure == "timeout"`分支；L301抛异常，停止当前正常路径。 调用`events.append`、`ConnectionError`、`TimeoutError`、`SimpleNamespace`。 返回路径：L302的`SimpleNamespace(cmd_id="command-fixture")`。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.get_session_command`（L304–L305）：接收`session_id`、`command_id`。 调用`SimpleNamespace`。 返回路径：L305的`SimpleNamespace(exit_code=3 if failure == "command" else 0)`。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Process.get_session_command_logs`（L307–L308）：接收`session_id`、`command_id`。 调用`SimpleNamespace`。 返回路径：L308的`SimpleNamespace(output="explicit-protocol-fixture")`。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client`（L310–L320）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client.create`（L311–L314）：接收`params`、`**kwargs`。 控制顺序：L312断言`params.network_block_all and params.snapshot == "registered-matrix"`。 调用`events.append`、`SimpleNamespace`、`Files`、`Process`。 返回路径：L314的`SimpleNamespace(id="owned", fs=Files(), process=Process())`。
+- `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client.delete`（L316–L320）：接收`sandbox`、`**kwargs`。 控制顺序：L317断言`sandbox.id == "owned"`；L319按`failure == "cleanup"`分支；L320抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_runtime_descriptor_does_not_replace_matrix_database_identity`（L348–L358）：接收`database`。 控制顺序：L353断言`result["database"] == database`；L354断言`result["runtime_database"] == "real-isolated-" + database`；L355断言`result["fresh_database"] is True`；L356断言`raw["database"] == "real-isolated-" + database`。 调用`basic_runtime_evidence`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_runtime_descriptor_normalization_never_hides_failed_checks`（L363–L374）：接收`key`、`bad`。 调用`pytest.raises`、`basic_runtime_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix`（L377–L388）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L381断言`"/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in docke…`；L384断言`"--global --prefix /usr/local" in dockerfile`；L388断言`user < assertion < warm`。 调用`(ROOT / "tools/daytona/matrix.Dockerfile").read_text`、`dockerfile.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_harness_imports_moved_contracts_without_checkout`（L391–L417）：接收`tmp_path`。 控制顺序：L416断言`result.returncode == 0`；L417断言`"--template" in result.stdout`。 调用`zipfile.ZipFile`、`io.BytesIO`、`harness_archive`、`archive.extractall`、`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_matrix.py sha256: 396cc795ac16e1220f55f1fd4fa5b69f435311ca4c705febb88fb54f94d2b632 -->
+<!-- source-file: tests/test_daytona_matrix.py sha256: d77194763de38f3c014db2e8481f7bb0b9980469692184601c3dc66fcbf4beff -->
 ````python
 """Fail-closed registered runtime profiles; actual services run in the matrix Action."""
 
 import io
 import json
+import subprocess
+import sys
 import zipfile
 from types import SimpleNamespace
 
@@ -155799,6 +155805,7 @@ from workbench.domain import digest
 from workbench.filesystem import atomic_text, manifest
 from workbench.generator import PrerequisiteError
 from workbench.sandbox import checks_for, harness_archive, params_for, verify_in_daytona
+from workbench.settings import ROOT
 from workbench.tools import clean_env
 
 
@@ -155977,10 +155984,55 @@ def test_trusted_harness_contains_only_allowlisted_source():
         names = archive.namelist()
         assert "harness/scripts/daytona_matrix_probe.py" in names
         assert "harness/scripts/native_browser.cjs" in names
+        assert (
+            archive.read("harness/templates/product/fields.py")
+            == (ROOT / "templates/product/fields.py").read_bytes()
+        )
         assert all(name.endswith((".py", ".cjs")) for name in names)
         assert not any(
             ".env" in name or "node_modules" in name or "/.git/" in name for name in names
         )
+
+
+def assert_isolated_verifier_helper(verifier, product):
+    """Exercise actual CLI import resolution, including a missing trusted helper."""
+    helper = verifier.parent / "fields.py"
+    assert helper.read_bytes() == (ROOT / "templates/product/fields.py").read_bytes()
+    poison_marker = product / "untrusted-helper-imported"
+    atomic_text(
+        product / "fields.py",
+        "from pathlib import Path\n"
+        f"Path({str(poison_marker)!r}).touch()\n"
+        "raise RuntimeError('untrusted product helper imported')\n",
+    )
+
+    def run():
+        return subprocess.run(
+            [sys.executable, "-B", str(verifier), "--help"],
+            cwd=product,
+            env=clean_env(),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+    result = run()
+    assert result.returncode == 0, result.stderr
+    assert "--product" in result.stdout
+    assert not poison_marker.exists()
+    helper.unlink()
+    result = run()
+    assert result.returncode != 0
+    assert "ModuleNotFoundError: No module named 'fields'" in result.stderr
+    assert not poison_marker.exists()
+
+
+def test_matrix_verifier_uses_only_packaged_trusted_helper(tmp_path):
+    with zipfile.ZipFile(io.BytesIO(harness_archive())) as archive:
+        archive.extractall(tmp_path)
+    product = tmp_path / "product"
+    product.mkdir()
+    assert_isolated_verifier_helper(tmp_path / "harness/templates/product/verify.py", product)
 
 
 @pytest.mark.parametrize(
@@ -155995,6 +156047,8 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     settings.daytona_api_key = SecretStr("local-test-token")
     settings.daytona_snapshot = "registered-matrix"
     events = []
+    uploads = {}
+    atomic_text(product / "fields.py", "raise RuntimeError('untrusted product helper')\n")
     value = report("fastapiadmin")
     value["source_digest"] = digest(manifest(product))
     if failure == "report":
@@ -156006,6 +156060,7 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
 
         def upload_file(self, data, path, **kwargs):
             assert b"local-test-token" not in data
+            uploads[path] = data
             events.append("upload")
 
         def download_file_stream(self, *args, **kwargs):
@@ -156057,6 +156112,16 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     assert events[-1] == "delete"
     saved = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
     assert saved["passed"] is (failure is None)
+    assert (
+        uploads["/tmp/rnd-verification/fields.py"]
+        == (ROOT / "templates/product/fields.py").read_bytes()
+    )
+    if failure is None:
+        isolated = tmp_path / "uploaded-verifier"
+        isolated.mkdir()
+        for name in ("trusted-verify.py", "fields.py"):
+            (isolated / name).write_bytes(uploads["/tmp/rnd-verification/" + name])
+        assert_isolated_verifier_helper(isolated / "trusted-verify.py", product)
     if failure in {"session", "timeout", "command"}:
         assert events.count("session-submit") == 1
         assert saved["checks"][0]["mode"] == "async-session"
