@@ -38,6 +38,7 @@ from workbench.capability_stack import (
 )
 from workbench.capability_verification import (
     BrowserFailure,
+    BusinessCheckFailure,
     CheckFailure,
     preview_url,
     run_browser,
@@ -50,6 +51,10 @@ from workbench.local_only import install_loopback_guard
 from workbench.tools import clean_env, process_options, stop_process
 
 REMOTE = "/tmp/rnd-capability"
+
+
+class CheckpointExpired(BaseException):
+    """Escape SDK/diagnostic Exception handlers into the verifier's cleanup."""
 
 
 def startup_command_exit_facts(process, session, command_id, timeout):
@@ -328,7 +333,15 @@ def verifier_policy_environment():
 
 
 def verify_capabilities(
-    product, plan, scenarios, settings, *, aggregate, selection=None, trusted_oracle=None
+    product,
+    plan,
+    scenarios,
+    settings,
+    *,
+    aggregate,
+    selection=None,
+    trusted_oracle=None,
+    checkpoint=None,
 ):
     from workbench.capability_execution import capability_execution_prerequisites
 
@@ -367,6 +380,7 @@ def verify_capabilities(
         "scenario_ids": [s.id for s in scenarios],
         "aggregate": aggregate,
         "trusted_oracle": trusted_oracle,
+        "checkpoint": checkpoint,
         "settings": {
             name: getattr(settings, name)
             for name in (
@@ -406,9 +420,13 @@ def verify_capabilities(
             **process_options(),
         )
         try:
-            process.communicate(
-                body, timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
-            )
+            timeout = settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
+            if checkpoint is not None:
+                timeout = checkpoint["deadline"] - time.monotonic()
+                if timeout <= 0:
+                    stop_process(process)
+                    raise PrerequisiteError("模块检查截止时间已到，未续期")
+            process.communicate(body, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             stop_process(process)
             record_failure(receipt_path, exc)
@@ -440,6 +458,7 @@ def _verify(
     security_probe=None,
     trusted_oracle=None,
     profile_record=None,
+    checkpoint=None,
 ):
     from daytona import SessionExecuteRequest
 
@@ -517,6 +536,8 @@ def _verify(
             "existing_schema_migration": "unverified",
         },
     }
+    if checkpoint is not None:
+        receipt["checkpoint"] = checkpoint
     write_json(receipt_path, receipt)
     sandbox = None
     oracle_adapter = None
@@ -753,6 +774,24 @@ def _verify(
                     **target,
                     "backend_health_observed": receipt.get("backend_health_observed") is True,
                 }
+                # Only this admitted application-start boundary can request repair.
+                # Infrastructure hints never become instructions to change business code.
+                startup = receipt["startup_diagnostic"]
+                if (
+                    checkpoint is not None
+                    and startup["command_exit_status"] == "nonzero"
+                    and startup["startup_phase_hint"] in {"lifespan", "import"}
+                    and not startup["application_startup_reported"]
+                    and not set(startup["output_hints"]) - {"syntax-error"}
+                    and startup["exception_type"]
+                    not in {
+                        "PermissionError",
+                        "OSError",
+                        "FileNotFoundError",
+                        "MemoryError",
+                    }
+                ):
+                    receipt["repairable_failure"] = "application_startup"
                 if target["role"] == "frontend":
                     from workbench.capability_startup_paths import node_failure_facts
 
@@ -1009,6 +1048,11 @@ def _verify(
         diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if checkpoint is not None and isinstance(exc, BusinessCheckFailure):
+            receipt["repairable_failure"] = "business_assertion"
+        if checkpoint is not None and isinstance(exc, BrowserFailure):
+            if exc.diagnostic.get("phase") == "assertion":
+                receipt["repairable_failure"] = "business_assertion"
         if native:
             from scripts.capability_native_shm_probe import native_shm_cleanup_diagnostic
 
@@ -1017,12 +1061,24 @@ def _verify(
                 receipt["native_shm_cleanup_diagnostic"] = cleanup_diagnostic
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
+    except CheckpointExpired as exc:
+        diagnostic_error = exc
+        receipt.update(kind="checkpoint_timeout", error="模块检查时间预算耗尽")
+        receipt.pop("repairable_failure", None)
     except Exception as exc:
         diagnostic_error = exc
         receipt["error"] = (
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
     finally:
+        if checkpoint is not None:
+            import signal
+
+            # Work ended (normally or by its soft alarm). Cleanup owns the
+            # remaining original window; the work alarm must not interrupt it early.
+            signal.setitimer(
+                signal.ITIMER_REAL, max(0.001, checkpoint["deadline"] - time.monotonic())
+            )
         if oracle_adapter is not None:
             try:
                 oracle_adapter.close()
@@ -1063,6 +1119,37 @@ def main():
 
 
 def _execute_payload(payload):
+    checkpoint = payload.get("checkpoint")
+    if checkpoint is None:
+        return _execute_payload_inner(payload)
+    # Dedicated verifier subprocess only: the alarm cannot affect a server thread.
+    import math
+    import signal
+
+    deadline = checkpoint.get("deadline")
+    if (
+        not hasattr(signal, "setitimer")
+        or type(deadline) not in (int, float)
+        or not math.isfinite(deadline)
+        or not 10 < deadline - time.monotonic() <= 180
+    ):
+        raise ValueError("模块检查需要受限Linux截止时间及清理余量")
+
+    def expired(signum, frame):
+        # First alarm interrupts work; the remaining ten seconds belong to cleanup.
+        signal.setitimer(signal.ITIMER_REAL, max(0.001, deadline - time.monotonic()))
+        raise CheckpointExpired("模块检查时间预算耗尽")
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, deadline - time.monotonic() - 10)
+    try:
+        return _execute_payload_inner(payload)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def _execute_payload_inner(payload):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
@@ -1101,6 +1188,7 @@ def _execute_payload(payload):
             ),
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
+            checkpoint=payload.get("checkpoint"),
         )
     finally:
         close_client(client)

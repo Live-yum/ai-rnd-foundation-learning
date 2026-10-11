@@ -2,6 +2,7 @@
 
 import ast
 import copy
+import inspect
 import json
 import os
 import shlex
@@ -13,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from workbench import capability_sandbox
 from workbench import capability_startup_paths as diagnostic
 
 
@@ -474,6 +476,11 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
         },
         "native": native,
         "CheckFailure": CheckFailure,
+        "checkpoint": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint"]
+        .default,
+        "BusinessCheckFailure": capability_sandbox.BusinessCheckFailure,
+        "CheckpointExpired": capability_sandbox.CheckpointExpired,
     }
     exec(compile(ast.Module([start], []), "actual-start-function", "exec"), scope)
     with pytest.raises(CheckFailure, match="健康检查"):
@@ -857,6 +864,11 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "FRONTEND_PORT": FRONTEND_PORT,
         "frontend_start_command": frontend_start_command,
         "CheckFailure": CheckFailure,
+        "checkpoint": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint"]
+        .default,
+        "BusinessCheckFailure": capability_sandbox.BusinessCheckFailure,
+        "CheckpointExpired": capability_sandbox.CheckpointExpired,
         "closing": closing,
         "oracle_adapter": None,
         "client": SimpleNamespace(

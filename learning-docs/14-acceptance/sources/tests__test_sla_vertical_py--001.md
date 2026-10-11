@@ -10,27 +10,27 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.sla_fixture`、`workbench.coding.candidates`、`workbench.coding.mini_swe`、`workbench.coding.ports`、`workbench.filesystem`、`workbench.generator`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.sla_fixture`、`workbench.coding.candidates`、`workbench.coding.mini_swe`、`workbench.coding.ports`、`workbench.core.contracts`、`workbench.filesystem`、`workbench.generator`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `fixture_product`（L19–L84）：接收`settings`、`tmp_path`。 控制顺序：L28遍历`enumerate(selected.implementation.tasks, 1)`；L82断言`manifest(base) == frozen`；L83断言`(product / "web/index.html").read_bytes() == (base / "web/index.html").read_bytes()`。 调用`design`、`generate_basic`、`selected.outline.selection.model_dump`、`manifest`、`settings.model_copy`、`enumerate`、`run_agent`、`Gateway`、`apply_candidate`等。 返回路径：L84的`product`。
-- `fixture_product.Gateway`（L30–L53）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `fixture_product.Gateway.complete`（L33–L53）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L35按`self.calls == 2`分支。 调用`AgentTurn`、`authored_files`、`AgentTurn.model_validate`。 返回路径：L36的`AgentTurn(operation="submit")`；L38的`AgentTurn.model_validate( { "operation": "edit", "edits": { "explanation": "audited author…`。
-- `fixture_product.Environment`（L55–L62）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `fixture_product.Environment.write`（L58–L59）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `fixture_product.Environment.snapshot`（L61–L62）：接收`paths`。 返回路径：L62的`self.contents`。
-- `fixture_product.environment`（L65–L66）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_authored_sla_worker_zip_api_restart`（L87–L164）：接收`settings`、`tmp_path`。 控制顺序：L88按`not worker_python().exists()`分支；L89断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L95断言`client.get("/").status_code == 200`；L99断言`registered.status_code == 201`；L102断言`client.post("/api/customers", headers=headers, json={"name": "客户A"}).status_code == 2…`；L106遍历`[ ("逾期紧急", "2000-01-01T00:00:00Z", "open", "urgent"), ("已解决", "20…`；L122断言`result.status_code == 201`；L123断言`client.get("/sla/summary", headers=headers).json() == { "overdue": 1, "urgent_overdue…`。后续分支沿下方源码相同行号继续阅读。 调用`worker_python().exists`、`worker_python`、`os.environ.get`、`pytest.skip`、`fixture_product`、`extract_consumer`、`free_port`、`running_consumer`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture_product`（L20–L85）：接收`settings`、`tmp_path`。 控制顺序：L29遍历`enumerate(selected.implementation.tasks, 1)`；L83断言`manifest(base) == frozen`；L84断言`(product / "web/index.html").read_bytes() == (base / "web/index.html").read_bytes()`。 调用`design`、`generate_basic`、`selected.outline.selection.model_dump`、`manifest`、`settings.model_copy`、`enumerate`、`run_agent`、`Gateway`、`apply_candidate`等。 返回路径：L85的`product`。
+- `fixture_product.Gateway`（L31–L54）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fixture_product.Gateway.complete`（L34–L54）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L36按`self.calls == 2`分支。 调用`AgentTurn`、`authored_files`、`AgentTurn.model_validate`。 返回路径：L37的`AgentTurn(operation="submit")`；L39的`AgentTurn.model_validate( { "operation": "edit", "edits": { "explanation": "audited author…`。
+- `fixture_product.Environment`（L56–L63）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fixture_product.Environment.write`（L59–L60）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture_product.Environment.snapshot`（L62–L63）：接收`paths`。 返回路径：L63的`self.contents`。
+- `fixture_product.environment`（L66–L67）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_authored_sla_worker_zip_api_restart`（L88–L170）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L94按`not worker_python().exists()`分支；L95断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L101断言`client.get("/").status_code == 200`；L105断言`registered.status_code == 201`；L108断言`client.post("/api/customers", headers=headers, json={"name": "客户A"}).status_code == 2…`；L112遍历`[ ("逾期紧急", "2000-01-01T00:00:00Z", "open", "urgent"), ("已解决", "20…`；L128断言`result.status_code == 201`；L129断言`client.get("/sla/summary", headers=headers).json() == { "overdue": 1, "urgent_overdue…`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`digest`、`manifest`、`worker_python().exists`、`worker_python`、`os.environ.get`、`pytest.skip`、`fixture_product`、`extract_consumer`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_sla_vertical.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L164。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_sla_vertical.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L170。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6810`。本段原文以LF换行结束。
+本段原始字节数：`7120`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_sla_vertical.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ec9924fbb807df21fa31d3fd9b7542ef1e682e7bd073db1ac1f12694923829bc"} -->
+<!-- learning-source: {"path": "tests/test_sla_vertical.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "44aafa2c4e56f12290fedfb80bb731d8a0d7aa080f59dc9521c14a01cc810ecd"} -->
 ````python
 # tests/test_sla_vertical.py
 """Authored module fixture with real Worker/API/ZIP/restart; no live-model claim."""
@@ -47,6 +47,7 @@ from scripts.sla_fixture import authored_files, design
 from workbench.coding.candidates import apply_candidate
 from workbench.coding.mini_swe import run_agent, worker_python
 from workbench.coding.ports import AgentTurn
+from workbench.core.contracts import digest
 from workbench.filesystem import manifest
 from workbench.generator import generate_basic
 
@@ -119,7 +120,12 @@ def fixture_product(settings, tmp_path):
     return product
 
 
-def test_authored_sla_worker_zip_api_restart(settings, tmp_path):
+def test_authored_sla_worker_zip_api_restart(settings, tmp_path, monkeypatch):
+    # Authored local fixture only; real checkpoint isolation is not asserted here.
+    monkeypatch.setattr(
+        "workbench.coding.mini_swe.check_candidate",
+        lambda s, t, p, c, d: {"passed": True, "source_digest": digest(manifest(c))},
+    )
     if not worker_python().exists():
         assert not os.environ.get("RND_REQUIRE_V2_TOOLS"), "mandatory Worker missing"
         pytest.skip("locked optional mini-SWE worker not installed")

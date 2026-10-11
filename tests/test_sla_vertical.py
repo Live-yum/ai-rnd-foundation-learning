@@ -12,6 +12,7 @@ from scripts.sla_fixture import authored_files, design
 from workbench.coding.candidates import apply_candidate
 from workbench.coding.mini_swe import run_agent, worker_python
 from workbench.coding.ports import AgentTurn
+from workbench.core.contracts import digest
 from workbench.filesystem import manifest
 from workbench.generator import generate_basic
 
@@ -84,7 +85,12 @@ def fixture_product(settings, tmp_path):
     return product
 
 
-def test_authored_sla_worker_zip_api_restart(settings, tmp_path):
+def test_authored_sla_worker_zip_api_restart(settings, tmp_path, monkeypatch):
+    # Authored local fixture only; real checkpoint isolation is not asserted here.
+    monkeypatch.setattr(
+        "workbench.coding.mini_swe.check_candidate",
+        lambda s, t, p, c, d: {"passed": True, "source_digest": digest(manifest(c))},
+    )
     if not worker_python().exists():
         assert not os.environ.get("RND_REQUIRE_V2_TOOLS"), "mandatory Worker missing"
         pytest.skip("locked optional mini-SWE worker not installed")

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L317。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L335。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`57568`。本段原文以LF换行结束。
+本段原始字节数：`62980`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6b0a29d37c86b92fa8ce6dfc711afb08e8267459cba014385d25afe58a9b9e4a"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b5262352a622a83f795f25cfdee95bc5d83579cc224a736a72c9f509f4d6aa92"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -334,4 +334,22 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 回归覆盖真实JSON解析诊断到摘要的语法、额外内容、多余括号、重复键、非有限数字路径，范围边界/巨整数/布尔等污染负例及其他失败代码不附带JSON诊断。原普通HTTP/SSE两次尝试集成断言扩展为精确新字段，保留请求不变、JSON mode、调用数和严格失败/成功判定。此次只有诊断投影；请求、schema、批准文件集合、重试次数、时间及费用预算没有变化。本地PG生命周期诊断一并保留，未推送或发起新实测。
 
 验证：相关JSON诊断、HTTP/SSE、预算保护、PG内存诊断及原主回执回归361项通过；完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1，2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过。Ruff、diff及两套生成文档一致性检查通过。普通矩阵38154312075尚未终态时不报告发布封定SHA，不自行推送或派发。
+
+### mini-SWE submit检查点与同会话有界修复（仅本地）
+
+e45f普通CI最终10/10成功。父线程核验第17轮真实38159272888/artifact11710751147：3次预留/3次HTTP尝试/2次响应，仅一次read_timeout；最终节点健康验收失败，backend exit3、lifespan提示、HTTP502、未报告启动完成、exception_hint=other、output_hints为空，checks=0、restart=false、cleanup=deleted，无双模块ZIP。该轮没有JSON失败证据，不沿用旧JSON或PermissionError归因。候选按既定清理删除，不能恢复或猜测源码。消费者合同要求应用初始化新库，基线lifespan查询users；这是明确合同提示的依据，不是本轮遗漏初始化的根因证明。
+
+确认并修复的功能缺口：手动SLA流程此前在run_agent结束后才独立验收，失败直接由ledger拒绝；worker编辑只收到pending，submit立即退出，失败不返回agent。现保留原edit/submit schema，将submit作为平台检查点：对平台当前候选调用原独立隔离验证器，业务失败返回submitted=false，平台把有限verification_feedback加入下一次模型请求；worker消息历史不能覆盖请求、反馈或权限。成功才结束worker，但agent-result仍implementation_verified=false；原节点独立验证/ledger晋升，以及ZIP新目录冷启、重启、HTTP/浏览器/物理数据库oracle均保留，内部通过不能替代最终验收。
+
+只允许受信任验证器明确标记的application_startup或business_assertion反馈。启动分类要求实际非零退出、import/lifespan阶段、未报告完成且没有权限/资源/依赖等基础设施提示；HTTP断言仅在有界传输完成后由专用BusinessCheckFailure标记，浏览器仅assertion阶段可标记。传输、隔离、环境、检查超时、清理或预算错误直接停止。反馈仅含固定类别、批准场景ID、候选摘要及重新过滤的既有安全启动字段；不发送原始异常、输出、路径或指令，不授予shell、文件、依赖或验收器权限。
+
+检查使用一次性nonce、完整任务摘要、源码摘要、计划摘要和node范围绑定；清理必须deleted，实际容器与执行隔离守卫仍执行。内部成功还必须通过原require_evidence全部条件。worker动作必须与平台刚返回的模型动作完全一致；每次编辑前像以当前候选为准，重复提交未改变的失败候选被拒绝。提交后的沙箱快照须与已检查的完整候选对应，不能替换或串模块。最终返回的edits仍相对原始已验证前驱生成。原预算日志已存在时拒绝重建会话，生产dispatcher最终节点/汇总否决也不能通过外层修复路由重新分配mini-SWE预算。
+
+步骤/请求/token/费用上限未增加：每模块最多8步、2M token、180秒，全局32次模型HTTP请求；一次模型轮次仍预留两次网关尝试。真实40000字符上下文的保守token预留可能早于8步耗尽，这是原有更严格边界。模型、内部检查及清理共享同一模块时间窗，不重新设定deadline。预留15秒用于worker和文件沙箱收尾，检查子进程在自己的剩余窗内再保留10秒清理；专用Linux计时器中断工作时使用独立BaseException，避免被普通诊断/SDK异常处理吞掉，原finally仍负责删除。截止或删除未确认不返回可修复反馈。文件SDK超时按剩余时间向下取整数，保留0.190下载方法的整数位置参数重载。若既有SDK操作超时越界，仍进行一次最多1秒的紧急删除尝试，超出180秒的结果一律拒绝，不能以此取得额外工作/修复机会。agent-result仅在文件沙箱清理完成且总耗时未超限后写入，记录检查次数、已检查源码摘要及总耗时。
+
+明确边界：内部检查复用完整节点验证，会消耗真实隔离准备、健康及业务检查时间。本轮没有派发或进行新的真实计时，不能承诺180秒必有第二次修复机会，也没有证据据此申请更大预算；时间不足时保留失败。专用计时器路径要求支持POSIX setitimer的控制端，缺失时失败，不静默使用不受限替代。用户第二次环境断开通知后已在原workspace实际验证读写和Python执行恢复，未换环境绕过限制。
+
+离线证据：新增真实锁定Python3.12 worker闭环用例覆盖失败→安全反馈→同候选修复→内部通过、持续失败耗尽、重复提交、快照漂移、越界/前像冲突、陈旧/串模块回执、伪造通过及反馈污染；同时覆盖检查/清理耗时计入模块期限、真实计时器中断、原验证器超时处理与删除失败、SDK整数重载及最终ledger/dispatcher否决。新用例加入已有Ubuntu production-v2普通CI，不新增workflow或手动dispatch。相关回归893项通过，包括原真实Worker/API/ZIP/重启的人工夹具；这不是新真实模型验收或真实隔离证明。
+
+最终完整55文件工作流集合保留RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF=1：2542通过、5个既有本地Landlock返回78失败、13个工具树/Vite或数据库条件跳过；未降低强制条件。最后清理计时路径及相关启动回归175项通过，并再次完成893项相关集合。Ruff、diff、完整手册及775份教材一致性检查通过。本轮不推送、不派发真实测试；待父线程评审后决定发布。
 ````

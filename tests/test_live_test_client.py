@@ -154,7 +154,7 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
         }
     )
     monkeypatch.setattr(mini_swe, "worker_python", lambda: live.ROOT / "pyproject.toml")
-    monkeypatch.setattr(mini_swe, "_run", lambda *args: "offline-authority-checked")
+    monkeypatch.setattr(mini_swe, "_run", lambda *args: ("offline-authority-checked", {}))
     plan = design().implementation
 
     def invoke():

@@ -26,7 +26,7 @@
 - `test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames`（L131–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134抛异常，停止当前正常路径；L137断言`diagnostic == {"exception_type": "other", "stage": "other"}`。 调用`type("private-provider-content", (Exception,), {})`、`type`、`live.failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_retains_only_bounded_inspector_facts`（L140–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149断言`diagnostic["container"] == { "container_rejection": "container_policy", "network_mode…`；L153断言`"private" not in json.dumps(diagnostic)`。 调用`ContainerInspectionRejected`、`live.failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_worker_and_live_context_reach_offline_transport`（L157–L203）：接收`tmp_path`、`monkeypatch`、`receipt_read_fails`。 源码说明：Exercise pre-call orchestration; this supplies no real sandbox/model evidence.。 控制顺序：L169按`not worker_python().is_file()`分支；L191按`receipt_read_fails`分支；L201断言`seen == ["/v1/chat/completions"]`；L202断言`progress["model_call_reservations"] == 1`；L203断言`progress["model_failure_receipts"] == (None if receipt_read_fails else [])`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`OfflineTransport`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_and_live_context_reach_offline_transport.offline_environment`（L173–L174）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_real_worker_and_live_context_reach_offline_transport.offline_environment`（L173–L174）：接收`*args`、`**kwargs`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `test_real_worker_and_live_context_reach_offline_transport.stop`（L183–L185）：接收`request`。 控制顺序：L185抛异常，停止当前正常路径。 调用`seen.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_worker_and_live_context_reach_offline_transport.OfflineTransport`（L187–L189）：继承`httpx.MockTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_real_worker_and_live_context_reach_offline_transport.unavailable`（L194–L195）：接收`*args`。 控制顺序：L195抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -55,9 +55,9 @@
 
 **创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L589。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23108`。本段原文以LF换行结束。
+本段原始字节数：`23118`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ebd850887f305fe7588d8e08461c52227ed2e4fb2b2f1db1e07d11ec3d85139"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f3b8c20fba2632edb361b5718deed603518caa89b93ce994eda81b777520bf9b"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -232,7 +232,7 @@ def test_real_worker_and_live_context_reach_offline_transport(
         pytest.skip("optional locked Python3.12 worker not installed")
 
     @contextmanager
-    def offline_environment(*args):
+    def offline_environment(*args, **kwargs):
         yield None  # Stop at the first transport call, before any edits.
 
     monkeypatch.setattr(admission, "capability_execution_prerequisites", lambda *a: None)

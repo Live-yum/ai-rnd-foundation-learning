@@ -32,9 +32,9 @@
 
 **创建路径：** `tests/test_live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L176。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5835`。本段原文以LF换行结束。
+本段原始字节数：`5841`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d00b6c679b99ff1d4d3544529b5e6f516cfeb6021a5de0578bc41fc738f4839b"} -->
+<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a0228bb01bd5dbdf5677a4bd5704b9fa6c8afb191f047d4976ac5a3060fdfd04"} -->
 ````python
 # tests/test_live_test_client.py
 """Offline trust scope, no-charge attestation and bounded client contracts."""
@@ -193,7 +193,7 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
         }
     )
     monkeypatch.setattr(mini_swe, "worker_python", lambda: live.ROOT / "pyproject.toml")
-    monkeypatch.setattr(mini_swe, "_run", lambda *args: "offline-authority-checked")
+    monkeypatch.setattr(mini_swe, "_run", lambda *args: ("offline-authority-checked", {}))
     plan = design().implementation
 
     def invoke():

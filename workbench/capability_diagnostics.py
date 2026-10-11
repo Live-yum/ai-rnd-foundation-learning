@@ -18,6 +18,8 @@ STAGES = {
 ERRORS = frozenset(
     {
         "CheckFailure",
+        "BusinessCheckFailure",
+        "CheckpointExpired",
         "BrowserFailure",
         "PrerequisiteError",
         "IsolationUnavailable",

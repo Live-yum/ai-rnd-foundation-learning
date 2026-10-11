@@ -737,6 +737,9 @@ class ExtensionWorkflow:
         if state.get("extension_candidate_passed"):
             design = ExtensionDesign.model_validate(state["extension_design"])
             return "extension_code" if self.extension_task(state, design) else "extension_aggregate"
+        design = self.checked_extension(state)
+        if getattr(self.extension_task(state, design), "executor", None) == "mini_swe":
+            raise UnsupportedScope("最终独立节点验收否决；不重启mini-SWE预算")
         if state.get("extension_attempt", 0) < self.settings.max_repair_attempts:
             return "extension_repair"
         raise UnsupportedScope(
@@ -803,6 +806,11 @@ class ExtensionWorkflow:
     def extension_after_aggregate(self, state):
         if state.get("extension_aggregate_passed"):
             return "extension_review"
+        design = self.checked_extension(state)
+        if any(
+            getattr(task, "executor", None) == "mini_swe" for task in design.implementation.tasks
+        ):
+            raise UnsupportedScope("最终独立汇总验收否决；不重启mini-SWE预算")
         if state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts:
             return "extension_integration_repair"
         raise UnsupportedScope(

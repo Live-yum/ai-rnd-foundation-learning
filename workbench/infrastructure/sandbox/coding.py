@@ -4,6 +4,7 @@ No agent command is executed, even inside the container. Generated code is run
 later exclusively by the independent capability verifier.
 """
 
+import time
 import uuid
 from contextlib import contextmanager
 
@@ -21,16 +22,29 @@ REMOTE = "/tmp/rnd-agent-business"
 
 
 class DaytonaFiles:
-    def __init__(self, sandbox, task, timeout):
+    def __init__(self, sandbox, task, timeout, deadline=None):
         self.sandbox, self.task, self.timeout = sandbox, task, timeout
+        self.deadline = deadline
+
+    def remaining(self):
+        remaining = (
+            self.timeout
+            if self.deadline is None
+            else min(self.timeout, self.deadline - time.monotonic())
+        )
+        remaining = int(remaining)
+        if remaining <= 0:
+            raise UnsupportedScope("Agent filesystem deadline exhausted")
+        return remaining
 
     def write(self, edits):
         if {edit.path for edit in edits.files} != set(self.task.allowed_paths):
             raise ValueError("Agent files differ from approved paths")
         for edit in edits.files:
+            self.remaining()
             remote = REMOTE + "/" + edit.path
             self.sandbox.fs.create_folder(remote.rsplit("/", 1)[0], "700")
-            self.sandbox.fs.upload_file(edit.content.encode(), remote, timeout=self.timeout)
+            self.sandbox.fs.upload_file(edit.content.encode(), remote, timeout=self.remaining())
 
     def snapshot(self, paths):
         if paths != self.task.allowed_paths:
@@ -39,7 +53,7 @@ class DaytonaFiles:
         for name in paths:
             # SDK 0.190.0 overloads advertise timeout=, but its implementation
             # accepts only positional arguments. Keep empty-file support too.
-            content = self.sandbox.fs.download_file(REMOTE + "/" + name, self.timeout)
+            content = self.sandbox.fs.download_file(REMOTE + "/" + name, self.remaining())
             if not isinstance(content, bytes) or len(content) > 100000:
                 raise ValueError("sandbox file exceeds source budget")
             result[name] = content.decode("utf-8")
@@ -47,8 +61,9 @@ class DaytonaFiles:
 
 
 @contextmanager
-def coding_environment(settings, task, selection, product):
+def coding_environment(settings, task, selection, product, *, deadline=None):
     from scripts.daytona_capability_profile import inspect_created_sandbox
+    from workbench.daytona_sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
 
     if task_path_errors(task, selection):
@@ -56,6 +71,24 @@ def coding_environment(settings, task, selection, product):
     directory, profile = capability_execution_prerequisites(settings, selection)
     client = client_for(settings)
     sandbox = None
+    token = _DEADLINE.set(None if deadline is None else deadline - 15)
+
+    def remaining(cleanup=False):
+        end = deadline if cleanup or deadline is None else deadline - 15
+        available = (
+            settings.tool_timeout
+            if end is None
+            else min(settings.tool_timeout, end - time.monotonic())
+        )
+        available = int(available)
+        if available <= 0:
+            if cleanup:
+                # Never skip owned cleanup when an SDK call overruns. The caller
+                # rejects any result after the module deadline, even if deletion succeeds.
+                return 1
+            raise UnsupportedScope("Agent sandbox deadline exhausted")
+        return available
+
     try:
         # The admitted Runner selects strict network/resource limits by this
         # existing source prefix, shared with the independent verifier.
@@ -64,8 +97,9 @@ def coding_environment(settings, task, selection, product):
             params_for(
                 settings, prefix + "agent-" + uuid.uuid4().hex, selection["template"], selection
             ),
-            timeout=settings.tool_timeout,
+            timeout=remaining(),
         )
+        remaining()
         sandbox.refresh_data()
         if sandbox.network_block_all is not True or sandbox.public is not False:
             raise UnsupportedScope("Agent sandbox is not private and network-blocked")
@@ -76,7 +110,9 @@ def coding_environment(settings, task, selection, product):
             sandbox.id,
         )
         require_profile_container_binding(profile, evidence)
-        env = DaytonaFiles(sandbox, task, settings.tool_timeout)
+        env = DaytonaFiles(
+            sandbox, task, settings.tool_timeout, None if deadline is None else deadline - 15
+        )
         env.write(
             CapabilityEdits(
                 explanation="Approved before-images",
@@ -94,7 +130,8 @@ def coding_environment(settings, task, selection, product):
         yield env
     finally:
         try:
+            _DEADLINE.reset(token)
             if sandbox is not None:
-                client.delete(sandbox, timeout=settings.tool_timeout)
+                client.delete(sandbox, timeout=remaining(cleanup=True))
         finally:
             close_client(client)

@@ -15,14 +15,14 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ExtensionWorkflow.extension_scope_data`（L860–L910）：接收`state`、`design`。 控制顺序：L864按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L890的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
-- `ExtensionWorkflow.extension_scope`（L912–L922）：接收`state`。 控制顺序：L920按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L922的`result`。
-- `ExtensionWorkflow.extension_package`（L924–L1009）：接收`state`。 控制顺序：L942按`scope["requires_explicit_review"]`分支；L950遍历`files(product)`；L952按`"RND-DELIVERY.json" in listing`分支；L953抛异常，停止当前正常路径；L959按`{ name: value for name, value in clean_listing.items() if name != "RND-DELIVERY.json"…`分支；L962抛异常，停止当前正常路径；L982按`plan.selection.template == "python-basic"`分支。 调用`self.checked_extension`、`Path`、`manifest`、`require_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`self.extension_scope_data`、`self.store.explicit_approval`等。 返回路径：L987的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
-- `ExtensionWorkflow.extension_delivery`（L1011–L1027）：接收`state`。 控制顺序：L1020按`sha(archive) != result["sha256"]`分支；L1021抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1027的`decision`。
+- `ExtensionWorkflow.extension_scope_data`（L868–L918）：接收`state`、`design`。 控制顺序：L872按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L898的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
+- `ExtensionWorkflow.extension_scope`（L920–L930）：接收`state`。 控制顺序：L928按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L930的`result`。
+- `ExtensionWorkflow.extension_package`（L932–L1017）：接收`state`。 控制顺序：L950按`scope["requires_explicit_review"]`分支；L958遍历`files(product)`；L960按`"RND-DELIVERY.json" in listing`分支；L961抛异常，停止当前正常路径；L967按`{ name: value for name, value in clean_listing.items() if name != "RND-DELIVERY.json"…`分支；L970抛异常，停止当前正常路径；L990按`plan.selection.template == "python-basic"`分支。 调用`self.checked_extension`、`Path`、`manifest`、`require_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`self.extension_scope_data`、`self.store.explicit_approval`等。 返回路径：L995的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
+- `ExtensionWorkflow.extension_delivery`（L1019–L1035）：接收`state`。 控制顺序：L1028按`sha(archive) != result["sha256"]`分支；L1029抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1035的`decision`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L860–L1027。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L868–L1035。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
 本段原始字节数：`7939`。本段原文以LF换行结束。
 

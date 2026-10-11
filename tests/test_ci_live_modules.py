@@ -170,7 +170,7 @@ def test_real_worker_and_live_context_reach_offline_transport(
         pytest.skip("optional locked Python3.12 worker not installed")
 
     @contextmanager
-    def offline_environment(*args):
+    def offline_environment(*args, **kwargs):
         yield None  # Stop at the first transport call, before any edits.
 
     monkeypatch.setattr(admission, "capability_execution_prerequisites", lambda *a: None)

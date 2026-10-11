@@ -12,7 +12,9 @@ from scripts.capability_fixture import fixture_baseline, make_plan
 from workbench.coding.diff_guard import snapshot_edits
 from workbench.coding.mini_swe import run_agent, worker_python
 from workbench.coding.ports import AgentTurn
+from workbench.core.contracts import digest
 from workbench.feature_planning import FeatureDesign, FeatureOutline
+from workbench.filesystem import manifest
 from workbench.planning.contracts import CapabilityTaskV2
 from workbench.planning.versioning import compile_v2, version_for_run
 from workbench.specifications.artifact_writer import initialize_workspace, write_artifacts
@@ -159,7 +161,11 @@ def test_agent_snapshot_guards_preimage_and_file_scope(tmp_path):
         )
 
 
-def test_real_python312_worker_mock_model_and_environment(settings, tmp_path):
+def test_real_python312_worker_mock_model_and_environment(settings, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "workbench.coding.mini_swe.check_candidate",
+        lambda s, t, p, c, d: {"passed": True, "source_digest": digest(manifest(c))},
+    )
     if not worker_python().exists():
         assert not os.environ.get("RND_REQUIRE_V2_TOOLS"), "mandatory Worker missing"
         pytest.skip("optional locked Python3.12 worker not installed")
@@ -398,7 +404,13 @@ def test_real_gateway_requires_an_explicit_output_token_limit(settings, tmp_path
 @pytest.mark.parametrize(
     "original", [b"# preserved\n", b"# preserved\r\n", b"# first\r\n# second\n"]
 )
-def test_real_worker_echo_preserves_context_and_candidate_bytes(settings, tmp_path, original):
+def test_real_worker_echo_preserves_context_and_candidate_bytes(
+    settings, tmp_path, original, monkeypatch
+):
+    monkeypatch.setattr(
+        "workbench.coding.mini_swe.check_candidate",
+        lambda s, t, p, c, d: {"passed": True, "source_digest": digest(manifest(c))},
+    )
     from workbench.coding.candidates import apply_candidate
     from workbench.filesystem import sha
 

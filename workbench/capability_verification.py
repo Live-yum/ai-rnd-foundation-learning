@@ -28,6 +28,10 @@ class CheckFailure(ValueError):
     pass
 
 
+class BusinessCheckFailure(CheckFailure):
+    """An approved HTTP assertion failed, after bounded transport completed."""
+
+
 class BrowserFailure(CheckFailure):
     """Only bounded, allowlisted diagnostics cross the browser process boundary."""
 
@@ -424,21 +428,23 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
         except httpx.HTTPError:
             raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
         if status != step.status:
-            raise CheckFailure(f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}")
+            raise BusinessCheckFailure(
+                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"
+            )
         body = None
         if step.equals or step.absent or step.captures:
             try:
                 body = json.loads(raw)
             except ValueError, UnicodeError, RecursionError:
-                raise CheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
+                raise BusinessCheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
         for pointer, expected in step.equals.items():
             actual = values_at(body, pointer)
             if not actual or any(
                 not json_equal(v, interpolate(expected, variables)) for v in actual
             ):
-                raise CheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
+                raise BusinessCheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
         if any(values_at(body, pointer) for pointer in step.absent):
-            raise CheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
+            raise BusinessCheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
         for name, pointer in step.captures.items():
             found = values_at(body, pointer)
             if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):

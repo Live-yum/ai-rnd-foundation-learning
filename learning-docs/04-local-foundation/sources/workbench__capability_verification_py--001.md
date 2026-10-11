@@ -16,36 +16,37 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `CheckFailure`（L27–L28）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BrowserFailure`（L31–L36）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BrowserFailure.__init__`（L34–L36）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `valid_browser_launch_detail`（L92–L111）：接收`detail`。 调用`detail.get`、`isinstance`、`set`、`all`、`type`。 返回路径：L95的`isinstance(facts, dict) and set(facts) == BROWSER_SECURITY_FLAGS \| {"seccomp_mode", "appa…`。
-- `browser_report`（L114–L174）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L116按`len(raw) > 100000`分支；L122按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L128按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L131按`value.get("passed") is True`分支；L132按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L136按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`valid_browser_launch_detail`、`any`。 返回路径：L117的`None, "report-too-large"`；L121的`None, "invalid-json"`；L127的`None, "invalid-schema"`。
-- `preview_url`（L177–L190）：接收`value`、`sandbox_id`、`port`。 控制顺序：L179按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L189抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L190的`value.rstrip("/")`。
-- `capture_scalar_size`（L198–L219）：接收`value`。 控制顺序：L199按`type(value) is str`分支；L200按`len(value) > MAX_CAPTURE_VALUE_BYTES`分支；L201抛异常，停止当前正常路径；L205抛异常，停止当前正常路径；L206按`type(value) in (int, float, bool)`分支；L207按`type(value) is float and not math.isfinite(value)`分支；L208抛异常，停止当前正常路径；L209按`type(value) is int and value.bit_length() > MAX_CAPTURE_VALUE_BYTES * 4`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`len`、`CheckFailure`、`value.encode`、`math.isfinite`、`value.bit_length`、`str`。 返回路径：L219的`size`。
-- `CaptureBudget`（L222–L257）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `CaptureBudget.__init__`（L225–L228）：接收`saved`。 控制顺序：L227遍历`saved.items()`。 调用`saved.items`、`self.add_namespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CaptureBudget.entry_size`（L231–L235）：接收`name`、`value`。 控制顺序：L232按`not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name)`分支；L233抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`CheckFailure`、`len`、`capture_scalar_size`。 返回路径：L235的`128 + len(name) + capture_scalar_size(value)`。
-- `CaptureBudget.add_namespace`（L237–L247）：接收`name`、`variables`。 控制顺序：L238按`not isinstance(name, str) or len(name) > 64 or not isinstance(variables, dict)`分支；L239抛异常，停止当前正常路径；L241遍历`variables.items()`；L243按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L244抛异常，停止当前正常路径；L245按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L246抛异常，停止当前正常路径。 调用`isinstance`、`len`、`CheckFailure`、`variables.items`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CaptureBudget.store`（L249–L257）：接收`variables`、`name`、`value`。 控制顺序：L250按`name == "nonce"`分支；L251抛异常，停止当前正常路径；L254按`self.used + cost - old > MAX_CAPTURE_STATE_BYTES`分支；L255抛异常，停止当前正常路径。 调用`CheckFailure`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `interpolate`（L260–L315）：接收`value`、`variables`、`path`。 调用`visit`。 返回路径：L315的`visit(value)`。
-- `interpolate.account`（L263–L273）：接收`text`。 控制顺序：L265按`len(text) > remaining`分支；L266抛异常，停止当前正常路径；L270抛异常，停止当前正常路径；L271按`size > remaining`分支；L272抛异常，停止当前正常路径。 调用`len`、`CheckFailure`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `interpolate.captured`（L275–L280）：接收`name`。 控制顺序：L276按`name not in variables`分支；L277抛异常，停止当前正常路径。 调用`CheckFailure`、`capture_scalar_size`。 返回路径：L280的`value`。
-- `interpolate.visit`（L282–L313）：接收`item`、`depth`。 控制顺序：L283按`depth > 32`分支；L284抛异常，停止当前正常路径；L286按`isinstance(item, list)`分支；L288按`isinstance(item, dict)`分支；L290遍历`item.items()`；L294按`not isinstance(item, str)`分支；L297按`full and not path`分支；L302遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", item)`。 调用`CheckFailure`、`account`、`isinstance`、`visit`、`item.items`、`re.fullmatch`、`captured`、`str`、`re.finditer`等。 返回路径：L287的`[visit(v, depth + 1) for v in item]`；L293的`result`；L295的`item`。
-- `values_at`（L318–L334）：接收`value`、`path`。 控制顺序：L319按`path == "$"`分支；L321按`not path.startswith("$.") or len(path) > 300`分支；L322抛异常，停止当前正常路径；L324遍历`path[2:].split(".")`；L326遍历`values`；L327按`part == "*" and isinstance(item, (dict, list))`分支；L329按`isinstance(item, dict) and part in item`分支；L331按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L320的`[value]`；L334的`values`。
-- `json_equal`（L337–L348）：接收`left`、`right`。 控制顺序：L338按`type(left) is not type(right)`分支；L340按`isinstance(left, dict)`分支；L344按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L339的`False`；L341的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L345的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
-- `http_phase_deadline`（L356–L362）：接收`steps`、`deadline`。 控制顺序：L357按`len(steps) > MAX_HTTP_PHASE_STEPS or sum(step.wait_ms for step in steps) > MAX_HTTP_P…`分支；L361抛异常，停止当前正常路径。 调用`len`、`sum`、`CheckFailure`、`time.monotonic`。 返回路径：L362的`time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline`。
-- `run_steps`（L365–L457）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L369遍历`enumerate(steps)`；L381按`started + wait >= deadline`分支；L382抛异常，停止当前正常路径；L383按`wait`分支；L386按`step.body is not None`分支；L388按`step.body_encoding == "form"`分支；L392抛异常，停止当前正常路径；L399按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L457的`receipts`。
-- `run_scenarios`（L460–L501）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L471遍历`scenarios`；L473按`scenario.id not in saved`分支；L480按`not steps`分支；L488抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L501的`checks, saved`。
-- `run_browser`（L504–L611）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L506按`not selected`分支；L509按`not node`分支；L510抛异常，停止当前正常路径；L516抛异常，停止当前正常路径；L553抛异常，停止当前正常路径；L564按`prior and prior["passed"] is False`分支；L565抛异常，停止当前正常路径；L568抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L507的`[]`；L611的`value["checks"]`。
-- `require_evidence`（L614–L735）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L633按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L636抛异常，停止当前正常路径；L637按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L643抛异常，停止当前正常路径；L655按`aggregate`分支；L662抛异常，停止当前正常路径；L667按`selection["template"] == "fastapiadmin"`分支；L669遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L735的`receipt`。
+- `BusinessCheckFailure`（L31–L32）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure`（L35–L40）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure.__init__`（L38–L40）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `valid_browser_launch_detail`（L96–L115）：接收`detail`。 调用`detail.get`、`isinstance`、`set`、`all`、`type`。 返回路径：L99的`isinstance(facts, dict) and set(facts) == BROWSER_SECURITY_FLAGS \| {"seccomp_mode", "appa…`。
+- `browser_report`（L118–L178）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L120按`len(raw) > 100000`分支；L126按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L132按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L135按`value.get("passed") is True`分支；L136按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L140按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`valid_browser_launch_detail`、`any`。 返回路径：L121的`None, "report-too-large"`；L125的`None, "invalid-json"`；L131的`None, "invalid-schema"`。
+- `preview_url`（L181–L194）：接收`value`、`sandbox_id`、`port`。 控制顺序：L183按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L193抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L194的`value.rstrip("/")`。
+- `capture_scalar_size`（L202–L223）：接收`value`。 控制顺序：L203按`type(value) is str`分支；L204按`len(value) > MAX_CAPTURE_VALUE_BYTES`分支；L205抛异常，停止当前正常路径；L209抛异常，停止当前正常路径；L210按`type(value) in (int, float, bool)`分支；L211按`type(value) is float and not math.isfinite(value)`分支；L212抛异常，停止当前正常路径；L213按`type(value) is int and value.bit_length() > MAX_CAPTURE_VALUE_BYTES * 4`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`len`、`CheckFailure`、`value.encode`、`math.isfinite`、`value.bit_length`、`str`。 返回路径：L223的`size`。
+- `CaptureBudget`（L226–L261）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CaptureBudget.__init__`（L229–L232）：接收`saved`。 控制顺序：L231遍历`saved.items()`。 调用`saved.items`、`self.add_namespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CaptureBudget.entry_size`（L235–L239）：接收`name`、`value`。 控制顺序：L236按`not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name)`分支；L237抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`CheckFailure`、`len`、`capture_scalar_size`。 返回路径：L239的`128 + len(name) + capture_scalar_size(value)`。
+- `CaptureBudget.add_namespace`（L241–L251）：接收`name`、`variables`。 控制顺序：L242按`not isinstance(name, str) or len(name) > 64 or not isinstance(variables, dict)`分支；L243抛异常，停止当前正常路径；L245遍历`variables.items()`；L247按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L248抛异常，停止当前正常路径；L249按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L250抛异常，停止当前正常路径。 调用`isinstance`、`len`、`CheckFailure`、`variables.items`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CaptureBudget.store`（L253–L261）：接收`variables`、`name`、`value`。 控制顺序：L254按`name == "nonce"`分支；L255抛异常，停止当前正常路径；L258按`self.used + cost - old > MAX_CAPTURE_STATE_BYTES`分支；L259抛异常，停止当前正常路径。 调用`CheckFailure`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `interpolate`（L264–L319）：接收`value`、`variables`、`path`。 调用`visit`。 返回路径：L319的`visit(value)`。
+- `interpolate.account`（L267–L277）：接收`text`。 控制顺序：L269按`len(text) > remaining`分支；L270抛异常，停止当前正常路径；L274抛异常，停止当前正常路径；L275按`size > remaining`分支；L276抛异常，停止当前正常路径。 调用`len`、`CheckFailure`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `interpolate.captured`（L279–L284）：接收`name`。 控制顺序：L280按`name not in variables`分支；L281抛异常，停止当前正常路径。 调用`CheckFailure`、`capture_scalar_size`。 返回路径：L284的`value`。
+- `interpolate.visit`（L286–L317）：接收`item`、`depth`。 控制顺序：L287按`depth > 32`分支；L288抛异常，停止当前正常路径；L290按`isinstance(item, list)`分支；L292按`isinstance(item, dict)`分支；L294遍历`item.items()`；L298按`not isinstance(item, str)`分支；L301按`full and not path`分支；L306遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", item)`。 调用`CheckFailure`、`account`、`isinstance`、`visit`、`item.items`、`re.fullmatch`、`captured`、`str`、`re.finditer`等。 返回路径：L291的`[visit(v, depth + 1) for v in item]`；L297的`result`；L299的`item`。
+- `values_at`（L322–L338）：接收`value`、`path`。 控制顺序：L323按`path == "$"`分支；L325按`not path.startswith("$.") or len(path) > 300`分支；L326抛异常，停止当前正常路径；L328遍历`path[2:].split(".")`；L330遍历`values`；L331按`part == "*" and isinstance(item, (dict, list))`分支；L333按`isinstance(item, dict) and part in item`分支；L335按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L324的`[value]`；L338的`values`。
+- `json_equal`（L341–L352）：接收`left`、`right`。 控制顺序：L342按`type(left) is not type(right)`分支；L344按`isinstance(left, dict)`分支；L348按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L343的`False`；L345的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L349的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
+- `http_phase_deadline`（L360–L366）：接收`steps`、`deadline`。 控制顺序：L361按`len(steps) > MAX_HTTP_PHASE_STEPS or sum(step.wait_ms for step in steps) > MAX_HTTP_P…`分支；L365抛异常，停止当前正常路径。 调用`len`、`sum`、`CheckFailure`、`time.monotonic`。 返回路径：L366的`time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline`。
+- `run_steps`（L369–L463）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L373遍历`enumerate(steps)`；L385按`started + wait >= deadline`分支；L386抛异常，停止当前正常路径；L387按`wait`分支；L390按`step.body is not None`分支；L392按`step.body_encoding == "form"`分支；L396抛异常，停止当前正常路径；L403按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L463的`receipts`。
+- `run_scenarios`（L466–L507）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L477遍历`scenarios`；L479按`scenario.id not in saved`分支；L486按`not steps`分支；L494抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L507的`checks, saved`。
+- `run_browser`（L510–L617）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L512按`not selected`分支；L515按`not node`分支；L516抛异常，停止当前正常路径；L522抛异常，停止当前正常路径；L559抛异常，停止当前正常路径；L570按`prior and prior["passed"] is False`分支；L571抛异常，停止当前正常路径；L574抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L513的`[]`；L617的`value["checks"]`。
+- `require_evidence`（L620–L741）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L639按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L642抛异常，停止当前正常路径；L643按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L649抛异常，停止当前正常路径；L661按`aggregate`分支；L668抛异常，停止当前正常路径；L673按`selection["template"] == "fastapiadmin"`分支；L675遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L741的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L735。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L741。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28869`。本段原文以LF换行结束。
+本段原始字节数：`29055`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "476f601c313894a9d9318f53de5ea92cf0e58e629693b042c05a6b676fb053b5"} -->
+<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "34c3796fd0b1e0a19902311fdfa04190c72d0c4937df7afb2bf5e494e74d75c8"} -->
 ````python
 # workbench/capability_verification.py
 """Independent HTTP checks run outside the generated application's sandbox.
@@ -76,6 +77,10 @@ from workbench.tools import clean_env, process_options, stop_process
 
 class CheckFailure(ValueError):
     pass
+
+
+class BusinessCheckFailure(CheckFailure):
+    """An approved HTTP assertion failed, after bounded transport completed."""
 
 
 class BrowserFailure(CheckFailure):
@@ -474,21 +479,23 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
         except httpx.HTTPError:
             raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
         if status != step.status:
-            raise CheckFailure(f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}")
+            raise BusinessCheckFailure(
+                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"
+            )
         body = None
         if step.equals or step.absent or step.captures:
             try:
                 body = json.loads(raw)
             except ValueError, UnicodeError, RecursionError:
-                raise CheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
+                raise BusinessCheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
         for pointer, expected in step.equals.items():
             actual = values_at(body, pointer)
             if not actual or any(
                 not json_equal(v, interpolate(expected, variables)) for v in actual
             ):
-                raise CheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
+                raise BusinessCheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
         if any(values_at(body, pointer) for pointer in step.absent):
-            raise CheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
+            raise BusinessCheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
         for name, pointer in step.captures.items():
             found = values_at(body, pointer)
             if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):
