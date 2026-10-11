@@ -124,6 +124,7 @@ def failure_diagnostic(exc):
             "ValidationError",
             "UnsupportedScope",
             "ModelFailure",
+            "PrerequisiteError",
             "IsolationUnavailable",
             "ContainerInspectionRejected",
             "CandidateFileSetError",
@@ -144,6 +145,22 @@ def failure_diagnostic(exc):
     if type(exc) is CandidateFileSetError:
         result["candidate_files"] = CandidateFileSetError.diagnostic(exc)
     return result
+
+
+def verify_with_diagnostics(verifier, product, *args, progress=None, **kwargs):
+    """Capture bounded node facts before this run's temporary directory is deleted."""
+    try:
+        return verifier(product, *args, **kwargs)
+    finally:
+        if progress is not None:
+            from workbench.capability_diagnostics import node_diagnostic
+
+            try:
+                receipts = progress.setdefault("verification_receipts", [])
+                if len(receipts) < 3:  # Two reviewed nodes and one aggregate verification.
+                    receipts.append(node_diagnostic(product, aggregate=kwargs["aggregate"]))
+            except Exception:
+                progress["verification_diagnostic_unavailable"] = True
 
 
 def require(condition, code):
@@ -354,13 +371,15 @@ def execute(settings, directory, *, transport=None, progress=None):
             )
             candidate = directory / (task.id + "-candidate")
             apply_candidate(product, edits, task, selection, candidate)
-            proof = verify_capabilities(
+            proof = verify_with_diagnostics(
+                verify_capabilities,
                 candidate,
                 plan,
                 [s for s in plan.scenarios if s.id in task.scenarios],
                 settings,
                 aggregate=False,
                 selection=selection,
+                progress=progress,
             )
             promoted = ledger.promote(candidate, task, proof, before)
             # Reopen durable state and replay promotion; this is ledger recovery only.
@@ -379,13 +398,15 @@ def execute(settings, directory, *, transport=None, progress=None):
         clean = directory / "fresh-consumer"
         unpack(archive, clean, template="python-basic")
         require(manifest(clean) == manifest(product), "zip_source_mismatch")
-        proof = verify_capabilities(
+        proof = verify_with_diagnostics(
+            verify_capabilities,
             clean,
             plan,
             plan.scenarios,
             settings,
             aggregate=True,
             selection=selection,
+            progress=progress,
         )
         require_consumer_evidence(clean, plan, proof)
         ledger.verified(clean, proof)

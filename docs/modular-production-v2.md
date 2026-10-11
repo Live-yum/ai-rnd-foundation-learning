@@ -217,3 +217,17 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 本地修复保持消费者原封不动，把可选memory_observation移至独立reports/capability-browser-memory-diagnostic.json，主成功回执恢复原8字段。诊断写入失败不覆盖原验收结果；诊断文件不是准入证据。既有artifact上传步骤仅补此文件，mini-SWE步骤另补原主回执，以便下次模型前失败也可取得证据；不改事件、scope、SHA绑定、时效、超时、调用预算或工作流安全配置。
 
 新增真实main生成器→原require_browser_acceptance串联回归，仅替代Docker/浏览器及主机运行事实，源码与镜像源码摘要仍由真实函数计算；不是实际容器证明。修复前3个成功观测分支均复现第302行拒绝；修复后正例通过，未知顶层字段（包括重新塞入memory_observation）、旧源码/运行身份、不完整检查、mocked及非布尔passed仍拒绝；OOM未证明、仍运行、启动超时等原负例仍拒绝。可选观测不可用、收尾失败、落盘失败、诊断文件修改或缺失均不改变主回执判断。相关离线221项通过；本轮只本地准备，不推送、不触发模型或三SQLite运行，等待719其余CI全部终态。
+
+### dba4ffc 独立验证子进程与节点诊断（本地准备）
+
+手动mini-SWE运行38132855481/artifact11700585899由父线程正式读取：模型预留/HTTP尝试/响应均2，model_failure_receipts为空，失败阶段independent_verification、原异常类型other、精确capability_sandbox.py第388行。官方job114450597615日志只能取得执行步骤退出1；节点回执未在artifact中，临时目录已删除。该行是子进程非零退出的统一PrerequisiteError，不能据此判断具体业务断言失败；普通CheckFailure本来会由子进程捕获并写失败回执。两次模型调用不代表模块或完整交付通过。
+
+源码核查另确认可复现的环境传递缺陷：父控制器已按reviewed策略通过浏览器准入，独立子进程的clean_env却丢弃策略选择及Actions scope字段，再校验同一回执时选择docker-default，造成身份/检查集合不一致。实际Python子进程+原浏览器消费者离线回归先复现非零退出，再验证最小修复：仅给可信验证子进程传递经原selected_policy验证的固定策略与scope字段，子进程继续运行原校验。未修改通用clean_env、策略JSON、scope规则、回执字段/时效、模型预算或独立oracle；key、GitHub token、代理与任意环境不传入子进程。错job/scenario/attempt/repository/workflow引用及SHA仍拒绝。该缺陷必须修复，但旧artifact不足以证明它是本次唯一失败原因。
+
+新增可选节点诊断独立文件，记录固定异常类别、受信源码阶段和行号；捕获普通验收失败及main/准入/清理的未捕获异常，不读取或公开子进程stdout中的原始堆栈。父控制器在临时目录删除前向summary保留最多3个verification_receipts（两个节点及aggregate），只含scope、回执存在、布尔状态、固定cleanup标签、异常分类、受信行号及检查数量。文件读取限1MB；未知、损坏、超限与过期诊断被抑制；不复制候选源码、字段路径/值、构建输出、SDK文本、提示词、URL、环境或headers。原验收回执schema不变，诊断失败不能替代原失败或产生成功。诊断模块加入现有验证器源码摘要。
+
+实际子进程失败→父进程原异常→临时目录删除→最终summary落盘已有串联回归；同时覆盖捕获的隔离拒绝、污染/超限/失效诊断、读写失败及原scope正反例。相关离线241项通过，3项主机Landlock检查因本环境内核条件跳过，不计真实容器证明。
+
+普通Python38132702803的Windows shard0/job114450143346为另一个失败：官方日志定位business-browser.cjs第14行，管理员分配后切换service-a登录，workspace在原15秒内未显示；2207通过、1失败、71跳过。页面显示工作区前等待schema和业务面板请求；日志没有这些请求状态，无法区分请求错误、同步或真实权限回归。本轮不修改UI/RBAC/超时，不以推测修复。PostgreSQL38132702844的资源证明失败仍保留：其pre_start、post_start_return、pre_post_delta均null，零增量仅是三次observed_delta，最后采样峰值不是完整退出期证据；终止来源未知，不扩大诊断或调整压力。
+
+本轮仅本地准备；等待dba4ffc剩余矩阵终态再推，不取消、不额外dispatch或重跑三SQLite，复杂场景未启用。

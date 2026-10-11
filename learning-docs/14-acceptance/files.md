@@ -118,6 +118,7 @@
 - [tests/test_capability_consumer.py](sources/tests__test_capability_consumer_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_adapter.py](sources/tests__test_capability_contest_adapter_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_integration.py](sources/tests__test_capability_contest_integration_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_diagnostics.py](sources/tests__test_capability_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_editing.py](sources/tests__test_capability_editing_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_execution_gate.py](sources/tests__test_capability_execution_gate_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_form_dispatch.py](sources/tests__test_capability_form_dispatch_py--001.md)：可重复的验收用例；1 段

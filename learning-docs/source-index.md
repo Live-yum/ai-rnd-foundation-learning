@@ -162,6 +162,7 @@
 - [tests/test_recommendation_stage_budget.py](07-orchestration/sources/tests__test_recommendation_stage_budget_py--001.md)（1 段）
 - [tests/test_workflow.py](07-orchestration/sources/tests__test_workflow_py--001.md)（1 段）
 - [workbench/aider_tool.py](07-orchestration/sources/workbench__aider_tool_py--001.md)（1 段）
+- [workbench/capability_diagnostics.py](07-orchestration/sources/workbench__capability_diagnostics_py--001.md)（1 段）
 - [workbench/capability_editing.py](07-orchestration/sources/workbench__capability_editing_py--001.md)（1 段）
 - [workbench/capability_sandbox.py](07-orchestration/sources/workbench__capability_sandbox_py--001.md)（2 段）
 - [workbench/capability_startup_paths.py](07-orchestration/sources/workbench__capability_startup_paths_py--001.md)（1 段）
@@ -642,6 +643,7 @@
 - [tests/test_capability_consumer.py](14-acceptance/sources/tests__test_capability_consumer_py--001.md)（1 段）
 - [tests/test_capability_contest_adapter.py](14-acceptance/sources/tests__test_capability_contest_adapter_py--001.md)（1 段）
 - [tests/test_capability_contest_integration.py](14-acceptance/sources/tests__test_capability_contest_integration_py--001.md)（1 段）
+- [tests/test_capability_diagnostics.py](14-acceptance/sources/tests__test_capability_diagnostics_py--001.md)（1 段）
 - [tests/test_capability_editing.py](14-acceptance/sources/tests__test_capability_editing_py--001.md)（1 段）
 - [tests/test_capability_execution_gate.py](14-acceptance/sources/tests__test_capability_execution_gate_py--001.md)（1 段）
 - [tests/test_capability_form_dispatch.py](14-acceptance/sources/tests__test_capability_form_dispatch_py--001.md)（1 段）

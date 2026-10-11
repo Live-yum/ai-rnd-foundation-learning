@@ -391,6 +391,10 @@ def test_live_container_inspection_failure_stops_before_source_upload(
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    diagnostic = json.loads((tmp_path / "receipt.json.diagnostic.json").read_text())
+    assert diagnostic["exception_type"] == "IsolationUnavailable"
+    assert diagnostic["stage"] == "verifier_controller"
+    assert "must-not-leak" not in json.dumps(diagnostic)
     assert result["isolation_diagnostic"] == {}
     assert "must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result)
 

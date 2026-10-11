@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
+from workbench.capability_diagnostics import record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,
@@ -301,6 +302,31 @@ for name in ('tcp','tcp6'):
         raise CheckFailure("应用身份仍有存活进程或旧端口未关闭，拒绝伪造重启成功")
 
 
+def verifier_policy_environment():
+    """Forward only validated policy identity to the trusted verifier child."""
+    from workbench.capability_browser_policy import selected_policy
+
+    if selected_policy() is None:
+        return {}
+    names = (
+        "CAPABILITY_BROWSER_APPROVED_POLICY",
+        "GITHUB_ACTIONS",
+        "GITHUB_REPOSITORY",
+        "GITHUB_WORKFLOW",
+        "GITHUB_RUN_ID",
+        "GITHUB_JOB",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_SHA",
+        "GITHUB_REF",
+        "GITHUB_WORKFLOW_REF",
+        "GITHUB_WORKFLOW_SHA",
+        "LIVE_SCENARIO",
+        "REVIEWED_SHA",
+    )
+    return {name: os.environ[name] for name in names if name in os.environ}
+
+
 def verify_capabilities(
     product, plan, scenarios, settings, *, aggregate, selection=None, trusted_oracle=None
 ):
@@ -329,6 +355,10 @@ def verify_capabilities(
     # Never adopt an older successful attempt if the verifier dies before
     # writing its own fresh report.
     write_json(receipt_path, {"passed": False, "cleanup": "not-started"})
+    try:
+        Path(str(receipt_path) + ".diagnostic.json").unlink(missing_ok=True)
+    except OSError:
+        pass  # A stale sidecar is also rejected by receipt modification time.
     payload = {
         "product": str(product),
         "receipt": str(receipt_path),
@@ -370,6 +400,7 @@ def verify_capabilities(
                     "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT", ""),
                     "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
                     "CAPABILITY_BROWSER_IMAGE": settings.capability_browser_image,
+                    **verifier_policy_environment(),
                 }
             ),
             **process_options(),
@@ -378,8 +409,9 @@ def verify_capabilities(
             process.communicate(
                 body, timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             stop_process(process)
+            record_failure(receipt_path, exc)
             raise PrerequisiteError(
                 "自定义隔离验证超时；已保留沙箱名称回执，请在本机确认清理后重试"
             ) from None
@@ -488,6 +520,7 @@ def _verify(
     write_json(receipt_path, receipt)
     sandbox = None
     oracle_adapter = None
+    diagnostic_error = None
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
@@ -969,9 +1002,11 @@ def _verify(
             require_obligation_evidence(plan, receipt, aggregate=True)
         receipt["passed"] = True
     except IsolationUnavailable as exc:
+        diagnostic_error = exc
         receipt.update(kind="isolation_environment", error=str(exc))
         receipt["isolation_diagnostic"] = exc.evidence
     except CheckFailure as exc:
+        diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
         if native:
@@ -983,6 +1018,7 @@ def _verify(
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
+        diagnostic_error = exc
         receipt["error"] = (
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
@@ -1009,6 +1045,8 @@ def _verify(
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)
+        if diagnostic_error is not None:
+            record_failure(receipt_path, diagnostic_error)
     return receipt
 
 
@@ -1017,6 +1055,14 @@ def main():
     if len(body) > 1_000_000:
         raise ValueError("自定义验收控制契约过大")
     payload = json.loads(body)
+    try:
+        _execute_payload(payload)
+    except Exception as exc:
+        record_failure(payload["receipt"], exc)
+        raise
+
+
+def _execute_payload(payload):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings

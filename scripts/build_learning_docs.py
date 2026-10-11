@@ -80,6 +80,7 @@ MODULE_STAGE = {
     "template_standards": 1,
     "feature_planning": 4,
     "capability_sandbox": 7,
+    "capability_diagnostics": 7,
     "capability_startup_paths": 7,
     "owned_lifecycle": 4,
     "symbols": 4,

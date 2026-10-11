@@ -39,14 +39,20 @@
 - `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L279–L282）：接收`proof`、`**kwargs`。 控制顺序：L281按`not proof["passed"]`分支；L282抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_workflow_only_exposes_key_after_preflight_and_real_security`（L308–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L312断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L318断言`preflight < security < paid`；L319断言`"API_KEY" not in job["env"]`；L320断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L321断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L322断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_model_receipts_are_bounded_and_drop_all_unapproved_fields`（L325–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344断言`live.model_failure_receipts(records) == [ {"code": "other", "attempt": None}, {"code"…`；L351断言`len(result) == live.MODEL_CALLS`；L352断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion`（L355–L402）：接收`tmp_path`、`monkeypatch`。 控制顺序：L359遍历`dispatch().items()`；L393断言`error.value.code == 1`；L394断言`all(not path.exists() for path in directories)`；L397断言`report["passed"] is report["real_model_acceptance"] is False`；L398断言`report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"`；L400断言`node["exception_type"] == "ValueError"`；L401断言`node["cleanup"] == "deleted" and node["checks_count"] == 1`；L402断言`"private" not in raw`。 调用`dispatch().items`、`dispatch`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.raises`、`live.main`、`all`、`path.exists`、`live.REPORT.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute`（L366–L388）：接收`settings`、`directory`、`progress`、`**kwargs`。 调用`directories.append`、`write_json`、`live.verify_with_diagnostics`。 返回路径：L388的`live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)`。
+- `test_node_failure_reaches_final_artifact_after_workspace_deletion.execute.reject`（L381–L386）：接收`*args`、`**kwargs`。 控制顺序：L383抛异常，停止当前正常路径；L386抛异常，停止当前正常路径。 调用`ValueError`、`record_failure`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error`（L405–L421）：接收`monkeypatch`、`tmp_path`。 控制顺序：L420断言`error.value is original`；L421断言`progress["verification_diagnostic_unavailable"] is True`。 调用`monkeypatch.setattr`、`ValueError`、`pytest.raises`、`live.verify_with_diagnostics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.unavailable`（L408–L409）：接收`*args`、`**kwargs`。 控制顺序：L409抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_diagnostic_read_failure_preserves_original_oracle_error.reject`（L414–L415）：接收`*args`、`**kwargs`。 控制顺序：L415抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L352。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L421。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14710`。本段原文以LF换行结束。
+本段原始字节数：`17373`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1850a736945ad82bc9bb7fd6692ffbd4aa199ac847a587d739bb90dd416f210a"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "93a504d28834251065d5c6228bb0e08b63160cc38f0fab6aea3b00c06433cabd"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -401,4 +407,73 @@ def test_model_receipts_are_bounded_and_drop_all_unapproved_fields():
     result = live.model_failure_receipts(records * 20)
     assert len(result) == live.MODEL_CALLS
     assert "private" not in json.dumps(result)
+
+
+def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, monkeypatch):
+    from workbench.capability_diagnostics import record_failure
+    from workbench.generator import PrerequisiteError
+
+    for key, value in dispatch().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(live, "REPORT", tmp_path / "summary.json")
+    monkeypatch.setattr("sys.argv", ["ci_live_modules"])
+    monkeypatch.setattr(live, "live_settings", lambda *a: None)
+    directories = []
+
+    def execute(settings, directory, *, progress, **kwargs):
+        directories.append(directory)
+        product = directory / "node"
+        path = directory / "node-node-verification.json"
+        write_json(
+            path,
+            {
+                "passed": False,
+                "cleanup": "deleted",
+                "checks": ["private-source"],
+                "error": "private-key-prompt",
+                "sandbox_name": "private-path",
+            },
+        )
+
+        def reject(*args, **kwargs):
+            try:
+                raise ValueError("private-headers-response")
+            except ValueError as exc:
+                record_failure(path, exc)
+                raise PrerequisiteError("private-child-message") from None
+
+        return live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)
+
+    monkeypatch.setattr(live, "execute", execute)
+    with pytest.raises(SystemExit) as error:
+        live.main()
+    assert error.value.code == 1
+    assert all(not path.exists() for path in directories)
+    raw = live.REPORT.read_text()
+    report = json.loads(raw)
+    assert report["passed"] is report["real_model_acceptance"] is False
+    assert report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"
+    node = report["verification_receipts"][0]
+    assert node["exception_type"] == "ValueError"
+    assert node["cleanup"] == "deleted" and node["checks_count"] == 1
+    assert "private" not in raw
+
+
+def test_node_diagnostic_read_failure_preserves_original_oracle_error(monkeypatch, tmp_path):
+    import workbench.capability_diagnostics as diagnostics
+
+    def unavailable(*args, **kwargs):
+        raise OSError("private-path")
+
+    monkeypatch.setattr(diagnostics, "node_diagnostic", unavailable)
+    original = ValueError("original independent rejection")
+
+    def reject(*args, **kwargs):
+        raise original
+
+    progress = {}
+    with pytest.raises(ValueError) as error:
+        live.verify_with_diagnostics(reject, tmp_path / "node", aggregate=False, progress=progress)
+    assert error.value is original
+    assert progress["verification_diagnostic_unavailable"] is True
 ````

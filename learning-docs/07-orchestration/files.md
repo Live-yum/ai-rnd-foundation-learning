@@ -10,6 +10,7 @@
 - [tests/test_recommendation_stage_budget.py](sources/tests__test_recommendation_stage_budget_py--001.md)：可重复的验收用例；1 段
 - [tests/test_workflow.py](sources/tests__test_workflow_py--001.md)：可重复的验收用例；1 段
 - [workbench/aider_tool.py](sources/workbench__aider_tool_py--001.md)：隔离的Aider命令行适配；1 段
+- [workbench/capability_diagnostics.py](sources/workbench__capability_diagnostics_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_editing.py](sources/workbench__capability_editing_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_sandbox.py](sources/workbench__capability_sandbox_py--001.md)：项目根配置或说明；2 段
 - [workbench/capability_startup_paths.py](sources/workbench__capability_startup_paths_py--001.md)：项目根配置或说明；1 段

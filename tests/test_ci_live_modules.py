@@ -350,3 +350,72 @@ def test_model_receipts_are_bounded_and_drop_all_unapproved_fields():
     result = live.model_failure_receipts(records * 20)
     assert len(result) == live.MODEL_CALLS
     assert "private" not in json.dumps(result)
+
+
+def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, monkeypatch):
+    from workbench.capability_diagnostics import record_failure
+    from workbench.generator import PrerequisiteError
+
+    for key, value in dispatch().items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(live, "REPORT", tmp_path / "summary.json")
+    monkeypatch.setattr("sys.argv", ["ci_live_modules"])
+    monkeypatch.setattr(live, "live_settings", lambda *a: None)
+    directories = []
+
+    def execute(settings, directory, *, progress, **kwargs):
+        directories.append(directory)
+        product = directory / "node"
+        path = directory / "node-node-verification.json"
+        write_json(
+            path,
+            {
+                "passed": False,
+                "cleanup": "deleted",
+                "checks": ["private-source"],
+                "error": "private-key-prompt",
+                "sandbox_name": "private-path",
+            },
+        )
+
+        def reject(*args, **kwargs):
+            try:
+                raise ValueError("private-headers-response")
+            except ValueError as exc:
+                record_failure(path, exc)
+                raise PrerequisiteError("private-child-message") from None
+
+        return live.verify_with_diagnostics(reject, product, aggregate=False, progress=progress)
+
+    monkeypatch.setattr(live, "execute", execute)
+    with pytest.raises(SystemExit) as error:
+        live.main()
+    assert error.value.code == 1
+    assert all(not path.exists() for path in directories)
+    raw = live.REPORT.read_text()
+    report = json.loads(raw)
+    assert report["passed"] is report["real_model_acceptance"] is False
+    assert report["failure_diagnostic"]["exception_type"] == "PrerequisiteError"
+    node = report["verification_receipts"][0]
+    assert node["exception_type"] == "ValueError"
+    assert node["cleanup"] == "deleted" and node["checks_count"] == 1
+    assert "private" not in raw
+
+
+def test_node_diagnostic_read_failure_preserves_original_oracle_error(monkeypatch, tmp_path):
+    import workbench.capability_diagnostics as diagnostics
+
+    def unavailable(*args, **kwargs):
+        raise OSError("private-path")
+
+    monkeypatch.setattr(diagnostics, "node_diagnostic", unavailable)
+    original = ValueError("original independent rejection")
+
+    def reject(*args, **kwargs):
+        raise original
+
+    progress = {}
+    with pytest.raises(ValueError) as error:
+        live.verify_with_diagnostics(reject, tmp_path / "node", aggregate=False, progress=progress)
+    assert error.value is original
+    assert progress["verification_diagnostic_unavailable"] is True

@@ -10,22 +10,23 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_diagnostics`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_verify`（L397–L1012）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L433按`trusted_oracle not in (None, "contest-business-v2")`分支；L434抛异常，停止当前正常路径；L435按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L438抛异常，停止当前正常路径；L441按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L445抛异常，停止当前正常路径；L446按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L451抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1012的`receipt`。
-- `_verify.start`（L604–L759）：接收`command`、`port`、`health_path`。 控制顺序：L608按`consumer and target["role"] == "backend"`分支；L612按`target["role"] == "backend"`分支；L643按`not response.cmd_id`分支；L644抛异常，停止当前正常路径；L647按`not isinstance(preview.token, str) or not preview.token`分支；L648抛异常，停止当前正常路径；L660在`time.monotonic() < deadline`成立时循环；L664按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L667的`http, url, preview.token`。
-- `main`（L1015–L1060）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1017按`len(body) > 1_000_000`分支；L1018抛异常，停止当前正常路径；L1027按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1033抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L429–L1050）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L465按`trusted_oracle not in (None, "contest-business-v2")`分支；L466抛异常，停止当前正常路径；L467按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L470抛异常，停止当前正常路径；L473按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L477抛异常，停止当前正常路径；L478按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L483抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1050的`receipt`。
+- `_verify.start`（L637–L792）：接收`command`、`port`、`health_path`。 控制顺序：L641按`consumer and target["role"] == "backend"`分支；L645按`target["role"] == "backend"`分支；L676按`not response.cmd_id`分支；L677抛异常，停止当前正常路径；L680按`not isinstance(preview.token, str) or not preview.token`分支；L681抛异常，停止当前正常路径；L693在`time.monotonic() < deadline`成立时循环；L697按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L700的`http, url, preview.token`。
+- `main`（L1053–L1062）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1055按`len(body) > 1_000_000`分支；L1056抛异常，停止当前正常路径；L1062抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_execute_payload`（L1065–L1106）：接收`payload`。 控制顺序：L1073按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1079抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L397–L1064。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L429–L1110。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30680`。本段原文以LF换行结束。
+本段原始字节数：`31068`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "902a3ded6a9133a2a50898d5669b298815b83835ac1ac568c0f99d87b6135a54"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "e0915994764b44a1808de452bf8cb27ca82ef1d16c97c3fac0a41721c59617b8"} -->
 ````python
 # workbench/capability_sandbox.py
 def _verify(
@@ -122,6 +123,7 @@ def _verify(
     write_json(receipt_path, receipt)
     sandbox = None
     oracle_adapter = None
+    diagnostic_error = None
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
@@ -603,9 +605,11 @@ def _verify(
             require_obligation_evidence(plan, receipt, aggregate=True)
         receipt["passed"] = True
     except IsolationUnavailable as exc:
+        diagnostic_error = exc
         receipt.update(kind="isolation_environment", error=str(exc))
         receipt["isolation_diagnostic"] = exc.evidence
     except CheckFailure as exc:
+        diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
         if native:
@@ -617,6 +621,7 @@ def _verify(
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
+        diagnostic_error = exc
         receipt["error"] = (
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
@@ -643,6 +648,8 @@ def _verify(
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)
+        if diagnostic_error is not None:
+            record_failure(receipt_path, diagnostic_error)
     return receipt
 
 
@@ -651,6 +658,14 @@ def main():
     if len(body) > 1_000_000:
         raise ValueError("自定义验收控制契约过大")
     payload = json.loads(body)
+    try:
+        _execute_payload(payload)
+    except Exception as exc:
+        record_failure(payload["receipt"], exc)
+        raise
+
+
+def _execute_payload(payload):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings

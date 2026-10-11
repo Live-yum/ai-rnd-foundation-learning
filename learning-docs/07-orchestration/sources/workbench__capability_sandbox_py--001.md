@@ -10,26 +10,27 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_diagnostics`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `startup_command_exit_facts`（L54–L76）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L59按`any(type(value) is not str or not 1 <= len(value) <= 128 for value in (session, comma…`分支；L66按`command.id == command_id and type(command.exit_code) is int`分支；L67按`0 <= command.exit_code <= 255`分支。 调用`any`、`type`、`len`、`_DEADLINE.set`、`time.monotonic`、`min`、`process.get_session_command`、`_DEADLINE.reset`。 返回路径：L60的`unknown`；L68的`{ "command_exit_status": "zero" if command.exit_code == 0 else "nonzero", "command_exit_co…`；L76的`unknown`。
-- `startup_command_exit_status`（L79–L81）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Compatibility view of the same single-query, bounded SDK facts.。 调用`startup_command_exit_facts`。 返回路径：L81的`startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]`。
-- `startup_failure_diagnostic`（L84–L248）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`、`command_exit_code`、`output_limit`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L105按`type(output_limit) is not int or not 1 <= output_limit <= 8000`分支；L179按`exceptions and len(raw_bytes) == output_limit and not output.endswith(("\n", " │")) a…`分支；L190按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L196遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L198按`not trace_errors`分支；L202按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L211按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L213按`frame("app/__init__.py", "create_app")`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`bounded_output_bytes`、`raw_bytes.decode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exception_lines`、`exceptions_in`等。 返回路径：L222的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
-- `startup_failure_diagnostic.frame`（L133–L144）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L134的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
-- `startup_failure_diagnostic.exceptions_in`（L153–L174）：接收`trace`、`terminal`。 调用`pattern.finditer`、`item[1].endswith`、`public_exception`、`trace.startswith`、`item.end`、`trace[item.end() :].strip`、`re.fullmatch`。 返回路径：L155的`[ item for item in pattern.finditer(trace) if item[1].endswith(("Error", "Exception")) or …`。
-- `restart_application_identity`（L251–L301）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L300按`result.exit_code != 0`分支；L301抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L304–L394）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L310按`plan.selection.model_dump() != selection`分支；L311抛异常，停止当前正常路径；L320按`selection["template"] == "fastapiadmin"`分支；L323按`dependency_identity(product) != profile["dependency_identity"]`分支；L324抛异常，停止当前正常路径；L360按`len(body) > 1_000_000`分支；L361抛异常，停止当前正常路径；L383抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L315的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L394的`receipt`。
+- `startup_command_exit_facts`（L55–L77）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L60按`any(type(value) is not str or not 1 <= len(value) <= 128 for value in (session, comma…`分支；L67按`command.id == command_id and type(command.exit_code) is int`分支；L68按`0 <= command.exit_code <= 255`分支。 调用`any`、`type`、`len`、`_DEADLINE.set`、`time.monotonic`、`min`、`process.get_session_command`、`_DEADLINE.reset`。 返回路径：L61的`unknown`；L69的`{ "command_exit_status": "zero" if command.exit_code == 0 else "nonzero", "command_exit_co…`；L77的`unknown`。
+- `startup_command_exit_status`（L80–L82）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Compatibility view of the same single-query, bounded SDK facts.。 调用`startup_command_exit_facts`。 返回路径：L82的`startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]`。
+- `startup_failure_diagnostic`（L85–L249）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`、`command_exit_code`、`output_limit`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L106按`type(output_limit) is not int or not 1 <= output_limit <= 8000`分支；L180按`exceptions and len(raw_bytes) == output_limit and not output.endswith(("\n", " │")) a…`分支；L191按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L197遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L199按`not trace_errors`分支；L203按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L212按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L214按`frame("app/__init__.py", "create_app")`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`bounded_output_bytes`、`raw_bytes.decode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exception_lines`、`exceptions_in`等。 返回路径：L223的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
+- `startup_failure_diagnostic.frame`（L134–L145）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L135的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
+- `startup_failure_diagnostic.exceptions_in`（L154–L175）：接收`trace`、`terminal`。 调用`pattern.finditer`、`item[1].endswith`、`public_exception`、`trace.startswith`、`item.end`、`trace[item.end() :].strip`、`re.fullmatch`。 返回路径：L156的`[ item for item in pattern.finditer(trace) if item[1].endswith(("Error", "Exception")) or …`。
+- `restart_application_identity`（L252–L302）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L301按`result.exit_code != 0`分支；L302抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verifier_policy_environment`（L305–L327）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Forward only validated policy identity to the trusted verifier child.。 控制顺序：L309按`selected_policy() is None`分支。 调用`selected_policy`。 返回路径：L310的`{}`；L327的`{name: os.environ[name] for name in names if name in os.environ}`。
+- `verify_capabilities`（L330–L426）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L336按`plan.selection.model_dump() != selection`分支；L337抛异常，停止当前正常路径；L346按`selection["template"] == "fastapiadmin"`分支；L349按`dependency_identity(product) != profile["dependency_identity"]`分支；L350抛异常，停止当前正常路径；L390按`len(body) > 1_000_000`分支；L391抛异常，停止当前正常路径；L415抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L341的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L426的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L396。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L428。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16673`。本段原文以LF换行结束。
+本段原始字节数：`17747`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "9808a7d478c850801100e68878c1c603517223b2c62d13b9923beadabb0a7793"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "c7e96e4cb501fd7a61f23f91231ec3f0855a64edf46c0f926c03a605233f10f2"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -53,6 +54,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
+from workbench.capability_diagnostics import record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,
@@ -335,6 +337,31 @@ for name in ('tcp','tcp6'):
         raise CheckFailure("应用身份仍有存活进程或旧端口未关闭，拒绝伪造重启成功")
 
 
+def verifier_policy_environment():
+    """Forward only validated policy identity to the trusted verifier child."""
+    from workbench.capability_browser_policy import selected_policy
+
+    if selected_policy() is None:
+        return {}
+    names = (
+        "CAPABILITY_BROWSER_APPROVED_POLICY",
+        "GITHUB_ACTIONS",
+        "GITHUB_REPOSITORY",
+        "GITHUB_WORKFLOW",
+        "GITHUB_RUN_ID",
+        "GITHUB_JOB",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_SHA",
+        "GITHUB_REF",
+        "GITHUB_WORKFLOW_REF",
+        "GITHUB_WORKFLOW_SHA",
+        "LIVE_SCENARIO",
+        "REVIEWED_SHA",
+    )
+    return {name: os.environ[name] for name in names if name in os.environ}
+
+
 def verify_capabilities(
     product, plan, scenarios, settings, *, aggregate, selection=None, trusted_oracle=None
 ):
@@ -363,6 +390,10 @@ def verify_capabilities(
     # Never adopt an older successful attempt if the verifier dies before
     # writing its own fresh report.
     write_json(receipt_path, {"passed": False, "cleanup": "not-started"})
+    try:
+        Path(str(receipt_path) + ".diagnostic.json").unlink(missing_ok=True)
+    except OSError:
+        pass  # A stale sidecar is also rejected by receipt modification time.
     payload = {
         "product": str(product),
         "receipt": str(receipt_path),
@@ -404,6 +435,7 @@ def verify_capabilities(
                     "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT", ""),
                     "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
                     "CAPABILITY_BROWSER_IMAGE": settings.capability_browser_image,
+                    **verifier_policy_environment(),
                 }
             ),
             **process_options(),
@@ -412,8 +444,9 @@ def verify_capabilities(
             process.communicate(
                 body, timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             stop_process(process)
+            record_failure(receipt_path, exc)
             raise PrerequisiteError(
                 "自定义隔离验证超时；已保留沙箱名称回执，请在本机确认清理后重试"
             ) from None
