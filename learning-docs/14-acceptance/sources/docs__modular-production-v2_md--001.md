@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L203。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L211。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28347`。本段原文以LF换行结束。
+本段原始字节数：`30110`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c09f9e68439b6ba01e4d1704524fabfeeb9d91c6ccc9cd0b13fcfe23efb34680"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2a2a74ff9926694147bb9f08da9699050c781b7408ff19c9a8306571c73da3ee"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -220,4 +220,12 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 本地夹具改为显式context，释放挂起图片后先停止HTTP服务并关闭其连接，再依次关闭context/browser；所有关闭共享启动后29秒的截止点，Python原30秒总上限及业务1800毫秒断言保持不变。清理拒绝或超时不吞掉：保留Node事件循环直至Python按原总上限回收该夹具进程树，防止Node提前退出后无法再确认后代归属。Windows taskkill非零退出也必须报错。现有POSIX身份/启动tick检查及Windows精确PID /T /F范围保持不变，不使用全局进程名终止。
 
 离线Node回归覆盖超过旧3秒但仍在总预算内的完成、context/browser/server拒绝、挂起以及父进程实际回收；真实Chromium与Windows结果仍待后续CI，不将夹具修复或本地测试描述为实时产品验收通过。本轮不推送、不重跑工作流。
+
+### 453c24a 模型失败的诊断缺口
+
+父线程随后通过官方读取恢复mini-SWE运行38126262748/artifact11697773853：passed=false，ModelFailure/model_gateway/trusted_source_line312，model_call_reservations=3、model_http_attempts=3、model_http_responses=2，严格TLS检查通过。精确453c24a源码位置为`workbench/infrastructure/llm/gateway.py:312`；`workbench/llm.py`只是兼容导入。该行是两次尝试耗尽的共用出口，结构化输出失败、可重试HTTP状态或一般传输错误均可到达，不能仅凭少一个响应计数判断限流、超时或其他具体原因。此处不沿用旧运行的DaytonaError。
+
+网关原本会在临时数据库记录每次model_failure，但该场景清理后未向summary保留这些记录。本地补丁在既有finally中导出最多32项`model_failure_receipts`，只含白名单code、1/2次尝试序号，transport_error另含基于有界异常类型链的固定transport_kind。HTTP代码限100–599；未知分类为other，非法序号为null；不导出endpoint、模型名、请求ID、时间、headers、prompt、校验字段路径/值、异常或响应正文。读取诊断失败记null，不替换原验收结果。只增加诊断，不改变两次尝试、退避、TLS、超时、预算或严格输出契约。
+
+真实网关/mock HTTP回归覆盖第一次无效JSON后第二次读取超时、远端协议错误、429或再次无效JSON；两次调用数保持不变。真实锁定Worker离线路径覆盖诊断读取成功和失败；白名单污染、上限及异常链环路有回归。既有453 artifact没有新增分类，补丁不能追补已删除临时数据库中的证据，当前具体根因仍未知；继续仅本地准备，不推送或盲目重跑。
 ````

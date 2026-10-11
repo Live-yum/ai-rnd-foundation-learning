@@ -153,7 +153,10 @@ def test_diagnostic_retains_only_bounded_inspector_facts():
     assert "private" not in json.dumps(diagnostic)
 
 
-def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypatch):
+@pytest.mark.parametrize("receipt_read_fails", [False, True])
+def test_real_worker_and_live_context_reach_offline_transport(
+    tmp_path, monkeypatch, receipt_read_fails
+):
     """Exercise pre-call orchestration; this supplies no real sandbox/model evidence."""
     from contextlib import contextmanager
 
@@ -185,11 +188,19 @@ def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypa
         calls = 0
         responses = 0
 
+    if receipt_read_fails:
+        from workbench.store import Store
+
+        def unavailable(*args):
+            raise RuntimeError("private-receipt-error")
+
+        monkeypatch.setattr(Store, "model_records", unavailable)
     progress = {}
     with OfflineTransport(stop) as transport, pytest.raises(Exception):
         live.execute(settings, tmp_path, transport=transport, progress=progress)
     assert seen == ["/v1/chat/completions"]
     assert progress["model_call_reservations"] == 1
+    assert progress["model_failure_receipts"] == (None if receipt_read_fails else [])
 
 
 def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):
@@ -309,3 +320,33 @@ def test_workflow_only_exposes_key_after_preflight_and_real_security():
     assert [i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]
     assert "ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)
     assert workflow["permissions"] == {"contents": "read"}
+
+
+def test_model_receipts_are_bounded_and_drop_all_unapproved_fields():
+    poison = {
+        "status": "failed",
+        "code": "private-provider-code",
+        "attempt": True,
+        "transport_kind": "private-kind",
+        "endpoint": "private-url",
+        "model": "private-model",
+        "diagnostic": {"details": [{"path": ["private-path"], "message": "private-message"}]},
+        "headers": {"Authorization": "private-key"},
+        "prompt": "private-prompt",
+    }
+    records = [
+        poison,
+        {**poison, "code": "transport_error", "attempt": 2},
+        {**poison, "code": "http_429", "attempt": 1},
+        {**poison, "code": "http_999", "attempt": 900},
+        {**poison, "status": "validated"},
+    ]
+    assert live.model_failure_receipts(records) == [
+        {"code": "other", "attempt": None},
+        {"code": "transport_error", "attempt": 2, "transport_kind": "other"},
+        {"code": "http_429", "attempt": 1},
+        {"code": "other", "attempt": None},
+    ]
+    result = live.model_failure_receipts(records * 20)
+    assert len(result) == live.MODEL_CALLS
+    assert "private" not in json.dumps(result)

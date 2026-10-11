@@ -8,6 +8,33 @@ import httpx
 from workbench.model_protocol import JSONGuardFailure, json_lengths
 
 
+def transport_category(exc):
+    """Finite typed classification only; never inspect error strings or requests."""
+    kinds = (
+        (httpx.ConnectTimeout, "connect_timeout"),
+        (httpx.ReadTimeout, "read_timeout"),
+        (httpx.WriteTimeout, "write_timeout"),
+        (httpx.PoolTimeout, "pool_timeout"),
+        (httpx.TimeoutException, "timeout"),
+        (httpx.ProxyError, "proxy_error"),
+        (httpx.ConnectError, "connect_error"),
+        (httpx.ReadError, "read_error"),
+        (httpx.WriteError, "write_error"),
+        (httpx.RemoteProtocolError, "remote_protocol_error"),
+        (httpx.LocalProtocolError, "local_protocol_error"),
+    )
+    seen = set()
+    for _ in range(12):
+        if exc is None or id(exc) in seen:
+            break
+        seen.add(id(exc))
+        for kind, label in kinds:
+            if isinstance(exc, kind):
+                return label
+        exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    return "other"
+
+
 def transport_failure(exc):
     """Classify typed causes only; never parse or expose exception/provider text."""
     seen = set()

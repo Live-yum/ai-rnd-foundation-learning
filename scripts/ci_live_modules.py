@@ -29,6 +29,69 @@ MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
 REPORT = ROOT / "reports/live-modules/summary.json"
 
 
+def model_failure_receipts(records):
+    """Keep only finite labels and attempt ordinals; never export stored details."""
+    codes = {
+        "transport_error",
+        "tls_certificate_verification_failed",
+        "proxy_connection_failed",
+        "schema_validation",
+        "invalid_json",
+        "structured_parser_disagreement",
+        "length",
+        "truncated",
+        "response_too_large",
+        "response_byte_limit",
+        "stream_wire_limit",
+        "invalid_envelope",
+        "invalid_choices",
+        "invalid_message",
+        "invalid_finish_reason",
+        "refusal",
+        "content_filter",
+        "interrupted",
+        "unexpected_tool_call",
+        "request_destination_rejected",
+        "request_count_limit",
+        "unexpected_model_error",
+    }
+    transport_kinds = {
+        "connect_timeout",
+        "read_timeout",
+        "write_timeout",
+        "pool_timeout",
+        "timeout",
+        "proxy_error",
+        "connect_error",
+        "read_error",
+        "write_error",
+        "remote_protocol_error",
+        "local_protocol_error",
+    }
+    receipts = []
+    for record in records:
+        if record.get("status") != "failed":
+            continue
+        code = record.get("code")
+        safe_code = code if type(code) is str and code in codes else "other"
+        if type(code) is str and re.fullmatch(r"http_[1-5][0-9]{2}", code):
+            safe_code = code
+        attempt = record.get("attempt")
+        receipt = {
+            "code": safe_code,
+            "attempt": attempt if type(attempt) is int and attempt in (1, 2) else None,
+        }
+        if safe_code == "transport_error":
+            kind = record.get("transport_kind")
+            receipt["transport_kind"] = (
+                kind if type(kind) is str and kind in transport_kinds else "other"
+            )
+        receipts.append(receipt)
+        if len(receipts) == MODEL_CALLS:
+            break
+    return receipts
+
+
 def failure_diagnostic(exc):
     """Only fixed labels and trusted-code line numbers, never traceback text/locals."""
     from workbench.capability_isolation import ContainerInspectionRejected
@@ -348,6 +411,13 @@ def execute(settings, directory, *, transport=None, progress=None):
             progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
             progress["model_http_attempts"] = transport.calls if transport else 0
             progress["model_http_responses"] = transport.responses if transport else 0
+            # Optional evidence must never replace the original result or cleanup.
+            try:
+                progress["model_failure_receipts"] = model_failure_receipts(
+                    store.model_records(run_id)
+                )
+            except Exception:
+                progress["model_failure_receipts"] = None
         store.engine.dispose()
 
 

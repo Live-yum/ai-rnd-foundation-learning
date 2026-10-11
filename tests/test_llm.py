@@ -409,3 +409,54 @@ def test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text(store, 
     assert category in requests[1]["messages"][-1]["content"]
     assert "private-wire-key" not in json.dumps(failures)
     assert "private-wire-key" not in json.dumps(requests)
+
+
+@pytest.mark.parametrize(
+    "kind", ["read_timeout", "remote_protocol_error", "http_429", "invalid_json"]
+)
+def test_live_receipts_preserve_each_attempt_without_provider_content(store, kind):
+    from scripts.ci_live_modules import model_failure_receipts
+
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 2:
+            if kind == "read_timeout":
+                raise httpx.ReadTimeout("private-error-url-key-prompt", request=request)
+            if kind == "remote_protocol_error":
+                raise httpx.RemoteProtocolError("private-error-url-key-prompt", request=request)
+            if kind == "http_429":
+                return httpx.Response(429, text="private-error-url-key-prompt")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": "private-invalid-json"}}]
+            },
+        )
+
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        gateway(store, handler).complete(run, "error", "private-instruction", {}, Requirement)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    second = {
+        "code": kind if kind in {"http_429", "invalid_json"} else "transport_error",
+        "attempt": 2,
+    }
+    if second["code"] == "transport_error":
+        second["transport_kind"] = kind
+    assert model_failure_receipts(store.model_records(run)) == [
+        {"code": "invalid_json", "attempt": 1},
+        second,
+    ]
+
+
+def test_transport_category_follows_typed_causes_and_stops_cycles():
+    from workbench.model_diagnostics import transport_category
+
+    outer = RuntimeError("ReadTimeout in private error text is not evidence")
+    assert transport_category(outer) == "other"
+    outer.__cause__ = httpx.ReadTimeout("private")
+    assert transport_category(outer) == "read_timeout"
+    outer.__cause__ = outer
+    assert transport_category(outer) == "other"

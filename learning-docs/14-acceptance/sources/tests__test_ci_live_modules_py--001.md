@@ -25,26 +25,28 @@
 - `test_diagnostic_locates_real_sandbox_boundary_without_sdk_text.reject`（L110–L111）：接收`*args`、`**kwargs`。 控制顺序：L111抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_suppresses_unknown_exception_names_and_untrusted_frames`（L131–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134抛异常，停止当前正常路径；L137断言`diagnostic == {"exception_type": "other", "stage": "other"}`。 调用`type("private-provider-content", (Exception,), {})`、`type`、`live.failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_diagnostic_retains_only_bounded_inspector_facts`（L140–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L149断言`diagnostic["container"] == { "container_rejection": "container_policy", "network_mode…`；L153断言`"private" not in json.dumps(diagnostic)`。 调用`ContainerInspectionRejected`、`live.failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_and_live_context_reach_offline_transport`（L156–L192）：接收`tmp_path`、`monkeypatch`。 源码说明：Exercise pre-call orchestration; this supplies no real sandbox/model evidence.。 控制顺序：L166按`not worker_python().is_file()`分支；L191断言`seen == ["/v1/chat/completions"]`；L192断言`progress["model_call_reservations"] == 1`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`OfflineTransport`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_and_live_context_reach_offline_transport.offline_environment`（L170–L171）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_real_worker_and_live_context_reach_offline_transport.stop`（L180–L182）：接收`request`。 控制顺序：L182抛异常，停止当前正常路径。 调用`seen.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_and_live_context_reach_offline_transport.OfflineTransport`（L184–L186）：继承`httpx.MockTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_reviewed_scenarios_and_consumer_preserve_isolation`（L195–L212）：接收`tmp_path`。 控制顺序：L202断言`len(plan.tasks) == 2`；L203断言`all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)`；L204断言`plan.selection.template == "python-basic" and plan.selection.database == "sqlite"`；L205遍历`plan.scenarios`；L206断言`any(s.status == 401 for s in scenario.steps)`；L207断言`any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)`；L208断言`any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)`；L209断言`any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)`。后续分支沿下方源码相同行号继续阅读。 调用`live.acceptance_design`、`len`、`all`、`any`、`s.body.get`、`s.body.get("due_at", "").startswith`、`s.equals.get`、`generate_basic`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_isolation_stops_before_any_model_or_worker`（L215–L227）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`live.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_isolation_stops_before_any_model_or_worker.reject`（L222–L223）：接收`*args`。 控制顺序：L223抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip`（L231–L294）：接收`settings`、`tmp_path`、`monkeypatch`、`reject_proof`。 控制顺序：L280按`reject_proof`分支；L283断言`json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0`；L284断言`not (tmp_path / "delivery.zip").exists()`；L287断言`result["real_model_calls"] == 2`；L288断言`seen == [ ("sla-api-candidate", False), ("sla-dashboard-candidate", False), ("fresh-c…`；L293断言`consumers == ["fresh-consumer"]`；L294断言`result["full_workflow_crash_recovery"] is False`。 调用`monkeypatch.setattr`、`consumers.append`、`pytest.raises`、`live.execute`、`json.loads`、`(tmp_path / "ledger/current.json").read_text`、`(tmp_path / "delivery.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_agent`（L245–L257）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`。 调用`gateway.store.reserve_model_call`、`authored_files`、`(product / "app.py").read_text`、`write_json`、`CapabilityEdits`、`manifest(product).get`、`manifest`、`sources.items`。 返回路径：L251的`CapabilityEdits( explanation="explicit offline fixture", files=[ {"path": name, "before_sh…`。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_verify`（L259–L266）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 调用`seen.append`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L261的`{ "passed": not reject_proof, "cleanup": "deleted", "plan_digest": digest(plan.model_dump(…`。
-- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L268–L271）：接收`proof`、`**kwargs`。 控制顺序：L270按`not proof["passed"]`分支；L271抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_only_exposes_key_after_preflight_and_real_security`（L297–L311）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L300断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L301断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L307断言`preflight < security < paid`；L308断言`"API_KEY" not in job["env"]`；L309断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L310断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L311断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport`（L157–L203）：接收`tmp_path`、`monkeypatch`、`receipt_read_fails`。 源码说明：Exercise pre-call orchestration; this supplies no real sandbox/model evidence.。 控制顺序：L169按`not worker_python().is_file()`分支；L191按`receipt_read_fails`分支；L201断言`seen == ["/v1/chat/completions"]`；L202断言`progress["model_call_reservations"] == 1`；L203断言`progress["model_failure_receipts"] == (None if receipt_read_fails else [])`。 调用`worker_python().is_file`、`worker_python`、`pytest.skip`、`monkeypatch.setattr`、`dispatch`、`live.live_settings`、`live.configuration`、`OfflineTransport`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport.offline_environment`（L173–L174）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_real_worker_and_live_context_reach_offline_transport.stop`（L183–L185）：接收`request`。 控制顺序：L185抛异常，停止当前正常路径。 调用`seen.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_and_live_context_reach_offline_transport.OfflineTransport`（L187–L189）：继承`httpx.MockTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_and_live_context_reach_offline_transport.unavailable`（L194–L195）：接收`*args`。 控制顺序：L195抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reviewed_scenarios_and_consumer_preserve_isolation`（L206–L223）：接收`tmp_path`。 控制顺序：L213断言`len(plan.tasks) == 2`；L214断言`all(t.executor == "mini_swe" and t.max_steps == 8 for t in plan.tasks)`；L215断言`plan.selection.template == "python-basic" and plan.selection.database == "sqlite"`；L216遍历`plan.scenarios`；L217断言`any(s.status == 401 for s in scenario.steps)`；L218断言`any(s.body.get("status") == "resolved" for s in scenario.steps if s.body)`；L219断言`any(s.body.get("due_at", "").startswith("2099") for s in scenario.steps if s.body)`；L220断言`any(s.equals.get("$.overdue") == 0 for s in scenario.after_restart)`。后续分支沿下方源码相同行号继续阅读。 调用`live.acceptance_design`、`len`、`all`、`any`、`s.body.get`、`s.body.get("due_at", "").startswith`、`s.equals.get`、`generate_basic`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker`（L226–L238）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`live.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_isolation_stops_before_any_model_or_worker.reject`（L233–L234）：接收`*args`。 控制顺序：L234抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip`（L242–L305）：接收`settings`、`tmp_path`、`monkeypatch`、`reject_proof`。 控制顺序：L291按`reject_proof`分支；L294断言`json.loads((tmp_path / "ledger/current.json").read_text())["version"] == 0`；L295断言`not (tmp_path / "delivery.zip").exists()`；L298断言`result["real_model_calls"] == 2`；L299断言`seen == [ ("sla-api-candidate", False), ("sla-dashboard-candidate", False), ("fresh-c…`；L304断言`consumers == ["fresh-consumer"]`；L305断言`result["full_workflow_crash_recovery"] is False`。 调用`monkeypatch.setattr`、`consumers.append`、`pytest.raises`、`live.execute`、`json.loads`、`(tmp_path / "ledger/current.json").read_text`、`(tmp_path / "delivery.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_agent`（L256–L268）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`。 调用`gateway.store.reserve_model_call`、`authored_files`、`(product / "app.py").read_text`、`write_json`、`CapabilityEdits`、`manifest(product).get`、`manifest`、`sources.items`。 返回路径：L262的`CapabilityEdits( explanation="explicit offline fixture", files=[ {"path": name, "before_sh…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_verify`（L270–L277）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 调用`seen.append`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L272的`{ "passed": not reject_proof, "cleanup": "deleted", "plan_digest": digest(plan.model_dump(…`。
+- `test_mock_orchestration_requires_proof_before_promotion_and_fresh_zip.mock_require`（L279–L282）：接收`proof`、`**kwargs`。 控制顺序：L281按`not proof["passed"]`分支；L282抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_only_exposes_key_after_preflight_and_real_security`（L308–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L311断言`job["environment"] == "rnd" and job["timeout-minutes"] == 90`；L312断言`"workflow_dispatch" in job["if"] and "run_attempt == 1" in job["if"]`；L318断言`preflight < security < paid`；L319断言`"API_KEY" not in job["env"]`；L320断言`[i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]`；L321断言`"ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)`；L322断言`workflow["permissions"] == {"contents": "read"}`。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/real-model.yml").read_text`、`s.get`、`commands.index`、`enumerate`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_model_receipts_are_bounded_and_drop_all_unapproved_fields`（L325–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344断言`live.model_failure_receipts(records) == [ {"code": "other", "attempt": None}, {"code"…`；L351断言`len(result) == live.MODEL_CALLS`；L352断言`"private" not in json.dumps(result)`。 调用`live.model_failure_receipts`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L311。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L352。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13164`。本段原文以LF换行结束。
+本段原始字节数：`14710`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "154e5a7bda730f65694563e8cae3caaf4b0a447f51d83dc51318149ff32f835f"} -->
+<!-- learning-source: {"path": "tests/test_ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1850a736945ad82bc9bb7fd6692ffbd4aa199ac847a587d739bb90dd416f210a"} -->
 ````python
 # tests/test_ci_live_modules.py
 """Offline contracts only: no paid models, Docker, Daytona or live evidence."""
@@ -202,7 +204,10 @@ def test_diagnostic_retains_only_bounded_inspector_facts():
     assert "private" not in json.dumps(diagnostic)
 
 
-def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypatch):
+@pytest.mark.parametrize("receipt_read_fails", [False, True])
+def test_real_worker_and_live_context_reach_offline_transport(
+    tmp_path, monkeypatch, receipt_read_fails
+):
     """Exercise pre-call orchestration; this supplies no real sandbox/model evidence."""
     from contextlib import contextmanager
 
@@ -234,11 +239,19 @@ def test_real_worker_and_live_context_reach_offline_transport(tmp_path, monkeypa
         calls = 0
         responses = 0
 
+    if receipt_read_fails:
+        from workbench.store import Store
+
+        def unavailable(*args):
+            raise RuntimeError("private-receipt-error")
+
+        monkeypatch.setattr(Store, "model_records", unavailable)
     progress = {}
     with OfflineTransport(stop) as transport, pytest.raises(Exception):
         live.execute(settings, tmp_path, transport=transport, progress=progress)
     assert seen == ["/v1/chat/completions"]
     assert progress["model_call_reservations"] == 1
+    assert progress["model_failure_receipts"] == (None if receipt_read_fails else [])
 
 
 def test_reviewed_scenarios_and_consumer_preserve_isolation(tmp_path):
@@ -358,4 +371,34 @@ def test_workflow_only_exposes_key_after_preflight_and_real_security():
     assert [i for i, s in enumerate(steps) if "API_KEY" in s.get("env", {})] == [paid]
     assert "ALLOW_INSECURE_MODEL_HTTP" not in json.dumps(job)
     assert workflow["permissions"] == {"contents": "read"}
+
+
+def test_model_receipts_are_bounded_and_drop_all_unapproved_fields():
+    poison = {
+        "status": "failed",
+        "code": "private-provider-code",
+        "attempt": True,
+        "transport_kind": "private-kind",
+        "endpoint": "private-url",
+        "model": "private-model",
+        "diagnostic": {"details": [{"path": ["private-path"], "message": "private-message"}]},
+        "headers": {"Authorization": "private-key"},
+        "prompt": "private-prompt",
+    }
+    records = [
+        poison,
+        {**poison, "code": "transport_error", "attempt": 2},
+        {**poison, "code": "http_429", "attempt": 1},
+        {**poison, "code": "http_999", "attempt": 900},
+        {**poison, "status": "validated"},
+    ]
+    assert live.model_failure_receipts(records) == [
+        {"code": "other", "attempt": None},
+        {"code": "transport_error", "attempt": 2, "transport_kind": "other"},
+        {"code": "http_429", "attempt": 1},
+        {"code": "other", "attempt": None},
+    ]
+    result = live.model_failure_receipts(records * 20)
+    assert len(result) == live.MODEL_CALLS
+    assert "private" not in json.dumps(result)
 ````

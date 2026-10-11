@@ -15,21 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `failure_diagnostic`（L32–L83）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L74在`frame is not None`成立时循环；L76按`stage is not None`分支；L79按`type(exc) is ContainerInspectionRejected`分支；L81按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L83的`result`。
-- `require`（L86–L88）：接收`condition`、`code`。 控制顺序：L87按`not condition`分支；L88抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L91–L144）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L121按`billing == "declared_free"`分支；L131抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L132的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
-- `acceptance_design`（L147–L189）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L154遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L189的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L192–L228）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L201的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L231–L351）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L272遍历`plan.tasks`；L347按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L332的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L354–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`not args.preflight`分支；L393抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `model_failure_receipts`（L32–L92）：接收`records`。 源码说明：Keep only finite labels and attempt ordinals; never export stored details.。 控制顺序：L72遍历`records`；L73按`record.get("status") != "failed"`分支；L77按`type(code) is str and re.fullmatch(r"http_[1-5][0-9]{2}", code)`分支；L84按`safe_code == "transport_error"`分支；L90按`len(receipts) == MODEL_CALLS`分支。 调用`record.get`、`type`、`re.fullmatch`、`receipts.append`、`len`。 返回路径：L92的`receipts`。
+- `failure_diagnostic`（L95–L146）：接收`exc`。 源码说明：Only fixed labels and trusted-code line numbers, never traceback text/locals.。 控制顺序：L137在`frame is not None`成立时循环；L139按`stage is not None`分支；L142按`type(exc) is ContainerInspectionRejected`分支；L144按`type(exc) is CandidateFileSetError`分支。 调用`names.get`、`type`、`str`、`stages.items`、`trusted.get`、`result.update`、`ContainerInspectionRejected.diagnostic`、`CandidateFileSetError.diagnostic`。 返回路径：L146的`result`。
+- `require`（L149–L151）：接收`condition`、`code`。 控制顺序：L150按`not condition`分支；L151抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L154–L207）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L184按`billing == "declared_free"`分支；L194抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L195的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L210–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L217遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L252的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L255–L291）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L264的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L294–L421）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L335遍历`plan.tasks`；L410按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L395的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L424–L465）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L439按`not args.preflight`分支；L463抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L399。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L469。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16623`。本段原文以LF换行结束。
+本段原始字节数：`18916`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ae3b41a1242ca1c945beef26254fee33d633b279091ef739215f79e462e51f5d"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3d55ab768164e341b9a6fe0c8d2c3f6cd2774538a52016646686470e193d044b"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -61,6 +62,69 @@ STEPS_PER_TASK = 8
 TOKENS_PER_TASK = 2_000_000
 MODEL_CALLS = 32  # Two modules, eight steps each, at most two gateway attempts.
 REPORT = ROOT / "reports/live-modules/summary.json"
+
+
+def model_failure_receipts(records):
+    """Keep only finite labels and attempt ordinals; never export stored details."""
+    codes = {
+        "transport_error",
+        "tls_certificate_verification_failed",
+        "proxy_connection_failed",
+        "schema_validation",
+        "invalid_json",
+        "structured_parser_disagreement",
+        "length",
+        "truncated",
+        "response_too_large",
+        "response_byte_limit",
+        "stream_wire_limit",
+        "invalid_envelope",
+        "invalid_choices",
+        "invalid_message",
+        "invalid_finish_reason",
+        "refusal",
+        "content_filter",
+        "interrupted",
+        "unexpected_tool_call",
+        "request_destination_rejected",
+        "request_count_limit",
+        "unexpected_model_error",
+    }
+    transport_kinds = {
+        "connect_timeout",
+        "read_timeout",
+        "write_timeout",
+        "pool_timeout",
+        "timeout",
+        "proxy_error",
+        "connect_error",
+        "read_error",
+        "write_error",
+        "remote_protocol_error",
+        "local_protocol_error",
+    }
+    receipts = []
+    for record in records:
+        if record.get("status") != "failed":
+            continue
+        code = record.get("code")
+        safe_code = code if type(code) is str and code in codes else "other"
+        if type(code) is str and re.fullmatch(r"http_[1-5][0-9]{2}", code):
+            safe_code = code
+        attempt = record.get("attempt")
+        receipt = {
+            "code": safe_code,
+            "attempt": attempt if type(attempt) is int and attempt in (1, 2) else None,
+        }
+        if safe_code == "transport_error":
+            kind = record.get("transport_kind")
+            receipt["transport_kind"] = (
+                kind if type(kind) is str and kind in transport_kinds else "other"
+            )
+        receipts.append(receipt)
+        if len(receipts) == MODEL_CALLS:
+            break
+    return receipts
 
 
 def failure_diagnostic(exc):
@@ -382,6 +446,13 @@ def execute(settings, directory, *, transport=None, progress=None):
             progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
             progress["model_http_attempts"] = transport.calls if transport else 0
             progress["model_http_responses"] = transport.responses if transport else 0
+            # Optional evidence must never replace the original result or cleanup.
+            try:
+                progress["model_failure_receipts"] = model_failure_receipts(
+                    store.model_records(run_id)
+                )
+            except Exception:
+                progress["model_failure_receipts"] = None
         store.engine.dispose()
 
 

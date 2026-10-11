@@ -13,6 +13,7 @@ from workbench.model_diagnostics import (
     json_diagnostics,
     json_syntax_category,
     schema_diagnostics,
+    transport_category,
     transport_failure,
 )
 from workbench.model_protocol import (
@@ -108,7 +109,7 @@ class ModelGateway:
         def call():
             observer = None
 
-            def failed(attempt, code, details=None):
+            def failed(attempt, code, details=None, *, transport_kind=None):
                 if observer is not None:
                     observer.failed(code, attempt=attempt + 1, details=details)
                 # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
@@ -123,6 +124,7 @@ class ModelGateway:
                         "attempt": attempt + 1,
                         "status": "failed",
                         "code": code,
+                        **({"transport_kind": transport_kind} if transport_kind else {}),
                         "diagnostic": failure_diagnostic(
                             code, trace_id=response_id, attempt=attempt + 1, details=details
                         ),
@@ -287,7 +289,11 @@ class ModelGateway:
                         code, message = diagnostic
                         failed(attempt, code)
                         raise ModelFailure(message) from None
-                    failed(attempt, "http_" + str(status) if status else "transport_error")
+                    failed(
+                        attempt,
+                        "http_" + str(status) if status else "transport_error",
+                        transport_kind=transport_category(exc) if not status else None,
+                    )
                     if stream_request and attempt == 0 and audited.stream_unsupported:
                         stream_request = False
                         reason = "模型服务不支持流式传输，改用完整响应"

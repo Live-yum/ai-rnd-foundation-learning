@@ -35,14 +35,17 @@
 - `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L343–L351）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L345按`raises`分支；L346抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L347的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
 - `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L390–L411）：接收`store`、`wire`、`category`。 控制顺序：L402断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L403遍历`failures`；L405断言`event["data"]["code"] == "invalid_json"`；L406断言`detail["category"] == category`；L407断言`detail["lengths"] == {"bytes": len(wire)}`；L408断言`"position" not in detail`；L409断言`category in requests[1]["messages"][-1]["content"]`；L410断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L393–L395）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L395的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
+- `test_live_receipts_preserve_each_attempt_without_provider_content`（L417–L451）：接收`store`、`kind`。 控制顺序：L441断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L446按`second["code"] == "transport_error"`分支；L448断言`model_failure_receipts(store.model_records(run)) == [ {"code": "invalid_json", "attem…`。 调用`new_run`、`pytest.raises`、`gateway(store, handler).complete`、`gateway`、`len`、`store.get_run`、`model_failure_receipts`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_receipts_preserve_each_attempt_without_provider_content.handler`（L422–L436）：接收`request`。 控制顺序：L424按`len(calls) == 2`分支；L425按`kind == "read_timeout"`分支；L426抛异常，停止当前正常路径；L427按`kind == "remote_protocol_error"`分支；L428抛异常，停止当前正常路径；L429按`kind == "http_429"`分支。 调用`calls.append`、`len`、`httpx.ReadTimeout`、`httpx.RemoteProtocolError`、`httpx.Response`。 返回路径：L430的`httpx.Response(429, text="private-error-url-key-prompt")`；L431的`httpx.Response( 200, json={ "choices": [{"message": {"role": "assistant", "content": "priv…`。
+- `test_transport_category_follows_typed_causes_and_stops_cycles`（L454–L462）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L458断言`transport_category(outer) == "other"`；L460断言`transport_category(outer) == "read_timeout"`；L462断言`transport_category(outer) == "other"`。 调用`RuntimeError`、`transport_category`、`httpx.ReadTimeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L411。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L462。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15851`。本段原文以LF换行结束。
+本段原始字节数：`17797`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f40fd9da40a5691d51e36f1201edd181df108bb292643f093f2e621b17440129"} -->
+<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "da7b2deffac217c7737e48b9547f36b6da8fd2a615da02b2940aaf32d72bb944"} -->
 ````python
 # tests/test_llm.py
 import json
@@ -456,4 +459,55 @@ def test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text(store, 
     assert category in requests[1]["messages"][-1]["content"]
     assert "private-wire-key" not in json.dumps(failures)
     assert "private-wire-key" not in json.dumps(requests)
+
+
+@pytest.mark.parametrize(
+    "kind", ["read_timeout", "remote_protocol_error", "http_429", "invalid_json"]
+)
+def test_live_receipts_preserve_each_attempt_without_provider_content(store, kind):
+    from scripts.ci_live_modules import model_failure_receipts
+
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 2:
+            if kind == "read_timeout":
+                raise httpx.ReadTimeout("private-error-url-key-prompt", request=request)
+            if kind == "remote_protocol_error":
+                raise httpx.RemoteProtocolError("private-error-url-key-prompt", request=request)
+            if kind == "http_429":
+                return httpx.Response(429, text="private-error-url-key-prompt")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": "private-invalid-json"}}]
+            },
+        )
+
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        gateway(store, handler).complete(run, "error", "private-instruction", {}, Requirement)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    second = {
+        "code": kind if kind in {"http_429", "invalid_json"} else "transport_error",
+        "attempt": 2,
+    }
+    if second["code"] == "transport_error":
+        second["transport_kind"] = kind
+    assert model_failure_receipts(store.model_records(run)) == [
+        {"code": "invalid_json", "attempt": 1},
+        second,
+    ]
+
+
+def test_transport_category_follows_typed_causes_and_stops_cycles():
+    from workbench.model_diagnostics import transport_category
+
+    outer = RuntimeError("ReadTimeout in private error text is not evidence")
+    assert transport_category(outer) == "other"
+    outer.__cause__ = httpx.ReadTimeout("private")
+    assert transport_category(outer) == "read_timeout"
+    outer.__cause__ = outer
+    assert transport_category(outer) == "other"
 ````
