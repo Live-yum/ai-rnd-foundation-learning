@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L263。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L275。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`42468`。本段原文以LF换行结束。
+本段原始字节数：`45748`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "28de5a7b505e3f5d1691846d7c41b7d746561ff009541793da3da9040a170233"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5331d50c11ff67c53e7c9a8eecc5318641da1987a1740ed5c85c894f3ceb8d70"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -280,4 +280,16 @@ efc8e2a的普通SQLite38136635699和PG38136635758在离线launcher/receipt测试
 最小修复限于消费者启动器：解析并规范化原SQLite文件后，同时设置PRODUCT_DATA_DIR为其父目录，覆盖不相干的环境目录。保留已有外部数据库路径兼容性，隔离运行仍由原数据库环境和文件系统规则约束。未改目录权限、UID、noexec、只读依赖树、pycache策略、scope、预算、超时或验收规则。实际隔离器已设置PYTHONDONTWRITEBYTECODE=1并使用只读锁定解释器；本次复现使用仓库锁定依赖的本地解释器和-B，不能冒充远端UID20000、挂载或Landlock运行证明。新增3例修复前全部失败，修复后消费者55项通过；真实旧候选是否触发同一缺陷仍未证明。
 
 完整执行两个workflow的55文件覆盖集合，RND_REQUIRE_NODE_TESTS、RND_REQUIRE_LANDLOCK、RND_REQUIRE_SECCOMP_BPF始终为1：2542通过、5失败、13跳过；失败仍仅是本机Landlock返回78的既有五项，跳过仍涉及原生工具树/Vite和测试数据库。Ruff及生成文档一致性检查通过。本轮只本地提交，未推送、取消、dispatch或重跑三SQLite；等待85ce81c其余CI全部终态后再由父线程决定后续，真实模型验收仍未通过。
+
+### 89f88e7 本轮网关失败与固定解析阶段诊断（仅本地）
+
+父线程监控实际读取真实mini-SWE运行38145005717/artifact11705256919：configuration_valid=true，phase=execution，passed=false，real_model_acceptance=false；模型预留/HTTP尝试/响应2/2/1，第一次transport_error/read_timeout，第二次invalid_json，最终ModelFailure/model_gateway/原第318行。该行是两次尝试耗尽的公共出口。完整允许字段没有HTTP状态、finish_reason、具体JSON错误或verification_receipts；本轮未到独立验证，不能归因于旧PermissionError，也不证明DATA_DIR修复已通过。此处由父线程实际读取内容；本地独立核验官方artifact元数据及准确SHA，下载正文被代理403阻止，未绕过。
+
+离线实际网关分别模拟第一次读取超时、第二次信封JSON损坏或合法信封内正文JSON损坏，两种情况产生完全相同的原2/2/1计数与失败标签；合法正文对照成功，明确finish_reason=length按原规则记truncated。现有回执不足以定位服务端延迟、网络、信封或正文问题，没有可证实的生产判定缺陷，不增加超时/重试、不放宽JSON，也不猜测模型根因。
+
+经限定授权，仅增加可观测性：AuditedTransport记住本次既有HTTP状态；网关给invalid_json失败附加response_facts，以同一审计异常身份及JSON解码/防护异常类型识别envelope_decode（包含SSE帧），以已取得的正文识别content_decode，其他情况unknown。finish_reason只保留审计器完成原检查后已有的stop/unknown，不把未确认的原始结束字符串当作事实。HTTP状态仅允许100–599整数且拒绝bool；临时数据库记录和summary导出共用固定字段白名单，再次过滤未知枚举和多余字段。旧记录没有该字段就不补写，不从旧invalid_json反推阶段；其他失败代码与流式UI错误事件不变。不记录正文、路径、源码、模块名、headers、URL、提示词或凭据。
+
+普通/SSE两条真实网关集成路径覆盖超时后信封失败、正文失败、合法响应、明确截断，保留2预留/2HTTP尝试/1响应、原请求与JSON模式及原接受/拒绝结果；污染/缺失/非法状态/旧记录回归确认安全导出。补充实际观察器ValueError负例，确认非解析本地异常不会被误标为信封或正文解码；原错误代码及两次尝试保持不变。网关、流式、反馈及真实验收脚本相关463项通过。改动不改变模型请求、预算、超时、权限、scope、严格校验、清理或晋升门禁；仅本地准备，等待89f88e7剩余普通CI终态后再决定发布，不推送、不取消、不dispatch或重跑三SQLite。
+
+最终代码再次执行两个workflow的完整55文件集合，三项RND_REQUIRE_NODE_TESTS/LANDLOCK/SECCOMP_BPF保持1：2542通过、5失败、13跳过；五项仍为本地Landlock返回78，跳过仍为原生工具树/Vite与测试数据库。没有关闭强制标志，本地Python3.14.7/Node24.19.0不冒充Actions环境。Ruff、diff及完整手册/771份教材一致性检查通过。此提交仅使未来安全回执能定位解析层级，不修复或追补本轮模型失败，不代表DATA_DIR已通过真实验证。
 ````

@@ -352,6 +352,36 @@ def test_model_receipts_are_bounded_and_drop_all_unapproved_fields():
     assert "private" not in json.dumps(result)
 
 
+@pytest.mark.parametrize("status", [True, -1, 99, 600, "200", None, 200])
+def test_json_response_facts_reject_poison_and_preserve_legacy_receipts(status):
+    facts = {
+        "phase": "private-stage",
+        "finish_reason": "private-finish",
+        "http_status": status,
+        "body": "private-source-key",
+        "headers": {"Authorization": "private-secret"},
+    }
+    base = {"status": "failed", "code": "invalid_json", "attempt": 2}
+    result = live.model_failure_receipts(
+        [
+            base,
+            {**base, "response_facts": facts},
+            {**base, "code": "schema_validation", "response_facts": facts},
+            {**base, "response_facts": [facts]},
+        ]
+    )
+    safe = {"phase": "unknown", "finish_reason": "unknown"}
+    if type(status) is int and status == 200:
+        safe["http_status"] = status
+    assert result == [
+        {"code": "invalid_json", "attempt": 2},
+        {"code": "invalid_json", "attempt": 2, "response_facts": safe},
+        {"code": "schema_validation", "attempt": 2},
+        {"code": "invalid_json", "attempt": 2},
+    ]
+    assert "private" not in json.dumps(result)
+
+
 def test_node_failure_reaches_final_artifact_after_workspace_deletion(tmp_path, monkeypatch):
     from workbench.capability_diagnostics import record_failure
     from workbench.generator import PrerequisiteError

@@ -118,6 +118,7 @@ class AuditedTransport(httpx.BaseTransport):
         self.content = None
         self.usage = {}
         self.finish = "unknown"
+        self.http_status = None
         self.observer = observer
         self.streaming = streaming
         self.stream_unsupported = False
@@ -130,6 +131,7 @@ class AuditedTransport(httpx.BaseTransport):
             # It must remain non-retryable and retain its static diagnostic code.
             self.error = exc
             raise
+        self.http_status = response.status_code
         if (
             200 <= response.status_code < 300
             and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()

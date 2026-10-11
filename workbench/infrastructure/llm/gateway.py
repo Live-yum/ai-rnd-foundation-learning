@@ -12,6 +12,7 @@ from workbench.model_diagnostics import (
     failure_diagnostic,
     json_diagnostics,
     json_syntax_category,
+    response_failure_facts,
     schema_diagnostics,
     transport_category,
     transport_failure,
@@ -19,6 +20,7 @@ from workbench.model_diagnostics import (
 from workbench.model_protocol import (
     MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
+    JSONGuardFailure,
     OutputFailure,
     load_json,
     output_contract,
@@ -109,7 +111,7 @@ class ModelGateway:
         def call():
             observer = None
 
-            def failed(attempt, code, details=None, *, transport_kind=None):
+            def failed(attempt, code, details=None, *, transport_kind=None, response_facts=None):
                 if observer is not None:
                     observer.failed(code, attempt=attempt + 1, details=details)
                 # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
@@ -125,6 +127,11 @@ class ModelGateway:
                         "status": "failed",
                         "code": code,
                         **({"transport_kind": transport_kind} if transport_kind else {}),
+                        **(
+                            {"response_facts": response_failure_facts(response_facts)}
+                            if response_facts is not None
+                            else {}
+                        ),
                         "diagnostic": failure_diagnostic(
                             code, trace_id=response_id, attempt=attempt + 1, details=details
                         ),
@@ -148,6 +155,7 @@ class ModelGateway:
             stream_request = self.streaming
             for attempt in range(2):
                 content = None
+                audited = None
                 if sum(len(m["content"]) for m in messages) > self.settings.max_context_chars:
                     raise ModelFailure("完整模型请求（含 Schema/修复反馈）超过 MAX_CONTEXT_CHARS")
                 self.store.reserve_model_call(run_id)
@@ -230,6 +238,29 @@ class ModelGateway:
                             if str(exc) == "langchain_structured_output_parsing_failed"
                             else "invalid_json",
                             diagnostics,
+                            response_facts=(
+                                {
+                                    "phase": "envelope_decode"
+                                    if getattr(audited, "error", None) is exc
+                                    and isinstance(
+                                        exc,
+                                        (
+                                            json.JSONDecodeError,
+                                            JSONGuardFailure,
+                                            UnicodeDecodeError,
+                                        ),
+                                    )
+                                    else "content_decode"
+                                    if isinstance(content, str)
+                                    and getattr(audited, "error", None) is not exc
+                                    else "unknown",
+                                    "http_status": getattr(audited, "http_status", None),
+                                    "finish_reason": getattr(audited, "finish", "unknown"),
+                                }
+                                if not isinstance(exc, ValidationError)
+                                and str(exc) != "langchain_structured_output_parsing_failed"
+                                else None
+                            ),
                         )
                     if isinstance(exc, ValidationError):
                         diagnostics = [

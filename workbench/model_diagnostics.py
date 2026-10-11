@@ -8,6 +8,26 @@ import httpx
 from workbench.model_protocol import JSONGuardFailure, json_lengths
 
 
+def response_failure_facts(value):
+    """Re-filter optional response facts without retaining any provider text."""
+    if not isinstance(value, dict):
+        return {}
+    phase = value.get("phase")
+    finish = value.get("finish_reason")
+    result = {
+        "phase": phase
+        if type(phase) is str and phase in {"envelope_decode", "content_decode"}
+        else "unknown",
+        "finish_reason": finish
+        if type(finish) is str and finish in {"stop", "unknown"}
+        else "unknown",
+    }
+    status = value.get("http_status")
+    if type(status) is int and 100 <= status <= 599:
+        result["http_status"] = status
+    return result
+
+
 def transport_category(exc):
     """Finite typed classification only; never inspect error strings or requests."""
     kinds = (

@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from scripts.live_test_client import TestServiceTransport, zero_billing
 from scripts.sla_fixture import design
 from workbench.filesystem import manifest, pack_source, unpack, write_json
+from workbench.model_diagnostics import response_failure_facts
 from workbench.planning.feature_planner import FeatureDesign
 from workbench.settings import ROOT
 
@@ -86,6 +87,8 @@ def model_failure_receipts(records):
             receipt["transport_kind"] = (
                 kind if type(kind) is str and kind in transport_kinds else "other"
             )
+        if safe_code == "invalid_json" and isinstance(record.get("response_facts"), dict):
+            receipt["response_facts"] = response_failure_facts(record["response_facts"])
         receipts.append(receipt)
         if len(receipts) == MODEL_CALLS:
             break

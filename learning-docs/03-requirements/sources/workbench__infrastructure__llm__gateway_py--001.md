@@ -15,21 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ModelFailure`（L32–L33）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `_json_repair_reference`（L36–L58）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L43按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L52按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L49的`None`；L53的`None`；L56的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
-- `ModelGateway`（L61–L338）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway.__init__`（L62–L64）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L66–L338）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L78抛异常，停止当前正常路径；L323抛异常，停止当前正常路径；L325按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L338的`value`。
-- `ModelGateway.complete.call`（L109–L318）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L136按`len(body) > self.settings.max_context_chars`分支；L137抛异常，停止当前正常路径；L149遍历`range(2)`；L151按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L152抛异常，停止当前正常路径；L181按`audited.error is not None`分支；L182抛异常，停止当前正常路径；L183按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L195的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
-- `ModelGateway.complete.call.failed`（L112–L133）：接收`attempt`、`code`、`details`、`transport_kind`。 控制顺序：L113按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelFailure`（L34–L35）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `_json_repair_reference`（L38–L60）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L45按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L54按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L51的`None`；L55的`None`；L58的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
+- `ModelGateway`（L63–L369）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway.__init__`（L64–L66）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L68–L369）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L80抛异常，停止当前正常路径；L354抛异常，停止当前正常路径；L356按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L369的`value`。
+- `ModelGateway.complete.call`（L111–L349）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L143按`len(body) > self.settings.max_context_chars`分支；L144抛异常，停止当前正常路径；L156遍历`range(2)`；L159按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L160抛异常，停止当前正常路径；L189按`audited.error is not None`分支；L190抛异常，停止当前正常路径；L191按`isinstance(content, str)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`、`httpx.Client`等。 返回路径：L203的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.failed`（L114–L140）：接收`attempt`、`code`、`details`、`transport_kind`、`response_facts`。 控制顺序：L115按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`response_failure_facts`、`failure_diagnostic`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/llm/gateway.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L338。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/llm/gateway.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L369。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16411`。本段原文以LF换行结束。
+本段原始字节数：`18092`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/llm/gateway.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "22725cb90322def76b9f120413b486af0575c2c6737af0abe6a62fe562bd5737"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/llm/gateway.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "318a18ab49f2ed31d4eca7377be561a24022c1ba1f45ee0fb98b13eece159b56"} -->
 ````python
 # workbench/infrastructure/llm/gateway.py
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
@@ -46,6 +46,7 @@ from workbench.model_diagnostics import (
     failure_diagnostic,
     json_diagnostics,
     json_syntax_category,
+    response_failure_facts,
     schema_diagnostics,
     transport_category,
     transport_failure,
@@ -53,6 +54,7 @@ from workbench.model_diagnostics import (
 from workbench.model_protocol import (
     MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
+    JSONGuardFailure,
     OutputFailure,
     load_json,
     output_contract,
@@ -143,7 +145,7 @@ class ModelGateway:
         def call():
             observer = None
 
-            def failed(attempt, code, details=None, *, transport_kind=None):
+            def failed(attempt, code, details=None, *, transport_kind=None, response_facts=None):
                 if observer is not None:
                     observer.failed(code, attempt=attempt + 1, details=details)
                 # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
@@ -159,6 +161,11 @@ class ModelGateway:
                         "status": "failed",
                         "code": code,
                         **({"transport_kind": transport_kind} if transport_kind else {}),
+                        **(
+                            {"response_facts": response_failure_facts(response_facts)}
+                            if response_facts is not None
+                            else {}
+                        ),
                         "diagnostic": failure_diagnostic(
                             code, trace_id=response_id, attempt=attempt + 1, details=details
                         ),
@@ -182,6 +189,7 @@ class ModelGateway:
             stream_request = self.streaming
             for attempt in range(2):
                 content = None
+                audited = None
                 if sum(len(m["content"]) for m in messages) > self.settings.max_context_chars:
                     raise ModelFailure("完整模型请求（含 Schema/修复反馈）超过 MAX_CONTEXT_CHARS")
                 self.store.reserve_model_call(run_id)
@@ -264,6 +272,29 @@ class ModelGateway:
                             if str(exc) == "langchain_structured_output_parsing_failed"
                             else "invalid_json",
                             diagnostics,
+                            response_facts=(
+                                {
+                                    "phase": "envelope_decode"
+                                    if getattr(audited, "error", None) is exc
+                                    and isinstance(
+                                        exc,
+                                        (
+                                            json.JSONDecodeError,
+                                            JSONGuardFailure,
+                                            UnicodeDecodeError,
+                                        ),
+                                    )
+                                    else "content_decode"
+                                    if isinstance(content, str)
+                                    and getattr(audited, "error", None) is not exc
+                                    else "unknown",
+                                    "http_status": getattr(audited, "http_status", None),
+                                    "finish_reason": getattr(audited, "finish", "unknown"),
+                                }
+                                if not isinstance(exc, ValidationError)
+                                and str(exc) != "langchain_structured_output_parsing_failed"
+                                else None
+                            ),
                         )
                     if isinstance(exc, ValidationError):
                         diagnostics = [

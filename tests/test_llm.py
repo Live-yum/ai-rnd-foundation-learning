@@ -445,10 +445,84 @@ def test_live_receipts_preserve_each_attempt_without_provider_content(store, kin
     }
     if second["code"] == "transport_error":
         second["transport_kind"] = kind
+    facts = {"phase": "content_decode", "http_status": 200, "finish_reason": "unknown"}
+    if second["code"] == "invalid_json":
+        second["response_facts"] = facts
     assert model_failure_receipts(store.model_records(run)) == [
-        {"code": "invalid_json", "attempt": 1},
+        {"code": "invalid_json", "attempt": 1, "response_facts": facts},
         second,
     ]
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("case", ["envelope", "content", "valid", "truncated"])
+def test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary(store, streaming, case):
+    from test_streaming_backend import stream_body
+
+    from scripts.ci_live_modules import model_failure_receipts
+
+    requests, responses = [], []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("private-timeout-body", request=request)
+        responses.append(1)
+        content = "private-invalid-body" if case == "content" else requirement().model_dump_json()
+        finish = "length" if case == "truncated" else "stop"
+        if streaming:
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=b"data: private-invalid-envelope\n\n"
+                if case == "envelope"
+                else stream_body(content, finish=finish),
+            )
+        if case == "envelope":
+            return httpx.Response(200, text="private-invalid-envelope")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": content}, "finish_reason": finish}
+                ]
+            },
+        )
+
+    model = gateway(store, handler)
+    model.streaming = streaming
+    run = new_run(store)
+    if case == "valid":
+        assert (
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+            == requirement()
+        )
+    else:
+        with pytest.raises(ModelFailure) as error:
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+        assert "private" not in str(error.value)
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert len(responses) == 1
+    assert requests[0]["messages"] == requests[1]["messages"]
+    assert requests[1]["response_format"] == {"type": "json_object"}
+    receipts = model_failure_receipts(store.model_records(run))
+    expected = [{"code": "transport_error", "attempt": 1, "transport_kind": "read_timeout"}]
+    if case in {"envelope", "content"}:
+        expected.append(
+            {
+                "code": "invalid_json",
+                "attempt": 2,
+                "response_facts": {
+                    "phase": case + "_decode",
+                    "http_status": 200,
+                    "finish_reason": "stop" if case == "content" else "unknown",
+                },
+            }
+        )
+    elif case == "truncated":
+        expected.append({"code": "truncated", "attempt": 2})
+    assert receipts == expected
+    assert "private" not in json.dumps(receipts)
 
 
 def test_transport_category_follows_typed_causes_and_stops_cycles():
@@ -460,3 +534,26 @@ def test_transport_category_follows_typed_causes_and_stops_cycles():
     assert transport_category(outer) == "read_timeout"
     outer.__cause__ = outer
     assert transport_category(outer) == "other"
+
+
+def test_non_parser_audit_error_does_not_claim_envelope_decode(store, monkeypatch):
+    from scripts.ci_live_modules import model_failure_receipts
+    from workbench.streaming import AssistantStream
+
+    def rejected_mode(self, mode):
+        raise ValueError("private-local-observer-error")
+
+    monkeypatch.setattr(AssistantStream, "mode", rejected_mode)
+    model = gateway(
+        store,
+        lambda request: httpx.Response(
+            200,
+            json={"choices": [{"message": {"role": "assistant", "content": "{}"}}]},
+        ),
+    )
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "requirement:unknown", "instruction", {}, Requirement)
+    facts = [row["response_facts"] for row in model_failure_receipts(store.model_records(run))]
+    assert facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2
+    assert store.get_run(run)["model_calls"] == 2
