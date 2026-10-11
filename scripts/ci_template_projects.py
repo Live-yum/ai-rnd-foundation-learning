@@ -358,9 +358,11 @@ def acceptance_settings(env, directory):
 class BoundedTransport(httpx.BaseTransport):
     """Count actual provider requests, including failures, without retaining their text."""
 
-    def __init__(self, settings):
+    def __init__(self, settings, ca_mode="system"):
         self.settings = settings
-        self.inner = httpx.HTTPTransport(retries=0, trust_env=False)
+        from scripts.live_test_client import TestServiceTransport
+
+        self.inner = TestServiceTransport(settings.base_url, ca_mode)
         self.run_id, self.stage, self.schema = None, None, None
         self.logical_key = None
         self.calls = Counter()
@@ -652,7 +654,7 @@ def aggregate(cases, results):
     return True
 
 
-def run_suite(settings, directory, binding):
+def run_suite(settings, directory, binding, *, ca_mode="system", billing=None):
     cases = suite_cases()
     summary = {
         "version": 1,
@@ -670,10 +672,11 @@ def run_suite(settings, directory, binding):
         "scope": "Six-entity business complexity; not production load or native-template acceptance",
         "native_templates_exercised": [],
         "model_review_exercised": False,
+        "billing": billing or {"mode": "legacy_unspecified"},
         "cases": [],
     }
     REPORTS.mkdir(parents=True, exist_ok=True)
-    transport = BoundedTransport(settings)
+    transport = BoundedTransport(settings, ca_mode)
     store = Store(settings)
     try:
         store.migrate()
@@ -810,10 +813,16 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
         ).stdout.strip()
         require(checkout == binding["head_sha"], "checkout_head_mismatch")
+        from scripts.live_test_client import zero_billing
+
+        ca_mode = os.environ.get("LIVE_TEST_CA", "system")
+        billing = zero_billing(os.environ) if ca_mode == "caddy-ip" else None
         with tempfile.TemporaryDirectory(prefix="rnd-three-projects-") as temporary:
             settings = acceptance_settings(os.environ, Path(temporary))
             write_json(REPORTS / "summary.json", {**summary, "run_identity": binding})
-            summary = run_suite(settings, Path(temporary), binding)
+            summary = run_suite(
+                settings, Path(temporary), binding, ca_mode=ca_mode, billing=billing
+            )
     except Exception as error:
         # If execution already wrote per-case evidence, preserve it on controller failure.
         if binding and (REPORTS / "summary.json").is_file():

@@ -49,7 +49,15 @@ def run_agent(
         profile = settings.model_for("coding")
         if urlsplit(profile.base_url).scheme != "https":
             raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
-        if settings.mini_swe_usd_per_million_tokens <= 0:
+        if settings.mini_swe_billing_mode == "declared_free":
+            if not (
+                settings.mini_swe_zero_billing_ack
+                and settings.mini_swe_zero_billing_endpoint == profile.base_url
+                and settings.mini_swe_usd_per_million_tokens == 0
+                and settings.mini_swe_max_cost_usd == 0
+            ):
+                raise UnsupportedScope("零计费模式必须明确确认并绑定准确端点，费用和价格均应为0")
+        elif settings.mini_swe_usd_per_million_tokens <= 0 or settings.mini_swe_max_cost_usd <= 0:
             raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
         if profile.max_output_tokens is None:
             raise UnsupportedScope(
@@ -96,10 +104,13 @@ def _run(
     )
     record = workspace / "agent-budget.json"
     budget = {"identity": identity, "requests": 0, "tokens_reserved": 0, "cost_reserved_usd": 0.0}
+    budget["billing_mode"] = settings.mini_swe_billing_mode
     if record.exists():
         budget = json.loads(record.read_text())
         if budget["identity"] != identity:
             raise ValueError("Agent journal belongs to a different approved task or source")
+        if budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode:
+            raise ValueError("Agent journal cannot change billing mode during recovery")
     deadline = time.monotonic() + settings.mini_swe_timeout
     factory = environment_factory or coding_environment
     current = product

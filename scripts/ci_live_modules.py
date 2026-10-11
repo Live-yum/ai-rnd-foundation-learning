@@ -13,6 +13,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from scripts.live_test_client import TestServiceTransport, zero_billing
 from scripts.sla_fixture import design
 from workbench.filesystem import manifest, pack_source, unpack, write_json
 from workbench.planning.feature_planner import FeatureDesign
@@ -58,11 +59,17 @@ def configuration(env):
         "https_endpoint_required",
     )
     require(bool(env.get("MODE", "").strip()), "model_required")
+    billing = env.get("LIVE_BILLING_MODE", "metered")
+    require(billing in {"metered", "declared_free"}, "unknown_billing_mode")
     try:
         cost = Decimal(env.get("LIVE_MAX_COST_USD", "0"))
         price = Decimal(env.get("LIVE_USD_PER_MILLION_TOKENS", "0"))
-        require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
-        require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
+        if billing == "declared_free":
+            zero_billing(env)
+            require(cost == price == 0, "zero_billing_requires_zero_prices")
+        else:
+            require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
+            require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
         # Each module needs at least an edit and a submit. Reserve both gateway attempts.
         minimum = Decimal(2 * 2 * (4 * CONTEXT_CHARS + OUTPUT_TOKENS)) * price / 1_000_000
         require(cost / 2 >= minimum, "budget_cannot_cover_two_turns_per_module")
@@ -71,6 +78,7 @@ def configuration(env):
     return {
         "head_sha": head,
         "scenario": SCENARIO,
+        "billing": zero_billing(env) if billing == "declared_free" else {"mode": "metered"},
         "max_cost_usd": float(cost),
         "usd_per_million_tokens": float(price),
         "max_model_calls": MODEL_CALLS,
@@ -149,6 +157,9 @@ def live_settings(env, config, directory):
         coding_max_output_tokens=OUTPUT_TOKENS,
         allow_insecure_model_http=False,
         mini_swe_enabled=True,
+        mini_swe_billing_mode=config["billing"]["mode"],
+        mini_swe_zero_billing_ack=config["billing"]["mode"] == "declared_free",
+        mini_swe_zero_billing_endpoint=config["billing"].get("endpoint", ""),
         mini_swe_max_tokens=TOKENS_PER_TASK,
         mini_swe_max_cost_usd=config["max_cost_usd"] / 2,
         mini_swe_usd_per_million_tokens=config["usd_per_million_tokens"],
@@ -163,7 +174,7 @@ def live_settings(env, config, directory):
     )
 
 
-def execute(settings, directory):
+def execute(settings, directory, *, transport=None, progress=None):
     from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
     from workbench.capability_execution import capability_execution_prerequisites
     from workbench.capability_sandbox import verify_capabilities
@@ -181,6 +192,7 @@ def execute(settings, directory):
     # Same-job real security/browser/profile proof must exist before any paid request.
     capability_execution_prerequisites(settings, selection)
     store = Store(settings)
+    run_id = None
     try:
         store.migrate()
         project = store.create_project("Reviewed SLA module acceptance", "live-sla")
@@ -193,7 +205,7 @@ def execute(settings, directory):
             },
             "live-sla-run",
         )["run_id"]
-        gateway = ModelGateway(settings, store)
+        gateway = ModelGateway(settings, store, transport)
         base = directory / "baseline"
         generate_basic(selected.baseline, base, selection)
         prepare_consumer(base, plan)
@@ -278,6 +290,10 @@ def execute(settings, directory):
             "cleanup": proof["cleanup"],
         }
     finally:
+        if progress is not None and run_id:
+            progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
+            progress["model_http_attempts"] = transport.calls if transport else 0
+            progress["model_http_responses"] = transport.responses if transport else 0
         store.engine.dispose()
 
 
@@ -290,6 +306,8 @@ def main():
         "real_model_acceptance": False,
         "scenario": SCENARIO,
         "phase": "configuration",
+        "model_http_attempts": 0,
+        "model_http_responses": 0,
     }
     try:
         config = configuration(os.environ)
@@ -298,7 +316,20 @@ def main():
             summary["phase"] = "execution"
             with tempfile.TemporaryDirectory(prefix="rnd-live-modules-") as temporary:
                 directory = Path(temporary)
-                summary.update(execute(live_settings(os.environ, config, directory), directory))
+                transport = TestServiceTransport(
+                    os.environ["BASE_URL"], os.environ.get("LIVE_TEST_CA", "system")
+                )
+                try:
+                    summary.update(
+                        execute(
+                            live_settings(os.environ, config, directory),
+                            directory,
+                            transport=transport,
+                            progress=summary,
+                        )
+                    )
+                finally:
+                    transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
     except Exception:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.

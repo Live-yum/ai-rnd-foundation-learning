@@ -610,6 +610,7 @@
 - [scripts/ci_template_projects.py](14-acceptance/sources/scripts__ci_template_projects_py--001.md)（1 段）
 - [scripts/handbook_notes.py](14-acceptance/sources/scripts__handbook_notes_py--001.md)（2 段）
 - [scripts/learning_docs_content.json](14-acceptance/sources/scripts__learning_docs_content_json--001.md)（1 段）
+- [scripts/live_test_client.py](14-acceptance/sources/scripts__live_test_client_py--001.md)（1 段）
 - [scripts/rebuild_from_handbook.py](14-acceptance/sources/scripts__rebuild_from_handbook_py--001.md)（1 段）
 - [scripts/rebuild_learning_docs.py](14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md)（1 段）
 - [scripts/signup_scope_browser.cjs](14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md)（1 段）
@@ -618,6 +619,8 @@
 - [scripts/template_acceptance_cases.py](14-acceptance/sources/scripts__template_acceptance_cases_py--001.md)（1 段）
 - [scripts/template_acceptance_runtime.py](14-acceptance/sources/scripts__template_acceptance_runtime_py--001.md)（1 段）
 - [tests/capability_dependency_fixtures.py](14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md)（1 段）
+- [tests/resources/live-service/README.md](14-acceptance/sources/tests__resources__live-service__README_md--001.md)（1 段）
+- [tests/resources/live-service/caddy-root.pem](14-acceptance/sources/tests__resources__live-service__caddy-root_pem--001.md)（1 段）
 - [tests/test_batches.py](14-acceptance/sources/tests__test_batches_py--001.md)（1 段）
 - [tests/test_business_workflow_branches.py](14-acceptance/sources/tests__test_business_workflow_branches_py--001.md)（1 段）
 - [tests/test_capability_browser_activation_review.py](14-acceptance/sources/tests__test_capability_browser_activation_review_py--001.md)（1 段）
@@ -699,6 +702,7 @@
 - [tests/test_learning_order.py](14-acceptance/sources/tests__test_learning_order_py--001.md)（1 段）
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
 - [tests/test_legacy_signup_recovery.py](14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md)（1 段）
+- [tests/test_live_test_client.py](14-acceptance/sources/tests__test_live_test_client_py--001.md)（1 段）
 - [tests/test_model_connection.py](14-acceptance/sources/tests__test_model_connection_py--001.md)（1 段）
 - [tests/test_model_feedback_ci.py](14-acceptance/sources/tests__test_model_feedback_ci_py--001.md)（1 段）
 - [tests/test_model_feedback_history.py](14-acceptance/sources/tests__test_model_feedback_history_py--001.md)（1 段）

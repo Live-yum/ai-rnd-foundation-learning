@@ -16,18 +16,18 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
-- `run_agent`（L34–L76）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L64的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
-- `_run`（L79–L278）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L99按`record.exists()`分支；L101按`budget["identity"] != identity`分支；L102抛异常，停止当前正常路径；L150在`True`成立时循环；L152按`remaining <= 0`分支；L153抛异常，停止当前正常路径；L157抛异常，停止当前正常路径；L158按`not raw or len(raw) > LIMIT`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`time.monotonic`等。 返回路径：L271的`edits`。
-- `_run.read_lines`（L120–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121在`True`成立时循环；L127按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L133–L138）：接收`value`。 控制顺序：L135按`len(raw) > LIMIT`分支；L136抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_agent`（L34–L84）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L72的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
+- `_run`（L87–L289）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L161在`True`成立时循环；L163按`remaining <= 0`分支；L164抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L282的`edits`。
+- `_run.read_lines`（L131–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L132在`True`成立时循环；L138按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L144–L149）：接收`value`。 控制顺序：L146按`len(raw) > LIMIT`分支；L147抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L278。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/mini_swe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L289。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12330`。本段原文以LF换行结束。
+本段原始字节数：`13080`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c5c8a54132b7cb5b5dadb71085a7d9c9d9a9f3914059996a3d31393bf61efc32"} -->
+<!-- learning-source: {"path": "workbench/coding/mini_swe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "25239679e33dd688f6c1d39c57112bdc22eee4efb9cd0f13d8a0364c2d605419"} -->
 ````python
 # workbench/coding/mini_swe.py
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
@@ -81,7 +81,15 @@ def run_agent(
         profile = settings.model_for("coding")
         if urlsplit(profile.base_url).scheme != "https":
             raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
-        if settings.mini_swe_usd_per_million_tokens <= 0:
+        if settings.mini_swe_billing_mode == "declared_free":
+            if not (
+                settings.mini_swe_zero_billing_ack
+                and settings.mini_swe_zero_billing_endpoint == profile.base_url
+                and settings.mini_swe_usd_per_million_tokens == 0
+                and settings.mini_swe_max_cost_usd == 0
+            ):
+                raise UnsupportedScope("零计费模式必须明确确认并绑定准确端点，费用和价格均应为0")
+        elif settings.mini_swe_usd_per_million_tokens <= 0 or settings.mini_swe_max_cost_usd <= 0:
             raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
         if profile.max_output_tokens is None:
             raise UnsupportedScope(
@@ -128,10 +136,13 @@ def _run(
     )
     record = workspace / "agent-budget.json"
     budget = {"identity": identity, "requests": 0, "tokens_reserved": 0, "cost_reserved_usd": 0.0}
+    budget["billing_mode"] = settings.mini_swe_billing_mode
     if record.exists():
         budget = json.loads(record.read_text())
         if budget["identity"] != identity:
             raise ValueError("Agent journal belongs to a different approved task or source")
+        if budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode:
+            raise ValueError("Agent journal cannot change billing mode during recovery")
     deadline = time.monotonic() + settings.mini_swe_timeout
     factory = environment_factory or coding_environment
     current = product

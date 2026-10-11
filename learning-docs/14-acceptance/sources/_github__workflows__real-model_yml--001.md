@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L260。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L285。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11848`。本段原文以LF换行结束。
+本段原始字节数：`12874`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bbfd3d2b23e37bfa481d487e465d26835d8eeef4778aa7f0b628b6c3e9eea30a"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "caeca9dd7403676c0e7872ba2c244700b10086ffe0d4a9a3e9aa58d2974f23cf"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
@@ -26,12 +26,26 @@ on:
         type: choice
         options: [legacy, mini-swe-sla]
         default: legacy
+      billing_mode:
+        description: Metered pricing or explicit user-confirmed no-charge service
+        type: choice
+        options: [metered, declared_free]
+        default: metered
+      confirm_no_charge:
+        description: I confirm this exact service has no charges for this test
+        type: boolean
+        default: false
+      test_ca:
+        description: Test-client-only CA; caddy-ip is pinned to 170.106.181.109:8317
+        type: choice
+        options: [system, caddy-ip]
+        default: system
       max_cost_usd:
         description: Authorized total USD ceiling for this manual mini-SWE run (greater than 0, maximum 10)
         type: string
         default: '0'
       usd_per_million_tokens:
-        description: Operator-verified conservative USD price per million input OR output tokens (0 fails closed)
+        description: Conservative USD price per million input OR output tokens; zero only for confirmed declared_free mode
         type: string
         default: '0'
       reviewed_sha:
@@ -203,6 +217,9 @@ jobs:
     environment: rnd
     env:
       LIVE_SCENARIO: ${{ inputs.scenario }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
+      LIVE_TEST_CA: ${{ inputs.test_ca }}
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       LIVE_MAX_COST_USD: ${{ inputs.max_cost_usd }}
       LIVE_USD_PER_MILLION_TOKENS: ${{ inputs.usd_per_million_tokens }}
@@ -224,8 +241,14 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Validate exact dispatch HTTPS endpoint and explicit budget without a model key
         run: uv run python -m scripts.ci_live_modules --preflight
+      - name: Require strict unauthenticated TLS before any provider key is available
+        run: uv run python -m scripts.live_test_client
       - name: Verify offline live-acceptance contracts
-        run: uv run pytest -q tests/test_ci_live_modules.py
+        env:
+          LIVE_BILLING_MODE: metered
+          LIVE_TEST_CA: system
+          LIVE_ZERO_BILLING_ACK: 'false'
+        run: uv run pytest -q tests/test_ci_live_modules.py tests/test_live_test_client.py
       - name: Install the isolated pinned Worker
         run: uv sync --project tools/mini-swe --python 3.12 --locked
       - uses: actions/setup-node@v4
@@ -274,7 +297,9 @@ jobs:
         if: always()
         with:
           name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
-          path: reports/live-modules/summary.json
+          path: |
+            reports/live-modules/summary.json
+            reports/live-tls.json
           if-no-files-found: error
           retention-days: 7
 ````

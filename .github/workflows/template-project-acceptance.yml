@@ -2,6 +2,23 @@ name: Three-project live acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed commit SHA
+        type: string
+        required: true
+      billing_mode:
+        type: choice
+        options: [metered, declared_free]
+        default: metered
+      confirm_no_charge:
+        description: I confirm this exact service has no charges for this test
+        type: boolean
+        default: false
+      test_ca:
+        type: choice
+        options: [system, caddy-ip]
+        default: system
   pull_request:
     types: [labeled]
 
@@ -27,6 +44,12 @@ jobs:
     env:
       ACCEPTANCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       PYTHONUTF8: '1'
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
+      LIVE_TEST_CA: ${{ inputs.test_ca }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODE: ${{ vars.MODE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +63,8 @@ jobs:
           node-version: '22'
       - name: Install locked dependencies before credential access
         run: uv sync --locked
+      - name: Require strict unauthenticated TLS before any provider key is available
+        run: uv run python -m scripts.live_test_client
       - name: Verify scenario and acceptance guards without a model
         run: |
           uv run python -m scripts.ci_template_projects --validate-fixtures
@@ -55,8 +80,6 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
-          # Explicit opt-in for the user-configured compatible HTTP gateway.
-          ALLOW_INSECURE_MODEL_HTTP: 'true'
           PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
           PLAYWRIGHT_BROWSERS_PATH: '0'
         run: uv run python -m scripts.ci_template_projects
@@ -66,6 +89,7 @@ jobs:
         with:
           name: three-project-receipts-${{ env.ACCEPTANCE_HEAD_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            reports/live-tls.json
             reports/template-project-acceptance/summary.json
             reports/template-project-acceptance/reading-shelf.json
             reports/template-project-acceptance/stock-purchasing.json

@@ -168,7 +168,10 @@ class Settings(BaseSettings):
     module_coding_engine: Literal["structured", "openhands"] = "structured"
     mini_swe_enabled: bool = False
     mini_swe_max_tokens: int = Field(default=2000000, ge=1000, le=2000000)
-    mini_swe_max_cost_usd: float = Field(default=10, gt=0, le=100)
+    mini_swe_max_cost_usd: float = Field(default=10, ge=0, le=100)
+    mini_swe_billing_mode: Literal["metered", "declared_free"] = "metered"
+    mini_swe_zero_billing_ack: bool = False
+    mini_swe_zero_billing_endpoint: str = ""
     # Operator-provided conservative maximum tariff, never guessed model pricing.
     mini_swe_usd_per_million_tokens: float = Field(default=0, ge=0, le=10000)
     mini_swe_timeout: int = Field(default=180, ge=10, le=900)

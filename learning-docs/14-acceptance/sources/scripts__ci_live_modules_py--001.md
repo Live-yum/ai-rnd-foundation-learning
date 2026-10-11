@@ -10,25 +10,25 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.sla_fixture`、`workbench.filesystem`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.live_test_client`、`scripts.sla_fixture`、`workbench.filesystem`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `require`（L31–L33）：接收`condition`、`code`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L36–L82）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L70抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L71的`{ "head_sha": head, "scenario": SCENARIO, "max_cost_usd": float(cost), "usd_per_million_to…`。
-- `acceptance_design`（L85–L127）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L92遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L127的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L130–L163）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L139的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L166–L281）：接收`settings`、`directory`。 控制顺序：L206遍历`plan.tasks`。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L266的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L284–L309）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L297按`not args.preflight`分支；L307抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`execute`、`live_settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require`（L32–L34）：接收`condition`、`code`。 控制顺序：L33按`not condition`分支；L34抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L37–L90）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L67按`billing == "declared_free"`分支；L77抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L78的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L93–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L100遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L135的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L138–L174）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L147的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L177–L297）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L218遍历`plan.tasks`；L293按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L278的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L300–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L315按`not args.preflight`分支；L338抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L313。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L344。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12693`。本段原文以LF换行结束。
+本段原始字节数：`14269`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "39d31f5a7a94daccf58bd8750e4ded774bdb36becbdaf94467912aa875765616"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0667a653d38df34dde8d8f9f55eb3df0ff47bd86e1ef3cdc66aa389f8a625638"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -46,6 +46,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from scripts.live_test_client import TestServiceTransport, zero_billing
 from scripts.sla_fixture import design
 from workbench.filesystem import manifest, pack_source, unpack, write_json
 from workbench.planning.feature_planner import FeatureDesign
@@ -91,11 +92,17 @@ def configuration(env):
         "https_endpoint_required",
     )
     require(bool(env.get("MODE", "").strip()), "model_required")
+    billing = env.get("LIVE_BILLING_MODE", "metered")
+    require(billing in {"metered", "declared_free"}, "unknown_billing_mode")
     try:
         cost = Decimal(env.get("LIVE_MAX_COST_USD", "0"))
         price = Decimal(env.get("LIVE_USD_PER_MILLION_TOKENS", "0"))
-        require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
-        require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
+        if billing == "declared_free":
+            zero_billing(env)
+            require(cost == price == 0, "zero_billing_requires_zero_prices")
+        else:
+            require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
+            require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
         # Each module needs at least an edit and a submit. Reserve both gateway attempts.
         minimum = Decimal(2 * 2 * (4 * CONTEXT_CHARS + OUTPUT_TOKENS)) * price / 1_000_000
         require(cost / 2 >= minimum, "budget_cannot_cover_two_turns_per_module")
@@ -104,6 +111,7 @@ def configuration(env):
     return {
         "head_sha": head,
         "scenario": SCENARIO,
+        "billing": zero_billing(env) if billing == "declared_free" else {"mode": "metered"},
         "max_cost_usd": float(cost),
         "usd_per_million_tokens": float(price),
         "max_model_calls": MODEL_CALLS,
@@ -182,6 +190,9 @@ def live_settings(env, config, directory):
         coding_max_output_tokens=OUTPUT_TOKENS,
         allow_insecure_model_http=False,
         mini_swe_enabled=True,
+        mini_swe_billing_mode=config["billing"]["mode"],
+        mini_swe_zero_billing_ack=config["billing"]["mode"] == "declared_free",
+        mini_swe_zero_billing_endpoint=config["billing"].get("endpoint", ""),
         mini_swe_max_tokens=TOKENS_PER_TASK,
         mini_swe_max_cost_usd=config["max_cost_usd"] / 2,
         mini_swe_usd_per_million_tokens=config["usd_per_million_tokens"],
@@ -196,7 +207,7 @@ def live_settings(env, config, directory):
     )
 
 
-def execute(settings, directory):
+def execute(settings, directory, *, transport=None, progress=None):
     from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
     from workbench.capability_execution import capability_execution_prerequisites
     from workbench.capability_sandbox import verify_capabilities
@@ -214,6 +225,7 @@ def execute(settings, directory):
     # Same-job real security/browser/profile proof must exist before any paid request.
     capability_execution_prerequisites(settings, selection)
     store = Store(settings)
+    run_id = None
     try:
         store.migrate()
         project = store.create_project("Reviewed SLA module acceptance", "live-sla")
@@ -226,7 +238,7 @@ def execute(settings, directory):
             },
             "live-sla-run",
         )["run_id"]
-        gateway = ModelGateway(settings, store)
+        gateway = ModelGateway(settings, store, transport)
         base = directory / "baseline"
         generate_basic(selected.baseline, base, selection)
         prepare_consumer(base, plan)
@@ -311,6 +323,10 @@ def execute(settings, directory):
             "cleanup": proof["cleanup"],
         }
     finally:
+        if progress is not None and run_id:
+            progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
+            progress["model_http_attempts"] = transport.calls if transport else 0
+            progress["model_http_responses"] = transport.responses if transport else 0
         store.engine.dispose()
 
 
@@ -323,6 +339,8 @@ def main():
         "real_model_acceptance": False,
         "scenario": SCENARIO,
         "phase": "configuration",
+        "model_http_attempts": 0,
+        "model_http_responses": 0,
     }
     try:
         config = configuration(os.environ)
@@ -331,7 +349,20 @@ def main():
             summary["phase"] = "execution"
             with tempfile.TemporaryDirectory(prefix="rnd-live-modules-") as temporary:
                 directory = Path(temporary)
-                summary.update(execute(live_settings(os.environ, config, directory), directory))
+                transport = TestServiceTransport(
+                    os.environ["BASE_URL"], os.environ.get("LIVE_TEST_CA", "system")
+                )
+                try:
+                    summary.update(
+                        execute(
+                            live_settings(os.environ, config, directory),
+                            directory,
+                            transport=transport,
+                            progress=summary,
+                        )
+                    )
+                finally:
+                    transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
     except Exception:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.

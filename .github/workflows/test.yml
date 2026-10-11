@@ -388,7 +388,7 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
-        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py --junitxml=reports/production-v2.xml
+        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py tests/test_live_test_client.py --junitxml=reports/production-v2.xml
       - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
       - uses: actions/upload-artifact@v4
         if: always()

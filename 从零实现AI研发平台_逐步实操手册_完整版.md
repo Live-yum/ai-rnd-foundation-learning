@@ -137,6 +137,18 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 离线验证：`uv run pytest -q tests/test_ci_live_modules.py`；正常 Python acceptance 的 production-v2 Job 同时执行这些契约测试。离线单测使用显式 mock 检查拒绝、预算、步骤顺序和晋升条件，绝不代表此新增完整真实路径已经通过。
 
+### 已授权的测试 CA 与零计费模式
+
+2026-10-11，用户明确授权公开 CA 入库并仅用于 `https://170.106.181.109:8317/v1` 的测试客户端，声明该测试服务无费用。证书保存在 `tests/resources/live-service/caddy-root.pem`，指纹及来源见同目录 README。该文件不是私钥，也不安装为系统根。
+
+两条手动入口现均支持 `test_ca=caddy-ip`、`billing_mode=declared_free` 和 `confirm_no_charge=true`：mini-SWE 使用 `real-model.yml` 的 `scenario=mini-swe-sla`；三个 Python/SQLite 业务场景使用 `template-project-acceptance.yml`。两者都填写准确 `reviewed_sha` 并选择本 PR 分支；通过既有 `rnd.BASE_URL`、`rnd.MODE` 和 `rnd.API_KEY` 配置服务，不把密钥作为输入。mini-SWE 的 `max_cost_usd`、`usd_per_million_tokens` 保持真实的 `0`，不伪造正数价格。
+
+`declared_free` 必须明确确认且绑定上述准确端点，回执注明 `user-confirmed-no-charge-2026-10-11` 及“用户声明，不是服务商账单”。平台 mini-SWE 同样要求明确零计费确认、精确端点绑定和费用/价格均为0；恢复不能更换原账本的计费模式。上述正数费用要求继续适用于默认 `metered` 模式，未声明免费时仍失败关闭。两个模块的32次请求、8192输出tokens/次、8步/模块、4,000,000总预留tokens、180秒/模块与90分钟Job上限保持不变。三个业务场景仍为每例12次、合计36次请求，每次最多16384输出tokens，Job最多90分钟。
+
+在模型密钥仅对最后执行步骤可用之前，Actions 先请求不带认证的 `/v1/models`：严格 TLS 成功且服务返回200或401才继续。证书 SHA256 必须匹配固定指纹；SSLContext 保留 `CERT_REQUIRED`、主机/IP SAN、有效期和链验证。专用 transport 只允许准确服务的探测及 Chat Completions 路径，拒绝其他主机、端口、API根和重定向。没有 `verify=False`、HTTP回退、系统根安装或代理配置变更；旧三场景 workflow 的 HTTP 例外已移除。私有根正确不等于服务器叶证书正确；Actions 如仍遇IP SAN、链或访问拒绝，会在使用模型密钥前停止。
+
+上述代码与离线测试不能代表真实调用成功。只有本次精确head的 Actions 终态及对应回执可以证明运行结果；TLS探测、三业务场景、mini-SWE模块路径分别报告，不互相替代。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -16429,12 +16441,12 @@ def snapshot_edits(product, snapshot, task, selection):
 **逐个入口与控制逻辑：**
 
 - `worker_python`（L26–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L29的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
-- `run_agent`（L34–L76）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L64的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
-- `_run`（L79–L278）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L99按`record.exists()`分支；L101按`budget["identity"] != identity`分支；L102抛异常，停止当前正常路径；L150在`True`成立时循环；L152按`remaining <= 0`分支；L153抛异常，停止当前正常路径；L157抛异常，停止当前正常路径；L158按`not raw or len(raw) > LIMIT`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`time.monotonic`等。 返回路径：L271的`edits`。
-- `_run.read_lines`（L120–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121在`True`成立时循环；L127按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L133–L138）：接收`value`。 控制顺序：L135按`len(raw) > LIMIT`分支；L136抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_agent`（L34–L84）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L37按`not settings.mini_swe_enabled`分支；L38抛异常，停止当前正常路径；L39按`task.version != 2 or task.executor != "mini_swe"`分支；L40抛异常，停止当前正常路径；L42按`not executable.is_file()`分支；L43抛异常，停止当前正常路径；L48按`isinstance(gateway, ModelGateway)`分支；L50按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L72的`_run( settings, gateway, run_id, task, plan, Path(product), workspace, context, executable…`。
+- `_run`（L87–L289）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`。 控制顺序：L108按`record.exists()`分支；L110按`budget["identity"] != identity`分支；L111抛异常，停止当前正常路径；L112按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L113抛异常，停止当前正常路径；L161在`True`成立时循环；L163按`remaining <= 0`分支；L164抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L282的`edits`。
+- `_run.read_lines`（L131–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L132在`True`成立时循环；L138按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L144–L149）：接收`value`。 控制顺序：L146按`len(raw) > LIMIT`分支；L147抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: c5c8a54132b7cb5b5dadb71085a7d9c9d9a9f3914059996a3d31393bf61efc32 -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: 25239679e33dd688f6c1d39c57112bdc22eee4efb9cd0f13d8a0364c2d605419 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -16487,7 +16499,15 @@ def run_agent(
         profile = settings.model_for("coding")
         if urlsplit(profile.base_url).scheme != "https":
             raise UnsupportedScope("mini-SWE真实认证模型调用要求HTTPS，不能用HTTP例外开关绕过")
-        if settings.mini_swe_usd_per_million_tokens <= 0:
+        if settings.mini_swe_billing_mode == "declared_free":
+            if not (
+                settings.mini_swe_zero_billing_ack
+                and settings.mini_swe_zero_billing_endpoint == profile.base_url
+                and settings.mini_swe_usd_per_million_tokens == 0
+                and settings.mini_swe_max_cost_usd == 0
+            ):
+                raise UnsupportedScope("零计费模式必须明确确认并绑定准确端点，费用和价格均应为0")
+        elif settings.mini_swe_usd_per_million_tokens <= 0 or settings.mini_swe_max_cost_usd <= 0:
             raise UnsupportedScope("先配置mini-SWE保守token价格上界以执行费用预算")
         if profile.max_output_tokens is None:
             raise UnsupportedScope(
@@ -16534,10 +16554,13 @@ def _run(
     )
     record = workspace / "agent-budget.json"
     budget = {"identity": identity, "requests": 0, "tokens_reserved": 0, "cost_reserved_usd": 0.0}
+    budget["billing_mode"] = settings.mini_swe_billing_mode
     if record.exists():
         budget = json.loads(record.read_text())
         if budget["identity"] != identity:
             raise ValueError("Agent journal belongs to a different approved task or source")
+        if budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode:
+            raise ValueError("Agent journal cannot change billing mode during recovery")
     deadline = time.monotonic() + settings.mini_swe_timeout
     factory = environment_factory or coding_environment
     current = product
@@ -40387,24 +40410,24 @@ def scaffold_native_rules(template, plan, product, reports):
 - `ModelProfile`（L74–L104）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_http`；类型约束/数据库列参数以完整定义为准。
 - `ModelProfile.validate_endpoint`（L86–L93）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L90抛异常，停止当前正常路径；L91按`not self.model.strip() or not self.api_key.get_secret_value().strip()`分支；L92抛异常，停止当前正常路径。 调用`validate_model_url`、`ValueError`、`self.model.strip`、`self.api_key.get_secret_value().strip`、`self.api_key.get_secret_value`。 返回路径：L93的`self`。
 - `ModelProfile.public`（L95–L104）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L96的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L107–L320）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_model_http`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`module_coding_engine`、`mini_swe_enabled`、`mini_swe_max_tokens`、`mini_swe_max_cost_usd`、`mini_swe_usd_per_million_tokens`、`mini_swe_timeout`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`capability_execution_enabled`、`capability_profile_directory`、`capability_browser_image`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L205–L206）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L206的`local_http_url(value)`。
-- `Settings.only_local_databases`（L210–L211）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L211的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L215–L216）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L216的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L219–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L220的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L225–L228）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L227遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_configuration`（L230–L235）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L235的`configuration`。
-- `Settings._remember_model_keys`（L237–L242）：接收`configuration`。 控制顺序：L239遍历`(configuration.default, *configuration.stages.values())`；L241按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L244–L245）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L245的`self.model_configuration().profile(stage)`。
-- `Settings.require_model`（L247–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.models_ready`（L251–L256）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L255的`False`；L256的`True`。
-- `Settings.review_enabled`（L259–L260）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L260的`self.model_configuration().review_enabled`。
-- `Settings.redaction_secrets`（L262–L280）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L270遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L278按`value`分支。 调用`self.model_configuration`、`set`、`getattr(self, field).get_secret_value`、`getattr`、`values.add`、`sorted`。 返回路径：L280的`sorted((value for value in values if value), key=len, reverse=True)`。
-- `Settings.redact`（L282–L285）：接收`text`。 控制顺序：L283遍历`self.redaction_secrets()`。 调用`self.redaction_secrets`、`text.replace`。 返回路径：L285的`text`。
-- `Settings.redact_fragments`（L287–L305）：接收`fragments`。 源码说明：Hide all pieces of a newly registered secret in historical SSE replay.。 控制顺序：L291遍历`self.redaction_secrets()`；L293在`start >= 0`成立时循环；L297遍历`fragments`。 调用`"".join`、`self.redaction_secrets`、`joined.find`、`spans.append`、`len`、`result.append`、`any`。 返回路径：L305的`result`。
-- `Settings.redact_data`（L307–L320）：接收`value`。 源码说明：Redact JSON string leaves and keys before escaping; preserve inputs.。 控制顺序：L309按`isinstance(value, str)`分支；L311按`isinstance(value, dict)`分支；L316按`isinstance(value, list)`分支；L318按`isinstance(value, tuple)`分支。 调用`isinstance`、`self.redact`、`self.redact_data`、`value.items`、`tuple`。 返回路径：L310的`self.redact(value)`；L312的`{ self.redact(key) if isinstance(key, str) else key: self.redact_data(item) for key, item …`；L317的`[self.redact_data(item) for item in value]`。
+- `Settings`（L107–L323）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_model_http`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`module_coding_engine`、`mini_swe_enabled`、`mini_swe_max_tokens`、`mini_swe_max_cost_usd`、`mini_swe_billing_mode`、`mini_swe_zero_billing_ack`、`mini_swe_zero_billing_endpoint`、`mini_swe_usd_per_million_tokens`、`mini_swe_timeout`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`capability_execution_enabled`、`capability_profile_directory`、`capability_browser_image`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L208–L209）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L209的`local_http_url(value)`。
+- `Settings.only_local_databases`（L213–L214）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L214的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L218–L219）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L219的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L222–L226）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L223的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L228–L231）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L230遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_configuration`（L233–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L238的`configuration`。
+- `Settings._remember_model_keys`（L240–L245）：接收`configuration`。 控制顺序：L242遍历`(configuration.default, *configuration.stages.values())`；L244按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L247–L248）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L248的`self.model_configuration().profile(stage)`。
+- `Settings.require_model`（L250–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.models_ready`（L254–L259）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L258的`False`；L259的`True`。
+- `Settings.review_enabled`（L262–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L263的`self.model_configuration().review_enabled`。
+- `Settings.redaction_secrets`（L265–L283）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L273遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L281按`value`分支。 调用`self.model_configuration`、`set`、`getattr(self, field).get_secret_value`、`getattr`、`values.add`、`sorted`。 返回路径：L283的`sorted((value for value in values if value), key=len, reverse=True)`。
+- `Settings.redact`（L285–L288）：接收`text`。 控制顺序：L286遍历`self.redaction_secrets()`。 调用`self.redaction_secrets`、`text.replace`。 返回路径：L288的`text`。
+- `Settings.redact_fragments`（L290–L308）：接收`fragments`。 源码说明：Hide all pieces of a newly registered secret in historical SSE replay.。 控制顺序：L294遍历`self.redaction_secrets()`；L296在`start >= 0`成立时循环；L300遍历`fragments`。 调用`"".join`、`self.redaction_secrets`、`joined.find`、`spans.append`、`len`、`result.append`、`any`。 返回路径：L308的`result`。
+- `Settings.redact_data`（L310–L323）：接收`value`。 源码说明：Redact JSON string leaves and keys before escaping; preserve inputs.。 控制顺序：L312按`isinstance(value, str)`分支；L314按`isinstance(value, dict)`分支；L319按`isinstance(value, list)`分支；L321按`isinstance(value, tuple)`分支。 调用`isinstance`、`self.redact`、`self.redact_data`、`value.items`、`tuple`。 返回路径：L313的`self.redact(value)`；L315的`{ self.redact(key) if isinstance(key, str) else key: self.redact_data(item) for key, item …`；L320的`[self.redact_data(item) for item in value]`。
 
-<!-- source-file: workbench/settings.py sha256: 6b10c1c442110c4af0322130251543ca0d113d646a972837c24499ab92d6e9c0 -->
+<!-- source-file: workbench/settings.py sha256: f7899c02df202a6b880c9bdb9c8a2d7ca817cb57936a404624ae570da294c7da -->
 ````python
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
@@ -40576,7 +40599,10 @@ class Settings(BaseSettings):
     module_coding_engine: Literal["structured", "openhands"] = "structured"
     mini_swe_enabled: bool = False
     mini_swe_max_tokens: int = Field(default=2000000, ge=1000, le=2000000)
-    mini_swe_max_cost_usd: float = Field(default=10, gt=0, le=100)
+    mini_swe_max_cost_usd: float = Field(default=10, ge=0, le=100)
+    mini_swe_billing_mode: Literal["metered", "declared_free"] = "metered"
+    mini_swe_zero_billing_ack: bool = False
+    mini_swe_zero_billing_endpoint: str = ""
     # Operator-provided conservative maximum tariff, never guessed model pricing.
     mini_swe_usd_per_million_tokens: float = Field(default=0, ge=0, le=10000)
     mini_swe_timeout: int = Field(default=180, ge=10, le=900)
@@ -118841,6 +118867,64 @@ def news_requirement():
     )
 ````
 
+### `tests/resources/live-service/README.md`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/resources/live-service/README.md sha256: db2bf28224398c9e395a3bc3e5b1d9ca60506cd85706c30c089a7d2bc9cf3e14 -->
+````markdown
+# Explicitly authorized public test CA
+
+The user authorized committing `caddy-root.pem` on 2026-10-11 for the test client
+of `https://170.106.181.109:8317/v1` only. It contains one public CERTIFICATE,
+no private key. Source: reviewed Git blob `5f74599575e83c730b7f30dc1482bf343ad1c19f`.
+
+SHA256 certificate fingerprint:
+`15:DB:86:A8:D1:15:66:62:5D:42:20:51:59:91:72:7C:90:0E:23:2E:64:1D:8E:7F:CB:08:B0:B4:2D:30:79:AF`.
+
+Subject: `CN=Caddy Local Authority - 2026 ECC Root`. Self-signature verified.
+Validity: 2026-10-11 02:59:32 UTC through 2036-08-19 02:59:32 UTC.
+This root does not prove the live leaf certificate has the correct IP SAN.
+
+Only `scripts/live_test_client.py` loads it into a scoped SSLContext after checking
+the fingerprint and exact endpoint. Host/IP verification and certificate-chain
+validation remain enabled. The transport allows only this service's model probe
+and Chat Completions paths. It never installs a system root, changes proxy
+settings, follows redirects, or disables TLS verification.
+
+The user's no-charge declaration is recorded separately from TLS trust. Paid
+mode still requires a positive explicit ceiling and conservative tariff; free
+mode requires explicit acknowledgement and exact endpoint binding. Request,
+step, token and duration limits continue to apply.
+````
+
+### `tests/resources/live-service/caddy-root.pem`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/resources/live-service/caddy-root.pem sha256: 48a04702c6c1bb666a5b7d514ea11327735e25d311a579e97f2c150e01cae8d0 -->
+````text
+-----BEGIN CERTIFICATE-----
+MIIBpDCCAUmgAwIBAgIQPe3zHvHA/DOlIIDwdYp6YjAKBggqhkjOPQQDAjAwMS4w
+LAYDVQQDEyVDYWRkeSBMb2NhbCBBdXRob3JpdHkgLSAyMDI2IEVDQyBSb290MB4X
+DTI2MTAxMTAyNTkzMloXDTM2MDgxOTAyNTkzMlowMDEuMCwGA1UEAxMlQ2FkZHkg
+TG9jYWwgQXV0aG9yaXR5IC0gMjAyNiBFQ0MgUm9vdDBZMBMGByqGSM49AgEGCCqG
+SM49AwEHA0IABC6KL/iK7WLjkHOtOH7mIN3husi6BoOPNzl5ogyPVQS65kjE3jW0
+bl+EcRV5waBK8Gqzqha1qPv08Ci5mxshV4yjRTBDMA4GA1UdDwEB/wQEAwIBBjAS
+BgNVHRMBAf8ECDAGAQH/AgEBMB0GA1UdDgQWBBTMogrnvdAuMgKAawFyPXdBf8wL
+HjAKBggqhkjOPQQDAgNJADBGAiEA6zaLgRQ7VrvXVfLo1UnMSGp5vYVsGl4wfOhl
+ipjD1tQCIQCFRpGgMI/aOUR63zaIq/qFmCKZ2hkJRGNKXocw0/0HQg==
+-----END CERTIFICATE-----
+````
+
 ### `tests/test_aider_offline.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -164116,6 +164200,211 @@ def test_legacy_ready_gate_does_not_gain_scope_approval_from_delegation(
     assert not (settings.data_dir / "runs" / run / "product").exists()
 ````
 
+### `tests/test_live_test_client.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `env`（L12–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L13的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": live.REPOSITORY, "GITHUB_EVENT_NAME": "wo…`。
+- `test_public_pinned_ca_keeps_hostname_and_certificate_verification`（L31–L34）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33断言`context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED`；L34断言`"PRIVATE KEY" not in client.CA.read_text()`。 调用`client.test_context`、`client.CA.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_private_ca_never_applies_to_other_destinations`（L47–L49）：接收`endpoint`。 调用`pytest.raises`、`client.test_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_tampered_certificate_is_rejected_before_trust`（L52–L57）：接收`tmp_path`、`monkeypatch`。 调用`path.write_text`、`client.CA.read_text().replace`、`client.CA.read_text`、`monkeypatch.setattr`、`pytest.raises`、`client.test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_free_mode_is_explicit_zero_and_still_bounded`（L60–L65）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62断言`config["max_cost_usd"] == config["usd_per_million_tokens"] == 0`；L63断言`config["billing"]["attestation"] == client.ATTESTATION`；L64断言`config["max_model_calls"] == 32 and config["max_output_tokens"] == 8192`；L65断言`config["max_tokens_total"] == 4_000_000`。 调用`live.configuration`、`env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_free_mode_cannot_silently_replace_paid_budget`（L79–L81）：接收`key`、`value`。 调用`pytest.raises`、`live.configuration`、`env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects`（L85–L107）：接收`monkeypatch`、`status`、`success`。 控制顺序：L102按`success`分支；L103断言`client.probe({**env(), "API_KEY": "never-send-this"})["strict_tls"]`；L107断言`len(requests) == 1`。 调用`monkeypatch.setattr`、`client.probe`、`env`、`pytest.raises`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory`（L90–L99）：接收`**kwargs`。 控制顺序：L91断言`kwargs["verify"].check_hostname`；L92断言`kwargs["verify"].verify_mode == ssl.CERT_REQUIRED`。 调用`httpx.MockTransport`。 返回路径：L99的`httpx.MockTransport(handle)`。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory.handle`（L94–L97）：接收`request`。 控制顺序：L96断言`"authorization" not in request.headers`。 调用`requests.append`、`httpx.Response`。 返回路径：L97的`httpx.Response(status, headers={"location": "https://other.test/v1"})`。
+- `test_scoped_transport_refuses_cross_host_and_authenticated_probe`（L110–L123）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L113遍历`[ httpx.Request("POST", "https://other.test/v1/chat/completions")…`；L121断言`transport.calls == 0`。 调用`client.TestServiceTransport`、`httpx.Request`、`pytest.raises`、`transport.handle_request`、`transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_free_mode_needs_attested_exact_endpoint`（L135–L176）：接收`settings`、`tmp_path`、`monkeypatch`、`ack`、`endpoint`、`cost`、`price`、`accepted`。 控制顺序：L172按`accepted`分支；L173断言`invoke() == "offline-authority-checked"`。 调用`settings.model_copy`、`monkeypatch.setattr`、`design`、`invoke`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_free_mode_needs_attested_exact_endpoint.invoke`（L160–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`mini_swe.run_agent`、`ModelGateway`。 返回路径：L161的`mini_swe.run_agent( settings, ModelGateway(settings, None), "offline", plan.tasks[0], plan…`。
+
+<!-- source-file: tests/test_live_test_client.py sha256: d00b6c679b99ff1d4d3544529b5e6f516cfeb6021a5de0578bc41fc738f4839b -->
+````python
+"""Offline trust scope, no-charge attestation and bounded client contracts."""
+
+import ssl
+
+import httpx
+import pytest
+
+from scripts import ci_live_modules as live
+from scripts import live_test_client as client
+
+
+def env():
+    return {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": live.REPOSITORY,
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_SHA": "a" * 40,
+        "REVIEWED_SHA": "a" * 40,
+        "LIVE_SCENARIO": "mini-swe-sla",
+        "BASE_URL": client.ENDPOINT,
+        "MODE": "offline",
+        "LIVE_TEST_CA": "caddy-ip",
+        "LIVE_BILLING_MODE": "declared_free",
+        "LIVE_ZERO_BILLING_ACK": "true",
+        "LIVE_MAX_COST_USD": "0",
+        "LIVE_USD_PER_MILLION_TOKENS": "0",
+    }
+
+
+def test_public_pinned_ca_keeps_hostname_and_certificate_verification():
+    context = client.test_context(client.ENDPOINT, "caddy-ip")
+    assert context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED
+    assert "PRIVATE KEY" not in client.CA.read_text()
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://170.106.181.109:8317/v1",
+        "https://170.106.181.109/v1",
+        "https://example.test:8317/v1",
+        client.ENDPOINT + "?other",
+        client.ENDPOINT + "/models",
+    ],
+)
+def test_private_ca_never_applies_to_other_destinations(endpoint):
+    with pytest.raises(ValueError, match="endpoint"):
+        client.test_context(endpoint, "caddy-ip")
+
+
+def test_tampered_certificate_is_rejected_before_trust(tmp_path, monkeypatch):
+    path = tmp_path / "ca.pem"
+    path.write_text(client.CA.read_text().replace("MI", "MJ", 1))
+    monkeypatch.setattr(client, "CA", path)
+    with pytest.raises(ValueError, match="fingerprint"):
+        client.test_context(client.ENDPOINT, "caddy-ip")
+
+
+def test_free_mode_is_explicit_zero_and_still_bounded():
+    config = live.configuration(env())
+    assert config["max_cost_usd"] == config["usd_per_million_tokens"] == 0
+    assert config["billing"]["attestation"] == client.ATTESTATION
+    assert config["max_model_calls"] == 32 and config["max_output_tokens"] == 8192
+    assert config["max_tokens_total"] == 4_000_000
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("LIVE_ZERO_BILLING_ACK", "false"),
+        ("LIVE_BILLING_MODE", "metered"),
+        ("LIVE_BILLING_MODE", "unknown"),
+        ("BASE_URL", "https://other.test/v1"),
+        ("LIVE_MAX_COST_USD", "10"),
+        ("LIVE_USD_PER_MILLION_TOKENS", "1"),
+    ],
+)
+def test_free_mode_cannot_silently_replace_paid_budget(key, value):
+    with pytest.raises(ValueError):
+        live.configuration({**env(), key: value})
+
+
+@pytest.mark.parametrize("status,success", [(200, True), (401, True), (403, False), (302, False)])
+def test_probe_is_strict_unauthenticated_and_does_not_follow_redirects(
+    monkeypatch, status, success
+):
+    requests = []
+
+    def factory(**kwargs):
+        assert kwargs["verify"].check_hostname
+        assert kwargs["verify"].verify_mode == ssl.CERT_REQUIRED
+
+        def handle(request):
+            requests.append(request)
+            assert "authorization" not in request.headers
+            return httpx.Response(status, headers={"location": "https://other.test/v1"})
+
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(client.httpx, "HTTPTransport", factory)
+    if success:
+        assert client.probe({**env(), "API_KEY": "never-send-this"})["strict_tls"]
+    else:
+        with pytest.raises(ValueError):
+            client.probe(env())
+    assert len(requests) == 1
+
+
+def test_scoped_transport_refuses_cross_host_and_authenticated_probe():
+    transport = client.TestServiceTransport(client.ENDPOINT, "caddy-ip")
+    try:
+        for request in [
+            httpx.Request("POST", "https://other.test/v1/chat/completions"),
+            httpx.Request(
+                "GET", client.ENDPOINT + "/models", headers={"Authorization": "not-real"}
+            ),
+        ]:
+            with pytest.raises(ValueError, match="destination"):
+                transport.handle_request(request)
+        assert transport.calls == 0
+    finally:
+        transport.close()
+
+
+@pytest.mark.parametrize(
+    "ack,endpoint,cost,price,accepted",
+    [
+        (True, client.ENDPOINT, 0, 0, True),
+        (False, client.ENDPOINT, 0, 0, False),
+        (True, "https://other.test/v1", 0, 0, False),
+        (True, client.ENDPOINT, 1, 0, False),
+    ],
+)
+def test_platform_free_mode_needs_attested_exact_endpoint(
+    settings, tmp_path, monkeypatch, ack, endpoint, cost, price, accepted
+):
+    from scripts.sla_fixture import design
+    from workbench.coding import mini_swe
+    from workbench.errors import UnsupportedScope
+    from workbench.llm import ModelGateway
+
+    settings = settings.model_copy(
+        update={
+            "mini_swe_enabled": True,
+            "base_url": client.ENDPOINT,
+            "model": "offline",
+            "max_output_tokens": 8192,
+            "mini_swe_billing_mode": "declared_free",
+            "mini_swe_zero_billing_ack": ack,
+            "mini_swe_zero_billing_endpoint": endpoint,
+            "mini_swe_max_cost_usd": cost,
+            "mini_swe_usd_per_million_tokens": price,
+        }
+    )
+    monkeypatch.setattr(mini_swe, "worker_python", lambda: live.ROOT / "pyproject.toml")
+    monkeypatch.setattr(mini_swe, "_run", lambda *args: "offline-authority-checked")
+    plan = design().implementation
+
+    def invoke():
+        return mini_swe.run_agent(
+            settings,
+            ModelGateway(settings, None),
+            "offline",
+            plan.tasks[0],
+            plan,
+            tmp_path,
+            tmp_path / "worker",
+            {},
+        )
+
+    if accepted:
+        assert invoke() == "offline-authority-checked"
+    else:
+        with pytest.raises(UnsupportedScope):
+            invoke()
+````
+
 ### `tests/test_llm.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -199113,18 +199402,18 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.sla_fixture`、`workbench.filesystem`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.live_test_client`、`scripts.sla_fixture`、`workbench.filesystem`、`workbench.planning.feature_planner`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `require`（L31–L33）：接收`condition`、`code`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `configuration`（L36–L82）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L70抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L71的`{ "head_sha": head, "scenario": SCENARIO, "max_cost_usd": float(cost), "usd_per_million_to…`。
-- `acceptance_design`（L85–L127）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L92遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L127的`FeatureDesign.model_validate(data)`。
-- `live_settings`（L130–L163）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L139的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
-- `execute`（L166–L281）：接收`settings`、`directory`。 控制顺序：L206遍历`plan.tasks`。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L266的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
-- `main`（L284–L309）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L297按`not args.preflight`分支；L307抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`execute`、`live_settings`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require`（L32–L34）：接收`condition`、`code`。 控制顺序：L33按`not condition`分支；L34抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configuration`（L37–L90）：接收`env`。 源码说明：No secret access or network: validate the dispatch and conservative ceiling.。 控制顺序：L67按`billing == "declared_free"`分支；L77抛异常，停止当前正常路径。 调用`env.get`、`require`、`re.fullmatch`、`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`urlsplit`、`bool`、`env.get("MODE", "").strip`、`Decimal`等。 返回路径：L78的`{ "head_sha": head, "scenario": SCENARIO, "billing": zero_billing(env) if billing == "decl…`。
+- `acceptance_design`（L93–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep trusted assertions outside model control, strengthen isolation and restart.。 控制顺序：L100遍历`scenarios`。 调用`design().model_dump`、`design`、`next`、`steps.index`、`steps.extend`、`scenario["after_restart"].append`、`FeatureDesign.model_validate`。 返回路径：L135的`FeatureDesign.model_validate(data)`。
+- `live_settings`（L138–L174）：接收`env`、`config`、`directory`。 调用`require`、`bool`、`env.get("API_KEY", "").strip`、`env.get`、`Settings`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L147的`Settings( _env_file=HOME / "workbench.env", data_dir=directory / "platform", database_url=…`。
+- `execute`（L177–L297）：接收`settings`、`directory`、`transport`、`progress`。 控制顺序：L218遍历`plan.tasks`；L293按`progress is not None and run_id`分支。 调用`acceptance_design`、`plan.selection.model_dump`、`require`、`worker_python().is_file`、`worker_python`、`capability_execution_prerequisites`、`Store`、`store.migrate`、`store.create_project`等。 返回路径：L278的`{ "real_model_calls": calls, "tokens_reserved": sum(b["tokens_reserved"] for b in budgets)…`。
+- `main`（L300–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L315按`not args.preflight`分支；L338抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`configuration`、`summary.update`、`tempfile.TemporaryDirectory`、`Path`、`TestServiceTransport`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_live_modules.py sha256: 39d31f5a7a94daccf58bd8750e4ded774bdb36becbdaf94467912aa875765616 -->
+<!-- source-file: scripts/ci_live_modules.py sha256: 0667a653d38df34dde8d8f9f55eb3df0ff47bd86e1ef3cdc66aa389f8a625638 -->
 ````python
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
 
@@ -199141,6 +199430,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from scripts.live_test_client import TestServiceTransport, zero_billing
 from scripts.sla_fixture import design
 from workbench.filesystem import manifest, pack_source, unpack, write_json
 from workbench.planning.feature_planner import FeatureDesign
@@ -199186,11 +199476,17 @@ def configuration(env):
         "https_endpoint_required",
     )
     require(bool(env.get("MODE", "").strip()), "model_required")
+    billing = env.get("LIVE_BILLING_MODE", "metered")
+    require(billing in {"metered", "declared_free"}, "unknown_billing_mode")
     try:
         cost = Decimal(env.get("LIVE_MAX_COST_USD", "0"))
         price = Decimal(env.get("LIVE_USD_PER_MILLION_TOKENS", "0"))
-        require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
-        require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
+        if billing == "declared_free":
+            zero_billing(env)
+            require(cost == price == 0, "zero_billing_requires_zero_prices")
+        else:
+            require(cost.is_finite() and 0 < cost <= 10, "cost_ceiling_required")
+            require(price.is_finite() and 0 < price <= 10000, "conservative_tariff_required")
         # Each module needs at least an edit and a submit. Reserve both gateway attempts.
         minimum = Decimal(2 * 2 * (4 * CONTEXT_CHARS + OUTPUT_TOKENS)) * price / 1_000_000
         require(cost / 2 >= minimum, "budget_cannot_cover_two_turns_per_module")
@@ -199199,6 +199495,7 @@ def configuration(env):
     return {
         "head_sha": head,
         "scenario": SCENARIO,
+        "billing": zero_billing(env) if billing == "declared_free" else {"mode": "metered"},
         "max_cost_usd": float(cost),
         "usd_per_million_tokens": float(price),
         "max_model_calls": MODEL_CALLS,
@@ -199277,6 +199574,9 @@ def live_settings(env, config, directory):
         coding_max_output_tokens=OUTPUT_TOKENS,
         allow_insecure_model_http=False,
         mini_swe_enabled=True,
+        mini_swe_billing_mode=config["billing"]["mode"],
+        mini_swe_zero_billing_ack=config["billing"]["mode"] == "declared_free",
+        mini_swe_zero_billing_endpoint=config["billing"].get("endpoint", ""),
         mini_swe_max_tokens=TOKENS_PER_TASK,
         mini_swe_max_cost_usd=config["max_cost_usd"] / 2,
         mini_swe_usd_per_million_tokens=config["usd_per_million_tokens"],
@@ -199291,7 +199591,7 @@ def live_settings(env, config, directory):
     )
 
 
-def execute(settings, directory):
+def execute(settings, directory, *, transport=None, progress=None):
     from workbench.capability_consumer import prepare_consumer, require_consumer_evidence
     from workbench.capability_execution import capability_execution_prerequisites
     from workbench.capability_sandbox import verify_capabilities
@@ -199309,6 +199609,7 @@ def execute(settings, directory):
     # Same-job real security/browser/profile proof must exist before any paid request.
     capability_execution_prerequisites(settings, selection)
     store = Store(settings)
+    run_id = None
     try:
         store.migrate()
         project = store.create_project("Reviewed SLA module acceptance", "live-sla")
@@ -199321,7 +199622,7 @@ def execute(settings, directory):
             },
             "live-sla-run",
         )["run_id"]
-        gateway = ModelGateway(settings, store)
+        gateway = ModelGateway(settings, store, transport)
         base = directory / "baseline"
         generate_basic(selected.baseline, base, selection)
         prepare_consumer(base, plan)
@@ -199406,6 +199707,10 @@ def execute(settings, directory):
             "cleanup": proof["cleanup"],
         }
     finally:
+        if progress is not None and run_id:
+            progress["model_call_reservations"] = store.get_run(run_id)["model_calls"]
+            progress["model_http_attempts"] = transport.calls if transport else 0
+            progress["model_http_responses"] = transport.responses if transport else 0
         store.engine.dispose()
 
 
@@ -199418,6 +199723,8 @@ def main():
         "real_model_acceptance": False,
         "scenario": SCENARIO,
         "phase": "configuration",
+        "model_http_attempts": 0,
+        "model_http_responses": 0,
     }
     try:
         config = configuration(os.environ)
@@ -199426,7 +199733,20 @@ def main():
             summary["phase"] = "execution"
             with tempfile.TemporaryDirectory(prefix="rnd-live-modules-") as temporary:
                 directory = Path(temporary)
-                summary.update(execute(live_settings(os.environ, config, directory), directory))
+                transport = TestServiceTransport(
+                    os.environ["BASE_URL"], os.environ.get("LIVE_TEST_CA", "system")
+                )
+                try:
+                    summary.update(
+                        execute(
+                            live_settings(os.environ, config, directory),
+                            directory,
+                            transport=transport,
+                            progress=summary,
+                        )
+                    )
+                finally:
+                    transport.close()
                 summary.update(passed=True, real_model_acceptance=True, phase="completed")
     except Exception:
         # Never publish raw provider/SDK errors, generated code, prompts or credentials.
@@ -205068,23 +205388,23 @@ if __name__ == "__main__":
 - `feedback_snapshot.diagnostic`（L188–L228）：接收`item`。 控制顺序：L191按`"source" in item`分支；L193遍历`( "targets", "target", "attribute", "expected", "actual", "missin…`；L204按`key in item`分支；L206按`type(item.get("count")) is int and 0 <= item["count"] <= 100000`分支；L208按`isinstance(item.get("sources"), list)`分支。 调用`item.get`、`isinstance`、`source_location`、`value`、`type`、`record.get`、`len`。 返回路径：L228的`result`。
 - `trusted_event`（L271–L300）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L279按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L294的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
 - `acceptance_settings`（L303–L355）：接收`env`、`directory`。 控制顺序：L304遍历`("BASE_URL", "MODE", "API_KEY")`；L353遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L355的`settings`。
-- `BoundedTransport`（L358–L457）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedTransport.__init__`（L361–L367）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.handle_request`（L369–L451）：接收`request`。 控制顺序：L373按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L390抛异常，停止当前正常路径；L403遍历`response.iter_bytes()`；L405按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L406抛异常，停止当前正常路径；L429按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L451的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
-- `BoundedTransport.close`（L453–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.shutdown`（L456–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway`（L460–L512）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ObservedGateway.__init__`（L461–L464）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway.complete`（L466–L499）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L488按`stage in {"plan", "recommend", "requirement"}`分支；L494按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L499的`result`。
-- `ObservedGateway.receipt_trace`（L501–L512）：接收`run_id`。 控制顺序：L505遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L508按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L512的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
-- `diagnostic_facts`（L515–L542）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L518遍历`details[:8]`；L519按`not isinstance(detail, dict)`分支；L523按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L525遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L530按`isinstance(values, dict)`分支；L539按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L542的`retained`。
-- `failure_events`（L545–L573）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L548遍历`range(4)`；L550按`not events`分支；L553遍历`events`；L554按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L559遍历`("stage", "code", "request_id", "response_id", "attempt")`；L561按`isinstance(value, str)`分支；L563按`type(value) is int`分支；L566按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L570的`failures`；L573的`failures`。
-- `verify_delivery`（L576–L624）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L606的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
-- `aggregate`（L627–L652）：接收`cases`、`results`。 控制顺序：L628按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L632遍历`cases`；L634按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L631的`False`；L651的`False`；L652的`True`。
-- `run_suite`（L655–L781）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L750按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L772的`summary`。
-- `main`（L784–L842）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L792按`args.validate_fixtures`分支；L819按`binding and (REPORTS / "summary.json").is_file()`分支；L821按`saved.get("run_identity") == binding`分支；L842抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport`（L358–L459）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedTransport.__init__`（L361–L369）：接收`settings`、`ca_mode`。 调用`TestServiceTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.handle_request`（L371–L453）：接收`request`。 控制顺序：L375按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L392抛异常，停止当前正常路径；L405遍历`response.iter_bytes()`；L407按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L408抛异常，停止当前正常路径；L431按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L453的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
+- `BoundedTransport.close`（L455–L456）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.shutdown`（L458–L459）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway`（L462–L514）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ObservedGateway.__init__`（L463–L466）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway.complete`（L468–L501）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L490按`stage in {"plan", "recommend", "requirement"}`分支；L496按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L501的`result`。
+- `ObservedGateway.receipt_trace`（L503–L514）：接收`run_id`。 控制顺序：L507遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L510按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L514的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
+- `diagnostic_facts`（L517–L544）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L520遍历`details[:8]`；L521按`not isinstance(detail, dict)`分支；L525按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L527遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L532按`isinstance(values, dict)`分支；L541按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L544的`retained`。
+- `failure_events`（L547–L575）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L550遍历`range(4)`；L552按`not events`分支；L555遍历`events`；L556按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L561遍历`("stage", "code", "request_id", "response_id", "attempt")`；L563按`isinstance(value, str)`分支；L565按`type(value) is int`分支；L568按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L572的`failures`；L575的`failures`。
+- `verify_delivery`（L578–L626）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L608的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
+- `aggregate`（L629–L654）：接收`cases`、`results`。 控制顺序：L630按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L634遍历`cases`；L636按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L633的`False`；L653的`False`；L654的`True`。
+- `run_suite`（L657–L784）：接收`settings`、`directory`、`binding`、`ca_mode`、`billing`。 控制顺序：L713遍历`cases`；L715遍历`assignments.items()`；L717按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L751按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L753按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L775的`summary`。
+- `main`（L787–L851）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L795按`args.validate_fixtures`分支；L828按`binding and (REPORTS / "summary.json").is_file()`分支；L830按`saved.get("run_identity") == binding`分支；L851抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_template_projects.py sha256: b554c0382b99d0e353a72551540eb4cd1260dd2d735de191b8c7184c8a003001 -->
+<!-- source-file: scripts/ci_template_projects.py sha256: 70bfc62275928ae77a13bd6e6e2e1560150699a64b3483530b11540033c82862 -->
 ````python
 """Bounded real-model batch acceptance for three independent project scenarios.
 
@@ -205446,9 +205766,11 @@ def acceptance_settings(env, directory):
 class BoundedTransport(httpx.BaseTransport):
     """Count actual provider requests, including failures, without retaining their text."""
 
-    def __init__(self, settings):
+    def __init__(self, settings, ca_mode="system"):
         self.settings = settings
-        self.inner = httpx.HTTPTransport(retries=0, trust_env=False)
+        from scripts.live_test_client import TestServiceTransport
+
+        self.inner = TestServiceTransport(settings.base_url, ca_mode)
         self.run_id, self.stage, self.schema = None, None, None
         self.logical_key = None
         self.calls = Counter()
@@ -205740,7 +206062,7 @@ def aggregate(cases, results):
     return True
 
 
-def run_suite(settings, directory, binding):
+def run_suite(settings, directory, binding, *, ca_mode="system", billing=None):
     cases = suite_cases()
     summary = {
         "version": 1,
@@ -205758,10 +206080,11 @@ def run_suite(settings, directory, binding):
         "scope": "Six-entity business complexity; not production load or native-template acceptance",
         "native_templates_exercised": [],
         "model_review_exercised": False,
+        "billing": billing or {"mode": "legacy_unspecified"},
         "cases": [],
     }
     REPORTS.mkdir(parents=True, exist_ok=True)
-    transport = BoundedTransport(settings)
+    transport = BoundedTransport(settings, ca_mode)
     store = Store(settings)
     try:
         store.migrate()
@@ -205898,10 +206221,16 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
         ).stdout.strip()
         require(checkout == binding["head_sha"], "checkout_head_mismatch")
+        from scripts.live_test_client import zero_billing
+
+        ca_mode = os.environ.get("LIVE_TEST_CA", "system")
+        billing = zero_billing(os.environ) if ca_mode == "caddy-ip" else None
         with tempfile.TemporaryDirectory(prefix="rnd-three-projects-") as temporary:
             settings = acceptance_settings(os.environ, Path(temporary))
             write_json(REPORTS / "summary.json", {**summary, "run_identity": binding})
-            summary = run_suite(settings, Path(temporary), binding)
+            summary = run_suite(
+                settings, Path(temporary), binding, ca_mode=ca_mode, billing=billing
+            )
     except Exception as error:
         # If execution already wrote per-case evidence, preserve it on controller failure.
         if binding and (REPORTS / "summary.json").is_file():
@@ -214971,6 +215300,174 @@ def notes(name, content):
 ]
 ````
 
+### `scripts/live_test_client.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.live_test_client；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.filesystem`、`workbench.model_diagnostics`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `zero_billing`（L22–L36）：接收`env`。 控制顺序：L23按`env.get("LIVE_BILLING_MODE", "metered") != "declared_free"`分支；L24抛异常，停止当前正常路径；L25按`env.get("LIVE_ZERO_BILLING_ACK") != "true" or env.get("BASE_URL", "").rstrip("/") != …`分支；L29抛异常，停止当前正常路径。 调用`env.get`、`ValueError`、`env.get("BASE_URL", "").rstrip`。 返回路径：L30的`{ "mode": "declared_free", "attestation": ATTESTATION, "endpoint": ENDPOINT, "source": "us…`。
+- `test_context`（L39–L56）：接收`endpoint`、`mode`。 控制顺序：L40按`mode not in {"system", "caddy-ip"}`分支；L41抛异常，停止当前正常路径；L43按`mode == "caddy-ip"`分支；L44按`endpoint.rstrip("/") != ENDPOINT`分支；L45抛异常，停止当前正常路径；L47按`"PRIVATE KEY" in pem or not re.fullmatch( r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/…`分支；L50抛异常，停止当前正常路径；L51按`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`ssl.create_default_context`、`endpoint.rstrip`、`CA.read_text`、`re.fullmatch`、`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest`、`hashlib.sha256`、`ssl.PEM_cert_to_DER_cert`、`context.load_verify_locations`。 返回路径：L56的`context`。
+- `TestServiceTransport`（L59–L85）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TestServiceTransport.__init__`（L62–L67）：接收`endpoint`、`mode`。 调用`endpoint.rstrip`、`httpx.HTTPTransport`、`test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TestServiceTransport.handle_request`（L69–L82）：接收`request`。 控制顺序：L75按`not allowed`分支；L76抛异常，停止当前正常路径；L77按`request.method == "POST"`分支；L80按`request.method == "POST"`分支。 调用`str`、`ValueError`、`self.inner.handle_request`。 返回路径：L82的`response`。
+- `TestServiceTransport.close`（L84–L85）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `probe`（L88–L124）：接收`env`。 控制顺序：L89按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-r…`分支；L97抛异常，停止当前正常路径；L99按`not endpoint.startswith("https://")`分支；L100抛异常，停止当前正常路径；L114按`response.status_code not in {200, 401}`分支；L115抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`ValueError`、`env.get("BASE_URL", "").rstrip`、`endpoint.startswith`、`zero_billing`、`httpx.Client`、`TestServiceTransport`、`client.stream`。 返回路径：L116的`{ "strict_tls": True, "http_status": response.status_code, "authentication_sent": False, "…`。
+- `main`（L127–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L136抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.parse_args`、`probe`、`transport_failure`、`SystemExit`、`write_json`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/live_test_client.py sha256: 4faf3123c96e89a20920ac9e4faf780ed2bd2d026f3056102babd1f218694b24 -->
+````python
+"""Explicit test-only trust for the user-owned service; never a system CA change."""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import ssl
+
+import httpx
+
+from workbench.filesystem import write_json
+from workbench.model_diagnostics import transport_failure
+from workbench.settings import ROOT
+
+ENDPOINT = "https://170.106.181.109:8317/v1"
+CA = ROOT / "tests/resources/live-service/caddy-root.pem"
+FINGERPRINT = "15db86a8d11566625d4220515991727c900e232e641d8e7fcb08b0b42d3079af"
+ATTESTATION = "user-confirmed-no-charge-2026-10-11"
+
+
+def zero_billing(env):
+    if env.get("LIVE_BILLING_MODE", "metered") != "declared_free":
+        raise ValueError("explicit_zero_billing_mode_required")
+    if (
+        env.get("LIVE_ZERO_BILLING_ACK") != "true"
+        or env.get("BASE_URL", "").rstrip("/") != ENDPOINT
+    ):
+        raise ValueError("zero_billing_confirmation_or_endpoint_missing")
+    return {
+        "mode": "declared_free",
+        "attestation": ATTESTATION,
+        "endpoint": ENDPOINT,
+        "source": "user_declaration_not_provider_invoice",
+        "maximum_cost_usd": 0,
+    }
+
+
+def test_context(endpoint, mode):
+    if mode not in {"system", "caddy-ip"}:
+        raise ValueError("unknown_test_ca_mode")
+    context = ssl.create_default_context()
+    if mode == "caddy-ip":
+        if endpoint.rstrip("/") != ENDPOINT:
+            raise ValueError("test_ca_endpoint_mismatch")
+        pem = CA.read_text(encoding="ascii")
+        if "PRIVATE KEY" in pem or not re.fullmatch(
+            r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\r\n]+-----END CERTIFICATE-----\s*", pem
+        ):
+            raise ValueError("public_certificate_only")
+        if hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT:
+            raise ValueError("test_ca_fingerprint_mismatch")
+        context.load_verify_locations(cadata=pem)
+    if not context.check_hostname or context.verify_mode != ssl.CERT_REQUIRED:
+        raise ValueError("strict_tls_required")
+    return context
+
+
+class TestServiceTransport(httpx.BaseTransport):
+    """Restrict the scoped trust to two exact endpoints, with no redirects."""
+
+    def __init__(self, endpoint, mode="system"):
+        self.endpoint = endpoint.rstrip("/")
+        self.inner = httpx.HTTPTransport(
+            verify=test_context(self.endpoint, mode), retries=0, trust_env=False
+        )
+        self.calls = self.responses = 0
+
+    def handle_request(self, request):
+        allowed = (
+            request.method == "GET"
+            and str(request.url) == self.endpoint + "/models"
+            and "authorization" not in request.headers
+        ) or (request.method == "POST" and str(request.url) == self.endpoint + "/chat/completions")
+        if not allowed:
+            raise ValueError("test_transport_destination_rejected")
+        if request.method == "POST":
+            self.calls += 1
+        response = self.inner.handle_request(request)
+        if request.method == "POST":
+            self.responses += 1
+        return response
+
+    def close(self):
+        self.inner.close()
+
+
+def probe(env):
+    if (
+        env.get("GITHUB_ACTIONS") != "true"
+        or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-rnd-foundation-learning"
+        or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
+        or env.get("GITHUB_RUN_ATTEMPT") != "1"
+        or not re.fullmatch(r"[a-f0-9]{40}", env.get("GITHUB_SHA", ""))
+        or env.get("REVIEWED_SHA") != env.get("GITHUB_SHA")
+    ):
+        raise ValueError("reviewed_first_manual_dispatch_required")
+    endpoint = env.get("BASE_URL", "").rstrip("/")
+    if not endpoint.startswith("https://"):
+        raise ValueError("https_required")
+    mode = env.get("LIVE_TEST_CA", "system")
+    billing = (
+        zero_billing(env)
+        if mode == "caddy-ip" or env.get("LIVE_BILLING_MODE") == "declared_free"
+        else {"mode": "metered"}
+    )
+    with httpx.Client(
+        transport=TestServiceTransport(endpoint, mode),
+        timeout=20,
+        follow_redirects=False,
+        trust_env=False,
+    ) as client:
+        with client.stream("GET", endpoint + "/models") as response:
+            if response.status_code not in {200, 401}:
+                raise ValueError("unauthenticated_service_probe_rejected")
+            return {
+                "strict_tls": True,
+                "http_status": response.status_code,
+                "authentication_sent": False,
+                "head_sha": env["GITHUB_SHA"],
+                "ca_mode": mode,
+                "ca_sha256": FINGERPRINT if mode == "caddy-ip" else None,
+                "billing": billing,
+            }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args()
+    receipt = {"strict_tls": False, "authentication_sent": False}
+    try:
+        receipt = probe(os.environ)
+    except Exception as exc:
+        diagnostic = transport_failure(exc)
+        receipt["failure"] = diagnostic[0] if diagnostic else "strict_unauthenticated_probe_failed"
+        raise SystemExit(1) from None
+    finally:
+        write_json(ROOT / "reports/live-tls.json", receipt)
+        print(json.dumps(receipt))
+
+
+if __name__ == "__main__":
+    main()
+````
+
 ### `scripts/native_browser.cjs`
 
 **作用：真实原生登录、菜单、表单与规则浏览器检查。** 按FastapiAdmin或Vben的真实DOM操作，登录提交必须核对实际认证/权限HTTP、同源非登录路由和原生shell，不等待概览页无关资源的整页load；再验证生成菜单的实际列表API/DOM、原生组件及表单正反例。失败截图/网络错误用于诊断，不能注入令牌越过登录，45秒等待上限不变。
@@ -218489,7 +218986,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/real-model.yml sha256: bbfd3d2b23e37bfa481d487e465d26835d8eeef4778aa7f0b628b6c3e9eea30a -->
+<!-- source-file: .github/workflows/real-model.yml sha256: caeca9dd7403676c0e7872ba2c244700b10086ffe0d4a9a3e9aa58d2974f23cf -->
 ````yaml
 name: Manual real-model customer acceptance
 on:
@@ -218500,12 +218997,26 @@ on:
         type: choice
         options: [legacy, mini-swe-sla]
         default: legacy
+      billing_mode:
+        description: Metered pricing or explicit user-confirmed no-charge service
+        type: choice
+        options: [metered, declared_free]
+        default: metered
+      confirm_no_charge:
+        description: I confirm this exact service has no charges for this test
+        type: boolean
+        default: false
+      test_ca:
+        description: Test-client-only CA; caddy-ip is pinned to 170.106.181.109:8317
+        type: choice
+        options: [system, caddy-ip]
+        default: system
       max_cost_usd:
         description: Authorized total USD ceiling for this manual mini-SWE run (greater than 0, maximum 10)
         type: string
         default: '0'
       usd_per_million_tokens:
-        description: Operator-verified conservative USD price per million input OR output tokens (0 fails closed)
+        description: Conservative USD price per million input OR output tokens; zero only for confirmed declared_free mode
         type: string
         default: '0'
       reviewed_sha:
@@ -218677,6 +219188,9 @@ jobs:
     environment: rnd
     env:
       LIVE_SCENARIO: ${{ inputs.scenario }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
+      LIVE_TEST_CA: ${{ inputs.test_ca }}
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       LIVE_MAX_COST_USD: ${{ inputs.max_cost_usd }}
       LIVE_USD_PER_MILLION_TOKENS: ${{ inputs.usd_per_million_tokens }}
@@ -218698,8 +219212,14 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Validate exact dispatch HTTPS endpoint and explicit budget without a model key
         run: uv run python -m scripts.ci_live_modules --preflight
+      - name: Require strict unauthenticated TLS before any provider key is available
+        run: uv run python -m scripts.live_test_client
       - name: Verify offline live-acceptance contracts
-        run: uv run pytest -q tests/test_ci_live_modules.py
+        env:
+          LIVE_BILLING_MODE: metered
+          LIVE_TEST_CA: system
+          LIVE_ZERO_BILLING_ACK: 'false'
+        run: uv run pytest -q tests/test_ci_live_modules.py tests/test_live_test_client.py
       - name: Install the isolated pinned Worker
         run: uv sync --project tools/mini-swe --python 3.12 --locked
       - uses: actions/setup-node@v4
@@ -218748,7 +219268,9 @@ jobs:
         if: always()
         with:
           name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
-          path: reports/live-modules/summary.json
+          path: |
+            reports/live-modules/summary.json
+            reports/live-tls.json
           if-no-files-found: error
           retention-days: 7
 ````
@@ -218761,12 +219283,29 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/template-project-acceptance.yml sha256: 0b2674ff850d3debcea7011f89d05342209e109599d6055e3102f78aa9af7033 -->
+<!-- source-file: .github/workflows/template-project-acceptance.yml sha256: f0263c747386cf4c88c62dd82bfdedc6fc0e834a84075ecc0f4ef2894f69e877 -->
 ````yaml
 name: Three-project live acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed commit SHA
+        type: string
+        required: true
+      billing_mode:
+        type: choice
+        options: [metered, declared_free]
+        default: metered
+      confirm_no_charge:
+        description: I confirm this exact service has no charges for this test
+        type: boolean
+        default: false
+      test_ca:
+        type: choice
+        options: [system, caddy-ip]
+        default: system
   pull_request:
     types: [labeled]
 
@@ -218792,6 +219331,12 @@ jobs:
     env:
       ACCEPTANCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       PYTHONUTF8: '1'
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
+      LIVE_TEST_CA: ${{ inputs.test_ca }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODE: ${{ vars.MODE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -218805,6 +219350,8 @@ jobs:
           node-version: '22'
       - name: Install locked dependencies before credential access
         run: uv sync --locked
+      - name: Require strict unauthenticated TLS before any provider key is available
+        run: uv run python -m scripts.live_test_client
       - name: Verify scenario and acceptance guards without a model
         run: |
           uv run python -m scripts.ci_template_projects --validate-fixtures
@@ -218820,8 +219367,6 @@ jobs:
           API_KEY: ${{ secrets.API_KEY }}
           BASE_URL: ${{ vars.BASE_URL }}
           MODE: ${{ vars.MODE }}
-          # Explicit opt-in for the user-configured compatible HTTP gateway.
-          ALLOW_INSECURE_MODEL_HTTP: 'true'
           PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
           PLAYWRIGHT_BROWSERS_PATH: '0'
         run: uv run python -m scripts.ci_template_projects
@@ -218831,6 +219376,7 @@ jobs:
         with:
           name: three-project-receipts-${{ env.ACCEPTANCE_HEAD_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            reports/live-tls.json
             reports/template-project-acceptance/summary.json
             reports/template-project-acceptance/reading-shelf.json
             reports/template-project-acceptance/stock-purchasing.json
@@ -218855,7 +219401,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: 45c82add3a9ac6e001bf23809883cad263250c211553bab07147f37035ffe923 -->
+<!-- source-file: .github/workflows/test.yml sha256: d5bba452a7a8fd66f8447628ebb23f9fbdceb4fc43b0f85a4ea5fc1d490de28b -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -219247,7 +219793,7 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
-        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py --junitxml=reports/production-v2.xml
+        run: uv run pytest -q tests/test_production_v2.py tests/test_sla_vertical.py tests/test_ci_live_modules.py tests/test_live_test_client.py --junitxml=reports/production-v2.xml
       - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
       - uses: actions/upload-artifact@v4
         if: always()
@@ -236218,7 +236764,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: cf51a15ce46e9d74ba2ac5b7d14c6ace97c09469bdce8ef74517800aebbc5815 -->
+<!-- source-file: docs/modular-production-v2.md sha256: d64e20d53650e9ef1e9e63c7217b850bb50e2f8a27cd916c5b8097bbc642ba29 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -236358,6 +236904,18 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 仅上传 `reports/live-modules/summary.json` 白名单摘要，含精确 head、预算、源码/合同摘要及已检查的验收布尔项；不上传模型输入输出、产品代码、平台数据库或凭据。preflight 成功的报告明确 `passed=false`、`real_model_acceptance=false`，不能误当真实通过。最终必须同时检查 Job 成功及报告的真实验收标志。
 
 离线验证：`uv run pytest -q tests/test_ci_live_modules.py`；正常 Python acceptance 的 production-v2 Job 同时执行这些契约测试。离线单测使用显式 mock 检查拒绝、预算、步骤顺序和晋升条件，绝不代表此新增完整真实路径已经通过。
+
+### 已授权的测试 CA 与零计费模式
+
+2026-10-11，用户明确授权公开 CA 入库并仅用于 `https://170.106.181.109:8317/v1` 的测试客户端，声明该测试服务无费用。证书保存在 `tests/resources/live-service/caddy-root.pem`，指纹及来源见同目录 README。该文件不是私钥，也不安装为系统根。
+
+两条手动入口现均支持 `test_ca=caddy-ip`、`billing_mode=declared_free` 和 `confirm_no_charge=true`：mini-SWE 使用 `real-model.yml` 的 `scenario=mini-swe-sla`；三个 Python/SQLite 业务场景使用 `template-project-acceptance.yml`。两者都填写准确 `reviewed_sha` 并选择本 PR 分支；通过既有 `rnd.BASE_URL`、`rnd.MODE` 和 `rnd.API_KEY` 配置服务，不把密钥作为输入。mini-SWE 的 `max_cost_usd`、`usd_per_million_tokens` 保持真实的 `0`，不伪造正数价格。
+
+`declared_free` 必须明确确认且绑定上述准确端点，回执注明 `user-confirmed-no-charge-2026-10-11` 及“用户声明，不是服务商账单”。平台 mini-SWE 同样要求明确零计费确认、精确端点绑定和费用/价格均为0；恢复不能更换原账本的计费模式。上述正数费用要求继续适用于默认 `metered` 模式，未声明免费时仍失败关闭。两个模块的32次请求、8192输出tokens/次、8步/模块、4,000,000总预留tokens、180秒/模块与90分钟Job上限保持不变。三个业务场景仍为每例12次、合计36次请求，每次最多16384输出tokens，Job最多90分钟。
+
+在模型密钥仅对最后执行步骤可用之前，Actions 先请求不带认证的 `/v1/models`：严格 TLS 成功且服务返回200或401才继续。证书 SHA256 必须匹配固定指纹；SSLContext 保留 `CERT_REQUIRED`、主机/IP SAN、有效期和链验证。专用 transport 只允许准确服务的探测及 Chat Completions 路径，拒绝其他主机、端口、API根和重定向。没有 `verify=False`、HTTP回退、系统根安装或代理配置变更；旧三场景 workflow 的 HTTP 例外已移除。私有根正确不等于服务器叶证书正确；Actions 如仍遇IP SAN、链或访问拒绝，会在使用模型密钥前停止。
+
+上述代码与离线测试不能代表真实调用成功。只有本次精确head的 Actions 终态及对应回执可以证明运行结果；TLS探测、三业务场景、mini-SWE模块路径分别报告，不互相替代。
 ````
 
 ### `docs/template-platform.md`
