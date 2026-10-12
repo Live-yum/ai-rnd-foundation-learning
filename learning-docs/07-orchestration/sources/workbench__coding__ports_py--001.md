@@ -16,10 +16,10 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `AgentTurn`（L11–L19）：继承`Contract`。声明的数据项为`operation`、`edits`；类型约束/数据库列参数以完整定义为准。
-- `AgentTurn.action_shape`（L16–L19）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17按`(self.operation == "edit") != (self.edits is not None)`分支；L18抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L19的`self`。
+- `AgentTurn.action_shape`（L16–L19）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17按`(self.operation in {"edit", "edit_and_submit"}) != (self.edits is not None)`分支；L18抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L19的`self`。
 - `approved_turn_schema`（L22–L38）：接收`task`。 源码说明：Bind the existing gateway's bounded schema repair to this exact task.。 调用`frozenset`。 返回路径：L38的`ApprovedAgentTurn`。
 - `approved_turn_schema.ApprovedAgentTurn`（L26–L36）：继承`AgentTurn`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `approved_turn_schema.ApprovedAgentTurn.approved_files`（L28–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L29按`self.operation == "edit"`分支；L31按`set(names) != approved or len({name.casefold() for name in names}) != len(names)`分支；L32抛异常，停止当前正常路径。 调用`set`、`len`、`name.casefold`、`ValueError`、`model_validator`。 返回路径：L36的`self`。
+- `approved_turn_schema.ApprovedAgentTurn.approved_files`（L28–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L29按`self.operation in {"edit", "edit_and_submit"}`分支；L31按`set(names) != approved or len({name.casefold() for name in names}) != len(names)`分支；L32抛异常，停止当前正常路径。 调用`set`、`len`、`name.casefold`、`ValueError`、`model_validator`。 返回路径：L36的`self`。
 - `AgentBudget`（L41–L45）：继承`Contract`。声明的数据项为`max_requests`、`max_tokens`、`max_cost_usd`、`timeout_seconds`；类型约束/数据库列参数以完整定义为准。
 - `CodingEnvironment`（L48–L50）：继承`Protocol`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `CodingEnvironment.write`（L49–L49）：接收`edits`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -29,9 +29,9 @@
 
 **创建路径：** `workbench/coding/ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L50。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1873`。本段原文以LF换行结束。
+本段原始字节数：`1934`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "88398ec8b0e550f00d8550b4746d53405646212851aeabcb17117b1f19f233d6"} -->
+<!-- learning-source: {"path": "workbench/coding/ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4449437e5739fbf0d47436e550d04433ff3163403979452a90d1c882682cbd43"} -->
 ````python
 # workbench/coding/ports.py
 """Reviewed agent actions are data; neither commands nor verifier replacements."""
@@ -45,12 +45,12 @@ from workbench.planning.contracts import CapabilityEdits
 
 
 class AgentTurn(Contract):
-    operation: Literal["edit", "submit"]
+    operation: Literal["edit", "submit", "edit_and_submit"]
     edits: CapabilityEdits | None = None
 
     @model_validator(mode="after")
     def action_shape(self):
-        if (self.operation == "edit") != (self.edits is not None):
+        if (self.operation in {"edit", "edit_and_submit"}) != (self.edits is not None):
             raise ValueError("edit requires files; submit cannot smuggle edits")
         return self
 
@@ -62,7 +62,7 @@ def approved_turn_schema(task):
     class ApprovedAgentTurn(AgentTurn):
         @model_validator(mode="after")
         def approved_files(self):
-            if self.operation == "edit":
+            if self.operation in {"edit", "edit_and_submit"}:
                 names = [edit.path for edit in self.edits.files]
                 if set(names) != approved or len({name.casefold() for name in names}) != len(names):
                     raise ValueError(

@@ -28,6 +28,9 @@ def exercise(
     repeat=False,
     changed_snapshot=False,
     cleanup_effect=lambda: None,
+    combined=False,
+    write_failure=False,
+    after_check=lambda: None,
 ):
     if not agent.worker_python().is_file():
         assert not os.environ.get("RND_REQUIRE_V2_TOOLS"), "mandatory locked Worker missing"
@@ -46,14 +49,14 @@ def exercise(
             requests.append(deepcopy(payload))
             assert "新库初始化" in instruction
             number = len(requests)
-            if number % 2 == 0 or (repeat and number > 2):
+            if not combined and (number % 2 == 0 or (repeat and number > 2)):
                 return AgentTurn(operation="submit")
             context = payload["context"]
             files = [
                 {
                     "path": name,
                     "before_sha256": context[name]["sha256"],
-                    "content": f"# revision {number}\n",
+                    "content": f"# revision {1 if repeat else number}\n",
                 }
                 for name in task.allowed_paths
             ]
@@ -61,13 +64,20 @@ def exercise(
                 files[0]["path"] = "start.py"
             if bad_edit == "before":
                 files[0]["before_sha256"] = "f" * 64
-            return AgentTurn.model_validate(
-                {"operation": "edit", "edits": {"explanation": "fixture", "files": files}}
+            if bad_edit == "missing":
+                files.pop()
+            return schema.model_validate(
+                {
+                    "operation": "edit_and_submit" if combined else "edit",
+                    "edits": {"explanation": "fixture", "files": files},
+                }
             )
 
     class Environment:
         def write(self, edits):
             snapshot.update({e.path: e.content for e in edits.files})
+            if write_failure:
+                raise OSError("partial remote write failed")
 
         def snapshot(self, paths):
             result = dict(snapshot)
@@ -88,6 +98,7 @@ def exercise(
         result = outcomes[min(len(checkpoints) - 1, len(outcomes) - 1)]
         if isinstance(result, Exception):
             raise result
+        after_check()
         return {
             "passed": result,
             "source_digest": digest(manifest(candidate)),

@@ -160,6 +160,7 @@
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_declarative_fields.py](sources/tests__test_declarative_fields_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
+- [tests/test_edit_and_submit.py](sources/tests__test_edit_and_submit_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_field_fact_inventory.py](sources/tests__test_entity_field_fact_inventory_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段

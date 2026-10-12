@@ -255,8 +255,10 @@ def test_rejection_timeout_and_refusal_have_no_compatibility_retry(store, kind, 
 
 
 @pytest.mark.parametrize("kind", ["edit_null", "submit_edits", "wrong_path", "duplicate_path"])
-def test_native_schema_keeps_original_business_validation(store, kind):
+@pytest.mark.parametrize("operation", ["edit", "edit_and_submit"])
+def test_native_schema_keeps_original_business_validation(store, kind, operation):
     value = edit()
+    value["operation"] = operation
     if kind == "edit_null":
         value["edits"] = None
     elif kind == "submit_edits":
@@ -273,11 +275,13 @@ def test_native_schema_keeps_original_business_validation(store, kind):
     assert all(r["native_local_conformant"] is True for r in records)
 
 
-def test_native_edit_still_requires_matching_preimage(store, tmp_path):
+@pytest.mark.parametrize("operation", ["edit", "edit_and_submit"])
+def test_native_edit_still_requires_matching_preimage(store, tmp_path, operation):
     base = tmp_path / "base"
     base.mkdir()
     (base / "app.py").write_text("# baseline\n")
     value = edit()
+    value["operation"] = operation
     value["edits"]["files"][0]["before_sha256"] = sha(base / "app.py")
     model = model_gateway(store, lambda _: response(json.dumps(value)))
     turn = invoke(model, new_run(store))
@@ -483,3 +487,55 @@ def test_fixture_socketpairs_are_connected_owned_and_bounded():
         socket.socketpair()
     with pytest.raises(pytest.fail.Exception, match="unregistered or exhausted"):
         socket.socketpair(socket.AF_INET)
+
+
+def test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity(store, monkeypatch):
+    import sys
+    from typing import Literal
+
+    seen = []
+    task = design().implementation.tasks[0]
+
+    class ApprovedAgentTurn(approved_turn_schema(task)):
+        operation: Literal["edit", "submit"]
+
+    combined = edit()
+    combined["operation"] = "edit_and_submit"
+
+    def handler(request):
+        body = json.loads(request.content)
+        enum = body["response_format"]["json_schema"]["schema"]["properties"]["operation"]["enum"]
+        seen.append(enum)
+        assert body["stream"] is False
+        assert body["max_completion_tokens"] == 8192
+        return response(
+            json.dumps(combined)
+            if "edit_and_submit" in enum
+            else '{"operation":"submit","edits":null}'
+        )
+
+    model = model_gateway(store, handler)
+    run = new_run(store)
+    with monkeypatch.context() as patch:
+        patch.setattr(sys.modules[__name__], "approved_turn_schema", lambda task: ApprovedAgentTurn)
+        assert invoke(model, run).operation == "submit"
+    assert invoke(model, run).operation == "edit_and_submit"
+    assert invoke(model, run).operation == "edit_and_submit"
+    assert seen == [["edit", "submit"], ["edit", "submit", "edit_and_submit"]]
+    assert store.get_run(run)["model_calls"] == 2
+    assert store.model_records(run)[-1]["native_local_conformant"] is True
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["workbench/coding/ports.py", "workbench/coding/mini_swe.py", "tools/mini-swe/worker.py"],
+)
+def test_combined_contract_and_worker_bound_into_source_proof(monkeypatch, name):
+    from workbench import capability_execution as execution
+
+    original = execution.verifier_identity()
+    real_sha = execution.sha
+    monkeypatch.setattr(
+        execution, "sha", lambda path: "f" * 64 if path == execution.ROOT / name else real_sha(path)
+    )
+    assert execution.verifier_identity() != original

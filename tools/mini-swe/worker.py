@@ -59,7 +59,7 @@ class PlatformModel:
 
 class DaytonaEnvironment:
     def execute(self, action):
-        if action.get("operation") not in {"edit", "submit"}:
+        if action.get("operation") not in {"edit", "submit", "edit_and_submit"}:
             raise ValueError("No shell commands or local execution are supported")
         return rpc("environment", action)
 
@@ -77,7 +77,10 @@ def main():
     agent = DefaultAgent(
         PlatformModel(),
         DaytonaEnvironment(),
-        system_template="Only propose edits to approved business files, then submit. No shell actions.",
+        system_template=(
+            "Only edit approved business files. Use edit_and_submit when ready for checking; "
+            "edit alone continues editing, submit checks existing edits. No shell actions."
+        ),
         instance_template="{{ task }}",
         step_limit=initial["max_steps"],
         wall_time_limit_seconds=initial["timeout"],

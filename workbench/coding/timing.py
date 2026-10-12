@@ -33,6 +33,7 @@ HTTP_TRACE_TIMES = {
     for phase in HTTP_TRACE_PHASES
     for state in ("started", "complete", "failed")
 }
+TURN_OPERATIONS = ("edit", "submit", "edit_and_submit")
 
 
 def http_trace_receipt(value):
@@ -68,6 +69,15 @@ def timing_receipts(values, *, attempts=False):
                 if attempts and "http_trace" in value
                 else {}
             ),
+            **(
+                {
+                    "operation": value["operation"]
+                    if type(value["operation"]) is str and value["operation"] in TURN_OPERATIONS
+                    else None
+                }
+                if not attempts and "operation" in value
+                else {}
+            ),
         }
         for value in values[: 32 if attempts else 8]
         if isinstance(value, dict)
@@ -95,7 +105,7 @@ def record_turn(path, step, deadline, timeout, payload, transport):
         "http_attempts_before": getattr(transport, "calls", None),
     }
     try:
-        yield
+        yield value
     finally:
         ended = time.monotonic()
         value.update(

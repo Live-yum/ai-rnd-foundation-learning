@@ -9,12 +9,12 @@ from workbench.planning.contracts import CapabilityEdits
 
 
 class AgentTurn(Contract):
-    operation: Literal["edit", "submit"]
+    operation: Literal["edit", "submit", "edit_and_submit"]
     edits: CapabilityEdits | None = None
 
     @model_validator(mode="after")
     def action_shape(self):
-        if (self.operation == "edit") != (self.edits is not None):
+        if (self.operation in {"edit", "edit_and_submit"}) != (self.edits is not None):
             raise ValueError("edit requires files; submit cannot smuggle edits")
         return self
 
@@ -26,7 +26,7 @@ def approved_turn_schema(task):
     class ApprovedAgentTurn(AgentTurn):
         @model_validator(mode="after")
         def approved_files(self):
-            if self.operation == "edit":
+            if self.operation in {"edit", "edit_and_submit"}:
                 names = [edit.path for edit in self.edits.files]
                 if set(names) != approved or len({name.casefold() for name in names}) != len(names):
                     raise ValueError(
