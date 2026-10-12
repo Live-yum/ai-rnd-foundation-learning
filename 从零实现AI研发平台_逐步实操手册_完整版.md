@@ -401,6 +401,16 @@ SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹�
 
 受控试跑须另行明确授权，绑定已审查完整 SHA、现有 `rnd` 配置、同 Job 隔离前置证明及原预算。回执分别保留 `native_strict_requested`、`native_request_verified`、`native_local_conformant`，并始终将 `native_provider_enforcement` 标为 `unknown`。HTTP 200 且本地合规只能证明该请求被接受且该响应通过本地校验，不能区分服务端执行 strict 与静默忽略后偶然输出合规 JSON；也不能代替业务验收通过。
 
+### 第21轮之后的传输阶段诊断
+
+父线程提供的第21轮记录显示：API两次HTTP200且本地native Schema合规；dashboard两次60秒read_timeout，均未收到headers/body。本轮120.5592秒后仍有54.3405秒模块预算，overrun为0，不能归因为180秒模块耗尽。API/dashboard使用相同wire Schema和调用策略；实际初始payload相差1379字符、完整请求体相差1486字节，现有证据不能据此解释延迟，也不能证明服务商内部故障或strict执行。
+
+新增可选http_trace仅记录connect、TLS、发送headers、发送body、等待response headers五个固定阶段的started/complete/failed相对秒数、最多64个事件计数及固定失败阶段。最多32次HTTP记录；投影拒绝非有限、负数、布尔及越界值，不记录trace info、headers、地址、异常或正文。保留并透传原trace hook及其异常，成功或失败都恢复原extensions，响应body仍惰性读取。无事件意味着诊断不可用，不能把缺少connect事件单独当作连接复用证明。
+
+离线验证保留锁定SDK、真实HTTPTransport、连接池与HTTP/1.1解析，只替换网络backend并禁止外部网络。覆盖连接、TLS、上传、等待headers失败，严格Schema拒绝及原两次尝试上限；等待headers超时后，真实连接池关闭失败连接，下一次使用新连接。独立审查补测三种原hook状态与各失败阶段，确认恢复、正文不变和连接关闭。此证据不能追溯确定第21轮实际失败阶段。
+
+下一轮沿用已授权mini-swe-sla/json_schema、精确审查SHA和原rnd/TLS/nocharge/隔离前置证明，收集固定阶段回执。所有步骤、调用、token、时间及文件/oracle边界不变；无格式回退或新增重试。read timeout是单次网络操作的等待界限，不是整个响应的绝对墙钟截止；现有SSE循环尚未证明端到端硬截止，因此本次不切流式。API局部通过仍不能代替双模块候选及最终独立验收。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -17651,14 +17661,15 @@ class CodingEnvironment(Protocol):
 
 **逐个入口与控制逻辑：**
 
-- `numeric`（L32–L37）：接收`value`、`maximum`。 调用`type`、`math.isfinite`、`round`。 返回路径：L33的`round(value, 4) if type(value) in (int, float) and 0 <= value <= maximum and math.isfinite…`。
-- `timing_receipts`（L40–L48）：接收`values`、`attempts`。 控制顺序：L42按`not isinstance(values, list)`分支。 调用`isinstance`、`numeric`、`value.get`、`fields.items`。 返回路径：L43的`[]`；L44的`[ {key: numeric(value.get(key), limit) for key, limit in fields.items()} for value in valu…`。
-- `read_turns`（L51–L57）：接收`path`。 控制顺序：L53按`path.stat().st_size > 32768`分支。 调用`path.stat`、`timing_receipts`、`json.loads`、`path.read_text`。 返回路径：L54的`[]`；L55的`timing_receipts(json.loads(path.read_text()))`；L57的`[]`。
-- `record_turn`（L61–L84）：接收`path`、`step`、`deadline`、`timeout`、`payload`、`transport`。 调用`time.monotonic`、`max`、`len`、`json.dumps`、`getattr`、`value.update`、`write_json`、`timing_receipts`、`read_turns`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `http_trace_receipt`（L38–L48）：接收`value`。 源码说明：Fixed phases and bounded numbers only; never retain trace info or exceptions.。 控制顺序：L40按`not isinstance(value, dict)`分支。 调用`isinstance`、`value.get`、`type`、`numeric`、`HTTP_TRACE_TIMES.items`。 返回路径：L41的`None`；L44的`{ "event_count": count if type(count) is int and 0 <= count <= 64 else None, "failed_phase…`。
+- `numeric`（L51–L56）：接收`value`、`maximum`。 调用`type`、`math.isfinite`、`round`。 返回路径：L52的`round(value, 4) if type(value) in (int, float) and 0 <= value <= maximum and math.isfinite…`。
+- `timing_receipts`（L59–L74）：接收`values`、`attempts`。 控制顺序：L61按`not isinstance(values, list)`分支。 调用`isinstance`、`numeric`、`value.get`、`fields.items`、`http_trace_receipt`。 返回路径：L62的`[]`；L63的`[ { **{key: numeric(value.get(key), limit) for key, limit in fields.items()}, **( {"http_t…`。
+- `read_turns`（L77–L83）：接收`path`。 控制顺序：L79按`path.stat().st_size > 32768`分支。 调用`path.stat`、`timing_receipts`、`json.loads`、`path.read_text`。 返回路径：L80的`[]`；L81的`timing_receipts(json.loads(path.read_text()))`；L83的`[]`。
+- `record_turn`（L87–L110）：接收`path`、`step`、`deadline`、`timeout`、`payload`、`transport`。 调用`time.monotonic`、`max`、`len`、`json.dumps`、`getattr`、`value.update`、`write_json`、`timing_receipts`、`read_turns`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: workbench/coding/timing.py sha256: 1f3a6ea28a4ed34ca337d5f9ecd0ac3b6b323373f45fe2940ed7b802af8bb34c -->
+<!-- source-file: workbench/coding/timing.py sha256: a4eafe40e1fb4d0b9feb8aed5a3ecc5dd8e58bc074231f1ec5513295bc1a3706 -->
 ````python
-"""Optional numeric-only diagnostics; never a source of execution authority."""
+"""Optional fixed-label/numeric diagnostics; never execution authority."""
 
 import json
 import math
@@ -17687,6 +17698,25 @@ ATTEMPT_FIELDS = {
     "elapsed_seconds": 5400,
     "response_bytes": 2_000_000,
 }
+HTTP_TRACE_PHASES = ("connect", "tls", "request_headers", "request_body", "response_headers")
+HTTP_TRACE_TIMES = {
+    f"{phase}_{state}_seconds": 5400
+    for phase in HTTP_TRACE_PHASES
+    for state in ("started", "complete", "failed")
+}
+
+
+def http_trace_receipt(value):
+    """Fixed phases and bounded numbers only; never retain trace info or exceptions."""
+    if not isinstance(value, dict):
+        return None
+    phase = value.get("failed_phase")
+    count = value.get("event_count")
+    return {
+        "event_count": count if type(count) is int and 0 <= count <= 64 else None,
+        "failed_phase": phase if type(phase) is str and phase in HTTP_TRACE_PHASES else None,
+        **{key: numeric(value.get(key), limit) for key, limit in HTTP_TRACE_TIMES.items()},
+    }
 
 
 def numeric(value, maximum):
@@ -17702,7 +17732,14 @@ def timing_receipts(values, *, attempts=False):
     if not isinstance(values, list):
         return []
     return [
-        {key: numeric(value.get(key), limit) for key, limit in fields.items()}
+        {
+            **{key: numeric(value.get(key), limit) for key, limit in fields.items()},
+            **(
+                {"http_trace": http_trace_receipt(value["http_trace"])}
+                if attempts and "http_trace" in value
+                else {}
+            ),
+        }
         for value in values[: 32 if attempts else 8]
         if isinstance(value, dict)
     ]
@@ -168800,6 +168837,230 @@ def test_legacy_ready_gate_does_not_gain_scope_approval_from_delegation(
     assert not (settings.data_dir / "runs" / run / "product").exists()
 ````
 
+### `tests/test_live_http_trace.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench.coding.timing`、`workbench.llm`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `MemoryBackend`（L19–L70）：继承`MockBackend`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `MemoryBackend.__init__`（L20–L23）：接收`clock`、`failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `MemoryBackend.connect_tcp`（L25–L64）：接收`host`、`port`、`timeout`、`**kwargs`。 控制顺序：L26断言`host == "fixture.invalid" and port == 443 and timeout == 60`；L28按`self.failure == "connect"`分支；L29抛异常，停止当前正常路径；L32按`self.failure == "schema"`分支。 调用`httpcore.ConnectTimeout`、`response`、`str(len(raw)).encode`、`str`、`len`、`Stream`、`self.streams.append`。 返回路径：L64的`stream`。
+- `MemoryBackend.connect_tcp.Stream`（L37–L60）：继承`MockStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `MemoryBackend.connect_tcp.Stream.start_tls`（L38–L45）：接收`ssl_context`、`server_hostname`、`timeout`。 控制顺序：L39断言`ssl_context.check_hostname and ssl_context.verify_mode == ssl.CERT_REQUIRED`；L40断言`server_hostname == "fixture.invalid" and timeout == 60`；L42按`backend.failure == "tls"`分支；L44抛异常，停止当前正常路径。 调用`self.close`、`httpcore.ConnectTimeout`。 返回路径：L45的`self`。
+- `MemoryBackend.connect_tcp.Stream.write`（L47–L53）：接收`buffer`、`timeout`。 控制顺序：L48断言`timeout == 60`；L50按`buffer.startswith(b"{")`分支；L52按`backend.failure == "request_body"`分支；L53抛异常，停止当前正常路径。 调用`buffer.startswith`、`backend.bodies.append`、`json.loads`、`httpcore.WriteTimeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `MemoryBackend.connect_tcp.Stream.read`（L55–L60）：接收`max_bytes`、`timeout`。 控制顺序：L56断言`timeout == 60`；L58按`backend.failure == "response_headers"`分支；L59抛异常，停止当前正常路径。 调用`httpcore.ReadTimeout`、`super().read`、`super`。 返回路径：L60的`super().read(max_bytes, timeout)`。
+- `MemoryBackend.connect_unix_socket`（L66–L67）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `MemoryBackend.sleep`（L69–L70）：接收`seconds`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `transport`（L73–L80）：接收`monkeypatch`、`failure`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`client.TestServiceTransport`、`MemoryBackend`。 返回路径：L80的`value, backend`。
+- `test_actual_sdk_reports_transport_boundary_without_changing_guards`（L86–L127）：接收`store`、`monkeypatch`、`failure`。 控制顺序：L92按`failure`分支；L96断言`invoke(model, run).operation == "submit"`；L100断言`value.calls == store.get_run(run)["model_calls"] == count`；L101断言`value.responses == (1 if failure in (None, "schema") else 0)`；L103断言`len(receipts) == count`；L104遍历`receipts`；L106断言`trace["connect_started_seconds"] == 0`；L107断言`trace["event_count"] > 0`。后续分支沿下方源码相同行号继续阅读。 调用`transport`、`model_gateway`、`pytest.fail`、`new_run`、`pytest.raises`、`invoke`、`value.close`、`store.get_run`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_trace_and_lazy_response_body_semantics_are_preserved`（L131–L166）：接收`monkeypatch`、`reject`。 控制顺序：L151按`reject`分支；L154断言`caught.value is failure`；L157断言`request.extensions["trace"] is previous`；L158断言`"http11.receive_response_body.started" not in events`；L161断言`"http11.receive_response_body.started" in events`；L164断言`request.extensions["trace"] is previous`；L165断言`all(stream._closed for stream in backend.streams)`；L166断言`"private" not in json.dumps(timing_receipts(value.timings, attempts=True))`。 调用`transport`、`RuntimeError`、`httpx.Request`、`dict.fromkeys`、`pytest.raises`、`value.handle_request`、`result.read`、`result.close`、`value.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_trace_and_lazy_response_body_semantics_are_preserved.previous`（L136–L139）：接收`name`、`info`。 控制顺序：L138按`reject and name == "http11.send_request_body.started"`分支；L139抛异常，停止当前正常路径。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trace_projection_drops_unknown_phases_values_and_info`（L169–L191）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L179断言`facts["failed_phase"] == "response_headers" and facts["event_count"] == 1`；L180遍历`(True, -1, 65, "private", {}, [], float("nan"), float("inf"))`；L189断言`data["event_count"] is None and data["failed_phase"] is None`；L190断言`"private" not in json.dumps(data)`；L191断言`len(timing_receipts([{"http_trace": facts}] * 40, attempts=True)) == 32`。 调用`client.phase_trace`、`callback`、`Poison`、`float`、`http_trace_receipt`、`dict.fromkeys`、`json.dumps`、`len`、`timing_receipts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trace_projection_drops_unknown_phases_values_and_info.Poison`（L172–L174）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_trace_projection_drops_unknown_phases_values_and_info.Poison.__repr__`（L173–L174）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_live_http_trace.py sha256: 0bf979f86475aeb36f017320b48e88b8204ffa3dc6b86ef44c22ab948d763553 -->
+````python
+"""Locked SDK and real HTTP framing, with only the network backend replaced."""
+
+import json
+import ssl
+from types import SimpleNamespace
+
+import httpcore
+import httpx
+import pytest
+from conftest import new_run
+from httpcore._backends.mock import MockBackend, MockStream
+from test_native_schema import invoke, model_gateway, no_network, response  # noqa: F401
+
+from scripts import live_test_client as client
+from workbench.coding.timing import HTTP_TRACE_TIMES, http_trace_receipt, timing_receipts
+from workbench.llm import ModelFailure
+
+
+class MemoryBackend(MockBackend):
+    def __init__(self, clock, failure=None):
+        self.clock, self.failure = clock, failure
+        self.streams = []
+        self.bodies = []
+
+    def connect_tcp(self, host, port, timeout=None, **kwargs):
+        assert host == "fixture.invalid" and port == 443 and timeout == 60
+        self.clock[0] += 1
+        if self.failure == "connect":
+            raise httpcore.ConnectTimeout("private-connect-detail")
+        backend = self
+        content = '{"operation":"submit","edits":null}'
+        if self.failure == "schema":
+            content = '{"operation":"submit"}'
+        raw = response(content).content
+        wire = b"HTTP/1.1 200 OK\r\nContent-Length: " + str(len(raw)).encode() + b"\r\n\r\n" + raw
+
+        class Stream(MockStream):
+            def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+                assert ssl_context.check_hostname and ssl_context.verify_mode == ssl.CERT_REQUIRED
+                assert server_hostname == "fixture.invalid" and timeout == 60
+                backend.clock[0] += 2
+                if backend.failure == "tls":
+                    self.close()
+                    raise httpcore.ConnectTimeout("private-tls-detail")
+                return self
+
+            def write(self, buffer, timeout=None):
+                assert timeout == 60
+                backend.clock[0] += 0.25
+                if buffer.startswith(b"{"):
+                    backend.bodies.append(json.loads(buffer))
+                    if backend.failure == "request_body":
+                        raise httpcore.WriteTimeout("private-upload-detail")
+
+            def read(self, max_bytes, timeout=None):
+                assert timeout == 60
+                backend.clock[0] += 60 if backend.failure == "response_headers" else 4
+                if backend.failure == "response_headers":
+                    raise httpcore.ReadTimeout("private-read-detail")
+                return super().read(max_bytes, timeout)
+
+        stream = Stream([wire])
+        self.streams.append(stream)
+        return stream
+
+    def connect_unix_socket(self, *args, **kwargs):
+        pytest.fail("unexpected alternate transport")
+
+    def sleep(self, seconds):
+        pytest.fail("HTTP transport must not add retries")
+
+
+def transport(monkeypatch, failure=None):
+    clock = [100.0]
+    monkeypatch.setattr(client, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    value = client.TestServiceTransport("https://fixture.invalid/v1")
+    backend = MemoryBackend(clock, failure)
+    # Keep the actual pinned HTTPTransport, pool, HTTP/1.1 parser and trace hooks.
+    value.inner._pool._network_backend = backend
+    return value, backend
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "connect", "tls", "request_body", "response_headers", "schema"]
+)
+def test_actual_sdk_reports_transport_boundary_without_changing_guards(store, monkeypatch, failure):
+    value, backend = transport(monkeypatch, failure)
+    model = model_gateway(store, lambda _: pytest.fail("unused HTTP mock"))
+    model.transport = value
+    run = new_run(store)
+    try:
+        if failure:
+            with pytest.raises(ModelFailure):
+                invoke(model, run)
+        else:
+            assert invoke(model, run).operation == "submit"
+    finally:
+        value.close()
+    count = 1 if failure in (None, "schema") else 2
+    assert value.calls == store.get_run(run)["model_calls"] == count
+    assert value.responses == (1 if failure in (None, "schema") else 0)
+    receipts = timing_receipts(value.timings, attempts=True)
+    assert len(receipts) == count
+    for receipt in receipts:
+        trace = receipt["http_trace"]
+        assert trace["connect_started_seconds"] == 0
+        assert trace["event_count"] > 0
+        assert trace["failed_phase"] == (failure if failure not in (None, "schema") else None)
+        assert receipt["read_timeout_seconds"] == 60
+        if failure == "response_headers":
+            assert trace["request_body_complete_seconds"] is not None
+            assert trace["response_headers_started_seconds"] is not None
+            assert trace["response_headers_complete_seconds"] is None
+            assert receipt["headers_seconds"] is None and receipt["response_bytes"] == 0
+    assert "private" not in json.dumps(receipts)
+    assert "offline-secret" not in json.dumps(receipts)
+    assert all(stream._closed for stream in backend.streams)
+    if failure == "response_headers":
+        # The real httpcore pool closes a timed-out connection; attempt two is fresh.
+        assert len(backend.streams) == 2
+    if failure == "schema":
+        assert store.model_records(run)[0]["code"] == "native_schema_violation"
+    for body in backend.bodies:
+        assert body["response_format"]["type"] == "json_schema"
+        assert body["response_format"]["json_schema"]["strict"] is True
+        assert body["stream"] is False and body["max_completion_tokens"] == 8192
+        assert "tools" not in body
+
+
+@pytest.mark.parametrize("reject", [False, True])
+def test_existing_trace_and_lazy_response_body_semantics_are_preserved(monkeypatch, reject):
+    value, backend = transport(monkeypatch)
+    events = []
+    failure = RuntimeError("private-original-callback-error")
+
+    def previous(name, info):
+        events.append(name)
+        if reject and name == "http11.send_request_body.started":
+            raise failure
+
+    request = httpx.Request(
+        "POST",
+        "https://fixture.invalid/v1/chat/completions",
+        content=b"{}",
+        extensions={
+            "trace": previous,
+            "timeout": dict.fromkeys(("connect", "read", "write", "pool"), 60),
+        },
+    )
+    try:
+        if reject:
+            with pytest.raises(RuntimeError) as caught:
+                value.handle_request(request)
+            assert caught.value is failure
+        else:
+            result = value.handle_request(request)
+            assert request.extensions["trace"] is previous
+            assert "http11.receive_response_body.started" not in events
+            result.read()
+            result.close()
+            assert "http11.receive_response_body.started" in events
+    finally:
+        value.close()
+    assert request.extensions["trace"] is previous
+    assert all(stream._closed for stream in backend.streams)
+    assert "private" not in json.dumps(timing_receipts(value.timings, attempts=True))
+
+
+def test_trace_projection_drops_unknown_phases_values_and_info():
+    facts = {"event_count": 0, "failed_phase": None}
+
+    class Poison:
+        def __repr__(self):
+            pytest.fail("trace info was inspected")
+
+    callback = client.phase_trace(facts, 0, None)
+    callback("http11.receive_response_headers.failed", Poison())
+    callback("private-event.started", Poison())
+    assert facts["failed_phase"] == "response_headers" and facts["event_count"] == 1
+    for poison in (True, -1, 65, "private", {}, [], float("nan"), float("inf")):
+        data = http_trace_receipt(
+            {
+                **dict.fromkeys(HTTP_TRACE_TIMES, poison),
+                "event_count": poison,
+                "failed_phase": "private",
+                "info": Poison(),
+            }
+        )
+        assert data["event_count"] is None and data["failed_phase"] is None
+        assert "private" not in json.dumps(data)
+    assert len(timing_receipts([{"http_trace": facts}] * 40, attempts=True)) == 32
+````
+
 ### `tests/test_live_test_client.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -168824,14 +169085,14 @@ def test_legacy_ready_gate_does_not_gain_scope_approval_from_delegation(
 - `test_scoped_transport_refuses_cross_host_and_authenticated_probe`（L110–L123）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L113遍历`[ httpx.Request("POST", "https://other.test/v1/chat/completions")…`；L121断言`transport.calls == 0`。 调用`client.TestServiceTransport`、`httpx.Request`、`pytest.raises`、`transport.handle_request`、`transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_platform_free_mode_needs_attested_exact_endpoint`（L135–L176）：接收`settings`、`tmp_path`、`monkeypatch`、`ack`、`endpoint`、`cost`、`price`、`accepted`。 控制顺序：L172按`accepted`分支；L173断言`invoke() == "offline-authority-checked"`。 调用`settings.model_copy`、`monkeypatch.setattr`、`design`、`invoke`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_platform_free_mode_needs_attested_exact_endpoint.invoke`（L160–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`mini_swe.run_agent`、`ModelGateway`。 返回路径：L161的`mini_swe.run_agent( settings, ModelGateway(settings, None), "offline", plan.tasks[0], plan…`。
-- `test_transport_timings_preserve_response_and_timeout_semantics`（L180–L234）：接收`monkeypatch`、`failure`。 控制顺序：L213按`failure`分支；L217断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L221断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L223断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L233断言`bool(closed) is (failure != "headers")`；L234断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_timings_preserve_response_and_timeout_semantics`（L180–L235）：接收`monkeypatch`、`failure`。 控制顺序：L213按`failure`分支；L217断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L221断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L223断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L234断言`bool(closed) is (failure != "headers")`；L235断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body`（L191–L201）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body.__iter__`（L192–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L196按`failure == "body"`分支；L197抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body.close`（L200–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closed.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_timings_preserve_response_and_timeout_semantics.request`（L203–L208）：接收`req`。 控制顺序：L204断言`req.extensions["timeout"]["read"] == 7`；L206按`failure == "headers"`分支；L207抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`、`httpx.Response`、`Body`。 返回路径：L208的`httpx.Response(200, stream=Body())`。
-- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L237–L248）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L243遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L246断言`len(result) == limit`；L247断言`all(value is None for row in result for value in row.values())`；L248断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L238–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L243遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L244遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L247断言`len(result) == limit`；L248断言`all(value is None for row in result for value in row.values())`；L249断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_live_test_client.py sha256: aae20efecef0a94a042112f80da472f577ce2bcff4cf40661a0fe8fad99abb1a -->
+<!-- source-file: tests/test_live_test_client.py sha256: 0ed08af58e8d98f769fad40183e69f9b821b778cf690ec8905c60d62681d7e2e -->
 ````python
 """Offline trust scope, no-charge attestation and bounded client contracts."""
 
@@ -169015,7 +169276,7 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
 def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, failure):
     import json
 
-    from workbench.coding.timing import timing_receipts
+    from workbench.coding.timing import http_trace_receipt, timing_receipts
 
     clock = [10.0]
     monkeypatch.setattr(
@@ -169063,6 +169324,7 @@ def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, 
             "headers_seconds": None if failure == "headers" else 4,
             "elapsed_seconds": 4 if failure == "headers" else 9,
             "response_bytes": 0 if failure == "headers" else 18 if failure == "body" else 22,
+            "http_trace": http_trace_receipt({"event_count": 0}),
         }
     ]
     assert bool(closed) is (failure != "headers")
@@ -223509,21 +223771,23 @@ def notes(name, content):
 
 **逐个入口与控制逻辑：**
 
-- `zero_billing`（L23–L37）：接收`env`。 控制顺序：L24按`env.get("LIVE_BILLING_MODE", "metered") != "declared_free"`分支；L25抛异常，停止当前正常路径；L26按`env.get("LIVE_ZERO_BILLING_ACK") != "true" or env.get("BASE_URL", "").rstrip("/") != …`分支；L30抛异常，停止当前正常路径。 调用`env.get`、`ValueError`、`env.get("BASE_URL", "").rstrip`。 返回路径：L31的`{ "mode": "declared_free", "attestation": ATTESTATION, "endpoint": ENDPOINT, "source": "us…`。
-- `test_context`（L40–L57）：接收`endpoint`、`mode`。 控制顺序：L41按`mode not in {"system", "caddy-ip"}`分支；L42抛异常，停止当前正常路径；L44按`mode == "caddy-ip"`分支；L45按`endpoint.rstrip("/") != ENDPOINT`分支；L46抛异常，停止当前正常路径；L48按`"PRIVATE KEY" in pem or not re.fullmatch( r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/…`分支；L51抛异常，停止当前正常路径；L52按`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`ssl.create_default_context`、`endpoint.rstrip`、`CA.read_text`、`re.fullmatch`、`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest`、`hashlib.sha256`、`ssl.PEM_cert_to_DER_cert`、`context.load_verify_locations`。 返回路径：L57的`context`。
-- `TestServiceTransport`（L60–L107）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `TestServiceTransport.__init__`（L63–L69）：接收`endpoint`、`mode`。 调用`endpoint.rstrip`、`httpx.HTTPTransport`、`test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TestServiceTransport.handle_request`（L71–L104）：接收`request`。 控制顺序：L77按`not allowed`分支；L78抛异常，停止当前正常路径；L79按`request.method == "POST"`分支；L83按`request.method == "POST" and len(self.timings) < 32`分支；L96按`timing is not None`分支；L98抛异常，停止当前正常路径；L99按`request.method == "POST"`分支；L101按`timing is not None`分支。 调用`str`、`ValueError`、`time.monotonic`、`len`、`request.extensions.get("timeout", {}).get`、`request.extensions.get`、`self.timings.append`、`self.inner.handle_request`、`max`等。 返回路径：L104的`response`。
-- `TestServiceTransport.close`（L106–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream`（L110–L130）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `TimedResponseStream.__init__`（L111–L112）：接收`inner`、`timing`、`started`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream.finish`（L114–L116）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L115按`self.timing["elapsed_seconds"] is None`分支。 调用`max`、`time.monotonic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream.__iter__`（L118–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L120遍历`self.inner`。 调用`len`、`self.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `TimedResponseStream.close`（L126–L130）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `probe`（L133–L169）：接收`env`。 控制顺序：L134按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-r…`分支；L142抛异常，停止当前正常路径；L144按`not endpoint.startswith("https://")`分支；L145抛异常，停止当前正常路径；L159按`response.status_code not in {200, 401}`分支；L160抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`ValueError`、`env.get("BASE_URL", "").rstrip`、`endpoint.startswith`、`zero_billing`、`httpx.Client`、`TestServiceTransport`、`client.stream`。 返回路径：L161的`{ "strict_tls": True, "http_status": response.status_code, "authentication_sent": False, "…`。
-- `main`（L172–L184）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.parse_args`、`probe`、`transport_failure`、`SystemExit`、`write_json`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `phase_trace`（L30–L47）：接收`facts`、`started`、`previous`。 返回路径：L47的`trace`。
+- `phase_trace.trace`（L31–L45）：接收`name`、`info`。 控制顺序：L37按`phase is not None and state in {"started", "complete", "failed"}`分支；L40按`state == "failed"`分支；L44按`previous is not None`分支。 调用`name.rpartition`、`HTTP_TRACE_NAMES.get`、`min`、`facts.setdefault`、`max`、`time.monotonic`、`previous`。 返回路径：L45的`previous(name, info)`。
+- `zero_billing`（L50–L64）：接收`env`。 控制顺序：L51按`env.get("LIVE_BILLING_MODE", "metered") != "declared_free"`分支；L52抛异常，停止当前正常路径；L53按`env.get("LIVE_ZERO_BILLING_ACK") != "true" or env.get("BASE_URL", "").rstrip("/") != …`分支；L57抛异常，停止当前正常路径。 调用`env.get`、`ValueError`、`env.get("BASE_URL", "").rstrip`。 返回路径：L58的`{ "mode": "declared_free", "attestation": ATTESTATION, "endpoint": ENDPOINT, "source": "us…`。
+- `test_context`（L67–L84）：接收`endpoint`、`mode`。 控制顺序：L68按`mode not in {"system", "caddy-ip"}`分支；L69抛异常，停止当前正常路径；L71按`mode == "caddy-ip"`分支；L72按`endpoint.rstrip("/") != ENDPOINT`分支；L73抛异常，停止当前正常路径；L75按`"PRIVATE KEY" in pem or not re.fullmatch( r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/…`分支；L78抛异常，停止当前正常路径；L79按`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`ssl.create_default_context`、`endpoint.rstrip`、`CA.read_text`、`re.fullmatch`、`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest`、`hashlib.sha256`、`ssl.PEM_cert_to_DER_cert`、`context.load_verify_locations`。 返回路径：L84的`context`。
+- `TestServiceTransport`（L87–L147）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TestServiceTransport.__init__`（L90–L96）：接收`endpoint`、`mode`。 调用`endpoint.rstrip`、`httpx.HTTPTransport`、`test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TestServiceTransport.handle_request`（L98–L144）：接收`request`。 控制顺序：L104按`not allowed`分支；L105抛异常，停止当前正常路径；L106按`request.method == "POST"`分支；L110按`request.method == "POST" and len(self.timings) < 32`分支；L123按`timing is not None`分支；L128按`timing is not None`分支；L130抛异常，停止当前正常路径；L134按`timing is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`str`、`ValueError`、`time.monotonic`、`len`、`request.extensions.get("timeout", {}).get`、`request.extensions.get`、`self.timings.append`、`phase_trace`、`self.inner.handle_request`等。 返回路径：L144的`response`。
+- `TestServiceTransport.close`（L146–L147）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream`（L150–L170）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TimedResponseStream.__init__`（L151–L152）：接收`inner`、`timing`、`started`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream.finish`（L154–L156）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L155按`self.timing["elapsed_seconds"] is None`分支。 调用`max`、`time.monotonic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream.__iter__`（L158–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160遍历`self.inner`。 调用`len`、`self.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `TimedResponseStream.close`（L166–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `probe`（L173–L209）：接收`env`。 控制顺序：L174按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-r…`分支；L182抛异常，停止当前正常路径；L184按`not endpoint.startswith("https://")`分支；L185抛异常，停止当前正常路径；L199按`response.status_code not in {200, 401}`分支；L200抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`ValueError`、`env.get("BASE_URL", "").rstrip`、`endpoint.startswith`、`zero_billing`、`httpx.Client`、`TestServiceTransport`、`client.stream`。 返回路径：L201的`{ "strict_tls": True, "http_status": response.status_code, "authentication_sent": False, "…`。
+- `main`（L212–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L221抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.parse_args`、`probe`、`transport_failure`、`SystemExit`、`write_json`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/live_test_client.py sha256: 127ba5a8fdfbab7d6729f623102096f9d1f8093ee14d3910a65181d33151b257 -->
+<!-- source-file: scripts/live_test_client.py sha256: e6a5f4b6714dad55b6f5fbea6d031b703004c777f62dd53a842d55ded9208dfb -->
 ````python
 """Explicit test-only trust for the user-owned service; never a system CA change."""
 
@@ -223545,6 +223809,33 @@ ENDPOINT = "https://170.106.181.109:8317/v1"
 CA = ROOT / "tests/resources/live-service/caddy-root.pem"
 FINGERPRINT = "15db86a8d11566625d4220515991727c900e232e641d8e7fcb08b0b42d3079af"
 ATTESTATION = "user-confirmed-no-charge-2026-10-11"
+HTTP_TRACE_NAMES = {
+    "connection.connect_tcp": "connect",
+    "connection.start_tls": "tls",
+    "http11.send_request_headers": "request_headers",
+    "http11.send_request_body": "request_body",
+    "http11.receive_response_headers": "response_headers",
+}
+
+
+def phase_trace(facts, started, previous):
+    def trace(name, info):
+        # httpcore info contains request headers and exception objects. Do not
+        # inspect, copy, stringify or persist it. Only forward an existing hook.
+        try:
+            event, _, state = name.rpartition(".")
+            phase = HTTP_TRACE_NAMES.get(event)
+            if phase is not None and state in {"started", "complete", "failed"}:
+                facts["event_count"] = min(64, facts["event_count"] + 1)
+                facts.setdefault(f"{phase}_{state}_seconds", max(0, time.monotonic() - started))
+                if state == "failed":
+                    facts["failed_phase"] = phase
+        except Exception:
+            pass  # Optional diagnostics cannot replace any transport outcome.
+        if previous is not None:
+            return previous(name, info)
+
+    return trace
 
 
 def zero_billing(env):
@@ -223615,14 +223906,27 @@ class TestServiceTransport(httpx.BaseTransport):
                 "headers_seconds": None,
                 "elapsed_seconds": None,
                 "response_bytes": 0,
+                "http_trace": {"event_count": 0, "failed_phase": None},
             }
             self.timings.append(timing)
+        had_trace = "trace" in request.extensions
+        previous_trace = request.extensions.get("trace")
+        if timing is not None:
+            request.extensions["trace"] = phase_trace(timing["http_trace"], started, previous_trace)
         try:
             response = self.inner.handle_request(request)
         except BaseException:
             if timing is not None:
                 timing["elapsed_seconds"] = max(0, time.monotonic() - started)
             raise
+        finally:
+            # Trace only through the response-header boundary. Restore the
+            # original hook before lazy body reads/close, including on failure.
+            if timing is not None:
+                if had_trace:
+                    request.extensions["trace"] = previous_trace
+                else:
+                    request.extensions.pop("trace", None)
         if request.method == "POST":
             self.responses += 1
         if timing is not None:
@@ -245136,7 +245440,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: a038d4a063d3289aacf9c7354a0bd9eb3b5738d199daaa665be30848c432d217 -->
+<!-- source-file: docs/modular-production-v2.md sha256: 4968d3f60a713fce70ac252d477227e7b2e921aeb1b6bdc2a17af5aad380686b -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -245540,6 +245844,16 @@ SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹�
 出站不匹配以 `native_request_mismatch` 在网络前停止；HTTP 400/422 以 `native_format_rejected` 在首个响应后停止，安全回执仅保留数字 HTTP 状态；违反 wire Schema 以 `native_schema_violation` 在首个响应后停止。不得删去服务端不支持的约束或自动重试兼容性格式。HTTP 500/超时及本地业务纠错仍受原每轮最多两次约束；没有第三次回退。每模块 8 步、200 万 token、180 秒、总计 32 次调用及原费用边界全部不变。
 
 受控试跑须另行明确授权，绑定已审查完整 SHA、现有 `rnd` 配置、同 Job 隔离前置证明及原预算。回执分别保留 `native_strict_requested`、`native_request_verified`、`native_local_conformant`，并始终将 `native_provider_enforcement` 标为 `unknown`。HTTP 200 且本地合规只能证明该请求被接受且该响应通过本地校验，不能区分服务端执行 strict 与静默忽略后偶然输出合规 JSON；也不能代替业务验收通过。
+
+### 第21轮之后的传输阶段诊断
+
+父线程提供的第21轮记录显示：API两次HTTP200且本地native Schema合规；dashboard两次60秒read_timeout，均未收到headers/body。本轮120.5592秒后仍有54.3405秒模块预算，overrun为0，不能归因为180秒模块耗尽。API/dashboard使用相同wire Schema和调用策略；实际初始payload相差1379字符、完整请求体相差1486字节，现有证据不能据此解释延迟，也不能证明服务商内部故障或strict执行。
+
+新增可选http_trace仅记录connect、TLS、发送headers、发送body、等待response headers五个固定阶段的started/complete/failed相对秒数、最多64个事件计数及固定失败阶段。最多32次HTTP记录；投影拒绝非有限、负数、布尔及越界值，不记录trace info、headers、地址、异常或正文。保留并透传原trace hook及其异常，成功或失败都恢复原extensions，响应body仍惰性读取。无事件意味着诊断不可用，不能把缺少connect事件单独当作连接复用证明。
+
+离线验证保留锁定SDK、真实HTTPTransport、连接池与HTTP/1.1解析，只替换网络backend并禁止外部网络。覆盖连接、TLS、上传、等待headers失败，严格Schema拒绝及原两次尝试上限；等待headers超时后，真实连接池关闭失败连接，下一次使用新连接。独立审查补测三种原hook状态与各失败阶段，确认恢复、正文不变和连接关闭。此证据不能追溯确定第21轮实际失败阶段。
+
+下一轮沿用已授权mini-swe-sla/json_schema、精确审查SHA和原rnd/TLS/nocharge/隔离前置证明，收集固定阶段回执。所有步骤、调用、token、时间及文件/oracle边界不变；无格式回退或新增重试。read timeout是单次网络操作的等待界限，不是整个响应的绝对墙钟截止；现有SSE循环尚未证明端到端硬截止，因此本次不切流式。API局部通过仍不能代替双模块候选及最终独立验收。
 ````
 
 ### `docs/template-platform.md`

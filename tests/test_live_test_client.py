@@ -180,7 +180,7 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
 def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, failure):
     import json
 
-    from workbench.coding.timing import timing_receipts
+    from workbench.coding.timing import http_trace_receipt, timing_receipts
 
     clock = [10.0]
     monkeypatch.setattr(
@@ -228,6 +228,7 @@ def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, 
             "headers_seconds": None if failure == "headers" else 4,
             "elapsed_seconds": 4 if failure == "headers" else 9,
             "response_bytes": 0 if failure == "headers" else 18 if failure == "body" else 22,
+            "http_trace": http_trace_receipt({"event_count": 0}),
         }
     ]
     assert bool(closed) is (failure != "headers")

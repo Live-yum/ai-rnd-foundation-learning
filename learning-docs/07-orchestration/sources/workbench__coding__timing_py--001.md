@@ -15,21 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `numeric`（L32–L37）：接收`value`、`maximum`。 调用`type`、`math.isfinite`、`round`。 返回路径：L33的`round(value, 4) if type(value) in (int, float) and 0 <= value <= maximum and math.isfinite…`。
-- `timing_receipts`（L40–L48）：接收`values`、`attempts`。 控制顺序：L42按`not isinstance(values, list)`分支。 调用`isinstance`、`numeric`、`value.get`、`fields.items`。 返回路径：L43的`[]`；L44的`[ {key: numeric(value.get(key), limit) for key, limit in fields.items()} for value in valu…`。
-- `read_turns`（L51–L57）：接收`path`。 控制顺序：L53按`path.stat().st_size > 32768`分支。 调用`path.stat`、`timing_receipts`、`json.loads`、`path.read_text`。 返回路径：L54的`[]`；L55的`timing_receipts(json.loads(path.read_text()))`；L57的`[]`。
-- `record_turn`（L61–L84）：接收`path`、`step`、`deadline`、`timeout`、`payload`、`transport`。 调用`time.monotonic`、`max`、`len`、`json.dumps`、`getattr`、`value.update`、`write_json`、`timing_receipts`、`read_turns`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `http_trace_receipt`（L38–L48）：接收`value`。 源码说明：Fixed phases and bounded numbers only; never retain trace info or exceptions.。 控制顺序：L40按`not isinstance(value, dict)`分支。 调用`isinstance`、`value.get`、`type`、`numeric`、`HTTP_TRACE_TIMES.items`。 返回路径：L41的`None`；L44的`{ "event_count": count if type(count) is int and 0 <= count <= 64 else None, "failed_phase…`。
+- `numeric`（L51–L56）：接收`value`、`maximum`。 调用`type`、`math.isfinite`、`round`。 返回路径：L52的`round(value, 4) if type(value) in (int, float) and 0 <= value <= maximum and math.isfinite…`。
+- `timing_receipts`（L59–L74）：接收`values`、`attempts`。 控制顺序：L61按`not isinstance(values, list)`分支。 调用`isinstance`、`numeric`、`value.get`、`fields.items`、`http_trace_receipt`。 返回路径：L62的`[]`；L63的`[ { **{key: numeric(value.get(key), limit) for key, limit in fields.items()}, **( {"http_t…`。
+- `read_turns`（L77–L83）：接收`path`。 控制顺序：L79按`path.stat().st_size > 32768`分支。 调用`path.stat`、`timing_receipts`、`json.loads`、`path.read_text`。 返回路径：L80的`[]`；L81的`timing_receipts(json.loads(path.read_text()))`；L83的`[]`。
+- `record_turn`（L87–L110）：接收`path`、`step`、`deadline`、`timeout`、`payload`、`transport`。 调用`time.monotonic`、`max`、`len`、`json.dumps`、`getattr`、`value.update`、`write_json`、`timing_receipts`、`read_turns`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `workbench/coding/timing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L84。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/coding/timing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L110。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2477`。本段原文以LF换行结束。
+本段原始字节数：`3460`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/timing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f3a6ea28a4ed34ca337d5f9ecd0ac3b6b323373f45fe2940ed7b802af8bb34c"} -->
+<!-- learning-source: {"path": "workbench/coding/timing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a4eafe40e1fb4d0b9feb8aed5a3ecc5dd8e58bc074231f1ec5513295bc1a3706"} -->
 ````python
 # workbench/coding/timing.py
-"""Optional numeric-only diagnostics; never a source of execution authority."""
+"""Optional fixed-label/numeric diagnostics; never execution authority."""
 
 import json
 import math
@@ -58,6 +59,25 @@ ATTEMPT_FIELDS = {
     "elapsed_seconds": 5400,
     "response_bytes": 2_000_000,
 }
+HTTP_TRACE_PHASES = ("connect", "tls", "request_headers", "request_body", "response_headers")
+HTTP_TRACE_TIMES = {
+    f"{phase}_{state}_seconds": 5400
+    for phase in HTTP_TRACE_PHASES
+    for state in ("started", "complete", "failed")
+}
+
+
+def http_trace_receipt(value):
+    """Fixed phases and bounded numbers only; never retain trace info or exceptions."""
+    if not isinstance(value, dict):
+        return None
+    phase = value.get("failed_phase")
+    count = value.get("event_count")
+    return {
+        "event_count": count if type(count) is int and 0 <= count <= 64 else None,
+        "failed_phase": phase if type(phase) is str and phase in HTTP_TRACE_PHASES else None,
+        **{key: numeric(value.get(key), limit) for key, limit in HTTP_TRACE_TIMES.items()},
+    }
 
 
 def numeric(value, maximum):
@@ -73,7 +93,14 @@ def timing_receipts(values, *, attempts=False):
     if not isinstance(values, list):
         return []
     return [
-        {key: numeric(value.get(key), limit) for key, limit in fields.items()}
+        {
+            **{key: numeric(value.get(key), limit) for key, limit in fields.items()},
+            **(
+                {"http_trace": http_trace_receipt(value["http_trace"])}
+                if attempts and "http_trace" in value
+                else {}
+            ),
+        }
         for value in values[: 32 if attempts else 8]
         if isinstance(value, dict)
     ]

@@ -15,27 +15,29 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `zero_billing`（L23–L37）：接收`env`。 控制顺序：L24按`env.get("LIVE_BILLING_MODE", "metered") != "declared_free"`分支；L25抛异常，停止当前正常路径；L26按`env.get("LIVE_ZERO_BILLING_ACK") != "true" or env.get("BASE_URL", "").rstrip("/") != …`分支；L30抛异常，停止当前正常路径。 调用`env.get`、`ValueError`、`env.get("BASE_URL", "").rstrip`。 返回路径：L31的`{ "mode": "declared_free", "attestation": ATTESTATION, "endpoint": ENDPOINT, "source": "us…`。
-- `test_context`（L40–L57）：接收`endpoint`、`mode`。 控制顺序：L41按`mode not in {"system", "caddy-ip"}`分支；L42抛异常，停止当前正常路径；L44按`mode == "caddy-ip"`分支；L45按`endpoint.rstrip("/") != ENDPOINT`分支；L46抛异常，停止当前正常路径；L48按`"PRIVATE KEY" in pem or not re.fullmatch( r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/…`分支；L51抛异常，停止当前正常路径；L52按`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`ssl.create_default_context`、`endpoint.rstrip`、`CA.read_text`、`re.fullmatch`、`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest`、`hashlib.sha256`、`ssl.PEM_cert_to_DER_cert`、`context.load_verify_locations`。 返回路径：L57的`context`。
-- `TestServiceTransport`（L60–L107）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `TestServiceTransport.__init__`（L63–L69）：接收`endpoint`、`mode`。 调用`endpoint.rstrip`、`httpx.HTTPTransport`、`test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TestServiceTransport.handle_request`（L71–L104）：接收`request`。 控制顺序：L77按`not allowed`分支；L78抛异常，停止当前正常路径；L79按`request.method == "POST"`分支；L83按`request.method == "POST" and len(self.timings) < 32`分支；L96按`timing is not None`分支；L98抛异常，停止当前正常路径；L99按`request.method == "POST"`分支；L101按`timing is not None`分支。 调用`str`、`ValueError`、`time.monotonic`、`len`、`request.extensions.get("timeout", {}).get`、`request.extensions.get`、`self.timings.append`、`self.inner.handle_request`、`max`等。 返回路径：L104的`response`。
-- `TestServiceTransport.close`（L106–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream`（L110–L130）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `TimedResponseStream.__init__`（L111–L112）：接收`inner`、`timing`、`started`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream.finish`（L114–L116）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L115按`self.timing["elapsed_seconds"] is None`分支。 调用`max`、`time.monotonic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `TimedResponseStream.__iter__`（L118–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L120遍历`self.inner`。 调用`len`、`self.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `TimedResponseStream.close`（L126–L130）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `probe`（L133–L169）：接收`env`。 控制顺序：L134按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-r…`分支；L142抛异常，停止当前正常路径；L144按`not endpoint.startswith("https://")`分支；L145抛异常，停止当前正常路径；L159按`response.status_code not in {200, 401}`分支；L160抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`ValueError`、`env.get("BASE_URL", "").rstrip`、`endpoint.startswith`、`zero_billing`、`httpx.Client`、`TestServiceTransport`、`client.stream`。 返回路径：L161的`{ "strict_tls": True, "http_status": response.status_code, "authentication_sent": False, "…`。
-- `main`（L172–L184）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.parse_args`、`probe`、`transport_failure`、`SystemExit`、`write_json`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `phase_trace`（L30–L47）：接收`facts`、`started`、`previous`。 返回路径：L47的`trace`。
+- `phase_trace.trace`（L31–L45）：接收`name`、`info`。 控制顺序：L37按`phase is not None and state in {"started", "complete", "failed"}`分支；L40按`state == "failed"`分支；L44按`previous is not None`分支。 调用`name.rpartition`、`HTTP_TRACE_NAMES.get`、`min`、`facts.setdefault`、`max`、`time.monotonic`、`previous`。 返回路径：L45的`previous(name, info)`。
+- `zero_billing`（L50–L64）：接收`env`。 控制顺序：L51按`env.get("LIVE_BILLING_MODE", "metered") != "declared_free"`分支；L52抛异常，停止当前正常路径；L53按`env.get("LIVE_ZERO_BILLING_ACK") != "true" or env.get("BASE_URL", "").rstrip("/") != …`分支；L57抛异常，停止当前正常路径。 调用`env.get`、`ValueError`、`env.get("BASE_URL", "").rstrip`。 返回路径：L58的`{ "mode": "declared_free", "attestation": ATTESTATION, "endpoint": ENDPOINT, "source": "us…`。
+- `test_context`（L67–L84）：接收`endpoint`、`mode`。 控制顺序：L68按`mode not in {"system", "caddy-ip"}`分支；L69抛异常，停止当前正常路径；L71按`mode == "caddy-ip"`分支；L72按`endpoint.rstrip("/") != ENDPOINT`分支；L73抛异常，停止当前正常路径；L75按`"PRIVATE KEY" in pem or not re.fullmatch( r"-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/…`分支；L78抛异常，停止当前正常路径；L79按`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest() != FINGERPRINT`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`ssl.create_default_context`、`endpoint.rstrip`、`CA.read_text`、`re.fullmatch`、`hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest`、`hashlib.sha256`、`ssl.PEM_cert_to_DER_cert`、`context.load_verify_locations`。 返回路径：L84的`context`。
+- `TestServiceTransport`（L87–L147）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TestServiceTransport.__init__`（L90–L96）：接收`endpoint`、`mode`。 调用`endpoint.rstrip`、`httpx.HTTPTransport`、`test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TestServiceTransport.handle_request`（L98–L144）：接收`request`。 控制顺序：L104按`not allowed`分支；L105抛异常，停止当前正常路径；L106按`request.method == "POST"`分支；L110按`request.method == "POST" and len(self.timings) < 32`分支；L123按`timing is not None`分支；L128按`timing is not None`分支；L130抛异常，停止当前正常路径；L134按`timing is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`str`、`ValueError`、`time.monotonic`、`len`、`request.extensions.get("timeout", {}).get`、`request.extensions.get`、`self.timings.append`、`phase_trace`、`self.inner.handle_request`等。 返回路径：L144的`response`。
+- `TestServiceTransport.close`（L146–L147）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream`（L150–L170）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TimedResponseStream.__init__`（L151–L152）：接收`inner`、`timing`、`started`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream.finish`（L154–L156）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L155按`self.timing["elapsed_seconds"] is None`分支。 调用`max`、`time.monotonic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TimedResponseStream.__iter__`（L158–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160遍历`self.inner`。 调用`len`、`self.finish`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `TimedResponseStream.close`（L166–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`、`self.finish`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `probe`（L173–L209）：接收`env`。 控制顺序：L174按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-r…`分支；L182抛异常，停止当前正常路径；L184按`not endpoint.startswith("https://")`分支；L185抛异常，停止当前正常路径；L199按`response.status_code not in {200, 401}`分支；L200抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`ValueError`、`env.get("BASE_URL", "").rstrip`、`endpoint.startswith`、`zero_billing`、`httpx.Client`、`TestServiceTransport`、`client.stream`。 返回路径：L201的`{ "strict_tls": True, "http_status": response.status_code, "authentication_sent": False, "…`。
+- `main`（L212–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L221抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.parse_args`、`probe`、`transport_failure`、`SystemExit`、`write_json`、`print`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L188。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L228。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6754`。本段原文以LF换行结束。
+本段原始字节数：`8586`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "127ba5a8fdfbab7d6729f623102096f9d1f8093ee14d3910a65181d33151b257"} -->
+<!-- learning-source: {"path": "scripts/live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e6a5f4b6714dad55b6f5fbea6d031b703004c777f62dd53a842d55ded9208dfb"} -->
 ````python
 # scripts/live_test_client.py
 """Explicit test-only trust for the user-owned service; never a system CA change."""
@@ -58,6 +60,33 @@ ENDPOINT = "https://170.106.181.109:8317/v1"
 CA = ROOT / "tests/resources/live-service/caddy-root.pem"
 FINGERPRINT = "15db86a8d11566625d4220515991727c900e232e641d8e7fcb08b0b42d3079af"
 ATTESTATION = "user-confirmed-no-charge-2026-10-11"
+HTTP_TRACE_NAMES = {
+    "connection.connect_tcp": "connect",
+    "connection.start_tls": "tls",
+    "http11.send_request_headers": "request_headers",
+    "http11.send_request_body": "request_body",
+    "http11.receive_response_headers": "response_headers",
+}
+
+
+def phase_trace(facts, started, previous):
+    def trace(name, info):
+        # httpcore info contains request headers and exception objects. Do not
+        # inspect, copy, stringify or persist it. Only forward an existing hook.
+        try:
+            event, _, state = name.rpartition(".")
+            phase = HTTP_TRACE_NAMES.get(event)
+            if phase is not None and state in {"started", "complete", "failed"}:
+                facts["event_count"] = min(64, facts["event_count"] + 1)
+                facts.setdefault(f"{phase}_{state}_seconds", max(0, time.monotonic() - started))
+                if state == "failed":
+                    facts["failed_phase"] = phase
+        except Exception:
+            pass  # Optional diagnostics cannot replace any transport outcome.
+        if previous is not None:
+            return previous(name, info)
+
+    return trace
 
 
 def zero_billing(env):
@@ -128,14 +157,27 @@ class TestServiceTransport(httpx.BaseTransport):
                 "headers_seconds": None,
                 "elapsed_seconds": None,
                 "response_bytes": 0,
+                "http_trace": {"event_count": 0, "failed_phase": None},
             }
             self.timings.append(timing)
+        had_trace = "trace" in request.extensions
+        previous_trace = request.extensions.get("trace")
+        if timing is not None:
+            request.extensions["trace"] = phase_trace(timing["http_trace"], started, previous_trace)
         try:
             response = self.inner.handle_request(request)
         except BaseException:
             if timing is not None:
                 timing["elapsed_seconds"] = max(0, time.monotonic() - started)
             raise
+        finally:
+            # Trace only through the response-header boundary. Restore the
+            # original hook before lazy body reads/close, including on failure.
+            if timing is not None:
+                if had_trace:
+                    request.extensions["trace"] = previous_trace
+                else:
+                    request.extensions.pop("trace", None)
         if request.method == "POST":
             self.responses += 1
         if timing is not None:

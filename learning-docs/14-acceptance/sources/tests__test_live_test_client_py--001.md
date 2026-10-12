@@ -27,20 +27,20 @@
 - `test_scoped_transport_refuses_cross_host_and_authenticated_probe`（L110–L123）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L113遍历`[ httpx.Request("POST", "https://other.test/v1/chat/completions")…`；L121断言`transport.calls == 0`。 调用`client.TestServiceTransport`、`httpx.Request`、`pytest.raises`、`transport.handle_request`、`transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_platform_free_mode_needs_attested_exact_endpoint`（L135–L176）：接收`settings`、`tmp_path`、`monkeypatch`、`ack`、`endpoint`、`cost`、`price`、`accepted`。 控制顺序：L172按`accepted`分支；L173断言`invoke() == "offline-authority-checked"`。 调用`settings.model_copy`、`monkeypatch.setattr`、`design`、`invoke`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_platform_free_mode_needs_attested_exact_endpoint.invoke`（L160–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`mini_swe.run_agent`、`ModelGateway`。 返回路径：L161的`mini_swe.run_agent( settings, ModelGateway(settings, None), "offline", plan.tasks[0], plan…`。
-- `test_transport_timings_preserve_response_and_timeout_semantics`（L180–L234）：接收`monkeypatch`、`failure`。 控制顺序：L213按`failure`分支；L217断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L221断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L223断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L233断言`bool(closed) is (failure != "headers")`；L234断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_timings_preserve_response_and_timeout_semantics`（L180–L235）：接收`monkeypatch`、`failure`。 控制顺序：L213按`failure`分支；L217断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L221断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L223断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L234断言`bool(closed) is (failure != "headers")`；L235断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body`（L191–L201）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body.__iter__`（L192–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L196按`failure == "body"`分支；L197抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `test_transport_timings_preserve_response_and_timeout_semantics.Body.close`（L200–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closed.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_timings_preserve_response_and_timeout_semantics.request`（L203–L208）：接收`req`。 控制顺序：L204断言`req.extensions["timeout"]["read"] == 7`；L206按`failure == "headers"`分支；L207抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`、`httpx.Response`、`Body`。 返回路径：L208的`httpx.Response(200, stream=Body())`。
-- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L237–L248）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L242遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L243遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L246断言`len(result) == limit`；L247断言`all(value is None for row in result for value in row.values())`；L248断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L238–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L243遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L244遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L247断言`len(result) == limit`；L248断言`all(value is None for row in result for value in row.values())`；L249断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L248。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L249。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8728`。本段原文以LF换行结束。
+本段原始字节数：`8814`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "aae20efecef0a94a042112f80da472f577ce2bcff4cf40661a0fe8fad99abb1a"} -->
+<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0ed08af58e8d98f769fad40183e69f9b821b778cf690ec8905c60d62681d7e2e"} -->
 ````python
 # tests/test_live_test_client.py
 """Offline trust scope, no-charge attestation and bounded client contracts."""
@@ -225,7 +225,7 @@ def test_platform_free_mode_needs_attested_exact_endpoint(
 def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, failure):
     import json
 
-    from workbench.coding.timing import timing_receipts
+    from workbench.coding.timing import http_trace_receipt, timing_receipts
 
     clock = [10.0]
     monkeypatch.setattr(
@@ -273,6 +273,7 @@ def test_transport_timings_preserve_response_and_timeout_semantics(monkeypatch, 
             "headers_seconds": None if failure == "headers" else 4,
             "elapsed_seconds": 4 if failure == "headers" else 9,
             "response_bytes": 0 if failure == "headers" else 18 if failure == "body" else 22,
+            "http_trace": http_trace_receipt({"event_count": 0}),
         }
     ]
     assert bool(closed) is (failure != "headers")

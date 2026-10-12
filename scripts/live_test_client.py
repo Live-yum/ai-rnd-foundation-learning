@@ -18,6 +18,33 @@ ENDPOINT = "https://170.106.181.109:8317/v1"
 CA = ROOT / "tests/resources/live-service/caddy-root.pem"
 FINGERPRINT = "15db86a8d11566625d4220515991727c900e232e641d8e7fcb08b0b42d3079af"
 ATTESTATION = "user-confirmed-no-charge-2026-10-11"
+HTTP_TRACE_NAMES = {
+    "connection.connect_tcp": "connect",
+    "connection.start_tls": "tls",
+    "http11.send_request_headers": "request_headers",
+    "http11.send_request_body": "request_body",
+    "http11.receive_response_headers": "response_headers",
+}
+
+
+def phase_trace(facts, started, previous):
+    def trace(name, info):
+        # httpcore info contains request headers and exception objects. Do not
+        # inspect, copy, stringify or persist it. Only forward an existing hook.
+        try:
+            event, _, state = name.rpartition(".")
+            phase = HTTP_TRACE_NAMES.get(event)
+            if phase is not None and state in {"started", "complete", "failed"}:
+                facts["event_count"] = min(64, facts["event_count"] + 1)
+                facts.setdefault(f"{phase}_{state}_seconds", max(0, time.monotonic() - started))
+                if state == "failed":
+                    facts["failed_phase"] = phase
+        except Exception:
+            pass  # Optional diagnostics cannot replace any transport outcome.
+        if previous is not None:
+            return previous(name, info)
+
+    return trace
 
 
 def zero_billing(env):
@@ -88,14 +115,27 @@ class TestServiceTransport(httpx.BaseTransport):
                 "headers_seconds": None,
                 "elapsed_seconds": None,
                 "response_bytes": 0,
+                "http_trace": {"event_count": 0, "failed_phase": None},
             }
             self.timings.append(timing)
+        had_trace = "trace" in request.extensions
+        previous_trace = request.extensions.get("trace")
+        if timing is not None:
+            request.extensions["trace"] = phase_trace(timing["http_trace"], started, previous_trace)
         try:
             response = self.inner.handle_request(request)
         except BaseException:
             if timing is not None:
                 timing["elapsed_seconds"] = max(0, time.monotonic() - started)
             raise
+        finally:
+            # Trace only through the response-header boundary. Restore the
+            # original hook before lazy body reads/close, including on failure.
+            if timing is not None:
+                if had_trace:
+                    request.extensions["trace"] = previous_trace
+                else:
+                    request.extensions.pop("trace", None)
         if request.method == "POST":
             self.responses += 1
         if timing is not None:

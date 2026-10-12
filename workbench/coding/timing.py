@@ -1,4 +1,4 @@
-"""Optional numeric-only diagnostics; never a source of execution authority."""
+"""Optional fixed-label/numeric diagnostics; never execution authority."""
 
 import json
 import math
@@ -27,6 +27,25 @@ ATTEMPT_FIELDS = {
     "elapsed_seconds": 5400,
     "response_bytes": 2_000_000,
 }
+HTTP_TRACE_PHASES = ("connect", "tls", "request_headers", "request_body", "response_headers")
+HTTP_TRACE_TIMES = {
+    f"{phase}_{state}_seconds": 5400
+    for phase in HTTP_TRACE_PHASES
+    for state in ("started", "complete", "failed")
+}
+
+
+def http_trace_receipt(value):
+    """Fixed phases and bounded numbers only; never retain trace info or exceptions."""
+    if not isinstance(value, dict):
+        return None
+    phase = value.get("failed_phase")
+    count = value.get("event_count")
+    return {
+        "event_count": count if type(count) is int and 0 <= count <= 64 else None,
+        "failed_phase": phase if type(phase) is str and phase in HTTP_TRACE_PHASES else None,
+        **{key: numeric(value.get(key), limit) for key, limit in HTTP_TRACE_TIMES.items()},
+    }
 
 
 def numeric(value, maximum):
@@ -42,7 +61,14 @@ def timing_receipts(values, *, attempts=False):
     if not isinstance(values, list):
         return []
     return [
-        {key: numeric(value.get(key), limit) for key, limit in fields.items()}
+        {
+            **{key: numeric(value.get(key), limit) for key, limit in fields.items()},
+            **(
+                {"http_trace": http_trace_receipt(value["http_trace"])}
+                if attempts and "http_trace" in value
+                else {}
+            ),
+        }
         for value in values[: 32 if attempts else 8]
         if isinstance(value, dict)
     ]

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L402。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L412。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`80624`。本段原文以LF换行结束。
+本段原始字节数：`82639`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a038d4a063d3289aacf9c7354a0bd9eb3b5738d199daaa665be30848c432d217"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4968d3f60a713fce70ac252d477227e7b2e921aeb1b6bdc2a17af5aad380686b"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -419,4 +419,14 @@ SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹�
 出站不匹配以 `native_request_mismatch` 在网络前停止；HTTP 400/422 以 `native_format_rejected` 在首个响应后停止，安全回执仅保留数字 HTTP 状态；违反 wire Schema 以 `native_schema_violation` 在首个响应后停止。不得删去服务端不支持的约束或自动重试兼容性格式。HTTP 500/超时及本地业务纠错仍受原每轮最多两次约束；没有第三次回退。每模块 8 步、200 万 token、180 秒、总计 32 次调用及原费用边界全部不变。
 
 受控试跑须另行明确授权，绑定已审查完整 SHA、现有 `rnd` 配置、同 Job 隔离前置证明及原预算。回执分别保留 `native_strict_requested`、`native_request_verified`、`native_local_conformant`，并始终将 `native_provider_enforcement` 标为 `unknown`。HTTP 200 且本地合规只能证明该请求被接受且该响应通过本地校验，不能区分服务端执行 strict 与静默忽略后偶然输出合规 JSON；也不能代替业务验收通过。
+
+### 第21轮之后的传输阶段诊断
+
+父线程提供的第21轮记录显示：API两次HTTP200且本地native Schema合规；dashboard两次60秒read_timeout，均未收到headers/body。本轮120.5592秒后仍有54.3405秒模块预算，overrun为0，不能归因为180秒模块耗尽。API/dashboard使用相同wire Schema和调用策略；实际初始payload相差1379字符、完整请求体相差1486字节，现有证据不能据此解释延迟，也不能证明服务商内部故障或strict执行。
+
+新增可选http_trace仅记录connect、TLS、发送headers、发送body、等待response headers五个固定阶段的started/complete/failed相对秒数、最多64个事件计数及固定失败阶段。最多32次HTTP记录；投影拒绝非有限、负数、布尔及越界值，不记录trace info、headers、地址、异常或正文。保留并透传原trace hook及其异常，成功或失败都恢复原extensions，响应body仍惰性读取。无事件意味着诊断不可用，不能把缺少connect事件单独当作连接复用证明。
+
+离线验证保留锁定SDK、真实HTTPTransport、连接池与HTTP/1.1解析，只替换网络backend并禁止外部网络。覆盖连接、TLS、上传、等待headers失败，严格Schema拒绝及原两次尝试上限；等待headers超时后，真实连接池关闭失败连接，下一次使用新连接。独立审查补测三种原hook状态与各失败阶段，确认恢复、正文不变和连接关闭。此证据不能追溯确定第21轮实际失败阶段。
+
+下一轮沿用已授权mini-swe-sla/json_schema、精确审查SHA和原rnd/TLS/nocharge/隔离前置证明，收集固定阶段回执。所有步骤、调用、token、时间及文件/oracle边界不变；无格式回退或新增重试。read timeout是单次网络操作的等待界限，不是整个响应的绝对墙钟截止；现有SSE循环尚未证明端到端硬截止，因此本次不切流式。API局部通过仍不能代替双模块候选及最终独立验收。
 ````

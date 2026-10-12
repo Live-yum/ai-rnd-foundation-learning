@@ -717,6 +717,7 @@
 - [tests/test_learning_order.py](14-acceptance/sources/tests__test_learning_order_py--001.md)（1 段）
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
 - [tests/test_legacy_signup_recovery.py](14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md)（1 段）
+- [tests/test_live_http_trace.py](14-acceptance/sources/tests__test_live_http_trace_py--001.md)（1 段）
 - [tests/test_live_test_client.py](14-acceptance/sources/tests__test_live_test_client_py--001.md)（1 段）
 - [tests/test_mini_swe_checkpoints.py](14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md)（2 段）
 - [tests/test_model_connection.py](14-acceptance/sources/tests__test_model_connection_py--001.md)（1 段）
