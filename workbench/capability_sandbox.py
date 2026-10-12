@@ -19,7 +19,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
-from workbench.capability_diagnostics import record_failure
+from workbench.capability_diagnostics import http_assertion_diagnostic, record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,
@@ -1070,6 +1070,10 @@ def _verify(
         diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BusinessCheckFailure):
+            assertion = http_assertion_diagnostic(exc.diagnostic)
+            if assertion is not None:
+                receipt["http_assertion"] = assertion
         if checkpoint is not None and isinstance(exc, BusinessCheckFailure):
             receipt["repairable_failure"] = "business_assertion"
         if checkpoint is not None and isinstance(exc, BrowserFailure):

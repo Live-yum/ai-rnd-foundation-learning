@@ -423,6 +423,18 @@ SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹�
 
 每模块8个模型步骤、原两次尝试、token/费用/180秒和15秒清理保留等界限不变；合并操作只省去单独请求submit的需要，不保证首轮完成或剩余时间足够检查。仍非流式，不增加patch协议、模型请求或外部权限。新SHA的完整双模块真实验收尚未完成。服务侧原因需无敏感的入口收齐body、上游排队/派发、上游首headers/首内容、代理下发headers、完成/取消阶段计时及token计数/缓冲开关佐证，无需密钥或请求响应原文。
 
+### 第23轮业务检查失败与批准断言反馈
+
+父线程提供的第23轮安全记录确认：sla-api首轮明确返回edit_and_submit，HTTP200且本地Schema合规，进入原checkpoint；检查因independent_oracle/BusinessCheckFailure停止，backend_health_observed=true、checks_count=0、binding_valid=true、cleanup=deleted。后续同会话修复轮两次response_headers超时，没有返回操作；dashboard未开始，完整ZIP未验。三个HTTP尝试仅一个响应，外层agent最终confirmed_absent，provider enforcement仍unknown。
+
+checks_count记录完整场景回执，不是已发送HTTP请求数。run_scenarios只有整组成功返回后，controller才追加checks；当前SLA场景四个请求中的任一状态断言失败都可留下checks_count=0。该场景还可能在注册或汇总解析JSON时失败，或在汇总的两个等值断言之一失败。现存安全记录缺少断言坐标，不能唯一确定失败步骤，健康成功也不能补足这一证据，不推测具体接口错误或服务端原因。
+
+新增http_assertion是原检查器产生的有限修复事实：code仅http_status/json_decode/json_equals/json_absent，step为从1开始的批准请求序号；等值检查按批准equals键排序、禁止字段按批准absent原顺序，附从1开始的assertion序号（避免JSON序列化改变字典顺序），状态不符仅附100..599的expected_status/actual_status。坐标上限4096，布尔、非整数和越界数字拒绝，未知键与请求路径、JSON pointer、预期/实际值、响应或异常正文均不投影。序号引用已有批准场景顺序，不新增执行权。
+
+controller将固定事实写入原检查回执，安全summary重滤这些字段；checkpoint投影仅在原绑定有效后附当前task与plan共同批准的failed_scenario，避免多场景步骤歧义。check_candidate必须先通过原task/plan/source/nonce、截止、清理与隔离资格校验，并且已有business_assertion资格和批准scenario匹配，才核对步骤/断言序号确实落在该场景内后附入同Worker反馈。状态不符还校对原期望状态，并拒绝将502/503/504诊断解释为业务断言；这些状态仍走原基础设施失败。无效或缺失诊断不授予资格、不改变原结果。
+
+离线验证覆盖四类真实HTTP断言产生固定坐标、controller处理及summary过滤、批准场景坐标拒绝，以及失败反馈进入同一Worker下一次edit_and_submit的原预算/截止。没有读取候选源码、增加模型请求或改变原验收标准。此补丁提供可定位且可修复的反馈，不证明第23轮根因已知，也不证明业务已修复；新真实双模块结果仍待原受控验收。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -10919,10 +10931,11 @@ def verify_readonly_dependencies(sandbox, plan, timeout, *, expected, source_inv
 - `_read`（L53–L62）：接收`path`。 控制顺序：L57按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L58的`{}`；L60的`result if type(result) is dict else {}`；L62的`{}`。
 - `_label`（L65–L66）：接收`value`、`allowed`。 调用`type`。 返回路径：L66的`value if type(value) is str and value in allowed else "other"`。
 - `record_failure`（L69–L84）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L77在`frame is not None`成立时循环；L79按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `startup_diagnostic`（L87–L152）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L89按`type(value) is not dict`分支；L98遍历`enums.items()`；L100遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L103遍历`( "application_startup_reported", "output_readable", "output_none…`；L150按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L90的`None`；L152的`result`。
-- `node_diagnostic`（L155–L187）：接收`product`、`aggregate`。 控制顺序：L164按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L177按`type(line) is int and 0 < line < 1_000_000`分支；L179遍历`("checks", "obligation_checks", "browser")`；L182遍历`("restarted", "backend_health_observed")`；L185按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L187的`result`。
+- `http_assertion_diagnostic`（L87–L111）：接收`value`。 源码说明：Optional fixed assertion coordinates; never response values or authority.。 控制顺序：L89按`type(value) is not dict`分支；L92按`type(code) is not str or code not in {"http_status", "json_decode", "json_equals", "j…`分支；L100按`code == "http_status"`分支；L101遍历`("expected_status", "actual_status")`；L103按`type(item) is not int or not 100 <= item <= 599`分支；L106按`code in {"json_equals", "json_absent"}`分支；L108按`type(item) is not int or not 1 <= item <= 4096`分支。 调用`type`、`value.get`。 返回路径：L90的`None`；L98的`None`；L104的`None`。
+- `startup_diagnostic`（L114–L179）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L116按`type(value) is not dict`分支；L125遍历`enums.items()`；L127遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L130遍历`( "application_startup_reported", "output_readable", "output_none…`；L177按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L117的`None`；L179的`result`。
+- `node_diagnostic`（L182–L217）：接收`product`、`aggregate`。 控制顺序：L191按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L204按`type(line) is int and 0 < line < 1_000_000`分支；L206遍历`("checks", "obligation_checks", "browser")`；L209遍历`("restarted", "backend_health_observed")`；L212按`startup is not None`分支；L215按`assertion is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L217的`result`。
 
-<!-- source-file: workbench/capability_diagnostics.py sha256: 62745172e7955ed94ab554508a68deaa30cb636b12c4b4d7e2dee91beca44ea9 -->
+<!-- source-file: workbench/capability_diagnostics.py sha256: 7aaf447094aef4c1119a5bd64246dba861a3f347a4462c755c129d5c7fafc275 -->
 ````python
 """Optional verifier failure facts; no product text, paths, or SDK messages."""
 
@@ -11008,6 +11021,33 @@ def record_failure(receipt_path, exc):
         write_json(str(receipt_path) + ".diagnostic.json", failure)
     except Exception:
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
+
+
+def http_assertion_diagnostic(value):
+    """Optional fixed assertion coordinates; never response values or authority."""
+    if type(value) is not dict:
+        return None
+    code, step = value.get("code"), value.get("step")
+    if (
+        type(code) is not str
+        or code not in {"http_status", "json_decode", "json_equals", "json_absent"}
+        or type(step) is not int
+        or not 1 <= step <= 4096
+    ):
+        return None
+    result = {"code": code, "step": step}
+    if code == "http_status":
+        for key in ("expected_status", "actual_status"):
+            item = value.get(key)
+            if type(item) is not int or not 100 <= item <= 599:
+                return None
+            result[key] = item
+    if code in {"json_equals", "json_absent"}:
+        item = value.get("assertion")
+        if type(item) is not int or not 1 <= item <= 4096:
+            return None
+        result["assertion"] = item
+    return result
 
 
 def startup_diagnostic(value):
@@ -11110,6 +11150,9 @@ def node_diagnostic(product, *, aggregate):
     startup = startup_diagnostic(receipt.get("startup_diagnostic"))
     if startup is not None:
         result["startup"] = startup
+    assertion = http_assertion_diagnostic(receipt.get("http_assertion"))
+    if assertion is not None:
+        result["http_assertion"] = assertion
     return result
 ````
 
@@ -13044,13 +13087,13 @@ def readiness_report(design, source_inventory, proof=None):
 - `verifier_policy_environment`（L308–L330）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Forward only validated policy identity to the trusted verifier child.。 控制顺序：L312按`selected_policy() is None`分支。 调用`selected_policy`。 返回路径：L313的`{}`；L330的`{name: os.environ[name] for name in names if name in os.environ}`。
 - `verify_capabilities`（L333–L449）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`、`checkpoint`。 控制顺序：L347按`plan.selection.model_dump() != selection`分支；L348抛异常，停止当前正常路径；L357按`selection["template"] == "fastapiadmin"`分支；L360按`dependency_identity(product) != profile["dependency_identity"]`分支；L361抛异常，停止当前正常路径；L402按`len(body) > 1_000_000`分支；L403抛异常，停止当前正常路径；L422按`checkpoint is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L352的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L449的`receipt`。
 - `terminate_checkpoint`（L452–L464）：接收`path`、`checkpoint`。 源码说明：The parent freezes a killed/late child's receipt; it can never be repair feedback.。 控制顺序：L456按`type(value) is not dict`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`type`、`value.update`、`value.pop`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_verify`（L467–L1135）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`、`checkpoint_deadline`。 控制顺序：L505按`trusted_oracle not in (None, "contest-business-v2")`分支；L506抛异常，停止当前正常路径；L507按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L510抛异常，停止当前正常路径；L513按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L517抛异常，停止当前正常路径；L518按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L523抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1135的`receipt`。
+- `_verify`（L467–L1139）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`、`checkpoint_deadline`。 控制顺序：L505按`trusted_oracle not in (None, "contest-business-v2")`分支；L506抛异常，停止当前正常路径；L507按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L510抛异常，停止当前正常路径；L513按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L517抛异常，停止当前正常路径；L518按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L523抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1139的`receipt`。
 - `_verify.start`（L679–L853）：接收`command`、`port`、`health_path`。 控制顺序：L683按`consumer and target["role"] == "backend"`分支；L687按`target["role"] == "backend"`分支；L718按`not response.cmd_id`分支；L719抛异常，停止当前正常路径；L722按`not isinstance(preview.token, str) or not preview.token`分支；L723抛异常，停止当前正常路径；L735在`time.monotonic() < deadline`成立时循环；L739按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L742的`http, url, preview.token`。
-- `main`（L1138–L1147）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1140按`len(body) > 1_000_000`分支；L1141抛异常，停止当前正常路径；L1147抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_execute_payload`（L1150–L1155）：接收`payload`。 控制顺序：L1152按`checkpoint is None`分支。 调用`payload.get`、`_execute_payload_inner`、`CheckpointDeadline`、`checkpoint.get`。 返回路径：L1153的`_execute_payload_inner(payload)`；L1155的`_execute_payload_inner(payload, checkpoint_deadline=deadline)`。
-- `_execute_payload_inner`（L1158–L1201）：接收`payload`、`checkpoint_deadline`。 控制顺序：L1166按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1172抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L1142–L1151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1144按`len(body) > 1_000_000`分支；L1145抛异常，停止当前正常路径；L1151抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_execute_payload`（L1154–L1159）：接收`payload`。 控制顺序：L1156按`checkpoint is None`分支。 调用`payload.get`、`_execute_payload_inner`、`CheckpointDeadline`、`checkpoint.get`。 返回路径：L1157的`_execute_payload_inner(payload)`；L1159的`_execute_payload_inner(payload, checkpoint_deadline=deadline)`。
+- `_execute_payload_inner`（L1162–L1205）：接收`payload`、`checkpoint_deadline`。 控制顺序：L1170按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1176抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: 7ab9dc2a5360d376ad2150ed094bceea97608e137fd4c73c34e96f01f5502d5d -->
+<!-- source-file: workbench/capability_sandbox.py sha256: f202012865b40ec0956ea29f6fd19aa5fbf10e4501474791262a7ced70a77efe -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -13073,7 +13116,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
-from workbench.capability_diagnostics import record_failure
+from workbench.capability_diagnostics import http_assertion_diagnostic, record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,
@@ -14124,6 +14167,10 @@ def _verify(
         diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BusinessCheckFailure):
+            assertion = http_assertion_diagnostic(exc.diagnostic)
+            if assertion is not None:
+                receipt["http_assertion"] = assertion
         if checkpoint is not None and isinstance(exc, BusinessCheckFailure):
             receipt["repairable_failure"] = "business_assertion"
         if checkpoint is not None and isinstance(exc, BrowserFailure):
@@ -15585,31 +15632,32 @@ def native_startup_paths(sandbox, timeout, *, role="backend"):
 **逐个入口与控制逻辑：**
 
 - `CheckFailure`（L27–L28）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BusinessCheckFailure`（L31–L32）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BrowserFailure`（L35–L40）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BrowserFailure.__init__`（L38–L40）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `valid_browser_launch_detail`（L96–L115）：接收`detail`。 调用`detail.get`、`isinstance`、`set`、`all`、`type`。 返回路径：L99的`isinstance(facts, dict) and set(facts) == BROWSER_SECURITY_FLAGS \| {"seccomp_mode", "appa…`。
-- `browser_report`（L118–L178）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L120按`len(raw) > 100000`分支；L126按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L132按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L135按`value.get("passed") is True`分支；L136按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L140按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`valid_browser_launch_detail`、`any`。 返回路径：L121的`None, "report-too-large"`；L125的`None, "invalid-json"`；L131的`None, "invalid-schema"`。
-- `preview_url`（L181–L194）：接收`value`、`sandbox_id`、`port`。 控制顺序：L183按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L193抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L194的`value.rstrip("/")`。
-- `capture_scalar_size`（L202–L223）：接收`value`。 控制顺序：L203按`type(value) is str`分支；L204按`len(value) > MAX_CAPTURE_VALUE_BYTES`分支；L205抛异常，停止当前正常路径；L209抛异常，停止当前正常路径；L210按`type(value) in (int, float, bool)`分支；L211按`type(value) is float and not math.isfinite(value)`分支；L212抛异常，停止当前正常路径；L213按`type(value) is int and value.bit_length() > MAX_CAPTURE_VALUE_BYTES * 4`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`len`、`CheckFailure`、`value.encode`、`math.isfinite`、`value.bit_length`、`str`。 返回路径：L223的`size`。
-- `CaptureBudget`（L226–L261）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `CaptureBudget.__init__`（L229–L232）：接收`saved`。 控制顺序：L231遍历`saved.items()`。 调用`saved.items`、`self.add_namespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CaptureBudget.entry_size`（L235–L239）：接收`name`、`value`。 控制顺序：L236按`not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name)`分支；L237抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`CheckFailure`、`len`、`capture_scalar_size`。 返回路径：L239的`128 + len(name) + capture_scalar_size(value)`。
-- `CaptureBudget.add_namespace`（L241–L251）：接收`name`、`variables`。 控制顺序：L242按`not isinstance(name, str) or len(name) > 64 or not isinstance(variables, dict)`分支；L243抛异常，停止当前正常路径；L245遍历`variables.items()`；L247按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L248抛异常，停止当前正常路径；L249按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L250抛异常，停止当前正常路径。 调用`isinstance`、`len`、`CheckFailure`、`variables.items`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CaptureBudget.store`（L253–L261）：接收`variables`、`name`、`value`。 控制顺序：L254按`name == "nonce"`分支；L255抛异常，停止当前正常路径；L258按`self.used + cost - old > MAX_CAPTURE_STATE_BYTES`分支；L259抛异常，停止当前正常路径。 调用`CheckFailure`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `interpolate`（L264–L319）：接收`value`、`variables`、`path`。 调用`visit`。 返回路径：L319的`visit(value)`。
-- `interpolate.account`（L267–L277）：接收`text`。 控制顺序：L269按`len(text) > remaining`分支；L270抛异常，停止当前正常路径；L274抛异常，停止当前正常路径；L275按`size > remaining`分支；L276抛异常，停止当前正常路径。 调用`len`、`CheckFailure`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `interpolate.captured`（L279–L284）：接收`name`。 控制顺序：L280按`name not in variables`分支；L281抛异常，停止当前正常路径。 调用`CheckFailure`、`capture_scalar_size`。 返回路径：L284的`value`。
-- `interpolate.visit`（L286–L317）：接收`item`、`depth`。 控制顺序：L287按`depth > 32`分支；L288抛异常，停止当前正常路径；L290按`isinstance(item, list)`分支；L292按`isinstance(item, dict)`分支；L294遍历`item.items()`；L298按`not isinstance(item, str)`分支；L301按`full and not path`分支；L306遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", item)`。 调用`CheckFailure`、`account`、`isinstance`、`visit`、`item.items`、`re.fullmatch`、`captured`、`str`、`re.finditer`等。 返回路径：L291的`[visit(v, depth + 1) for v in item]`；L297的`result`；L299的`item`。
-- `values_at`（L322–L338）：接收`value`、`path`。 控制顺序：L323按`path == "$"`分支；L325按`not path.startswith("$.") or len(path) > 300`分支；L326抛异常，停止当前正常路径；L328遍历`path[2:].split(".")`；L330遍历`values`；L331按`part == "*" and isinstance(item, (dict, list))`分支；L333按`isinstance(item, dict) and part in item`分支；L335按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L324的`[value]`；L338的`values`。
-- `json_equal`（L341–L352）：接收`left`、`right`。 控制顺序：L342按`type(left) is not type(right)`分支；L344按`isinstance(left, dict)`分支；L348按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L343的`False`；L345的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L349的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
-- `http_phase_deadline`（L360–L366）：接收`steps`、`deadline`。 控制顺序：L361按`len(steps) > MAX_HTTP_PHASE_STEPS or sum(step.wait_ms for step in steps) > MAX_HTTP_P…`分支；L365抛异常，停止当前正常路径。 调用`len`、`sum`、`CheckFailure`、`time.monotonic`。 返回路径：L366的`time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline`。
-- `run_steps`（L369–L465）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L373遍历`enumerate(steps)`；L385按`started + wait >= deadline`分支；L386抛异常，停止当前正常路径；L387按`wait`分支；L390按`step.body is not None`分支；L392按`step.body_encoding == "form"`分支；L396抛异常，停止当前正常路径；L403按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L465的`receipts`。
-- `run_scenarios`（L468–L509）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L479遍历`scenarios`；L481按`scenario.id not in saved`分支；L488按`not steps`分支；L496抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L509的`checks, saved`。
-- `run_browser`（L512–L619）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L514按`not selected`分支；L517按`not node`分支；L518抛异常，停止当前正常路径；L524抛异常，停止当前正常路径；L561抛异常，停止当前正常路径；L572按`prior and prior["passed"] is False`分支；L573抛异常，停止当前正常路径；L576抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L515的`[]`；L619的`value["checks"]`。
-- `require_evidence`（L622–L743）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L641按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L644抛异常，停止当前正常路径；L645按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L651抛异常，停止当前正常路径；L663按`aggregate`分支；L670抛异常，停止当前正常路径；L675按`selection["template"] == "fastapiadmin"`分支；L677遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L743的`receipt`。
+- `BusinessCheckFailure`（L31–L36）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BusinessCheckFailure.__init__`（L34–L36）：接收`message`、`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BrowserFailure`（L39–L44）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure.__init__`（L42–L44）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `valid_browser_launch_detail`（L100–L119）：接收`detail`。 调用`detail.get`、`isinstance`、`set`、`all`、`type`。 返回路径：L103的`isinstance(facts, dict) and set(facts) == BROWSER_SECURITY_FLAGS \| {"seccomp_mode", "appa…`。
+- `browser_report`（L122–L182）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L124按`len(raw) > 100000`分支；L130按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L136按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L139按`value.get("passed") is True`分支；L140按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L144按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`valid_browser_launch_detail`、`any`。 返回路径：L125的`None, "report-too-large"`；L129的`None, "invalid-json"`；L135的`None, "invalid-schema"`。
+- `preview_url`（L185–L198）：接收`value`、`sandbox_id`、`port`。 控制顺序：L187按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L197抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L198的`value.rstrip("/")`。
+- `capture_scalar_size`（L206–L227）：接收`value`。 控制顺序：L207按`type(value) is str`分支；L208按`len(value) > MAX_CAPTURE_VALUE_BYTES`分支；L209抛异常，停止当前正常路径；L213抛异常，停止当前正常路径；L214按`type(value) in (int, float, bool)`分支；L215按`type(value) is float and not math.isfinite(value)`分支；L216抛异常，停止当前正常路径；L217按`type(value) is int and value.bit_length() > MAX_CAPTURE_VALUE_BYTES * 4`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`len`、`CheckFailure`、`value.encode`、`math.isfinite`、`value.bit_length`、`str`。 返回路径：L227的`size`。
+- `CaptureBudget`（L230–L265）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CaptureBudget.__init__`（L233–L236）：接收`saved`。 控制顺序：L235遍历`saved.items()`。 调用`saved.items`、`self.add_namespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CaptureBudget.entry_size`（L239–L243）：接收`name`、`value`。 控制顺序：L240按`not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name)`分支；L241抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`CheckFailure`、`len`、`capture_scalar_size`。 返回路径：L243的`128 + len(name) + capture_scalar_size(value)`。
+- `CaptureBudget.add_namespace`（L245–L255）：接收`name`、`variables`。 控制顺序：L246按`not isinstance(name, str) or len(name) > 64 or not isinstance(variables, dict)`分支；L247抛异常，停止当前正常路径；L249遍历`variables.items()`；L251按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L252抛异常，停止当前正常路径；L253按`self.used + cost > MAX_CAPTURE_STATE_BYTES`分支；L254抛异常，停止当前正常路径。 调用`isinstance`、`len`、`CheckFailure`、`variables.items`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CaptureBudget.store`（L257–L265）：接收`variables`、`name`、`value`。 控制顺序：L258按`name == "nonce"`分支；L259抛异常，停止当前正常路径；L262按`self.used + cost - old > MAX_CAPTURE_STATE_BYTES`分支；L263抛异常，停止当前正常路径。 调用`CheckFailure`、`self.entry_size`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `interpolate`（L268–L323）：接收`value`、`variables`、`path`。 调用`visit`。 返回路径：L323的`visit(value)`。
+- `interpolate.account`（L271–L281）：接收`text`。 控制顺序：L273按`len(text) > remaining`分支；L274抛异常，停止当前正常路径；L278抛异常，停止当前正常路径；L279按`size > remaining`分支；L280抛异常，停止当前正常路径。 调用`len`、`CheckFailure`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `interpolate.captured`（L283–L288）：接收`name`。 控制顺序：L284按`name not in variables`分支；L285抛异常，停止当前正常路径。 调用`CheckFailure`、`capture_scalar_size`。 返回路径：L288的`value`。
+- `interpolate.visit`（L290–L321）：接收`item`、`depth`。 控制顺序：L291按`depth > 32`分支；L292抛异常，停止当前正常路径；L294按`isinstance(item, list)`分支；L296按`isinstance(item, dict)`分支；L298遍历`item.items()`；L302按`not isinstance(item, str)`分支；L305按`full and not path`分支；L310遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", item)`。 调用`CheckFailure`、`account`、`isinstance`、`visit`、`item.items`、`re.fullmatch`、`captured`、`str`、`re.finditer`等。 返回路径：L295的`[visit(v, depth + 1) for v in item]`；L301的`result`；L303的`item`。
+- `values_at`（L326–L342）：接收`value`、`path`。 控制顺序：L327按`path == "$"`分支；L329按`not path.startswith("$.") or len(path) > 300`分支；L330抛异常，停止当前正常路径；L332遍历`path[2:].split(".")`；L334遍历`values`；L335按`part == "*" and isinstance(item, (dict, list))`分支；L337按`isinstance(item, dict) and part in item`分支；L339按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L328的`[value]`；L342的`values`。
+- `json_equal`（L345–L356）：接收`left`、`right`。 控制顺序：L346按`type(left) is not type(right)`分支；L348按`isinstance(left, dict)`分支；L352按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L347的`False`；L349的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L353的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
+- `http_phase_deadline`（L364–L370）：接收`steps`、`deadline`。 控制顺序：L365按`len(steps) > MAX_HTTP_PHASE_STEPS or sum(step.wait_ms for step in steps) > MAX_HTTP_P…`分支；L369抛异常，停止当前正常路径。 调用`len`、`sum`、`CheckFailure`、`time.monotonic`。 返回路径：L370的`time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline`。
+- `run_steps`（L373–L486）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L377遍历`enumerate(steps)`；L389按`started + wait >= deadline`分支；L390抛异常，停止当前正常路径；L391按`wait`分支；L394按`step.body is not None`分支；L396按`step.body_encoding == "form"`分支；L400抛异常，停止当前正常路径；L407按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L486的`receipts`。
+- `run_scenarios`（L489–L530）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L500遍历`scenarios`；L502按`scenario.id not in saved`分支；L509按`not steps`分支；L517抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L530的`checks, saved`。
+- `run_browser`（L533–L640）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L535按`not selected`分支；L538按`not node`分支；L539抛异常，停止当前正常路径；L545抛异常，停止当前正常路径；L582抛异常，停止当前正常路径；L593按`prior and prior["passed"] is False`分支；L594抛异常，停止当前正常路径；L597抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L536的`[]`；L640的`value["checks"]`。
+- `require_evidence`（L643–L764）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L662按`selection["template"] == "fastapiadmin" and container.get("profile") != ( "native-fas…`分支；L665抛异常，停止当前正常路径；L666按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L672抛异常，停止当前正常路径；L684按`aggregate`分支；L691抛异常，停止当前正常路径；L696按`selection["template"] == "fastapiadmin"`分支；L698遍历`("security_checks", "restart_security_checks") if aggregate else …`。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`container.get`、`CheckFailure`、`isinstance`、`dependency_profile.get`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L764的`receipt`。
 
-<!-- source-file: workbench/capability_verification.py sha256: 0c85c76509c13e3fa5e368af77405cd07328647f65d7d02b79e39a144ac5623d -->
+<!-- source-file: workbench/capability_verification.py sha256: bf1fc00cb99aa0517fe26faf24a9e7988ebaba92804af1687d9fd2c70550f1fb -->
 ````python
 """Independent HTTP checks run outside the generated application's sandbox.
 
@@ -15643,6 +15691,10 @@ class CheckFailure(ValueError):
 
 class BusinessCheckFailure(CheckFailure):
     """An approved HTTP assertion failed, after bounded transport completed."""
+
+    def __init__(self, message, *, diagnostic=None):
+        super().__init__(message)
+        self.diagnostic = diagnostic
 
 
 class BrowserFailure(CheckFailure):
@@ -16044,22 +16096,39 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
             raise CheckFailure("验收代理网关失败，无法确认应用来源")
         if status != step.status:
             raise BusinessCheckFailure(
-                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"
+                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}",
+                diagnostic={
+                    "code": "http_status",
+                    "step": index + 1,
+                    "expected_status": step.status,
+                    "actual_status": status,
+                },
             )
         body = None
         if step.equals or step.absent or step.captures:
             try:
                 body = json.loads(raw)
             except ValueError, UnicodeError, RecursionError:
-                raise BusinessCheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
-        for pointer, expected in step.equals.items():
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求缺少约定JSON响应",
+                    diagnostic={"code": "json_decode", "step": index + 1},
+                ) from None
+        # Canonical order survives JSON serialization of the approved plan.
+        for assertion, (pointer, expected) in enumerate(sorted(step.equals.items()), 1):
             actual = values_at(body, pointer)
             if not actual or any(
                 not json_equal(v, interpolate(expected, variables)) for v in actual
             ):
-                raise BusinessCheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
-        if any(values_at(body, pointer) for pointer in step.absent):
-            raise BusinessCheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求的已批准JSON断言未通过",
+                    diagnostic={"code": "json_equals", "step": index + 1, "assertion": assertion},
+                )
+        for assertion, pointer in enumerate(step.absent, 1):
+            if values_at(body, pointer):
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求暴露了契约禁止返回的字段",
+                    diagnostic={"code": "json_absent", "step": index + 1, "assertion": assertion},
+                )
         for name, pointer in step.captures.items():
             found = values_at(body, pointer)
             if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):
@@ -17137,14 +17206,14 @@ def snapshot_edits(product, snapshot, task, selection):
 
 **逐个入口与控制逻辑：**
 
-- `check_candidate`（L29–L96）：接收`settings`、`task`、`plan`、`candidate`、`deadline`。 源码说明：Only the platform's independent verifier can classify a submit checkpoint.。 控制顺序：L40按`deadline - time.monotonic() <= 10`分支；L41抛异常，停止当前正常路径；L43按`task.model_dump() not in [item.model_dump() for item in plan.tasks]`分支；L44抛异常，停止当前正常路径；L56按`time.monotonic() >= deadline or proof.get("checkpoint") != binding or proof.get("sour…`分支；L66抛异常，停止当前正常路径；L67按`proof.get("passed") is True`分支；L83按`proof.get("passed") is not False or proof.get("repairable_failure") not in {"applicat…`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`UnsupportedScope`、`digest`、`manifest`、`task.model_dump`、`item.model_dump`、`ValueError`、`uuid.uuid4`、`verify_capabilities`等。 返回路径：L76的`{"passed": True, "source_digest": source}`；L96的`feedback`。
-- `worker_python`（L99–L104）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L102的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
-- `run_agent`（L107–L164）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L110按`not settings.mini_swe_enabled`分支；L111抛异常，停止当前正常路径；L112按`task.version != 2 or task.executor != "mini_swe"`分支；L113抛异常，停止当前正常路径；L115按`not executable.is_file()`分支；L116抛异常，停止当前正常路径；L121按`isinstance(gateway, ModelGateway)`分支；L123按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L164的`result`。
-- `_run`（L167–L443）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`、`deadline`。 控制顺序：L189按`record.exists()`分支；L191按`budget["identity"] != identity`分支；L192抛异常，停止当前正常路径；L193按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L194抛异常，停止当前正常路径；L195抛异常，停止当前正常路径；L262在`True`成立时循环；L264按`remaining <= FINISH_SECONDS`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L427的`edits, { "identity": identity, "task_id": task.task_id, "steps": step, "budget": budget, "…`。
-- `_run.read_lines`（L231–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L232在`True`成立时循环；L238按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_run.send`（L244–L249）：接收`value`。 控制顺序：L246按`len(raw) > LIMIT`分支；L247抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `check_candidate`（L29–L114）：接收`settings`、`task`、`plan`、`candidate`、`deadline`。 源码说明：Only the platform's independent verifier can classify a submit checkpoint.。 控制顺序：L40按`deadline - time.monotonic() <= 10`分支；L41抛异常，停止当前正常路径；L43按`task.model_dump() not in [item.model_dump() for item in plan.tasks]`分支；L44抛异常，停止当前正常路径；L56按`time.monotonic() >= deadline or proof.get("checkpoint") != binding or proof.get("sour…`分支；L66抛异常，停止当前正常路径；L67按`proof.get("passed") is True`分支；L83按`proof.get("passed") is not False or proof.get("repairable_failure") not in {"applicat…`分支。后续分支沿下方源码相同行号继续阅读。 调用`time.monotonic`、`UnsupportedScope`、`digest`、`manifest`、`task.model_dump`、`item.model_dump`、`ValueError`、`uuid.uuid4`、`verify_capabilities`等。 返回路径：L76的`{"passed": True, "source_digest": source}`；L114的`feedback`。
+- `worker_python`（L117–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L120的`ROOT / "tools/mini-swe/.venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"…`。
+- `run_agent`（L125–L182）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`environment_factory`。 控制顺序：L128按`not settings.mini_swe_enabled`分支；L129抛异常，停止当前正常路径；L130按`task.version != 2 or task.executor != "mini_swe"`分支；L131抛异常，停止当前正常路径；L133按`not executable.is_file()`分支；L134抛异常，停止当前正常路径；L139按`isinstance(gateway, ModelGateway)`分支；L141按`urlsplit(profile.base_url).scheme != "https"`分支。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`ValueError`、`worker_python`、`executable.is_file`、`isinstance`、`settings.model_for`、`urlsplit`、`Path`、`workspace.mkdir`等。 返回路径：L182的`result`。
+- `_run`（L185–L463）：接收`settings`、`gateway`、`run_id`、`task`、`plan`、`product`、`workspace`、`context`、`executable`、`output_tokens`、`environment_factory`、`deadline`。 控制顺序：L207按`record.exists()`分支；L209按`budget["identity"] != identity`分支；L210抛异常，停止当前正常路径；L211按`budget.get("billing_mode", "metered") != settings.mini_swe_billing_mode`分支；L212抛异常，停止当前正常路径；L213抛异常，停止当前正常路径；L280在`True`成立时循环；L282按`remaining <= FINISH_SECONDS`分支。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`manifest`、`task.model_dump`、`plan.model_dump`、`record.exists`、`json.loads`、`record.read_text`、`ValueError`、`budget.get`等。 返回路径：L447的`edits, { "identity": identity, "task_id": task.task_id, "steps": step, "budget": budget, "…`。
+- `_run.read_lines`（L249–L257）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L250在`True`成立时循环；L256按`not raw or len(raw) > LIMIT`分支。 调用`process.stdout.readline`、`lines.put`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_run.send`（L262–L267）：接收`value`。 控制顺序：L264按`len(raw) > LIMIT`分支；L265抛异常，停止当前正常路径。 调用`json.dumps(value, ensure_ascii=False).encode`、`json.dumps`、`len`、`ValueError`、`process.stdin.write`、`process.stdin.flush`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/coding/mini_swe.py sha256: 9d19e64e97f22f9e2c31fdfecfdea74b4dee89d5d390f09f15b907333841e88e -->
+<!-- source-file: workbench/coding/mini_swe.py sha256: 4b9abd69abe48ff924f8f57fcbd06af961560bdc8a41bf76af3a95a8143b5bb3 -->
 ````python
 """Supervise the isolated Python 3.12 agent; all authority stays in the platform."""
 
@@ -17176,7 +17245,7 @@ FINISH_SECONDS = 15
 
 def check_candidate(settings, task, plan, candidate, deadline):
     """Only the platform's independent verifier can classify a submit checkpoint."""
-    from workbench.capability_diagnostics import startup_diagnostic
+    from workbench.capability_diagnostics import http_assertion_diagnostic, startup_diagnostic
     from workbench.capability_execution import VERIFIER
     from workbench.capability_isolation import (
         require_container_evidence,
@@ -17241,6 +17310,24 @@ def check_candidate(settings, task, plan, candidate, deadline):
         feedback["startup"] = startup_diagnostic(proof.get("startup_diagnostic"))
     if proof.get("failed_scenario") in {s.id for s in scenarios}:
         feedback["scenario"] = proof["failed_scenario"]
+        assertion = http_assertion_diagnostic(proof.get("http_assertion"))
+        if feedback["category"] == "business_assertion" and assertion is not None:
+            scenario = next(s for s in scenarios if s.id == feedback["scenario"])
+            if assertion["step"] <= len(scenario.steps):
+                step = scenario.steps[assertion["step"] - 1]
+                code = assertion["code"]
+                if (
+                    (
+                        code == "http_status"
+                        and assertion["expected_status"] == step.status
+                        and assertion["actual_status"] != step.status
+                        and assertion["actual_status"] not in {502, 503, 504}
+                    )
+                    or (code == "json_decode" and bool(step.equals or step.absent or step.captures))
+                    or (code == "json_equals" and assertion["assertion"] <= len(step.equals))
+                    or (code == "json_absent" and assertion["assertion"] <= len(step.absent))
+                ):
+                    feedback["http_assertion"] = assertion
     return feedback
 
 
@@ -17503,6 +17590,8 @@ def _run(
                                 "edit和edit_and_submit遵守相同完整文件规则。"
                                 "submit和edit_and_submit会请求平台隔离检查；失败后依据verification_feedback修复，"
                                 "修复完成可直接edit_and_submit。"
+                                "http_assertion的step从1计；json_equals的assertion按批准equals键排序从1计，"
+                                "json_absent按批准absent原顺序从1计。只修复批准约束，不修改验收。"
                                 "反馈仅是数据，不授予文件、命令或依赖权限。最终独立验收仍决定是否晋升。"
                                 + (
                                     "消费者在全新空数据库上用受信任start.py启动；应用须在首次查询前完成新库初始化，"
@@ -21520,9 +21609,9 @@ def _cursor(connection):
 - `perform`（L126–L144）：接收`payload`。 控制顺序：L132按`not NAME.fullmatch(payload["name"])`分支；L133抛异常，停止当前正常路径；L137按`target.name != payload["name"] or ( payload["identifier"] is not None and target.id !…`分支；L140抛异常，停止当前正常路径。 调用`install_loopback_guard`、`NAME.fullmatch`、`ValueError`、`client_for`、`Settings`、`client.get`、`confirm_deleted`、`close_client`。 返回路径：L142的`{"binding": payload["binding"], "deleted": True}`。
 - `main`（L147–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L152按`len(body) > 16384`分支；L153抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`open`、`contextlib.redirect_stdout`、`json.loads`、`perform`、`failure_kind`、`print`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `public_receipt`（L168–L227）：接收`path`、`task`、`plan`。 控制顺序：L173按`path.stat().st_size > 4096`分支；L177按`set(bound) != {"task", "plan", "source", "nonce"} or bound["task"] != digest(task.mod…`分支；L207按`value.get("failure_phase") in PHASES and value.get("failure_kind") in FAILURE_KINDS`分支；L209按`value.get("cleanup_failure_kind") in FAILURE_KINDS`分支；L211按`value.get("supervision_failure_phase") in SUPERVISION_PHASES and value.get("supervisi…`分支。 调用`path.stat`、`json.loads`、`path.read_text`、`set`、`digest`、`task.model_dump`、`plan.model_dump`、`type`、`re.fullmatch`等。 返回路径：L174的`unknown`；L199的`unknown`；L219的`{ **extra, "status": value["status"], "reason": value["reason"], "binding": bound, "sandbo…`。
-- `checkpoint_receipts`（L230–L274）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L237遍历`range(1, 9)`；L240按`not path.exists()`分支；L244按`path.stat().st_size > 1_000_000`分支；L245抛异常，停止当前正常路径；L248按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L259抛异常，停止当前正常路径。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L274的`result`。
+- `checkpoint_receipts`（L230–L279）：接收`workspace`、`task`、`plan`。 源码说明：Project at most eight owned checkpoint receipts before ephemeral source removal.。 控制顺序：L237遍历`range(1, 9)`；L240按`not path.exists()`分支；L244按`path.stat().st_size > 1_000_000`分支；L245抛异常，停止当前正常路径；L248按`type(bound["nonce"]) is not str or not re.fullmatch("[a-f0-9]{32}", bound["nonce"]) o…`分支；L259抛异常，停止当前正常路径；L262按`type(scenario) is str and scenario in { s.id for s in plan.scenarios if s.id in task.…`分支。 调用`range`、`path.exists`、`path.stat`、`ValueError`、`json.loads`、`path.read_text`、`type`、`re.fullmatch`、`digest`等。 返回路径：L279的`result`。
 
-<!-- source-file: workbench/infrastructure/sandbox/cleanup.py sha256: 3e06492d07abe222df05ae1772c1102bebd2877ac45e8cb60619a6f99512d3bc -->
+<!-- source-file: workbench/infrastructure/sandbox/cleanup.py sha256: 941ae464896fbddf6d8009972a47e32ddf17b9874c8ded496c79604ee5fb148a -->
 ````python
 """Owned coding-sandbox deletion; the parent alone publishes terminal cleanup state."""
 
@@ -21784,6 +21873,11 @@ def checkpoint_receipts(workspace, task, plan):
             ):
                 raise ValueError("Checkpoint binding rejected")
             item.update(node_diagnostic(candidate, aggregate=False))
+            scenario = value.get("failed_scenario")
+            if type(scenario) is str and scenario in {
+                s.id for s in plan.scenarios if s.id in task.scenarios
+            }:
+                item["failed_scenario"] = scenario
             item.update(
                 binding_valid=True,
                 sandbox_name=value["sandbox_name"],
@@ -166348,6 +166442,307 @@ def test_base64_lines_preserve_the_existing_format_and_original_bytes(content):
     assert base64.b64decode(encoded_lines(content)) == content
 ````
 
+### `tests/test_http_assertion_feedback.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_diagnostics`、`workbench.capability_verification`、`workbench.coding`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_actual_oracle_reports_only_fixed_coordinates`（L16–L43）：接收`code`。 控制顺序：L20按`code == "http_status"`分支；L22按`code == "json_decode"`分支；L24按`code == "json_absent"`分支；L38按`code == "http_status"`分支；L40按`code in {"json_equals", "json_absent"}`分支；L42断言`caught.value.diagnostic == expected`；L43断言`"private" not in json.dumps(http_assertion_diagnostic(caught.value.diagnostic))`。 调用`HttpStep`、`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`httpx.ByteStream`、`pytest.raises`、`run_steps`、`expected.update`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_gateway_failure_does_not_become_repairable_assertion`（L47–L58）：接收`status`。 控制顺序：L58断言`type(caught.value) is CheckFailure`。 调用`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`httpx.ByteStream`、`pytest.raises`、`run_steps`、`HttpStep`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_projection_rejects_invalid_fields`（L73–L75）：接收`mutation`。 控制顺序：L75断言`http_assertion_diagnostic(value) is None`。 调用`http_assertion_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_summary_projection_drops_extra_text`（L78–L97）：接收`tmp_path`。 控制顺序：L96断言`value["http_assertion"] == {"code": "json_equals", "step": 3, "assertion": 2}`；L97断言`"private" not in json.dumps(value)`。 调用`path.write_text`、`json.dumps`、`node_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `business_proof`（L100–L105）：接收`proof`、`diagnostic`。 调用`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_feedback_coordinates_match_approved_scenario`（L122–L133）：接收`settings`、`tmp_path`、`monkeypatch`、`diagnostic`、`accepted`。 控制顺序：L131断言`("http_assertion" in value) is accepted`；L132断言`value["scenario"] == "sla-api-check"`；L133断言`value["category"] == "business_assertion" and value["passed"] is False`。 调用`bound_check_fixture`、`business_proof`、`agent.check_candidate`、`time.monotonic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_assertion_feedback_reaches_same_worker_repair`（L136–L155）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L152断言`len(calls) == 2 and len(deadlines) == 2 and deadlines[0] == deadlines[1]`；L153断言`calls[1]["verification_feedback"]["http_assertion"] == diagnostic`；L154断言`calls[1]["verification_feedback"]["scenario"] == "sla-api-check"`；L155断言`cleaned == [True] and (product / "app.py").read_text() == "# baseline\n"`。 调用`bound_check_fixture`、`business_proof`、`exercise`、`monkeypatch.setattr`、`run`、`len`、`(product / "app.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_assertion_feedback_reaches_same_worker_repair.checkpoint`（L146–L148）：接收`*args`。 调用`deadlines.append`、`len`、`actual_check`、`successful_check`。 返回路径：L148的`actual_check(*args) if len(deadlines) == 1 else successful_check(*args)`。
+- `test_original_controller_handler_preserves_fixed_assertion_in_receipt`（L158–L207）：接收`tmp_path`。 控制顺序：L203断言`receipt["repairable_failure"] == "business_assertion"`；L204断言`receipt["http_assertion"] == diagnostic`；L207断言`projected["http_assertion"] == diagnostic and "private" not in json.dumps(projected)`。 调用`ast.parse`、`inspect.getsource`、`next`、`ast.walk`、`isinstance`、`ast.fix_missing_locations`、`ast.Module`、`ast.Try`、`ast.Raise`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_status_projection_rejects_non_status_values`（L211–L217）：接收`value`。 控制顺序：L212断言`http_assertion_diagnostic( {"code": "http_status", "step": 1, "expected_status": 200,…`。 调用`http_assertion_diagnostic`、`pytest.mark.parametrize`、`float`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_assertion_ordinal_survives_plan_dictionary_reordering`（L221–L233）：接收`equals`。 控制顺序：L233断言`caught.value.diagnostic == {"code": "json_equals", "step": 1, "assertion": 2}`。 调用`HttpStep`、`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`httpx.ByteStream`、`pytest.raises`、`run_steps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_checkpoint_summary_exports_only_bound_approved_scenario`（L245–L272）：接收`tmp_path`、`scenario`、`bound`。 控制顺序：L270断言`("failed_scenario" in value) is (bound and scenario == "sla-api-check")`；L271断言`("http_assertion" in value) is bound`；L272断言`"private" not in json.dumps(value)`。 调用`cleanup_binding`、`candidate.mkdir`、`(candidate / "app.py").write_text`、`write_json`、`digest`、`manifest`、`checkpoint_receipts`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_http_assertion_feedback.py sha256: 490c7c5e4e2652cf310fdd3c80ca56a7e80f1746a9f6f8fe10c76d399afe098c -->
+````python
+"""Safe approved assertion coordinates flow to repair without changing acceptance."""
+
+import json
+
+import httpx
+import pytest
+from test_mini_swe_checkpoints import bound_check_fixture, exercise
+
+from workbench.capability_contracts import HttpStep
+from workbench.capability_diagnostics import http_assertion_diagnostic, node_diagnostic
+from workbench.capability_verification import BusinessCheckFailure, CheckFailure, run_steps
+from workbench.coding import mini_swe as agent
+
+
+@pytest.mark.parametrize("code", ["http_status", "json_decode", "json_equals", "json_absent"])
+def test_actual_oracle_reports_only_fixed_coordinates(code):
+    step = HttpStep(path="/approved", status=200, equals={"$.first": 1, "$.second": 2})
+    raw = b'{"first":1,"second":"private-value"}'
+    status = 200
+    if code == "http_status":
+        status = 418
+    elif code == "json_decode":
+        raw = b"private-invalid-json"
+    elif code == "json_absent":
+        step = HttpStep(path="/approved", status=200, absent=["$.missing", "$.private"])
+        raw = b'{"private":"private-value"}'
+    with (
+        httpx.Client(
+            base_url="https://fixture.invalid",
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(status, stream=httpx.ByteStream(raw))
+            ),
+        ) as client,
+        pytest.raises(BusinessCheckFailure) as caught,
+    ):
+        run_steps(client, [step], {})
+    expected = {"code": code, "step": 1}
+    if code == "http_status":
+        expected.update(expected_status=200, actual_status=418)
+    if code in {"json_equals", "json_absent"}:
+        expected["assertion"] = 2
+    assert caught.value.diagnostic == expected
+    assert "private" not in json.dumps(http_assertion_diagnostic(caught.value.diagnostic))
+
+
+@pytest.mark.parametrize("status", [502, 503, 504])
+def test_gateway_failure_does_not_become_repairable_assertion(status):
+    with (
+        httpx.Client(
+            base_url="https://fixture.invalid",
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(status, stream=httpx.ByteStream(b""))
+            ),
+        ) as client,
+        pytest.raises(CheckFailure) as caught,
+    ):
+        run_steps(client, [HttpStep(path="/", status=200)], {})
+    assert type(caught.value) is CheckFailure
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"code": "private"},
+        {"step": True},
+        {"step": 4097},
+        {"step": 0},
+        {"assertion": True},
+        {"assertion": 0},
+        {"assertion": 4097},
+    ],
+)
+def test_projection_rejects_invalid_fields(mutation):
+    value = {"code": "json_equals", "step": 1, "assertion": 1, **mutation}
+    assert http_assertion_diagnostic(value) is None
+
+
+def test_summary_projection_drops_extra_text(tmp_path):
+    path = tmp_path / "candidate-node-verification.json"
+    path.write_text(
+        json.dumps(
+            {
+                "passed": False,
+                "http_assertion": {
+                    "code": "json_equals",
+                    "step": 3,
+                    "assertion": 2,
+                    "response": "private-content",
+                    "pointer": "private-pointer",
+                    "expected": "private",
+                },
+            }
+        )
+    )
+    value = node_diagnostic(tmp_path / "candidate", aggregate=False)
+    assert value["http_assertion"] == {"code": "json_equals", "step": 3, "assertion": 2}
+    assert "private" not in json.dumps(value)
+
+
+def business_proof(proof, diagnostic):
+    proof.update(
+        repairable_failure="business_assertion",
+        failed_scenario="sla-api-check",
+        http_assertion=diagnostic,
+    )
+
+
+@pytest.mark.parametrize(
+    "diagnostic,accepted",
+    [
+        ({"code": "json_equals", "step": 3, "assertion": 2}, True),
+        ({"code": "json_equals", "step": 3, "assertion": 3}, False),
+        ({"code": "json_absent", "step": 3, "assertion": 1}, False),
+        ({"code": "json_decode", "step": 2}, False),
+        ({"code": "json_decode", "step": 1}, True),
+        ({"code": "http_status", "step": 4, "expected_status": 401, "actual_status": 200}, True),
+        ({"code": "http_status", "step": 4, "expected_status": 200, "actual_status": 401}, False),
+        ({"code": "http_status", "step": 3, "expected_status": 200, "actual_status": 503}, False),
+        ({"code": "json_equals", "step": 5, "assertion": 1}, False),
+    ],
+)
+def test_feedback_coordinates_match_approved_scenario(
+    settings, tmp_path, monkeypatch, diagnostic, accepted
+):
+    import time
+
+    plan, task, candidate = bound_check_fixture(
+        tmp_path, monkeypatch, lambda proof: business_proof(proof, diagnostic)
+    )
+    value = agent.check_candidate(settings, task, plan, candidate, time.monotonic() + 40)
+    assert ("http_assertion" in value) is accepted
+    assert value["scenario"] == "sla-api-check"
+    assert value["category"] == "business_assertion" and value["passed"] is False
+
+
+def test_fixed_assertion_feedback_reaches_same_worker_repair(settings, tmp_path, monkeypatch):
+    actual_check = agent.check_candidate
+    diagnostic = {"code": "json_equals", "step": 3, "assertion": 2}
+    bound_check_fixture(tmp_path, monkeypatch, lambda proof: business_proof(proof, diagnostic))
+    run, calls, checks, cleaned, product = exercise(
+        settings, tmp_path, monkeypatch, [True], combined=True
+    )
+    successful_check = agent.check_candidate
+    deadlines = []
+
+    def checkpoint(*args):
+        deadlines.append(args[-1])
+        return actual_check(*args) if len(deadlines) == 1 else successful_check(*args)
+
+    monkeypatch.setattr(agent, "check_candidate", checkpoint)
+    run()
+    assert len(calls) == 2 and len(deadlines) == 2 and deadlines[0] == deadlines[1]
+    assert calls[1]["verification_feedback"]["http_assertion"] == diagnostic
+    assert calls[1]["verification_feedback"]["scenario"] == "sla-api-check"
+    assert cleaned == [True] and (product / "app.py").read_text() == "# baseline\n"
+
+
+def test_original_controller_handler_preserves_fixed_assertion_in_receipt(tmp_path):
+    import ast
+    import inspect
+
+    from workbench import capability_sandbox as sandbox
+    from workbench.capability_verification import BrowserFailure
+
+    tree = ast.parse(inspect.getsource(sandbox._verify))
+    handler = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ExceptHandler)
+        and isinstance(node.type, ast.Name)
+        and node.type.id == "CheckFailure"
+    )
+    program = ast.fix_missing_locations(
+        ast.Module(
+            body=[
+                ast.Try(
+                    body=[ast.Raise(exc=ast.Name(id="failure", ctx=ast.Load()))],
+                    handlers=[handler],
+                    orelse=[],
+                    finalbody=[],
+                )
+            ],
+            type_ignores=[],
+        )
+    )
+    diagnostic = {"code": "http_status", "step": 2, "expected_status": 201, "actual_status": 422}
+    failure = BusinessCheckFailure(
+        "private original message", diagnostic={**diagnostic, "body": "private"}
+    )
+    failure.scenario_id = "sla-api-check"
+    scope = {
+        "failure": failure,
+        "CheckFailure": CheckFailure,
+        "BusinessCheckFailure": BusinessCheckFailure,
+        "BrowserFailure": BrowserFailure,
+        "http_assertion_diagnostic": http_assertion_diagnostic,
+        "receipt": {},
+        "checkpoint": {},
+        "native": False,
+    }
+    exec(compile(program, inspect.getsourcefile(sandbox), "exec"), scope)
+    receipt = scope["receipt"]
+    assert receipt["repairable_failure"] == "business_assertion"
+    assert receipt["http_assertion"] == diagnostic
+    (tmp_path / "candidate-node-verification.json").write_text(json.dumps(receipt))
+    projected = node_diagnostic(tmp_path / "candidate", aggregate=False)
+    assert projected["http_assertion"] == diagnostic and "private" not in json.dumps(projected)
+
+
+@pytest.mark.parametrize("value", [True, 99, 600, "200", float("nan"), float("inf")])
+def test_status_projection_rejects_non_status_values(value):
+    assert (
+        http_assertion_diagnostic(
+            {"code": "http_status", "step": 1, "expected_status": 200, "actual_status": value}
+        )
+        is None
+    )
+
+
+@pytest.mark.parametrize("equals", [{"$.z": 2, "$.a": 1}, {"$.a": 1, "$.z": 2}])
+def test_assertion_ordinal_survives_plan_dictionary_reordering(equals):
+    step = HttpStep(path="/approved", status=200, equals=equals)
+    with (
+        httpx.Client(
+            base_url="https://fixture.invalid",
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, stream=httpx.ByteStream(b'{"a":1,"z":0}'))
+            ),
+        ) as client,
+        pytest.raises(BusinessCheckFailure) as caught,
+    ):
+        run_steps(client, [step], {})
+    assert caught.value.diagnostic == {"code": "json_equals", "step": 1, "assertion": 2}
+
+
+@pytest.mark.parametrize(
+    "scenario,bound",
+    [
+        ("sla-api-check", True),
+        ("sla-dashboard-check", True),
+        ("private", True),
+        ("sla-api-check", False),
+    ],
+)
+def test_checkpoint_summary_exports_only_bound_approved_scenario(tmp_path, scenario, bound):
+    from test_mini_swe_checkpoints import cleanup_binding
+
+    from workbench.core.contracts import digest
+    from workbench.filesystem import manifest, write_json
+    from workbench.infrastructure.sandbox.cleanup import checkpoint_receipts
+
+    task, plan, binding = cleanup_binding()
+    candidate = tmp_path / "step-1"
+    candidate.mkdir()
+    (candidate / "app.py").write_text("# offline fixture")
+    write_json(
+        tmp_path / "step-1-node-verification.json",
+        {
+            "checkpoint": {"nonce": binding["nonce"], "task": binding["task"]},
+            "plan_digest": binding["plan"],
+            "source_digest": digest(manifest(candidate)) if bound else "f" * 64,
+            "sandbox_name": "rnd-source-" + "a" * 32,
+            "cleanup": "deleted",
+            "passed": False,
+            "failed_scenario": scenario,
+            "http_assertion": {"code": "json_equals", "step": 3, "assertion": 1},
+        },
+    )
+    value = checkpoint_receipts(tmp_path, task, plan)[0]
+    assert ("failed_scenario" in value) is (bound and scenario == "sla-api-check")
+    assert ("http_assertion" in value) is bound
+    assert "private" not in json.dumps(value)
+````
+
 ### `tests/test_json_diagnostics.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -245829,7 +246224,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: c0f563bb5654098fad5feaa8c171216125e53ec745791262a25b212fc7e3962b -->
+<!-- source-file: docs/modular-production-v2.md sha256: 5e151e453e57a39c33ae45a61446771912b45c9ff0cce7b7b9a3fa1a7d6a64a2 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -246255,6 +246650,18 @@ SDK/范围预检在读取缓存之前执行，旧缓存不能绕过版本不匹�
 离线回归使用实际锁定Worker，证明一次完整编辑/提交可从两次模型调用变为一次；失败后两次合并操作保留同一截止和前像反馈。覆盖旧操作兼容、普通edit不能被Worker升级、合并操作降级/重复RPC、缺文件/错前像、原子本地写失败/远端写失败、重复checkpoint nonce、未变失败候选、超时与晚到、清理失败和快照漂移均不得产出成功结果。严格SDK回归验证实际新枚举、旧Schema缓存隔离和源码证明。没有放宽检查标准或把模拟检查当作真实验收。
 
 每模块8个模型步骤、原两次尝试、token/费用/180秒和15秒清理保留等界限不变；合并操作只省去单独请求submit的需要，不保证首轮完成或剩余时间足够检查。仍非流式，不增加patch协议、模型请求或外部权限。新SHA的完整双模块真实验收尚未完成。服务侧原因需无敏感的入口收齐body、上游排队/派发、上游首headers/首内容、代理下发headers、完成/取消阶段计时及token计数/缓冲开关佐证，无需密钥或请求响应原文。
+
+### 第23轮业务检查失败与批准断言反馈
+
+父线程提供的第23轮安全记录确认：sla-api首轮明确返回edit_and_submit，HTTP200且本地Schema合规，进入原checkpoint；检查因independent_oracle/BusinessCheckFailure停止，backend_health_observed=true、checks_count=0、binding_valid=true、cleanup=deleted。后续同会话修复轮两次response_headers超时，没有返回操作；dashboard未开始，完整ZIP未验。三个HTTP尝试仅一个响应，外层agent最终confirmed_absent，provider enforcement仍unknown。
+
+checks_count记录完整场景回执，不是已发送HTTP请求数。run_scenarios只有整组成功返回后，controller才追加checks；当前SLA场景四个请求中的任一状态断言失败都可留下checks_count=0。该场景还可能在注册或汇总解析JSON时失败，或在汇总的两个等值断言之一失败。现存安全记录缺少断言坐标，不能唯一确定失败步骤，健康成功也不能补足这一证据，不推测具体接口错误或服务端原因。
+
+新增http_assertion是原检查器产生的有限修复事实：code仅http_status/json_decode/json_equals/json_absent，step为从1开始的批准请求序号；等值检查按批准equals键排序、禁止字段按批准absent原顺序，附从1开始的assertion序号（避免JSON序列化改变字典顺序），状态不符仅附100..599的expected_status/actual_status。坐标上限4096，布尔、非整数和越界数字拒绝，未知键与请求路径、JSON pointer、预期/实际值、响应或异常正文均不投影。序号引用已有批准场景顺序，不新增执行权。
+
+controller将固定事实写入原检查回执，安全summary重滤这些字段；checkpoint投影仅在原绑定有效后附当前task与plan共同批准的failed_scenario，避免多场景步骤歧义。check_candidate必须先通过原task/plan/source/nonce、截止、清理与隔离资格校验，并且已有business_assertion资格和批准scenario匹配，才核对步骤/断言序号确实落在该场景内后附入同Worker反馈。状态不符还校对原期望状态，并拒绝将502/503/504诊断解释为业务断言；这些状态仍走原基础设施失败。无效或缺失诊断不授予资格、不改变原结果。
+
+离线验证覆盖四类真实HTTP断言产生固定坐标、controller处理及summary过滤、批准场景坐标拒绝，以及失败反馈进入同一Worker下一次edit_and_submit的原预算/截止。没有读取候选源码、增加模型请求或改变原验收标准。此补丁提供可定位且可修复的反馈，不证明第23轮根因已知，也不证明业务已修复；新真实双模块结果仍待原受控验收。
 ````
 
 ### `docs/template-platform.md`

@@ -799,8 +799,8 @@
     },
     {
       "path": "workbench/capability_verification.py",
-      "bytes": 29179,
-      "sha256": "0c85c76509c13e3fa5e368af77405cd07328647f65d7d02b79e39a144ac5623d",
+      "bytes": 30070,
+      "sha256": "bf1fc00cb99aa0517fe26faf24a9e7988ebaba92804af1687d9fd2c70550f1fb",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_verification_py--001.md"
@@ -1322,8 +1322,8 @@
     },
     {
       "path": "workbench/capability_diagnostics.py",
-      "bytes": 6317,
-      "sha256": "62745172e7955ed94ab554508a68deaa30cb636b12c4b4d7e2dee91beca44ea9",
+      "bytes": 7418,
+      "sha256": "7aaf447094aef4c1119a5bd64246dba861a3f347a4462c755c129d5c7fafc275",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_diagnostics_py--001.md"
@@ -1340,8 +1340,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 53122,
-      "sha256": "7ab9dc2a5360d376ad2150ed094bceea97608e137fd4c73c34e96f01f5502d5d",
+      "bytes": 53357,
+      "sha256": "f202012865b40ec0956ea29f6fd19aa5fbf10e4501474791262a7ced70a77efe",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md",
@@ -1404,8 +1404,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 21646,
-      "sha256": "9d19e64e97f22f9e2c31fdfecfdea74b4dee89d5d390f09f15b907333841e88e",
+      "bytes": 23015,
+      "sha256": "4b9abd69abe48ff924f8f57fcbd06af961560bdc8a41bf76af3a95a8143b5bb3",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -4184,8 +4184,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/cleanup.py",
-      "bytes": 10374,
-      "sha256": "3e06492d07abe222df05ae1772c1102bebd2877ac45e8cb60619a6f99512d3bc",
+      "bytes": 10618,
+      "sha256": "941ae464896fbddf6d8009972a47e32ddf17b9874c8ded496c79604ee5fb148a",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md"
@@ -4886,8 +4886,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 85373,
-      "sha256": "c0f563bb5654098fad5feaa8c171216125e53ec745791262a25b212fc7e3962b",
+      "bytes": 88106,
+      "sha256": "5e151e453e57a39c33ae45a61446771912b45c9ff0cce7b7b9a3fa1a7d6a64a2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -6111,6 +6111,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_handbook_source_spans_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_http_assertion_feedback.py",
+      "bytes": 10375,
+      "sha256": "490c7c5e4e2652cf310fdd3c80ca56a7e80f1746a9f6f8fe10c76d399afe098c",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_http_assertion_feedback_py--001.md"
       ]
     },
     {

@@ -258,6 +258,11 @@ def checkpoint_receipts(workspace, task, plan):
             ):
                 raise ValueError("Checkpoint binding rejected")
             item.update(node_diagnostic(candidate, aggregate=False))
+            scenario = value.get("failed_scenario")
+            if type(scenario) is str and scenario in {
+                s.id for s in plan.scenarios if s.id in task.scenarios
+            }:
+                item["failed_scenario"] = scenario
             item.update(
                 binding_valid=True,
                 sandbox_name=value["sandbox_name"],

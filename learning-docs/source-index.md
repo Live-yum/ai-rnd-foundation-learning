@@ -709,6 +709,7 @@
 - [tests/test_handbook_order.py](14-acceptance/sources/tests__test_handbook_order_py--001.md)（1 段）
 - [tests/test_handbook_runtime.py](14-acceptance/sources/tests__test_handbook_runtime_py--001.md)（1 段）
 - [tests/test_handbook_source_spans.py](14-acceptance/sources/tests__test_handbook_source_spans_py--001.md)（1 段）
+- [tests/test_http_assertion_feedback.py](14-acceptance/sources/tests__test_http_assertion_feedback_py--001.md)（1 段）
 - [tests/test_json_diagnostics.py](14-acceptance/sources/tests__test_json_diagnostics_py--001.md)（1 段）
 - [tests/test_json_repair_reference.py](14-acceptance/sources/tests__test_json_repair_reference_py--001.md)（1 段）
 - [tests/test_keyword_query_binding.py](14-acceptance/sources/tests__test_keyword_query_binding_py--001.md)（1 段）

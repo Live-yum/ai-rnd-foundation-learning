@@ -84,6 +84,33 @@ def record_failure(receipt_path, exc):
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
 
 
+def http_assertion_diagnostic(value):
+    """Optional fixed assertion coordinates; never response values or authority."""
+    if type(value) is not dict:
+        return None
+    code, step = value.get("code"), value.get("step")
+    if (
+        type(code) is not str
+        or code not in {"http_status", "json_decode", "json_equals", "json_absent"}
+        or type(step) is not int
+        or not 1 <= step <= 4096
+    ):
+        return None
+    result = {"code": code, "step": step}
+    if code == "http_status":
+        for key in ("expected_status", "actual_status"):
+            item = value.get(key)
+            if type(item) is not int or not 100 <= item <= 599:
+                return None
+            result[key] = item
+    if code in {"json_equals", "json_absent"}:
+        item = value.get("assertion")
+        if type(item) is not int or not 1 <= item <= 4096:
+            return None
+        result["assertion"] = item
+    return result
+
+
 def startup_diagnostic(value):
     """Re-filter existing startup facts; output hints never establish acceptance."""
     if type(value) is not dict:
@@ -184,4 +211,7 @@ def node_diagnostic(product, *, aggregate):
     startup = startup_diagnostic(receipt.get("startup_diagnostic"))
     if startup is not None:
         result["startup"] = startup
+    assertion = http_assertion_diagnostic(receipt.get("http_assertion"))
+    if assertion is not None:
+        result["http_assertion"] = assertion
     return result

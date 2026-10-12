@@ -29,9 +29,9 @@
 
 **创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L466。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19270`。本段原文以LF换行结束。
+本段原始字节数：`19297`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "b5d3db0f862b88f93542d2948c1e209e0d0b96f0b536a88ba11baff1de72c129"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "d69bd56e5788ca4f383e08ded45ce566129ab509b9a1f5f4e333cd9412d70806"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -55,7 +55,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
-from workbench.capability_diagnostics import record_failure
+from workbench.capability_diagnostics import http_assertion_diagnostic, record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,

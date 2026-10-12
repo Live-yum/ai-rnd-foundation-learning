@@ -18,16 +18,17 @@
 - `_read`（L53–L62）：接收`path`。 控制顺序：L57按`len(raw) > 1_000_000`分支。 调用`Path(path).open`、`Path`、`source.read`、`len`、`json.loads`、`type`。 返回路径：L58的`{}`；L60的`result if type(result) is dict else {}`；L62的`{}`。
 - `_label`（L65–L66）：接收`value`、`allowed`。 调用`type`。 返回路径：L66的`value if type(value) is str and value in allowed else "other"`。
 - `record_failure`（L69–L84）：接收`receipt_path`、`exc`。 源码说明：Write a separate diagnostic; never add fields to the acceptance receipt.。 控制顺序：L77在`frame is not None`成立时循环；L79按`stage is not None`分支。 调用`_label`、`type`、`str`、`STAGES.items`、`trusted.get`、`failure.update`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `startup_diagnostic`（L87–L152）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L89按`type(value) is not dict`分支；L98遍历`enums.items()`；L100遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L103遍历`( "application_startup_reported", "output_readable", "output_none…`；L150按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L90的`None`；L152的`result`。
-- `node_diagnostic`（L155–L187）：接收`product`、`aggregate`。 控制顺序：L164按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L177按`type(line) is int and 0 < line < 1_000_000`分支；L179遍历`("checks", "obligation_checks", "browser")`；L182遍历`("restarted", "backend_health_observed")`；L185按`startup is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L187的`result`。
+- `http_assertion_diagnostic`（L87–L111）：接收`value`。 源码说明：Optional fixed assertion coordinates; never response values or authority.。 控制顺序：L89按`type(value) is not dict`分支；L92按`type(code) is not str or code not in {"http_status", "json_decode", "json_equals", "j…`分支；L100按`code == "http_status"`分支；L101遍历`("expected_status", "actual_status")`；L103按`type(item) is not int or not 100 <= item <= 599`分支；L106按`code in {"json_equals", "json_absent"}`分支；L108按`type(item) is not int or not 1 <= item <= 4096`分支。 调用`type`、`value.get`。 返回路径：L90的`None`；L98的`None`；L104的`None`。
+- `startup_diagnostic`（L114–L179）：接收`value`。 源码说明：Re-filter existing startup facts; output hints never establish acceptance.。 控制顺序：L116按`type(value) is not dict`分支；L125遍历`enums.items()`；L127遍历`(("http_status", 100, 599), ("command_exit_code", 0, 255))`；L130遍历`( "application_startup_reported", "output_readable", "output_none…`；L177按`type(target) is dict`分支。 调用`type`、`enums.items`、`_label`、`value.get`、`target.get`。 返回路径：L117的`None`；L179的`result`。
+- `node_diagnostic`（L182–L217）：接收`product`、`aggregate`。 控制顺序：L191按`sidecar.stat().st_mtime_ns < path.stat().st_mtime_ns`分支；L204按`type(line) is int and 0 < line < 1_000_000`分支；L206遍历`("checks", "obligation_checks", "browser")`；L209遍历`("restarted", "backend_health_observed")`；L212按`startup is not None`分支；L215按`assertion is not None`分支。 调用`Path`、`_read`、`str`、`sidecar.stat`、`path.stat`、`bool`、`type`、`receipt.get`、`_label`等。 返回路径：L217的`result`。
 
 </details>
 
-**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L187。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L217。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6317`。本段原文以LF换行结束。
+本段原始字节数：`7418`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "62745172e7955ed94ab554508a68deaa30cb636b12c4b4d7e2dee91beca44ea9"} -->
+<!-- learning-source: {"path": "workbench/capability_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7aaf447094aef4c1119a5bd64246dba861a3f347a4462c755c129d5c7fafc275"} -->
 ````python
 # workbench/capability_diagnostics.py
 """Optional verifier failure facts; no product text, paths, or SDK messages."""
@@ -114,6 +115,33 @@ def record_failure(receipt_path, exc):
         write_json(str(receipt_path) + ".diagnostic.json", failure)
     except Exception:
         pass  # Diagnostics cannot replace the verifier failure or interrupt cleanup.
+
+
+def http_assertion_diagnostic(value):
+    """Optional fixed assertion coordinates; never response values or authority."""
+    if type(value) is not dict:
+        return None
+    code, step = value.get("code"), value.get("step")
+    if (
+        type(code) is not str
+        or code not in {"http_status", "json_decode", "json_equals", "json_absent"}
+        or type(step) is not int
+        or not 1 <= step <= 4096
+    ):
+        return None
+    result = {"code": code, "step": step}
+    if code == "http_status":
+        for key in ("expected_status", "actual_status"):
+            item = value.get(key)
+            if type(item) is not int or not 100 <= item <= 599:
+                return None
+            result[key] = item
+    if code in {"json_equals", "json_absent"}:
+        item = value.get("assertion")
+        if type(item) is not int or not 1 <= item <= 4096:
+            return None
+        result["assertion"] = item
+    return result
 
 
 def startup_diagnostic(value):
@@ -216,5 +244,8 @@ def node_diagnostic(product, *, aggregate):
     startup = startup_diagnostic(receipt.get("startup_diagnostic"))
     if startup is not None:
         result["startup"] = startup
+    assertion = http_assertion_diagnostic(receipt.get("http_assertion"))
+    if assertion is not None:
+        result["http_assertion"] = assertion
     return result
 ````

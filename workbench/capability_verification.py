@@ -31,6 +31,10 @@ class CheckFailure(ValueError):
 class BusinessCheckFailure(CheckFailure):
     """An approved HTTP assertion failed, after bounded transport completed."""
 
+    def __init__(self, message, *, diagnostic=None):
+        super().__init__(message)
+        self.diagnostic = diagnostic
+
 
 class BrowserFailure(CheckFailure):
     """Only bounded, allowlisted diagnostics cross the browser process boundary."""
@@ -431,22 +435,39 @@ def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
             raise CheckFailure("验收代理网关失败，无法确认应用来源")
         if status != step.status:
             raise BusinessCheckFailure(
-                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}"
+                f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}",
+                diagnostic={
+                    "code": "http_status",
+                    "step": index + 1,
+                    "expected_status": step.status,
+                    "actual_status": status,
+                },
             )
         body = None
         if step.equals or step.absent or step.captures:
             try:
                 body = json.loads(raw)
             except ValueError, UnicodeError, RecursionError:
-                raise BusinessCheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
-        for pointer, expected in step.equals.items():
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求缺少约定JSON响应",
+                    diagnostic={"code": "json_decode", "step": index + 1},
+                ) from None
+        # Canonical order survives JSON serialization of the approved plan.
+        for assertion, (pointer, expected) in enumerate(sorted(step.equals.items()), 1):
             actual = values_at(body, pointer)
             if not actual or any(
                 not json_equal(v, interpolate(expected, variables)) for v in actual
             ):
-                raise BusinessCheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
-        if any(values_at(body, pointer) for pointer in step.absent):
-            raise BusinessCheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求的已批准JSON断言未通过",
+                    diagnostic={"code": "json_equals", "step": index + 1, "assertion": assertion},
+                )
+        for assertion, pointer in enumerate(step.absent, 1):
+            if values_at(body, pointer):
+                raise BusinessCheckFailure(
+                    f"第 {index + 1} 个请求暴露了契约禁止返回的字段",
+                    diagnostic={"code": "json_absent", "step": index + 1, "assertion": assertion},
+                )
         for name, pointer in step.captures.items():
             found = values_at(body, pointer)
             if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):

@@ -15,19 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_verify`（L467–L1135）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`、`checkpoint_deadline`。 控制顺序：L505按`trusted_oracle not in (None, "contest-business-v2")`分支；L506抛异常，停止当前正常路径；L507按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L510抛异常，停止当前正常路径；L513按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L517抛异常，停止当前正常路径；L518按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L523抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1135的`receipt`。
+- `_verify`（L467–L1139）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`、`checkpoint`、`checkpoint_deadline`。 控制顺序：L505按`trusted_oracle not in (None, "contest-business-v2")`分支；L506抛异常，停止当前正常路径；L507按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L510抛异常，停止当前正常路径；L513按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L517抛异常，停止当前正常路径；L518按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L523抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L1139的`receipt`。
 - `_verify.start`（L679–L853）：接收`command`、`port`、`health_path`。 控制顺序：L683按`consumer and target["role"] == "backend"`分支；L687按`target["role"] == "backend"`分支；L718按`not response.cmd_id`分支；L719抛异常，停止当前正常路径；L722按`not isinstance(preview.token, str) or not preview.token`分支；L723抛异常，停止当前正常路径；L735在`time.monotonic() < deadline`成立时循环；L739按`200 <= check.status_code < 300`分支。后续分支沿下方源码相同行号继续阅读。 调用`startup_target`、`consumer_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`等。 返回路径：L742的`http, url, preview.token`。
-- `main`（L1138–L1147）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1140按`len(body) > 1_000_000`分支；L1141抛异常，停止当前正常路径；L1147抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_execute_payload`（L1150–L1155）：接收`payload`。 控制顺序：L1152按`checkpoint is None`分支。 调用`payload.get`、`_execute_payload_inner`、`CheckpointDeadline`、`checkpoint.get`。 返回路径：L1153的`_execute_payload_inner(payload)`；L1155的`_execute_payload_inner(payload, checkpoint_deadline=deadline)`。
-- `_execute_payload_inner`（L1158–L1201）：接收`payload`、`checkpoint_deadline`。 控制顺序：L1166按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1172抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L1142–L1151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1144按`len(body) > 1_000_000`分支；L1145抛异常，停止当前正常路径；L1151抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`_execute_payload`、`record_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_execute_payload`（L1154–L1159）：接收`payload`。 控制顺序：L1156按`checkpoint is None`分支。 调用`payload.get`、`_execute_payload_inner`、`CheckpointDeadline`、`checkpoint.get`。 返回路径：L1157的`_execute_payload_inner(payload)`；L1159的`_execute_payload_inner(payload, checkpoint_deadline=deadline)`。
+- `_execute_payload_inner`（L1162–L1205）：接收`payload`、`checkpoint_deadline`。 控制顺序：L1170按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L1176抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`len`、`type`、`plan.selection.model_dump`、`ValueError`、`capability_execution_prerequisites`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L467–L1205。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 2 段**。本段覆盖源文件 L467–L1209。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`33852`。本段原文以LF换行结束。
+本段原始字节数：`34060`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "bb48ea868a48fd9587063ab5e301c07cbdb59a0d380dbad93cca636fa05e4a42"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "513328a45ded86d3075a0b1e02ae5c28922a1b5dbd38ea89bd7b2db46f2720f2"} -->
 ````python
 # workbench/capability_sandbox.py
 def _verify(
@@ -636,6 +636,10 @@ def _verify(
         diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BusinessCheckFailure):
+            assertion = http_assertion_diagnostic(exc.diagnostic)
+            if assertion is not None:
+                receipt["http_assertion"] = assertion
         if checkpoint is not None and isinstance(exc, BusinessCheckFailure):
             receipt["repairable_failure"] = "business_assertion"
         if checkpoint is not None and isinstance(exc, BrowserFailure):
