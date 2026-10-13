@@ -139,4 +139,5 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
             reports/capability-browser-raw-syscalls.json

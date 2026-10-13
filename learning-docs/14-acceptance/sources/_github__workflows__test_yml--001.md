@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L410。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L441。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16059`。本段原文以LF换行结束。
+本段原始字节数：`17506`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "82b31421d37c8dd4bf63d486f41657dcb490b823852dc3b11dc4c54ce562d292"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e3b27166b4d08c1cd286e4c49728d35ecbc4166e41a5dcf209c512d584ea6dba"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -384,9 +384,40 @@ jobs:
           name: acceptance-${{ github.run_attempt }}-browser
           path: reports/
           if-no-files-found: error
+  production-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RND_REQUIRE_V2_TOOLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - run: uv sync --project tools/mini-swe --python 3.12 --locked
+      - run: npm ci --prefix tools/openspec --ignore-scripts --no-audit --no-fund
+      - name: Install independent authored-fixture browser
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
+        run: uv run pytest -q tests/test_production_v2.py tests/test_mini_swe_checkpoints.py tests/test_sla_vertical.py tests/test_ci_live_modules.py tests/test_live_test_client.py --junitxml=reports/production-v2.xml
+      - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-production-v2
+          path: reports/
+          if-no-files-found: error
   acceptance:
     if: always()
-    needs: [frontend, source-validation, tests, postgres, clean-install, native-sources, handbook-only, restored-tests, restored-browser, restored-install, browser]
+    needs: [frontend, source-validation, tests, postgres, clean-install, native-sources, handbook-only, restored-tests, restored-browser, restored-install, browser, production-v2]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

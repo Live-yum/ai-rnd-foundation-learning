@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/business_yudao_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L638。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/business_yudao_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L641。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`40804`。本段原文以LF换行结束。
+本段原始字节数：`40916`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/business_yudao_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9c0735e9164f6a54f8c906319af690a2c5059712859da41d5f499b6426057ce0"} -->
+<!-- learning-source: {"path": "scripts/business_yudao_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e9bae0b798476184f8dd19051c5a7b7d7e99dd3159f8596bb37f4f13c6749dec"} -->
 ````javascript
 // scripts/business_yudao_browser.cjs
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
@@ -166,7 +166,6 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       const width = Math.ceil(size.width), height = Math.ceil(size.height);
       assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
         'Native screenshot surface exceeds the bounded capture scope');
-      attempts += 1;
       const viewport = page.viewportSize() || metrics.cssVisualViewport;
       const viewportWidth = viewport.width ?? viewport.clientWidth;
       const viewportHeight = viewport.height ?? viewport.clientHeight;
@@ -175,9 +174,13 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // layout/hover state. Preserve full-document capture only when needed.
       const fitsViewport = width <= viewportWidth && height <= viewportHeight;
       const pixelsStarted = Date.now();
-      const captured = await bounded(() => session.send('Page.captureScreenshot', {
-        format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
-      }), phase);
+      const captured = await bounded(() => {
+        // Count only requests actually issued after the shared deadline check.
+        attempts += 1;
+        return session.send('Page.captureScreenshot', {
+          format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
+        });
+      }, phase);
       timing.pixels_ms += Date.now() - pixelsStarted;
       phase = 'post-capture-readiness';
       const after = await sample();

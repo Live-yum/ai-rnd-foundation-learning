@@ -15,30 +15,31 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `product_plan`（L28–L30）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L30的`product, fixed_application(product)`。
-- `inspected`（L33–L43）：接收`record`。 调用`container_binding`。 返回路径：L34的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
-- `test_direct_verify_rejects_before_container_creation`（L57–L89）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L62按`mutation == "missing-profile"`分支；L64按`mutation == "descriptor-drift"`分支；L66按`mutation == "extra-descriptor"`分支；L68按`mutation == "wrong-image"`分支；L70按`mutation == "prepare-hook"`分支；L72按`mutation == "alternate-launcher"`分支；L89断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload`（L95–L133）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L132断言`result["passed"] is False and result["cleanup"] == "deleted"`；L133断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_drift_rejects_before_source_upload.forbidden`（L110–L111）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command`（L147–L188）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L187断言`result["passed"] is False and result["cleanup"] == "deleted"`；L188断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L156–L157）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `complete_proof`（L191–L251）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L205的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
-- `complete_native_proof`（L254–L285）：接收`product`、`plan`。 控制顺序：L265遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L272遍历`("security_checks", "restart_security_checks")`；L284断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L285的`proof, bindings`。
-- `test_native_delivery_binds_runtime_patch_at_initial_restart_and_final`（L297–L313）：接收`product_plan`、`field`、`mutation`。 控制顺序：L304按`mutation == "missing"`分支；L306按`mutation == "stale"`分支。 调用`complete_native_proof`、`copy.deepcopy`、`value.pop`、`value["runtime_patches"][0][ "relative_path" ].replace`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_delivery_requires_both_complete_security_groups`（L318–L322）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L327–L333）：接收`product_plan`、`field`、`value`。 控制顺序：L329遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L336–L360）：接收`product_plan`。 控制顺序：L338遍历`("security_checks", "restart_security_checks")`；L339遍历`proof[field]`；L348遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L354遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_old_or_unbound_dependency_evidence_never_passes`（L377–L414）：接收`product_plan`、`mutation`。 控制顺序：L388断言`require_evidence(proof, **bindings) is proof`；L389按`mutation == "v3"`分支；L391按`mutation == "absent"`分支；L393按`mutation == "restart-absent"`分支；L395按`mutation == "final-absent"`分支；L397按`mutation == "source-drift"`分支；L399按`mutation == "offline-install-only"`分支；L401按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_receipt_flags_require_boolean_true`（L417–L432）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L420断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L426遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L446–L480）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L454断言`len(expected) == 25`；L456按`missing`分支；L460按`missing`分支；L464断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L470断言`len(native) == 40`；L471断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `absent_after_delete`（L27–L31）：接收`events`、`identifier`。 控制顺序：L30断言`identifier == IDENTIFIER and events[-1] == "deleted"`；L31抛异常，停止当前正常路径。 调用`DaytonaNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_plan`（L35–L37）：接收`tmp_path`。 调用`fixed_application`。 返回路径：L37的`product, fixed_application(product)`。
+- `inspected`（L40–L50）：接收`record`。 调用`container_binding`。 返回路径：L41的`{ **container_binding(record), "profile": "fixed-authored-sqlite-v1", "sandbox_id": IDENTI…`。
+- `test_direct_verify_rejects_before_container_creation`（L64–L96）：接收`product_plan`、`settings`、`tmp_path`、`mutation`。 控制顺序：L69按`mutation == "missing-profile"`分支；L71按`mutation == "descriptor-drift"`分支；L73按`mutation == "extra-descriptor"`分支；L75按`mutation == "wrong-image"`分支；L77按`mutation == "prepare-hook"`分支；L79按`mutation == "alternate-launcher"`分支；L96断言`json.loads(receipt_path.read_text())["passed"] is False`。 调用`profile_record`、`(product / "uv.lock").write_text`、`(product / "package.json").write_text`、`receipt_path.write_text`、`pytest.raises`、`sandbox._verify`、`plan.selection.model_dump`、`SimpleNamespace`、`pytest.fail`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload`（L102–L142）：接收`product_plan`、`settings`、`tmp_path`、`field`。 控制顺序：L141断言`result["passed"] is False and result["cleanup"] == "deleted"`；L142断言`result["kind"] == "isolation_environment" and events == ["deleted"]`。 调用`profile_record`、`inspected`、`SimpleNamespace`、`events.append`、`absent_after_delete`、`sandbox._verify`、`plan.selection.model_dump`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_drift_rejects_before_source_upload.forbidden`（L117–L118）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command`（L156–L199）：接收`product_plan`、`settings`、`tmp_path`、`monkeypatch`、`field`。 控制顺序：L198断言`result["passed"] is False and result["cleanup"] == "deleted"`；L199断言`events == ["upload", "deleted"]`。 调用`profile_record`、`dependency_evidence`、`manifest`、`field.endswith`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`sandbox._verify`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_image_dependency_failure_precedes_any_product_command.forbidden`（L165–L166）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `complete_proof`（L202–L262）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L216的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
+- `complete_native_proof`（L265–L296）：接收`product`、`plan`。 控制顺序：L276遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L283遍历`("security_checks", "restart_security_checks")`；L295断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L296的`proof, bindings`。
+- `test_native_delivery_binds_runtime_patch_at_initial_restart_and_final`（L308–L324）：接收`product_plan`、`field`、`mutation`。 控制顺序：L315按`mutation == "missing"`分支；L317按`mutation == "stale"`分支。 调用`complete_native_proof`、`copy.deepcopy`、`value.pop`、`value["runtime_patches"][0][ "relative_path" ].replace`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_requires_both_complete_security_groups`（L329–L333）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L338–L344）：接收`product_plan`、`field`、`value`。 控制顺序：L340遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L347–L371）：接收`product_plan`。 控制顺序：L349遍历`("security_checks", "restart_security_checks")`；L350遍历`proof[field]`；L359遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L365遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_old_or_unbound_dependency_evidence_never_passes`（L388–L425）：接收`product_plan`、`mutation`。 控制顺序：L399断言`require_evidence(proof, **bindings) is proof`；L400按`mutation == "v3"`分支；L402按`mutation == "absent"`分支；L404按`mutation == "restart-absent"`分支；L406按`mutation == "final-absent"`分支；L408按`mutation == "source-drift"`分支；L410按`mutation == "offline-install-only"`分支；L412按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_receipt_flags_require_boolean_true`（L428–L443）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L431断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L437遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L457–L491）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L465断言`len(expected) == 25`；L467按`missing`分支；L471按`missing`分支；L475断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L481断言`len(native) == 40`；L482断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L480。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L491。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17517`。本段原文以LF换行结束。
+本段原始字节数：`17928`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8147ccbbf05d347da186320d60d3289eb3a8c962c82e7b3352d7ef252141c15d"} -->
+<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8b7e274c11c889a9ca9e0e7e495761b21c9e7fa556c646168a7c07f9e9540f9"} -->
 ````python
 # tests/test_readonly_dependency_admission.py
 """Fail-closed contract tests with synthetic images, never live certification."""
@@ -65,6 +66,13 @@ from workbench.filesystem import manifest, sha
 from workbench.settings import ROOT
 
 IDENTIFIER = "00000000-0000-0000-0000-000000000001"
+
+
+def absent_after_delete(events, identifier):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    assert identifier == IDENTIFIER and events[-1] == "deleted"
+    raise DaytonaNotFoundError("owned fixture absent after deletion")
 
 
 @pytest.fixture
@@ -157,7 +165,9 @@ def test_inspector_drift_rejects_before_source_upload(product_plan, settings, tm
         id=IDENTIFIER, fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden)
     )
     client = SimpleNamespace(
-        create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+        create=lambda *a, **k: remote,
+        delete=lambda *a, **k: events.append("deleted"),
+        get=lambda identifier: absent_after_delete(events, identifier),
     )
     settings.daytona_snapshot = "owned-fixture"
     result = sandbox._verify(
@@ -221,7 +231,9 @@ def test_image_dependency_failure_precedes_any_product_command(
         plan.selection.model_dump(),
         tmp_path / "proof.json",
         client=SimpleNamespace(
-            create=lambda *a, **k: remote, delete=lambda *a, **k: events.append("deleted")
+            create=lambda *a, **k: remote,
+            delete=lambda *a, **k: events.append("deleted"),
+            get=lambda identifier: absent_after_delete(events, identifier),
         ),
         aggregate=True,
         profile_record=record,

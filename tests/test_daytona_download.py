@@ -29,20 +29,21 @@ class TrackedStream(httpx.SyncByteStream):
         self.closed = True
 
 
-def multipart(payload, *, complete=True):
+def multipart(payload, *, complete=True, remote_path=REMOTE + "/runtime.json"):
     body = (
         b'--rnd-boundary\r\nContent-Disposition: form-data; name="file"; '
-        b'filename="/tmp/rnd-verification/runtime.json"\r\n'
-        b"Content-Type: application/octet-stream\r\n\r\n" + payload
+        + f'filename="{remote_path}"\r\n'.encode()
+        + b"Content-Type: application/octet-stream\r\n\r\n"
+        + payload
     )
     return body + (b"\r\n--rnd-boundary--\r\n" if complete else b"")
 
 
-def sdk_reader(payload, *, complete=True, status=200):
-    stream = TrackedStream(multipart(payload, complete=complete))
+def sdk_reader(payload, *, complete=True, status=200, remote_path=REMOTE + "/runtime.json"):
+    stream = TrackedStream(multipart(payload, complete=complete, remote_path=remote_path))
 
     def serialize(**kwargs):
-        assert kwargs["download_files"].paths == [REMOTE + "/runtime.json"]
+        assert kwargs["download_files"].paths == [remote_path]
         return (
             "POST",
             "http://127.0.0.1:3000/download",
@@ -112,4 +113,50 @@ def test_http_failures_cannot_be_reported_as_passed(status):
     filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode(), status=status)
     with http, pytest.raises(Exception):
         read_runtime_report(filesystem, 7)
+    assert stream.closed
+
+
+def test_pinned_sdk_legacy_download_keyword_is_rejected_before_http():
+    from daytona import DaytonaError
+
+    filesystem, http, stream = sdk_reader(b"# authored source\n")
+    with http, pytest.raises(DaytonaError) as captured:
+        filesystem.download_file(REMOTE + "/runtime.json", timeout=7)
+    assert isinstance(captured.value.__context__, TypeError)
+    assert stream.read_bytes == 0
+
+
+@pytest.mark.parametrize("payload", [b"# authored source\r\n", b"", b"x" * 100000])
+def test_coding_snapshot_uses_real_sdk_positional_timeout(payload):
+    from workbench.infrastructure.sandbox.coding import REMOTE as CODING_REMOTE
+    from workbench.infrastructure.sandbox.coding import DaytonaFiles
+
+    filesystem, http, stream = sdk_reader(payload, remote_path=CODING_REMOTE + "/app.py")
+    channel = DaytonaFiles(
+        SimpleNamespace(fs=filesystem), SimpleNamespace(allowed_paths=["app.py"]), 7
+    )
+    with http:
+        assert channel.snapshot(["app.py"]) == {"app.py": payload.decode("utf-8")}
+    assert stream.closed
+
+
+@pytest.mark.parametrize("failure", ["oversize", "utf8", "truncated", 401, 403, 404, 500])
+def test_coding_snapshot_rejects_bad_or_incomplete_download_and_closes(failure):
+    from workbench.infrastructure.sandbox.coding import REMOTE as CODING_REMOTE
+    from workbench.infrastructure.sandbox.coding import DaytonaFiles
+
+    payload = (
+        b"x" * 300000 if failure == "oversize" else b"\xff" if failure == "utf8" else b"# source\n"
+    )
+    filesystem, http, stream = sdk_reader(
+        payload,
+        complete=failure != "truncated",
+        status=failure if type(failure) is int else 200,
+        remote_path=CODING_REMOTE + "/app.py",
+    )
+    channel = DaytonaFiles(
+        SimpleNamespace(fs=filesystem), SimpleNamespace(allowed_paths=["app.py"]), 7
+    )
+    with http, pytest.raises(Exception):
+        channel.snapshot(["app.py"])
     assert stream.closed

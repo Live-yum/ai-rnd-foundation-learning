@@ -1,8 +1,83 @@
 """Safe actionable provider failures. Never persist provider bodies or input values."""
 
 import json
+import ssl
 
-from workbench.model_protocol import JSONGuardFailure, json_lengths
+import httpx
+
+from workbench.model_protocol import MAX_MODEL_CONTENT_BYTES, JSONGuardFailure, json_lengths
+
+
+def response_failure_facts(value):
+    """Re-filter optional response facts without retaining any provider text."""
+    if not isinstance(value, dict):
+        return {}
+    phase = value.get("phase")
+    finish = value.get("finish_reason")
+    result = {
+        "phase": phase
+        if type(phase) is str and phase in {"envelope_decode", "content_decode"}
+        else "unknown",
+        "finish_reason": finish
+        if type(finish) is str and finish in {"stop", "unknown"}
+        else "unknown",
+    }
+    status = value.get("http_status")
+    if type(status) is int and 100 <= status <= 599:
+        result["http_status"] = status
+    return result
+
+
+def transport_category(exc):
+    """Finite typed classification only; never inspect error strings or requests."""
+    kinds = (
+        (httpx.ConnectTimeout, "connect_timeout"),
+        (httpx.ReadTimeout, "read_timeout"),
+        (httpx.WriteTimeout, "write_timeout"),
+        (httpx.PoolTimeout, "pool_timeout"),
+        (httpx.TimeoutException, "timeout"),
+        (httpx.ProxyError, "proxy_error"),
+        (httpx.ConnectError, "connect_error"),
+        (httpx.ReadError, "read_error"),
+        (httpx.WriteError, "write_error"),
+        (httpx.RemoteProtocolError, "remote_protocol_error"),
+        (httpx.LocalProtocolError, "local_protocol_error"),
+    )
+    seen = set()
+    for _ in range(12):
+        if exc is None or id(exc) in seen:
+            break
+        seen.add(id(exc))
+        for kind, label in kinds:
+            if isinstance(exc, kind):
+                return label
+        exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    return "other"
+
+
+def transport_failure(exc):
+    """Classify typed causes only; never parse or expose exception/provider text."""
+    seen = set()
+    proxy = False
+    for _ in range(12):
+        if exc is None or id(exc) in seen:
+            break
+        seen.add(id(exc))
+        if isinstance(exc, ssl.SSLCertVerificationError):
+            return (
+                "tls_certificate_verification_failed",
+                "TLS 证书校验失败；请检查证书有效期、信任链及地址与证书名称是否匹配，不能关闭校验",
+            )
+        if isinstance(exc, httpx.ProxyError):
+            proxy = True
+        exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+    if proxy:
+        return (
+            "proxy_connection_failed",
+            "代理连接或隧道失败；请检查代理访问策略。这不能证明目标服务证书或 API Key 无效",
+        )
+    return None
+
 
 JSON_SYNTAX_CATEGORIES = {
     "Expecting value": "expected_value",
@@ -31,6 +106,36 @@ JSON_DIAGNOSTIC_CATEGORIES = (
 )
 
 
+def json_failure_facts(details):
+    """Project the single JSON diagnostic into bounded, text-free receipt facts."""
+    if not isinstance(details, list) or len(details) != 1 or not isinstance(details[0], dict):
+        return {}
+    detail = details[0]
+    category = detail.get("category")
+    if (
+        type(category) is not str
+        or category not in JSON_DIAGNOSTIC_CATEGORIES
+        or category == "langchain_structured_output_parsing_failed"
+    ):
+        return {}
+    result = {"category": category}
+    for group, fields in (
+        ("position", {"line": (1, 1), "column": (1, 1), "offset": (0, 0)}),
+        ("lengths", {"characters": (0, 0), "bytes": (0, 0)}),
+    ):
+        source = detail.get(group)
+        if not isinstance(source, dict):
+            continue
+        safe = {}
+        for key, (minimum, extra) in fields.items():
+            value = source.get(key)
+            if type(value) is int and minimum <= value <= MAX_MODEL_CONTENT_BYTES + extra:
+                safe[key] = value
+        if safe:
+            result[group] = safe
+    return result
+
+
 def json_syntax_category(exc):
     category = JSON_SYNTAX_CATEGORIES.get(exc.msg, "json_syntax")
     if category == "extra_data":
@@ -44,7 +149,11 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     phase = "response_validation"
     summary = "模型响应未通过结构校验，未生成可批准结果。"
     hint = "按字段路径与约束提示检查该阶段的模型和规划契约，再重试当前运行；JSON 对象模式不保证符合 Schema。无需重填已提交的回答。"
-    if code.startswith("http_") or code == "transport_error":
+    if code.startswith("http_") or code in {
+        "transport_error",
+        "tls_certificate_verification_failed",
+        "proxy_connection_failed",
+    }:
         phase = "provider_request"
         summary = "模型请求失败，尚未取得有效响应。"
         hint = "先在模型与配置中测试该阶段连接，检查网络、服务额度与模型权限，再重试当前运行。"
@@ -52,6 +161,10 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
             hint = "检查该阶段的密钥与模型访问权限，保存后测试连接；不要把密钥放入对话。"
         elif code == "http_429":
             hint = "检查服务商额度或限流状态，稍后手动重试当前运行。"
+        elif code == "tls_certificate_verification_failed":
+            hint = "检查证书有效期、信任链及地址与证书名称是否匹配；不能关闭校验。修复后测试连接，再手动重试当前运行。"
+        elif code == "proxy_connection_failed":
+            hint = "检查代理访问策略和隧道连接；该错误不能证明目标服务证书或 API Key 无效。修复后测试连接，再手动重试当前运行。"
     elif code in {"interrupted", "worker_interrupted", "abandoned_attempt"}:
         phase = "response_stream"
         summary = "响应在完成前中断，已保留历史回答。"
@@ -63,6 +176,18 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
         phase = "model_execution"
         summary = "模型调用发生未预期错误，未生成可批准结果。"
         hint = "使用追踪 ID 定位服务端日志，检查模型适配器和配置；修复后重试当前运行。"
+    elif code in {
+        "native_scope_rejected",
+        "native_sdk_unsupported",
+        "native_request_mismatch",
+        "native_format_rejected",
+    }:
+        phase = "provider_request"
+        summary = "原生 strict 兼容性或请求契约检查失败，已停止。"
+        hint = "检查批准范围、锁定 SDK 和服务格式支持；不自动降级格式或新增兼容性重试。"
+    elif code == "native_schema_violation":
+        summary = "响应违反所请求的原生 strict Schema，已停止。"
+        hint = "保留客户端及业务守卫；HTTP 成功状态不能证明服务端强制执行了 strict。"
     elif code == "invalid_json":
         summary = "服务已响应，但返回内容不是可接受的完整 JSON 对象。"
         hint = "检查服务是否支持 JSON 对象输出；保留严格校验，调整模型或配置后重试当前运行。"
@@ -278,6 +403,12 @@ def schema_diagnostics(exc, schema):
         value = error["msg"].removeprefix("Value error, ")
         return value if value in safe_messages else "字段结构或类型不符合约定"
 
+    errors = exc.errors(include_input=False, include_url=False)
+    # Pydantic inserts schema-owned union branch names into locations. They are
+    # not JSON object fields; remove only known definitions, never input text.
+    definitions = set(document.get("$defs", {})) - allowed
+    for error in errors:
+        error["loc"] = tuple(part for part in error["loc"] if part not in definitions)
     return [
         {
             "message": safe_message(error),
@@ -288,5 +419,5 @@ def schema_diagnostics(exc, schema):
             ],
             **(_constraint_hint(document, error) or {}),
         }
-        for error in exc.errors(include_input=False, include_url=False)[:30]
+        for error in errors[:30]
     ]

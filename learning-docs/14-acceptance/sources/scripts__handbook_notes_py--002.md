@@ -13,20 +13,45 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `purpose`（L772–L984）：接收`name`。 控制顺序：L774按`name.startswith("ui/")`分支；L803按`name == "workbench/__init__.py"`分支；L809按`name.startswith("workbench/") and path.stem in MODULES`分支；L811按`name.startswith("templates/business/")`分支；L812按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L819按`name == "examples/requirements/customer-service.md"`分支；L825按`name == "examples/requirements/customer-service-decisions.md"`分支；L831按`name == "examples/requirements/customer-service-contract.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`roles.get`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L795的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`；L804的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L810的`MODULES[path.stem]`。
-- `notes`（L987–L1097）：接收`name`、`content`。 控制顺序：L991按`not name.endswith(".py")`分支；L998遍历`tree.body`；L999按`isinstance(node, ast.ImportFrom) and node.module`分支；L1001按`isinstance(node, ast.Import)`分支；L1004按`own`分支；L1011按`not rows`分支；L1014遍历`rows`；L1016按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L992的`out`；L996的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L1012的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `purpose`（L772–L1009）：接收`name`。 控制顺序：L795按`name.startswith("workbench/") and relative in relocated`分支；L797按`name.startswith("ui/src/features/") and path.suffix == ".vue"`分支；L799按`name.startswith("ui/")`分支；L828按`name == "workbench/__init__.py"`分支；L834按`name.startswith("workbench/") and path.stem in MODULES`分支；L836按`name.startswith("templates/business/")`分支；L837按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L844按`name == "examples/requirements/customer-service.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.removeprefix("workbench/").removesuffix`、`name.removeprefix`、`name.startswith`、`purpose`、`roles.get`、`BUSINESS_FILES.get`、`PRODUCT.get`、`name[:-3].replace`等。 返回路径：L796的`purpose("workbench/" + relocated[relative] + ".py")`；L798的`purpose("ui/src/components/" + path.name)`；L820的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`。
+- `notes`（L1012–L1122）：接收`name`、`content`。 控制顺序：L1016按`not name.endswith(".py")`分支；L1023遍历`tree.body`；L1024按`isinstance(node, ast.ImportFrom) and node.module`分支；L1026按`isinstance(node, ast.Import)`分支；L1029按`own`分支；L1036按`not rows`分支；L1039遍历`rows`；L1041按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L1017的`out`；L1021的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L1037的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
 </details>
 
-**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L772–L1097。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L772–L1122。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23129`。本段原文以LF换行结束。
+本段原始字节数：`24314`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "697bd8cfff82da3f0f096363ca9cd6ad1024f3236c8757e627b632d35dbc8ada"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "5342ffc25ee26ddc371f7ea328e3eb5c6cf45dee58792ba333e7f345be0a3da8"} -->
 ````python
 # scripts/handbook_notes.py
 def purpose(name):
     path = Path(name)
+    relocated = {
+        "core/contracts": "domain",
+        "planning/feature_planner": "feature_planning",
+        "planning/contracts": "capability_contracts",
+        "production/graph": "flow",
+        "production/dispatcher": "orchestration",
+        "production/worker": "runtime",
+        "infrastructure/persistence/store": "store",
+        "infrastructure/llm/gateway": "llm",
+        "generation/python_basic": "generator",
+        "interfaces/http": "api",
+        "interfaces/cli": "cli",
+        "requirements/source_ledger": "requirement_sources",
+        "requirements/coverage": "requirement_coverage",
+        "requirements/clarification": "clarification",
+        "requirements/intent": "requirement_intent",
+        "coding/bounded": "coding",
+        "coding/aider": "aider_tool",
+        "coding/candidates": "capability_editing",
+    }
+    relative = name.removeprefix("workbench/").removesuffix(".py")
+    if name.startswith("workbench/") and relative in relocated:
+        return purpose("workbench/" + relocated[relative] + ".py")
+    if name.startswith("ui/src/features/") and path.suffix == ".vue":
+        return purpose("ui/src/components/" + path.name)
     if name.startswith("ui/"):
         roles = {
             "ui/src/main.ts": "创建Vue应用并挂载顶层组件，统一导入界面样式。",

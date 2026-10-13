@@ -177,13 +177,14 @@ def checks_for(template, selection=None):
 
 def harness_archive():
     """Only trusted, committed verifier code; never user files, keys or host caches."""
-    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").glob("*.py")]
+    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").rglob("*.py")]
     names += [
         "scripts/daytona_matrix_probe.py",
         "scripts/native_browser.cjs",
         "scripts/business_fastapi_browser.cjs",
         "scripts/business_yudao_browser.cjs",
         "templates/product/verify.py",
+        "templates/product/fields.py",
         "templates/product/verify-browser.cjs",
         "templates/product/verify_business.py",
         "templates/product/verify-business-browser.cjs",
@@ -298,7 +299,7 @@ def _verify_in_daytona(product, template, settings, *, client):
             REMOTE + "/verify-browser.cjs",
             timeout=settings.tool_timeout,
         )
-        for helper in ("verify_business.py", "verify-business-browser.cjs"):
+        for helper in ("fields.py", "verify_business.py", "verify-business-browser.cjs"):
             sandbox.fs.upload_file(
                 (ROOT / "templates/product" / helper).read_bytes(),
                 REMOTE + "/" + helper,

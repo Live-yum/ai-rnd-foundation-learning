@@ -11,6 +11,7 @@ from scripts.handbook_notes import notes
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
 GUIDES = [
+    "docs/modular-production-v2.md",
     "docs/template-platform.md",
     "docs/guide.md",
     "docs/implementation.md",
@@ -70,6 +71,9 @@ GROUPS = [
             "tools/aider/offline_runner.py",
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
+            "tools/mini-swe",
+            "tools/openspec/package.json",
+            "tools/openspec/package-lock.json",
             "tools/daytona",
             "tools/browser",
             "docs/candidate-browser-isolation.md",

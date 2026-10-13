@@ -17,29 +17,34 @@
 
 - `native_test_controller`（L17–L19）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fixture`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `approved`（L22–L30）：接收`monkeypatch`。 控制顺序：L23遍历`{ "CAPABILITY_BROWSER_APPROVED_POLICY": policy.POLICY_SHA256, "GI…`。 调用`{ "CAPABILITY_BROWSER_APPROVED_POLICY": policy.POLICY_SHA256, "GI…`、`monkeypatch.setenv`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `target`（L33–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L34的`( { "Server": { "Version": "28.0.4", "Os": "linux", "Arch": "amd64", "KernelVersion": "6.1…`。
-- `test_no_implicit_activation`（L59–L62）：接收`monkeypatch`。 控制顺序：L61断言`policy.selected_policy() is None`；L62断言`not any("seccomp=" in v for v in isolation.worker_command(IMAGE, NAME))`。 调用`monkeypatch.delenv`、`policy.selected_policy`、`any`、`isolation.worker_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_scope_rejects_before_create`（L76–L81）：接收`monkeypatch`、`key`、`value`。 调用`approved`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.worker_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_changed_policy_rejected`（L84–L91）：接收`monkeypatch`、`tmp_path`。 调用`approved`、`path.parent.mkdir`、`path.write_text`、`monkeypatch.setattr`、`pytest.raises`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unknown_or_wrong_target_rejected`（L111–L116）：接收`section`、`key`、`value`。 调用`copy.deepcopy`、`target`、`pytest.raises`、`policy.validate_target`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_target_records_observed_versions`（L119–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121断言`got["policy_sha256"] == policy.POLICY_SHA256`；L122断言`got["runc"] == "1.2.5" and got["kernel"] == "6.17.0-1022-azure"`。 调用`policy.validate_target`、`target`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_command_requires_runtime_before_create`（L125–L132）：接收`monkeypatch`。 控制顺序：L130断言`seen == [IMAGE]`；L131断言`"--security-opt=seccomp=" + str(policy.selected_policy()) in args`；L132断言`"--network=none" in args and "--cap-drop=ALL" in args`。 调用`approved`、`monkeypatch.setattr`、`seen.append`、`isolation.worker_command`、`str`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspect_matches_inline_content_not_path_or_unconfined`（L135–L148）：接收`monkeypatch`。 控制顺序：L139断言`policy.security_options_match(good)`；L140遍历`( ["no-new-privileges:true"], good + ["apparmor=unconfined"], ["n…`；L146断言`not policy.security_options_match(bad)`；L148断言`not policy.security_options_match([good[0], "seccomp=" + json.dumps(content)])`。 调用`approved`、`json.loads`、`policy.selected_policy().read_bytes`、`policy.selected_policy`、`json.dumps`、`policy.security_options_match`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_requires_matching_compiler_provenance`（L151–L173）：接收`monkeypatch`、`tmp_path`。 控制顺序：L165断言`policy.runtime_identity(IMAGE)["libseccomp_observed_matching_build"] == "2.5.5"`。 调用`binary.write_bytes`、`monkeypatch.setattr`、`approved`、`iter`、`target`、`next`、`SimpleNamespace`、`policy.runtime_identity`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker_inspection`（L176–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`policy.selected_policy().read_text`、`policy.selected_policy`。 返回路径：L177的`[ { "Image": IMAGE, "AppArmorProfile": "docker-default", "Config": {"User": "1000:1000", "…`。
-- `test_effective_policy_and_outer_boundary_required`（L220–L227）：接收`monkeypatch`、`section`、`key`、`value`。 调用`approved`、`worker_inspection`、`isolation.require_worker_inspection`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `raw_proof`（L230–L251）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L232遍历`policy.RAW_CHECKS`。 调用`name.endswith`、`name.startswith`、`dict.fromkeys`。 返回路径：L244的`{ "protocol": "browser-seccomp-transport-v1", "architecture": "native-amd64", "expected_pr…`。
-- `test_complete_raw_proof`（L254–L255）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L255断言`policy.require_raw_probe(raw_proof()) is True`。 调用`policy.require_raw_probe`、`raw_proof`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_incomplete_raw_proof_rejected`（L270–L274）：接收`mutation`。 调用`raw_proof`、`mutation`、`pytest.raises`、`policy.require_raw_probe`、`pytest.mark.parametrize`、`r.update`、`r["checks"].pop`、`r["checks"].update`、`r["observations"]["mount_denied"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_selected_receipt_requires_exact_runtime_and_raw_proof`（L277–L332）：接收`monkeypatch`、`tmp_path`。 控制顺序：L320断言`isolation.require_browser_acceptance(IMAGE) == IMAGE`；L321遍历`( lambda r: r.update(protocol="offline-browser-isolation-v2"), la…`。 调用`approved`、`policy.validate_target`、`target`、`monkeypatch.setattr`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`path.write_text`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `approved_manual`（L33–L50）：接收`monkeypatch`。 控制顺序：L35遍历`{ "GITHUB_WORKFLOW": "Manual real-model customer acceptance", "GI…`。 调用`approved`、`{ "GITHUB_WORKFLOW": "Manual real-model customer acceptance", "GI…`、`monkeypatch.setenv`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_three_workflow_scopes_are_unchanged`（L54–L57）：接收`monkeypatch`、`workflow`。 控制顺序：L57断言`policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE`。 调用`approved`、`monkeypatch.setenv`、`policy.selected_policy`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_reviewed_manual_module_scope_is_accepted`（L60–L63）：接收`monkeypatch`。 控制顺序：L62断言`"Manual real-model customer acceptance" not in policy.WORKFLOWS`；L63断言`policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE`。 调用`approved_manual`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manual_scope_rejected_before_runtime_or_container_access`（L100–L105）：接收`monkeypatch`、`key`、`value`。 调用`approved_manual`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.worker_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manual_scope_cannot_admit_changed_policy_bytes`（L108–L116）：接收`monkeypatch`、`tmp_path`。 调用`approved_manual`、`path.parent.mkdir`、`path.write_text`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.worker_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `target`（L119–L142）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L120的`( { "Server": { "Version": "28.0.4", "Os": "linux", "Arch": "amd64", "KernelVersion": "6.1…`。
+- `test_no_implicit_activation`（L145–L148）：接收`monkeypatch`。 控制顺序：L147断言`policy.selected_policy() is None`；L148断言`not any("seccomp=" in v for v in isolation.worker_command(IMAGE, NAME))`。 调用`monkeypatch.delenv`、`policy.selected_policy`、`any`、`isolation.worker_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_scope_rejects_before_create`（L162–L167）：接收`monkeypatch`、`key`、`value`。 调用`approved`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.worker_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_policy_rejected`（L170–L177）：接收`monkeypatch`、`tmp_path`。 调用`approved`、`path.parent.mkdir`、`path.write_text`、`monkeypatch.setattr`、`pytest.raises`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_or_wrong_target_rejected`（L197–L202）：接收`section`、`key`、`value`。 调用`copy.deepcopy`、`target`、`pytest.raises`、`policy.validate_target`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_target_records_observed_versions`（L205–L208）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L207断言`got["policy_sha256"] == policy.POLICY_SHA256`；L208断言`got["runc"] == "1.2.5" and got["kernel"] == "6.17.0-1022-azure"`。 调用`policy.validate_target`、`target`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_command_requires_runtime_before_create`（L211–L218）：接收`monkeypatch`。 控制顺序：L216断言`seen == [IMAGE]`；L217断言`"--security-opt=seccomp=" + str(policy.selected_policy()) in args`；L218断言`"--network=none" in args and "--cap-drop=ALL" in args`。 调用`approved`、`monkeypatch.setattr`、`seen.append`、`isolation.worker_command`、`str`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspect_matches_inline_content_not_path_or_unconfined`（L221–L234）：接收`monkeypatch`。 控制顺序：L225断言`policy.security_options_match(good)`；L226遍历`( ["no-new-privileges:true"], good + ["apparmor=unconfined"], ["n…`；L232断言`not policy.security_options_match(bad)`；L234断言`not policy.security_options_match([good[0], "seccomp=" + json.dumps(content)])`。 调用`approved`、`json.loads`、`policy.selected_policy().read_bytes`、`policy.selected_policy`、`json.dumps`、`policy.security_options_match`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_requires_matching_compiler_provenance`（L237–L259）：接收`monkeypatch`、`tmp_path`。 控制顺序：L251断言`policy.runtime_identity(IMAGE)["libseccomp_observed_matching_build"] == "2.5.5"`。 调用`binary.write_bytes`、`monkeypatch.setattr`、`approved`、`iter`、`target`、`next`、`SimpleNamespace`、`policy.runtime_identity`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker_inspection`（L262–L291）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`policy.selected_policy().read_text`、`policy.selected_policy`。 返回路径：L263的`[ { "Image": IMAGE, "AppArmorProfile": "docker-default", "Config": {"User": "1000:1000", "…`。
+- `test_effective_policy_and_outer_boundary_required`（L306–L313）：接收`monkeypatch`、`section`、`key`、`value`。 调用`approved`、`worker_inspection`、`isolation.require_worker_inspection`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `raw_proof`（L316–L337）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L318遍历`policy.RAW_CHECKS`。 调用`name.endswith`、`name.startswith`、`dict.fromkeys`。 返回路径：L330的`{ "protocol": "browser-seccomp-transport-v1", "architecture": "native-amd64", "expected_pr…`。
+- `test_complete_raw_proof`（L340–L341）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L341断言`policy.require_raw_probe(raw_proof()) is True`。 调用`policy.require_raw_probe`、`raw_proof`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_raw_proof_rejected`（L356–L360）：接收`mutation`。 调用`raw_proof`、`mutation`、`pytest.raises`、`policy.require_raw_probe`、`pytest.mark.parametrize`、`r.update`、`r["checks"].pop`、`r["checks"].update`、`r["observations"]["mount_denied"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_selected_receipt_requires_exact_runtime_and_raw_proof`（L363–L418）：接收`monkeypatch`、`tmp_path`。 控制顺序：L406断言`isolation.require_browser_acceptance(IMAGE) == IMAGE`；L407遍历`( lambda r: r.update(protocol="offline-browser-isolation-v2"), la…`。 调用`approved`、`policy.validate_target`、`target`、`monkeypatch.setattr`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`path.write_text`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_browser_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L332。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_browser_policy.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L418。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11606`。本段原文以LF换行结束。
+本段原始字节数：`14962`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_browser_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "31e8b204a8cbe61164def1d65ea7fd0dba14c554fb83628a45b01d7675564b33"} -->
+<!-- learning-source: {"path": "tests/test_capability_browser_policy.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ce019549ec549ecf22e92b0857fbcd7000cdf1eb0c18fde47a35c279ec30b800"} -->
 ````python
 # tests/test_capability_browser_policy.py
 """Approved Actions selector tests; no daemon or policy is executed."""
@@ -72,6 +77,92 @@ def approved(monkeypatch):
         "GITHUB_RUN_ID": "12345",
     }.items():
         monkeypatch.setenv(key, value)
+
+
+def approved_manual(monkeypatch):
+    approved(monkeypatch)
+    for key, value in {
+        "GITHUB_WORKFLOW": "Manual real-model customer acceptance",
+        "GITHUB_JOB": "mini-swe-sla",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "LIVE_SCENARIO": "mini-swe-sla",
+        "GITHUB_SHA": "a" * 40,
+        "REVIEWED_SHA": "a" * 40,
+        "GITHUB_WORKFLOW_SHA": "a" * 40,
+        "GITHUB_REF": "refs/heads/feat/modular-production-v2",
+        "GITHUB_WORKFLOW_REF": (
+            "Live-yum/ai-rnd-foundation-learning/.github/workflows/real-model.yml"
+            "@refs/heads/feat/modular-production-v2"
+        ),
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+@pytest.mark.parametrize("workflow", sorted(policy.WORKFLOWS))
+def test_existing_three_workflow_scopes_are_unchanged(monkeypatch, workflow):
+    approved(monkeypatch)
+    monkeypatch.setenv("GITHUB_WORKFLOW", workflow)
+    assert policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE
+
+
+def test_exact_reviewed_manual_module_scope_is_accepted(monkeypatch):
+    approved_manual(monkeypatch)
+    assert "Manual real-model customer acceptance" not in policy.WORKFLOWS
+    assert policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("GITHUB_WORKFLOW", "Three-project live acceptance"),
+        ("GITHUB_JOB", "real-model"),
+        ("GITHUB_JOB", "model-feedback"),
+        ("LIVE_SCENARIO", "legacy"),
+        ("LIVE_SCENARIO", "other"),
+        ("GITHUB_EVENT_NAME", "pull_request"),
+        ("GITHUB_EVENT_NAME", "push"),
+        ("GITHUB_RUN_ATTEMPT", "2"),
+        ("GITHUB_RUN_ATTEMPT", ""),
+        ("GITHUB_REPOSITORY", "other/repo"),
+        ("GITHUB_ACTIONS", "false"),
+        ("GITHUB_SHA", "not-a-sha"),
+        ("GITHUB_SHA", "b" * 40),
+        ("REVIEWED_SHA", "b" * 40),
+        ("REVIEWED_SHA", ""),
+        ("GITHUB_WORKFLOW_SHA", "b" * 40),
+        ("GITHUB_WORKFLOW_SHA", ""),
+        ("GITHUB_REF", "refs/tags/reviewed"),
+        ("GITHUB_REF", "refs/heads/other"),
+        (
+            "GITHUB_WORKFLOW_REF",
+            "Live-yum/ai-rnd-foundation-learning/.github/workflows/other.yml@refs/heads/feat/modular-production-v2",
+        ),
+        (
+            "GITHUB_WORKFLOW_REF",
+            "other/repo/.github/workflows/real-model.yml@refs/heads/feat/modular-production-v2",
+        ),
+        ("GITHUB_RUN_ID", ""),
+        ("CAPABILITY_BROWSER_APPROVED_POLICY", "0" * 64),
+    ],
+)
+def test_manual_scope_rejected_before_runtime_or_container_access(monkeypatch, key, value):
+    approved_manual(monkeypatch)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(policy.subprocess, "run", lambda *a, **k: pytest.fail("container access"))
+    with pytest.raises(ValueError, match="approved Actions scope"):
+        isolation.worker_command(IMAGE, NAME)
+
+
+def test_manual_scope_cannot_admit_changed_policy_bytes(monkeypatch, tmp_path):
+    approved_manual(monkeypatch)
+    path = tmp_path / policy.POLICY_SOURCE
+    path.parent.mkdir(parents=True)
+    path.write_text("{}")
+    monkeypatch.setattr(policy, "ROOT", tmp_path)
+    monkeypatch.setattr(policy.subprocess, "run", lambda *a, **k: pytest.fail("container access"))
+    with pytest.raises(ValueError, match="bytes changed"):
+        isolation.worker_command(IMAGE, NAME)
 
 
 def target():

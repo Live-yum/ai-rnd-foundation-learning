@@ -23,19 +23,19 @@
 - `close_client.attempt`（L87–L91）：接收`operation`。 调用`operation`、`failures.append`、`type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `params_for`（L116–L130）：接收`settings`、`name`、`template`、`selection`。 调用`CreateSandboxFromSnapshotParams`、`snapshot_for`、`profile_key`。 返回路径：L119的`CreateSandboxFromSnapshotParams( snapshot=snapshot_for(settings, template, selection), nam…`。
 - `checks_for`（L133–L175）：接收`template`、`selection`。 控制顺序：L137抛异常，停止当前正常路径；L138按`key == "python-basic/sqlite"`分支。 调用`profile_key`、`PrerequisiteError`、`str`、`key.split`。 返回路径：L139的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L160的`[ ( "independent-database-build-http-browser-restart", [ "env", "PYTHONPATH=" + REMOTE + "…`。
-- `harness_archive`（L178–L195）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only trusted, committed verifier code; never user files, keys or host caches.。 控制顺序：L193遍历`sorted(names)`。 调用`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "workbench").glob`、`io.BytesIO`、`zipfile.ZipFile`、`sorted`、`archive.writestr`、`(ROOT / name).read_bytes`、`buffer.getvalue`。 返回路径：L195的`buffer.getvalue()`。
-- `source_archive`（L198–L210）：接收`product`。 控制顺序：L200按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L201抛异常，停止当前正常路径；L204遍历`rows`；L205按`Path(name).name == ".npmrc"`分支；L207按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L208抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L210的`buffer.getvalue()`。
-- `read_runtime_report`（L213–L240）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L226遍历`chunks`；L227按`not isinstance(chunk, bytes)`分支；L228抛异常，停止当前正常路径；L229按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L230抛异常，停止当前正常路径；L235抛异常，停止当前正常路径；L236按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L239抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L240的`runtime`。
-- `verify_in_daytona`（L243–L249）：接收`product`、`template`、`settings`、`client`。 控制顺序：L245按`client is None`分支。 调用`validate_configuration`、`selection_for`、`run_isolated`、`_verify_in_daytona`。 返回路径：L248的`run_isolated(product, template, settings)`；L249的`_verify_in_daytona(product, template, settings, client=client)`。
-- `_verify_in_daytona`（L252–L396）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L253按`settings.sandbox_provider != "daytona"`分支；L254抛异常，停止当前正常路径；L301遍历`("verify_business.py", "verify-business-browser.cjs")`；L311按`extraction.exit_code != 0`分支；L312抛异常，停止当前正常路径；L313按`key != "python-basic/sqlite"`分支；L321按`unpack.exit_code != 0`分支；L322抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L396的`receipt`。
+- `harness_archive`（L178–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only trusted, committed verifier code; never user files, keys or host caches.。 控制顺序：L194遍历`sorted(names)`。 调用`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "workbench").rglob`、`io.BytesIO`、`zipfile.ZipFile`、`sorted`、`archive.writestr`、`(ROOT / name).read_bytes`、`buffer.getvalue`。 返回路径：L196的`buffer.getvalue()`。
+- `source_archive`（L199–L211）：接收`product`。 控制顺序：L201按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L202抛异常，停止当前正常路径；L205遍历`rows`；L206按`Path(name).name == ".npmrc"`分支；L208按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L209抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L211的`buffer.getvalue()`。
+- `read_runtime_report`（L214–L241）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L227遍历`chunks`；L228按`not isinstance(chunk, bytes)`分支；L229抛异常，停止当前正常路径；L230按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L231抛异常，停止当前正常路径；L236抛异常，停止当前正常路径；L237按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L240抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L241的`runtime`。
+- `verify_in_daytona`（L244–L250）：接收`product`、`template`、`settings`、`client`。 控制顺序：L246按`client is None`分支。 调用`validate_configuration`、`selection_for`、`run_isolated`、`_verify_in_daytona`。 返回路径：L249的`run_isolated(product, template, settings)`；L250的`_verify_in_daytona(product, template, settings, client=client)`。
+- `_verify_in_daytona`（L253–L397）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L254按`settings.sandbox_provider != "daytona"`分支；L255抛异常，停止当前正常路径；L302遍历`("fields.py", "verify_business.py", "verify-business-browser.cjs"…`；L312按`extraction.exit_code != 0`分支；L313抛异常，停止当前正常路径；L314按`key != "python-basic/sqlite"`分支；L322按`unpack.exit_code != 0`分支；L323抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L397的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L396。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L397。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15695`。本段原文以LF换行结束。
+本段原始字节数：`15748`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "df77b994fa022897b11379fc8152af169ebc2677fe8acb3e1c5dd605d42d790c"} -->
+<!-- learning-source: {"path": "workbench/sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f74eaf2ba52af163825468a449852313d1fb10c9ed9c1d9edd0154fca643810e"} -->
 ````python
 # workbench/sandbox.py
 """Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
@@ -217,13 +217,14 @@ def checks_for(template, selection=None):
 
 def harness_archive():
     """Only trusted, committed verifier code; never user files, keys or host caches."""
-    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").glob("*.py")]
+    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").rglob("*.py")]
     names += [
         "scripts/daytona_matrix_probe.py",
         "scripts/native_browser.cjs",
         "scripts/business_fastapi_browser.cjs",
         "scripts/business_yudao_browser.cjs",
         "templates/product/verify.py",
+        "templates/product/fields.py",
         "templates/product/verify-browser.cjs",
         "templates/product/verify_business.py",
         "templates/product/verify-business-browser.cjs",
@@ -338,7 +339,7 @@ def _verify_in_daytona(product, template, settings, *, client):
             REMOTE + "/verify-browser.cjs",
             timeout=settings.tool_timeout,
         )
-        for helper in ("verify_business.py", "verify-business-browser.cjs"):
+        for helper in ("fields.py", "verify_business.py", "verify-business-browser.cjs"):
             sandbox.fs.upload_file(
                 (ROOT / "templates/product" / helper).read_bytes(),
                 REMOTE + "/" + helper,

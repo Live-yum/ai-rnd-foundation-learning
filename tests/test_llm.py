@@ -1,4 +1,5 @@
 import json
+import ssl
 from contextlib import contextmanager
 
 import httpx
@@ -47,6 +48,33 @@ def test_failures_not_fake_success(store, status):
     with pytest.raises(ModelFailure) as error:
         model.complete(new_run(store), "error", "x", {}, Requirement)
     assert "do-not-disclose" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "kind,message",
+    [("proxy", "代理"), ("certificate", "TLS 证书"), ("proxy_certificate", "TLS 证书")],
+)
+def test_permanent_transport_diagnostics_are_redacted_and_not_retried(store, kind, message):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 do-not-disclose", request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, "do-not-disclose")
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError("do-not-disclose", request=request) from cause
+            raise httpx.ConnectError("do-not-disclose", request=request) from cause
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    with pytest.raises(ModelFailure) as error:
+        model.complete(run, "error", "x", {}, Requirement)
+    assert message in str(error.value)
+    assert "do-not-disclose" not in str(error.value)
+    assert len(calls) == store.get_run(run)["model_calls"] == 1
 
 
 def test_invalid_json_bounded(store):
@@ -381,3 +409,165 @@ def test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text(store, 
     assert category in requests[1]["messages"][-1]["content"]
     assert "private-wire-key" not in json.dumps(failures)
     assert "private-wire-key" not in json.dumps(requests)
+
+
+@pytest.mark.parametrize(
+    "kind", ["read_timeout", "remote_protocol_error", "http_429", "invalid_json"]
+)
+def test_live_receipts_preserve_each_attempt_without_provider_content(store, kind):
+    from scripts.ci_live_modules import model_failure_receipts
+
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 2:
+            if kind == "read_timeout":
+                raise httpx.ReadTimeout("private-error-url-key-prompt", request=request)
+            if kind == "remote_protocol_error":
+                raise httpx.RemoteProtocolError("private-error-url-key-prompt", request=request)
+            if kind == "http_429":
+                return httpx.Response(429, text="private-error-url-key-prompt")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": "private-invalid-json"}}]
+            },
+        )
+
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        gateway(store, handler).complete(run, "error", "private-instruction", {}, Requirement)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    second = {
+        "code": kind if kind in {"http_429", "invalid_json"} else "transport_error",
+        "attempt": 2,
+    }
+    if second["code"] == "transport_error":
+        second["transport_kind"] = kind
+    facts = {"phase": "content_decode", "http_status": 200, "finish_reason": "unknown"}
+    json_facts = {
+        "category": "expected_value",
+        "position": {"line": 1, "column": 1, "offset": 0},
+        "lengths": {"characters": 20, "bytes": 20},
+    }
+    if second["code"] == "invalid_json":
+        second["response_facts"] = facts
+        second["json_facts"] = json_facts
+    assert model_failure_receipts(store.model_records(run)) == [
+        {"code": "invalid_json", "attempt": 1, "response_facts": facts, "json_facts": json_facts},
+        second,
+    ]
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("case", ["envelope", "content", "valid", "truncated"])
+def test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary(store, streaming, case):
+    from test_streaming_backend import stream_body
+
+    from scripts.ci_live_modules import model_failure_receipts
+
+    requests, responses = [], []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("private-timeout-body", request=request)
+        responses.append(1)
+        content = "private-invalid-body" if case == "content" else requirement().model_dump_json()
+        finish = "length" if case == "truncated" else "stop"
+        if streaming:
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=b"data: private-invalid-envelope\n\n"
+                if case == "envelope"
+                else stream_body(content, finish=finish),
+            )
+        if case == "envelope":
+            return httpx.Response(200, text="private-invalid-envelope")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": content}, "finish_reason": finish}
+                ]
+            },
+        )
+
+    model = gateway(store, handler)
+    model.streaming = streaming
+    run = new_run(store)
+    if case == "valid":
+        assert (
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+            == requirement()
+        )
+    else:
+        with pytest.raises(ModelFailure) as error:
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+        assert "private" not in str(error.value)
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert len(responses) == 1
+    assert requests[0]["messages"] == requests[1]["messages"]
+    assert requests[1]["response_format"] == {"type": "json_object"}
+    receipts = model_failure_receipts(store.model_records(run))
+    expected = [{"code": "transport_error", "attempt": 1, "transport_kind": "read_timeout"}]
+    if case in {"envelope", "content"}:
+        expected.append(
+            {
+                "code": "invalid_json",
+                "attempt": 2,
+                "response_facts": {
+                    "phase": case + "_decode",
+                    "http_status": 200,
+                    "finish_reason": "stop" if case == "content" else "unknown",
+                },
+                "json_facts": {
+                    "category": "expected_value",
+                    "position": {"line": 1, "column": 1, "offset": 0},
+                    "lengths": {
+                        "characters": 20 if case == "content" else 24,
+                        "bytes": 20 if case == "content" else 24,
+                    },
+                },
+            }
+        )
+    elif case == "truncated":
+        expected.append({"code": "truncated", "attempt": 2})
+    assert receipts == expected
+    assert "private" not in json.dumps(receipts)
+
+
+def test_transport_category_follows_typed_causes_and_stops_cycles():
+    from workbench.model_diagnostics import transport_category
+
+    outer = RuntimeError("ReadTimeout in private error text is not evidence")
+    assert transport_category(outer) == "other"
+    outer.__cause__ = httpx.ReadTimeout("private")
+    assert transport_category(outer) == "read_timeout"
+    outer.__cause__ = outer
+    assert transport_category(outer) == "other"
+
+
+def test_non_parser_audit_error_does_not_claim_envelope_decode(store, monkeypatch):
+    from scripts.ci_live_modules import model_failure_receipts
+    from workbench.streaming import AssistantStream
+
+    def rejected_mode(self, mode):
+        raise ValueError("private-local-observer-error")
+
+    monkeypatch.setattr(AssistantStream, "mode", rejected_mode)
+    model = gateway(
+        store,
+        lambda request: httpx.Response(
+            200,
+            json={"choices": [{"message": {"role": "assistant", "content": "{}"}}]},
+        ),
+    )
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "requirement:unknown", "instruction", {}, Requirement)
+    facts = [row["response_facts"] for row in model_failure_receipts(store.model_records(run))]
+    assert facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2
+    assert store.get_run(run)["model_calls"] == 2

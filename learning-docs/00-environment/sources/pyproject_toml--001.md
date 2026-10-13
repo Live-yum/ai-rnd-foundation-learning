@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `pyproject.toml`；**本文件共有 1 段**。本段覆盖源文件 L1–L56。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `pyproject.toml`；**本文件共有 1 段**。本段覆盖源文件 L1–L57。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1745`。本段原文以LF换行结束。
+本段原始字节数：`1769`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "pyproject.toml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0425e8a1eadcc35d5204ed6f5fa6107d8e88dbaf6cc42ae34e63617cec4ed900"} -->
+<!-- learning-source: {"path": "pyproject.toml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "685c9e44b6d10726bc87cfceb8ebd86257976918e79dfbafea39a48a6ca79d5d"} -->
 ````toml
 # pyproject.toml
 [project]
@@ -30,6 +30,7 @@ dependencies = [
   "pydantic>=2.12,<3",
   "pydantic-settings>=2.12,<3",
   "httpx>=0.28,<0.29",
+  "jsonschema==4.26.0",
   "python-dotenv>=1,<2",
   "langgraph>=1.0,<2",
   "langgraph-checkpoint-sqlite>=3,<4",

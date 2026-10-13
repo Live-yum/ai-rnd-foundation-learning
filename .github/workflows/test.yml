@@ -365,9 +365,40 @@ jobs:
           name: acceptance-${{ github.run_attempt }}-browser
           path: reports/
           if-no-files-found: error
+  production-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RND_REQUIRE_V2_TOOLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - run: uv sync --project tools/mini-swe --python 3.12 --locked
+      - run: npm ci --prefix tools/openspec --ignore-scripts --no-audit --no-fund
+      - name: Install independent authored-fixture browser
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify real CLI and Worker with mock model, authored API/browser/ZIP/restart
+        run: uv run pytest -q tests/test_production_v2.py tests/test_mini_swe_checkpoints.py tests/test_sla_vertical.py tests/test_ci_live_modules.py tests/test_live_test_client.py --junitxml=reports/production-v2.xml
+      - run: uv run --no-project python -m scripts.ci_acceptance receipt production-v2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-production-v2
+          path: reports/
+          if-no-files-found: error
   acceptance:
     if: always()
-    needs: [frontend, source-validation, tests, postgres, clean-install, native-sources, handbook-only, restored-tests, restored-browser, restored-install, browser]
+    needs: [frontend, source-validation, tests, postgres, clean-install, native-sources, handbook-only, restored-tests, restored-browser, restored-install, browser, production-v2]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

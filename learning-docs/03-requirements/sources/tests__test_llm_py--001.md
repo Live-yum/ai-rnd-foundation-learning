@@ -15,35 +15,45 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `gateway`（L12–L18）：接收`store`、`handler`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L18的`ModelGateway(store.settings, store, httpx.MockTransport(handler))`。
-- `test_success_cache_and_usage`（L21–L41）：接收`store`。 控制顺序：L39断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L40断言`len(calls) == 1`；L41断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_success_cache_and_usage.handler`（L24–L34）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L26的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
-- `test_failures_not_fake_success`（L45–L49）：接收`store`、`status`。 控制顺序：L49断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_json_bounded`（L52–L62）：接收`store`。 控制顺序：L62断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L65–L101）：接收`store`。 控制顺序：L93断言`result.business is not None`；L94断言`len(requests) == 2`；L96断言`[message["role"] for message in retry] == ["system", "user", "assistant", "user"]`；L97断言`retry[-2]["role"] == "assistant"`；L98断言`json.loads(retry[-2]["content"]) == invalid`；L99断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L100断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L101断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L75–L89）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L77的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
-- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract`（L122–L178）：接收`store`、`bad`、`category`。 控制顺序：L149断言`model.complete(run, "requirement:json-repair", "instruction", payload, Requirement)`；L150断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L152断言`len(failures) == 1`；L155断言`failure["code"] == "invalid_json"`；L156断言`detail["category"] == category`；L157按`category == "expected_value"`分支；L158断言`detail["position"] == {"line": 3, "column": 11, "offset": bad.index("]")}`；L160断言`"position" not in detail`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`、`store.events`、`bad.index`、`bad.encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract.handler`（L127–L144）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`、`requirement().model_dump_json`、`requirement`。 返回路径：L129的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
-- `test_large_valid_plan_does_not_trigger_a_local_json_size_or_node_threshold`（L181–L213）：接收`store`。 控制顺序：L198断言`len(content) > 30000`；L211断言`model.complete(run, "plan:large-protocol", "instruction", {}, Plan) == expected`；L212断言`store.get_run(run)["model_calls"] == 1`；L213断言`not [event for event in store.events(run) if event["kind"] == "model_failure"]`。 调用`Plan.model_validate`、`range`、`expected.model_dump_json`、`len`、`gateway`、`httpx.Response`、`new_run`、`model.complete`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts`（L217–L299）：接收`store`、`repair_succeeds`。 控制顺序：L269按`repair_succeeds`分支；L270断言`model.complete( run, "plan:extra-data", "Preserve confirmed scope", payload, Plan ) =…`；L276断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L277断言`Plan.model_json_schema() == original_schema`；L278断言`requests[0]["messages"][0] == requests[1]["messages"][0]`；L280断言`instruction.endswith(json.dumps(original_schema, ensure_ascii=False))`；L281断言`"同一对象内的字段名只能出现一次" in instruction`；L282断言`"required 的字段" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`json.dumps`、`Plan.model_json_schema`、`gateway`、`new_run`、`model.complete`、`pytest.raises`、`len`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts.handler`（L250–L265）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`。 返回路径：L252的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code`（L303–L352）：接收`store`、`monkeypatch`、`raises`。 控制顺序：L349断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L350断言`{event["data"]["code"] for event in failures} == {"structured_parser_disagreement"}`；L351断言`all(event["data"]["diagnostic"]["phase"] == "model_execution" for event in failures)`；L352断言`"private-adapter-canary" not in json.dumps(failures)`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`store.events`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees`（L311–L325）：接收`*args`、`**kwargs`。 调用`original`、`RejectingParser`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser`（L314–L323）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L315–L323）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L317按`raises`分支；L318抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L319的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
-- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L362–L383）：接收`store`、`wire`、`category`。 控制顺序：L374断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L375遍历`failures`；L377断言`event["data"]["code"] == "invalid_json"`；L378断言`detail["category"] == category`；L379断言`detail["lengths"] == {"bytes": len(wire)}`；L380断言`"position" not in detail`；L381断言`category in requests[1]["messages"][-1]["content"]`；L382断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L365–L367）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L367的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
+- `gateway`（L13–L19）：接收`store`、`handler`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L19的`ModelGateway(store.settings, store, httpx.MockTransport(handler))`。
+- `test_success_cache_and_usage`（L22–L42）：接收`store`。 控制顺序：L40断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L41断言`len(calls) == 1`；L42断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_success_cache_and_usage.handler`（L25–L35）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L27的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
+- `test_failures_not_fake_success`（L46–L50）：接收`store`、`status`。 控制顺序：L50断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permanent_transport_diagnostics_are_redacted_and_not_retried`（L57–L77）：接收`store`、`kind`、`message`。 控制顺序：L75断言`message in str(error.value)`；L76断言`"do-not-disclose" not in str(error.value)`；L77断言`len(calls) == store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`str`、`len`、`store.get_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permanent_transport_diagnostics_are_redacted_and_not_retried.handler`（L60–L69）：接收`request`。 控制顺序：L62按`kind == "proxy"`分支；L63抛异常，停止当前正常路径；L65抛异常，停止当前正常路径；L67按`kind == "proxy_certificate"`分支；L68抛异常，停止当前正常路径；L69抛异常，停止当前正常路径。 调用`calls.append`、`httpx.ProxyError`、`ssl.SSLCertVerificationError`、`httpx.ConnectError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_json_bounded`（L80–L90）：接收`store`。 控制顺序：L90断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L93–L129）：接收`store`。 控制顺序：L121断言`result.business is not None`；L122断言`len(requests) == 2`；L124断言`[message["role"] for message in retry] == ["system", "user", "assistant", "user"]`；L125断言`retry[-2]["role"] == "assistant"`；L126断言`json.loads(retry[-2]["content"]) == invalid`；L127断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L128断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L129断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L103–L117）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L105的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
+- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract`（L150–L206）：接收`store`、`bad`、`category`。 控制顺序：L177断言`model.complete(run, "requirement:json-repair", "instruction", payload, Requirement)`；L178断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L180断言`len(failures) == 1`；L183断言`failure["code"] == "invalid_json"`；L184断言`detail["category"] == category`；L185按`category == "expected_value"`分支；L186断言`detail["position"] == {"line": 3, "column": 11, "offset": bad.index("]")}`；L188断言`"position" not in detail`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`、`store.events`、`bad.index`、`bad.encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonstream_json_failure_persists_safe_location_and_repairs_same_contract.handler`（L155–L172）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`、`requirement().model_dump_json`、`requirement`。 返回路径：L157的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
+- `test_large_valid_plan_does_not_trigger_a_local_json_size_or_node_threshold`（L209–L241）：接收`store`。 控制顺序：L226断言`len(content) > 30000`；L239断言`model.complete(run, "plan:large-protocol", "instruction", {}, Plan) == expected`；L240断言`store.get_run(run)["model_calls"] == 1`；L241断言`not [event for event in store.events(run) if event["kind"] == "model_failure"]`。 调用`Plan.model_validate`、`range`、`expected.model_dump_json`、`len`、`gateway`、`httpx.Response`、`new_run`、`model.complete`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts`（L245–L327）：接收`store`、`repair_succeeds`。 控制顺序：L297按`repair_succeeds`分支；L298断言`model.complete( run, "plan:extra-data", "Preserve confirmed scope", payload, Plan ) =…`；L304断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L305断言`Plan.model_json_schema() == original_schema`；L306断言`requests[0]["messages"][0] == requests[1]["messages"][0]`；L308断言`instruction.endswith(json.dumps(original_schema, ensure_ascii=False))`；L309断言`"同一对象内的字段名只能出现一次" in instruction`；L310断言`"required 的字段" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`json.dumps`、`Plan.model_json_schema`、`gateway`、`new_run`、`model.complete`、`pytest.raises`、`len`、`store.get_run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extra_data_repair_preserves_compact_plan_and_stops_after_two_attempts.handler`（L278–L293）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`len`。 返回路径：L280的`httpx.Response( 200, json={ "choices": [ { "finish_reason": "stop", "message": { "role": "…`。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code`（L331–L380）：接收`store`、`monkeypatch`、`raises`。 控制顺序：L377断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L378断言`{event["data"]["code"] for event in failures} == {"structured_parser_disagreement"}`；L379断言`all(event["data"]["diagnostic"]["phase"] == "model_execution" for event in failures)`；L380断言`"private-adapter-canary" not in json.dumps(failures)`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`store.events`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees`（L339–L353）：接收`*args`、`**kwargs`。 调用`original`、`RejectingParser`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser`（L342–L351）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_valid_local_json_with_langchain_disagreement_has_its_own_failure_code.disagrees.RejectingParser.invoke`（L343–L351）：接收`*invoke_args`、`**invoke_kwargs`。 控制顺序：L345按`raises`分支；L346抛异常，停止当前正常路径。 调用`structured.invoke`、`ValueError`。 返回路径：L347的`{ **result, "parsed": None, "parsing_error": ValueError("private-adapter-canary"), }`。
+- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text`（L390–L411）：接收`store`、`wire`、`category`。 控制顺序：L402断言`len(failures) == store.get_run(run)["model_calls"] == 2`；L403遍历`failures`；L405断言`event["data"]["code"] == "invalid_json"`；L406断言`detail["category"] == category`；L407断言`detail["lengths"] == {"bytes": len(wire)}`；L408断言`"position" not in detail`；L409断言`category in requests[1]["messages"][-1]["content"]`；L410断言`"private-wire-key" not in json.dumps(failures)`。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.events`、`len`、`store.get_run`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text.handler`（L393–L395）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`。 返回路径：L395的`httpx.Response(200, headers={"content-type": "application/json"}, content=wire)`。
+- `test_live_receipts_preserve_each_attempt_without_provider_content`（L417–L460）：接收`store`、`kind`。 控制顺序：L441断言`len(calls) == store.get_run(run)["model_calls"] == 2`；L446按`second["code"] == "transport_error"`分支；L454按`second["code"] == "invalid_json"`分支；L457断言`model_failure_receipts(store.model_records(run)) == [ {"code": "invalid_json", "attem…`。 调用`new_run`、`pytest.raises`、`gateway(store, handler).complete`、`gateway`、`len`、`store.get_run`、`model_failure_receipts`、`store.model_records`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_receipts_preserve_each_attempt_without_provider_content.handler`（L422–L436）：接收`request`。 控制顺序：L424按`len(calls) == 2`分支；L425按`kind == "read_timeout"`分支；L426抛异常，停止当前正常路径；L427按`kind == "remote_protocol_error"`分支；L428抛异常，停止当前正常路径；L429按`kind == "http_429"`分支。 调用`calls.append`、`len`、`httpx.ReadTimeout`、`httpx.RemoteProtocolError`、`httpx.Response`。 返回路径：L430的`httpx.Response(429, text="private-error-url-key-prompt")`；L431的`httpx.Response( 200, json={ "choices": [{"message": {"role": "assistant", "content": "priv…`。
+- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary`（L465–L539）：接收`store`、`streaming`、`case`。 控制顺序：L501按`case == "valid"`分支；L502断言`model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement) == requ…`；L509断言`"private" not in str(error.value)`；L510断言`len(requests) == store.get_run(run)["model_calls"] == 2`；L511断言`len(responses) == 1`；L512断言`requests[0]["messages"] == requests[1]["messages"]`；L513断言`requests[1]["response_format"] == {"type": "json_object"}`；L516按`case in {"envelope", "content"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`gateway`、`new_run`、`model.complete`、`requirement`、`pytest.raises`、`str`、`len`、`store.get_run`、`model_failure_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary.handler`（L472–L496）：接收`request`。 控制顺序：L474按`len(requests) == 1`分支；L475抛异常，停止当前正常路径；L479按`streaming`分支；L487按`case == "envelope"`分支。 调用`requests.append`、`json.loads`、`len`、`httpx.ReadTimeout`、`responses.append`、`requirement().model_dump_json`、`requirement`、`httpx.Response`、`stream_body`。 返回路径：L480的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, content=b"data: privat…`；L488的`httpx.Response(200, text="private-invalid-envelope")`；L489的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": cont…`。
+- `test_transport_category_follows_typed_causes_and_stops_cycles`（L542–L550）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L546断言`transport_category(outer) == "other"`；L548断言`transport_category(outer) == "read_timeout"`；L550断言`transport_category(outer) == "other"`。 调用`RuntimeError`、`transport_category`、`httpx.ReadTimeout`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_parser_audit_error_does_not_claim_envelope_decode`（L553–L573）：接收`store`、`monkeypatch`。 控制顺序：L572断言`facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2`；L573断言`store.get_run(run)["model_calls"] == 2`。 调用`monkeypatch.setattr`、`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`model_failure_receipts`、`store.model_records`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_parser_audit_error_does_not_claim_envelope_decode.rejected_mode`（L557–L558）：接收`mode`。 控制顺序：L558抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L383。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L573。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14753`。本段原文以LF换行结束。
+本段原始字节数：`22374`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f593e8ea7555a31f770e289dc44ccdd3d10c4727efb1e7c786babf74b0d716a"} -->
+<!-- learning-source: {"path": "tests/test_llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3d449a4d8c3b6a511d24e7b17aef70b6797554b894b1d0efad794de8c4c64d15"} -->
 ````python
 # tests/test_llm.py
 import json
+import ssl
 from contextlib import contextmanager
 
 import httpx
@@ -92,6 +102,33 @@ def test_failures_not_fake_success(store, status):
     with pytest.raises(ModelFailure) as error:
         model.complete(new_run(store), "error", "x", {}, Requirement)
     assert "do-not-disclose" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "kind,message",
+    [("proxy", "代理"), ("certificate", "TLS 证书"), ("proxy_certificate", "TLS 证书")],
+)
+def test_permanent_transport_diagnostics_are_redacted_and_not_retried(store, kind, message):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 do-not-disclose", request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, "do-not-disclose")
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError("do-not-disclose", request=request) from cause
+            raise httpx.ConnectError("do-not-disclose", request=request) from cause
+
+    model = gateway(store, handler)
+    run = new_run(store)
+    with pytest.raises(ModelFailure) as error:
+        model.complete(run, "error", "x", {}, Requirement)
+    assert message in str(error.value)
+    assert "do-not-disclose" not in str(error.value)
+    assert len(calls) == store.get_run(run)["model_calls"] == 1
 
 
 def test_invalid_json_bounded(store):
@@ -426,4 +463,166 @@ def test_audited_envelope_failure_survives_sdk_wrapping_without_raw_text(store, 
     assert category in requests[1]["messages"][-1]["content"]
     assert "private-wire-key" not in json.dumps(failures)
     assert "private-wire-key" not in json.dumps(requests)
+
+
+@pytest.mark.parametrize(
+    "kind", ["read_timeout", "remote_protocol_error", "http_429", "invalid_json"]
+)
+def test_live_receipts_preserve_each_attempt_without_provider_content(store, kind):
+    from scripts.ci_live_modules import model_failure_receipts
+
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) == 2:
+            if kind == "read_timeout":
+                raise httpx.ReadTimeout("private-error-url-key-prompt", request=request)
+            if kind == "remote_protocol_error":
+                raise httpx.RemoteProtocolError("private-error-url-key-prompt", request=request)
+            if kind == "http_429":
+                return httpx.Response(429, text="private-error-url-key-prompt")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": "private-invalid-json"}}]
+            },
+        )
+
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        gateway(store, handler).complete(run, "error", "private-instruction", {}, Requirement)
+    assert len(calls) == store.get_run(run)["model_calls"] == 2
+    second = {
+        "code": kind if kind in {"http_429", "invalid_json"} else "transport_error",
+        "attempt": 2,
+    }
+    if second["code"] == "transport_error":
+        second["transport_kind"] = kind
+    facts = {"phase": "content_decode", "http_status": 200, "finish_reason": "unknown"}
+    json_facts = {
+        "category": "expected_value",
+        "position": {"line": 1, "column": 1, "offset": 0},
+        "lengths": {"characters": 20, "bytes": 20},
+    }
+    if second["code"] == "invalid_json":
+        second["response_facts"] = facts
+        second["json_facts"] = json_facts
+    assert model_failure_receipts(store.model_records(run)) == [
+        {"code": "invalid_json", "attempt": 1, "response_facts": facts, "json_facts": json_facts},
+        second,
+    ]
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("case", ["envelope", "content", "valid", "truncated"])
+def test_timeout_then_response_diagnostic_keeps_strict_two_attempt_boundary(store, streaming, case):
+    from test_streaming_backend import stream_body
+
+    from scripts.ci_live_modules import model_failure_receipts
+
+    requests, responses = [], []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        if len(requests) == 1:
+            raise httpx.ReadTimeout("private-timeout-body", request=request)
+        responses.append(1)
+        content = "private-invalid-body" if case == "content" else requirement().model_dump_json()
+        finish = "length" if case == "truncated" else "stop"
+        if streaming:
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=b"data: private-invalid-envelope\n\n"
+                if case == "envelope"
+                else stream_body(content, finish=finish),
+            )
+        if case == "envelope":
+            return httpx.Response(200, text="private-invalid-envelope")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": content}, "finish_reason": finish}
+                ]
+            },
+        )
+
+    model = gateway(store, handler)
+    model.streaming = streaming
+    run = new_run(store)
+    if case == "valid":
+        assert (
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+            == requirement()
+        )
+    else:
+        with pytest.raises(ModelFailure) as error:
+            model.complete(run, "requirement:diagnostic", "instruction", {}, Requirement)
+        assert "private" not in str(error.value)
+    assert len(requests) == store.get_run(run)["model_calls"] == 2
+    assert len(responses) == 1
+    assert requests[0]["messages"] == requests[1]["messages"]
+    assert requests[1]["response_format"] == {"type": "json_object"}
+    receipts = model_failure_receipts(store.model_records(run))
+    expected = [{"code": "transport_error", "attempt": 1, "transport_kind": "read_timeout"}]
+    if case in {"envelope", "content"}:
+        expected.append(
+            {
+                "code": "invalid_json",
+                "attempt": 2,
+                "response_facts": {
+                    "phase": case + "_decode",
+                    "http_status": 200,
+                    "finish_reason": "stop" if case == "content" else "unknown",
+                },
+                "json_facts": {
+                    "category": "expected_value",
+                    "position": {"line": 1, "column": 1, "offset": 0},
+                    "lengths": {
+                        "characters": 20 if case == "content" else 24,
+                        "bytes": 20 if case == "content" else 24,
+                    },
+                },
+            }
+        )
+    elif case == "truncated":
+        expected.append({"code": "truncated", "attempt": 2})
+    assert receipts == expected
+    assert "private" not in json.dumps(receipts)
+
+
+def test_transport_category_follows_typed_causes_and_stops_cycles():
+    from workbench.model_diagnostics import transport_category
+
+    outer = RuntimeError("ReadTimeout in private error text is not evidence")
+    assert transport_category(outer) == "other"
+    outer.__cause__ = httpx.ReadTimeout("private")
+    assert transport_category(outer) == "read_timeout"
+    outer.__cause__ = outer
+    assert transport_category(outer) == "other"
+
+
+def test_non_parser_audit_error_does_not_claim_envelope_decode(store, monkeypatch):
+    from scripts.ci_live_modules import model_failure_receipts
+    from workbench.streaming import AssistantStream
+
+    def rejected_mode(self, mode):
+        raise ValueError("private-local-observer-error")
+
+    monkeypatch.setattr(AssistantStream, "mode", rejected_mode)
+    model = gateway(
+        store,
+        lambda request: httpx.Response(
+            200,
+            json={"choices": [{"message": {"role": "assistant", "content": "{}"}}]},
+        ),
+    )
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "requirement:unknown", "instruction", {}, Requirement)
+    facts = [row["response_facts"] for row in model_failure_receipts(store.model_records(run))]
+    assert facts == [{"phase": "unknown", "http_status": 200, "finish_reason": "unknown"}] * 2
+    assert store.get_run(run)["model_calls"] == 2
 ````

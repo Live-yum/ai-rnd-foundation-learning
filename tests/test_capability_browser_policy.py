@@ -30,6 +30,92 @@ def approved(monkeypatch):
         monkeypatch.setenv(key, value)
 
 
+def approved_manual(monkeypatch):
+    approved(monkeypatch)
+    for key, value in {
+        "GITHUB_WORKFLOW": "Manual real-model customer acceptance",
+        "GITHUB_JOB": "mini-swe-sla",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "LIVE_SCENARIO": "mini-swe-sla",
+        "GITHUB_SHA": "a" * 40,
+        "REVIEWED_SHA": "a" * 40,
+        "GITHUB_WORKFLOW_SHA": "a" * 40,
+        "GITHUB_REF": "refs/heads/feat/modular-production-v2",
+        "GITHUB_WORKFLOW_REF": (
+            "Live-yum/ai-rnd-foundation-learning/.github/workflows/real-model.yml"
+            "@refs/heads/feat/modular-production-v2"
+        ),
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+@pytest.mark.parametrize("workflow", sorted(policy.WORKFLOWS))
+def test_existing_three_workflow_scopes_are_unchanged(monkeypatch, workflow):
+    approved(monkeypatch)
+    monkeypatch.setenv("GITHUB_WORKFLOW", workflow)
+    assert policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE
+
+
+def test_exact_reviewed_manual_module_scope_is_accepted(monkeypatch):
+    approved_manual(monkeypatch)
+    assert "Manual real-model customer acceptance" not in policy.WORKFLOWS
+    assert policy.selected_policy() == policy.ROOT / policy.POLICY_SOURCE
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("GITHUB_WORKFLOW", "Three-project live acceptance"),
+        ("GITHUB_JOB", "real-model"),
+        ("GITHUB_JOB", "model-feedback"),
+        ("LIVE_SCENARIO", "legacy"),
+        ("LIVE_SCENARIO", "other"),
+        ("GITHUB_EVENT_NAME", "pull_request"),
+        ("GITHUB_EVENT_NAME", "push"),
+        ("GITHUB_RUN_ATTEMPT", "2"),
+        ("GITHUB_RUN_ATTEMPT", ""),
+        ("GITHUB_REPOSITORY", "other/repo"),
+        ("GITHUB_ACTIONS", "false"),
+        ("GITHUB_SHA", "not-a-sha"),
+        ("GITHUB_SHA", "b" * 40),
+        ("REVIEWED_SHA", "b" * 40),
+        ("REVIEWED_SHA", ""),
+        ("GITHUB_WORKFLOW_SHA", "b" * 40),
+        ("GITHUB_WORKFLOW_SHA", ""),
+        ("GITHUB_REF", "refs/tags/reviewed"),
+        ("GITHUB_REF", "refs/heads/other"),
+        (
+            "GITHUB_WORKFLOW_REF",
+            "Live-yum/ai-rnd-foundation-learning/.github/workflows/other.yml@refs/heads/feat/modular-production-v2",
+        ),
+        (
+            "GITHUB_WORKFLOW_REF",
+            "other/repo/.github/workflows/real-model.yml@refs/heads/feat/modular-production-v2",
+        ),
+        ("GITHUB_RUN_ID", ""),
+        ("CAPABILITY_BROWSER_APPROVED_POLICY", "0" * 64),
+    ],
+)
+def test_manual_scope_rejected_before_runtime_or_container_access(monkeypatch, key, value):
+    approved_manual(monkeypatch)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(policy.subprocess, "run", lambda *a, **k: pytest.fail("container access"))
+    with pytest.raises(ValueError, match="approved Actions scope"):
+        isolation.worker_command(IMAGE, NAME)
+
+
+def test_manual_scope_cannot_admit_changed_policy_bytes(monkeypatch, tmp_path):
+    approved_manual(monkeypatch)
+    path = tmp_path / policy.POLICY_SOURCE
+    path.parent.mkdir(parents=True)
+    path.write_text("{}")
+    monkeypatch.setattr(policy, "ROOT", tmp_path)
+    monkeypatch.setattr(policy.subprocess, "run", lambda *a, **k: pytest.fail("container access"))
+    with pytest.raises(ValueError, match="bytes changed"):
+        isolation.worker_command(IMAGE, NAME)
+
+
 def target():
     return (
         {

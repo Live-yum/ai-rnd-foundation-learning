@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L191。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L193。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14458`。本段原文以LF换行结束。
+本段原始字节数：`15128`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6fbee9ccd957c91f51e91550cd03870e341b73334be85122736d15da643ac206"} -->
+<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "13ee3197dff8a6e9ee89b5f82f9586e7d9851abb8ad94f9f984a978d4e5360c2"} -->
 ````markdown
 <!-- docs/template-platform.md -->
 # 从零实现可批量定制的模板研发平台
@@ -171,6 +171,8 @@ curl -X POST http://127.0.0.1:8000/batches \
 | Variable | `MODE` | 该服务实际提供的模型 ID |
 
 运行工作流 **Three-project live acceptance**：对同仓库 PR 明确添加 `run-live-acceptance` 标签，或在工作流已进入默认分支后使用手动运行。普通 PR 同步不自动重复付费验收；变更代码后需要再次明确触发，并核对报告中的被测提交。工作流遵循 `rnd` 已有环境审核与分支规则，不自动批准环境部署。
+
+标签入口只接受首次运行的明确 `labeled` 事件，并核对标签、PR 的 head/base 仓库及完整 head SHA；TLS 探测和最终执行使用同一个被审阅 head，不使用 PR 合并测试 SHA。标签没有手动输入，保持 `system` CA、`metered` 和未确认免费状态，不隐式选择自定义 CA 或声明零费用；需要 `caddy-ip` 或 `declared_free` 时应手动运行并填写准确审阅 SHA 和明确确认。请求次数、输出 token 及运行时间上限不变，重跑、fork、普通 push/synchronize 与 ready-for-review 事件不触发真实模型执行；模型密钥仍仅进入通过前置检查后的原执行步骤。
 
 旧的 `real-model.yml` 和 `ci_real_model.py` 保留历史专用供应商/客服验收约束，新通用三项目验收使用上述工作流。不要把旧流程的固定地址与模型门禁改掉后继续沿用旧证据。
 

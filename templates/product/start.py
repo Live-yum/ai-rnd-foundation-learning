@@ -88,7 +88,7 @@ def consumer_contract(selection):
 
 
 def consumer_environment(contract, env):
-    """The canonical product URL and legacy alias always identify the same DB."""
+    """Bind database URLs and template data storage to the canonical DB."""
     from urllib.parse import urlsplit
 
     default = ROOT.joinpath(*PurePosixPath(contract["database_path"]).parts)
@@ -112,8 +112,17 @@ def consumer_environment(contract, env):
     path = Path(database)
     path = path if path.is_absolute() else ROOT / path
     path.parent.mkdir(parents=True, exist_ok=True)
-    url = "sqlite:///" + path.resolve().as_posix()
-    return {**env, "PRODUCT_DATABASE_URL": url, "DATABASE_URL": url}
+    path = path.resolve()
+    url = "sqlite:///" + path.as_posix()
+    # schema.py creates PRODUCT_DATA_DIR even when an explicit URL is provided.
+    # Keep that initialization inside the database directory already approved
+    # for writes, rather than falling back to .data under read-only source.
+    return {
+        **env,
+        "PRODUCT_DATABASE_URL": url,
+        "DATABASE_URL": url,
+        "PRODUCT_DATA_DIR": str(path.parent),
+    }
 
 
 def main():

@@ -32,14 +32,15 @@
 - `test_no_image_install_execution_or_privilege_surface_expands`（L437–L476）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L439断言`sha(native.ROOT / native.DOCKERFILE) == native.REVIEWED_DOCKERFILE_SHA256 == "ceb125f…`；L444断言`image.ROOTS["fastapiadmin"] == [ "/opt/rnd/runtime/fastapiadmin/backend/.venv", "/opt…`；L453断言`image.GROUPS["fastapiadmin"] == { "python": ["default-groups"], "extras": [], "node":…`；L471断言`len(calls) == 2`；L472断言`all( "source_descriptor_bytes" not in ast.unparse(call) and "descriptor_roles" not in…`。 调用`sha`、`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`、`len`、`all`、`ast.unparse`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_packaged_controller_imports_with_scripts_unavailable`（L479–L493）：接收`monkeypatch`。 控制顺序：L493断言`module.native_descriptor_roles() == admission.native_descriptor_roles()`。 调用`monkeypatch.setattr`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.native_descriptor_roles`、`admission.native_descriptor_roles`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_packaged_controller_imports_with_scripts_unavailable.without_scripts`（L482–L485）：接收`name`、`*args`、`**kwargs`。 控制顺序：L483按`name == "scripts" or name.startswith("scripts.")`分支；L484抛异常，停止当前正常路径。 调用`name.startswith`、`ModuleNotFoundError`、`original_import`。 返回路径：L485的`original_import(name, *args, **kwargs)`。
+- `test_delivered_launcher_imports_without_platform_checkout`（L496–L521）：接收`real_product`、`tmp_path`。 控制顺序：L520断言`result.returncode == 0`；L521断言`"--check" in result.stdout`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_native_capability_full_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L493。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_native_capability_full_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L521。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19415`。本段原文以LF换行结束。
+本段原始字节数：`20192`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_full_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f2d9c68943c36a671d65cfc79d860da0486f60a5b00cfea170bf64d768c7ce92"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_full_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7f9ffc1b2ba4d04b2b0bb32c6b92ff614e44e673b3b73b39ddad4710a3922d26"} -->
 ````python
 # tests/test_ci_native_capability_full_source.py
 """Real pinned source/layout regression; all database/runtime execution is stubbed.
@@ -535,4 +536,32 @@ def test_packaged_controller_imports_with_scripts_unavailable(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.native_descriptor_roles() == admission.native_descriptor_roles()
+
+
+def test_delivered_launcher_imports_without_platform_checkout(real_product, tmp_path):
+    import subprocess
+    import sys
+
+    from workbench.tools import clean_env
+
+    product, _, _ = real_product
+    deployment = product / "deployment"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys,runpy; sys.path.insert(0,sys.argv[1]); "
+            "sys.argv=['run.py','--help']; "
+            "runpy.run_path(sys.path[0]+'/run.py',run_name='__main__')",
+            str(deployment),
+        ],
+        cwd=tmp_path,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--check" in result.stdout
 ````

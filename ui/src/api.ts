@@ -21,14 +21,14 @@ export function errorText(error: unknown) {
 export function isAbort(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError'
 }
-function headers(json = false, key?: string) {
+export function headers(json = false, key?: string) {
   return {
     Authorization: `Bearer ${accessToken}`,
     ...(json ? { 'Content-Type': 'application/json' } : {}),
     ...(key ? { 'Idempotency-Key': key } : {}),
   }
 }
-async function check(response: Response) {
+export async function check(response: Response) {
   if (response.ok) return response
   let detail: unknown
   try {
@@ -62,21 +62,7 @@ export async function api<T = any>(
   await check(response)
   return response.status === 204 ? (undefined as T) : response.json()
 }
-export async function downloadRun(runId: string) {
-  const response = await check(
-    await fetch(`/runs/${encodeURIComponent(runId)}/download`, {
-      headers: headers(),
-      cache: 'no-store',
-      credentials: 'omit',
-    }),
-  )
-  const url = URL.createObjectURL(await response.blob()),
-    link = document.createElement('a')
-  link.href = url
-  link.download = `${runId}.zip`
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
+export { downloadRun } from './features/delivery/download'
 export interface SSEFrame {
   id?: number
   event?: string

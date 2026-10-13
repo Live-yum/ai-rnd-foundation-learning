@@ -491,3 +491,31 @@ def test_packaged_controller_imports_with_scripts_unavailable(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.native_descriptor_roles() == admission.native_descriptor_roles()
+
+
+def test_delivered_launcher_imports_without_platform_checkout(real_product, tmp_path):
+    import subprocess
+    import sys
+
+    from workbench.tools import clean_env
+
+    product, _, _ = real_product
+    deployment = product / "deployment"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys,runpy; sys.path.insert(0,sys.argv[1]); "
+            "sys.argv=['run.py','--help']; "
+            "runpy.run_path(sys.path[0]+'/run.py',run_name='__main__')",
+            str(deployment),
+        ],
+        cwd=tmp_path,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--check" in result.stdout

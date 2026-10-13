@@ -15,38 +15,42 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `configured`（L28–L42）：接收`settings`。 调用`ModelSettingsRepository`、`repository.update`。 返回路径：L42的`repository, saved`。
-- `command`（L45–L52）：接收`revision`、`stage`、`**extra`。 调用`ConnectionTestRequest`、`str`、`uuid.uuid4`。 返回路径：L46的`ConnectionTestRequest( stage=stage, expected_revision=revision, request_id=str(uuid.uuid4(…`。
-- `completion`（L55–L72）：接收`content`、`finish`。 调用`httpx.Response`。 返回路径：L56的`httpx.Response( 200, json={ "id": "test-probe", "object": "chat.completion", "created": 0,…`。
-- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data`（L75–L103）：接收`settings`、`configured`。 控制顺序：L87断言`result["ok"] and result["code"] == "connected"`；L88断言`result["phase"] == "completed" and result["attempts"] == 1`；L89断言`result["revision"] == saved["revision"] and result["stage"] == "coding"`；L90断言`result["model"] == "saved-coder"`；L91断言`result["usage"]["total_tokens"] == 17`；L92断言`len(seen) == 1`；L93断言`str(seen[0].url) == "https://provider.example/v1/chat/completions"`；L94断言`seen[0].headers["authorization"] == "Bearer " + SECRET`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`tester.test`、`command`、`len`、`str`、`json.loads`、`body.get`、`json.dumps(body).lower`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data.handle`（L81–L83）：接收`request`。 调用`seen.append`、`completion`。 返回路径：L83的`completion()`。
-- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call`（L106–L120）：接收`settings`、`configured`。 控制顺序：L119断言`result["ok"] and result["revision"] == saved["revision"]`；L120断言`repository.public()["revision"] != result["revision"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`repository.public`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call.handle`（L109–L114）：接收`request`。 控制顺序：L113断言`json.loads(request.content)["model"] == "saved-model"`。 调用`repository.update`、`json.loads`、`completion`。 返回路径：L114的`completion()`。
-- `test_http_failures_are_actionable_redacted_and_never_retried`（L134–L155）：接收`settings`、`configured`、`status`、`code`、`retryable`、`caplog`。 控制顺序：L151断言`not result["ok"] and result["code"] == code and result["phase"] == "request"`；L152断言`result["retryable"] is retryable and result["http_status"] == status`；L153断言`len(requests) == result["attempts"] == 1`；L154断言`SECRET not in json.dumps(result) + caplog.text`；L155断言`len(result["trace_id"]) == 32`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_http_failures_are_actionable_redacted_and_never_retried.handle`（L140–L146）：接收`request`。 调用`requests.append`、`httpx.Response`。 返回路径：L142的`httpx.Response( status, headers={"location": "https://unapproved.example/v1"}, json={"erro…`。
-- `test_transport_errors_do_not_echo_exception_text`（L161–L173）：接收`settings`、`configured`、`exception`、`code`。 控制顺序：L172断言`result["code"] == code and result["retryable"]`；L173断言`len(calls) == 1 and SECRET not in json.dumps(result)`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_transport_errors_do_not_echo_exception_text.handle`（L165–L167）：接收`request`。 控制顺序：L167抛异常，停止当前正常路径。 调用`calls.append`、`exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_model_output_is_not_reported_as_connected`（L185–L193）：接收`settings`、`configured`、`content`、`finish`、`code`。 控制顺序：L192断言`not result["ok"] and result["phase"] == "validation" and result["code"] == code`；L193断言`SECRET not in json.dumps(result)`。 调用`ModelConnectionTester( settings, httpx.MockTransport(lambda reque…`、`ModelConnectionTester`、`httpx.MockTransport`、`completion`、`command`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_duplicate_request_is_cached_and_stale_configuration_cannot_call`（L196–L209）：接收`settings`、`configured`。 控制顺序：L204断言`tester.test(request) == first and len(calls) == 1`；L209断言`len(calls) == 1`。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`command`、`tester.test`、`len`、`pytest.raises`、`request.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_concurrent_probe_is_blocked_before_second_model_call`（L212–L233）：接收`settings`、`configured`。 控制顺序：L225断言`started.wait(5)`；L233断言`running.result()["ok"]`。 调用`threading.Event`、`ModelConnectionTester`、`httpx.MockTransport`、`ThreadPoolExecutor`、`executor.submit`、`command`、`started.wait`、`pytest.raises`、`tester.test`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_concurrent_probe_is_blocked_before_second_model_call.handle`（L216–L219）：接收`request`。 控制顺序：L218断言`release.wait(5)`。 调用`started.set`、`release.wait`、`completion`。 返回路径：L219的`completion()`。
-- `test_missing_configuration_never_uses_network`（L236–L241）：接收`settings`。 控制顺序：L241断言`result["code"] == "invalid_configuration" and result["attempts"] == 0`。 调用`ModelConnectionTester(settings, httpx.MockTransport(unexpected)).…`、`ModelConnectionTester`、`httpx.MockTransport`、`command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_configuration_never_uses_network.unexpected`（L237–L238）：接收`request`。 控制顺序：L238抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation`（L244–L288）：接收`settings`、`configured`、`monkeypatch`。 控制顺序：L262断言`client.post("/settings/models/test", json=body).status_code == 401`；L264断言`client.post( "/settings/models/test", json=body, headers={"origin": "https://evil.exa…`；L270遍历`( {**body, "confirm_cost": False}, {**body, "stage": SECRET}, {**…`；L276断言`response.status_code == 422 and SECRET not in response.text`；L277断言`client.post( "/settings/models/test", json={**body, "expected_revision": "stale"} ).s…`；L283断言`not calls`；L285断言`response.status_code == 200 and response.json()["ok"]`；L286断言`response.headers["cache-control"] == "no-store"`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`monkeypatch.setattr`、`FastAPI`、`register_model_settings_routes`、`command(saved["revision"]).model_dump`、`command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation.auth`（L255–L257）：接收`request`。用本机Dex真实签发的JWT访问本机API创建密钥，不伪造token，也不向云身份服务注册账号。 控制顺序：L256按`request.headers.get("authorization") != "Bearer local-test-token"`分支；L257抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configured`（L29–L43）：接收`settings`。 调用`ModelSettingsRepository`、`repository.update`。 返回路径：L43的`repository, saved`。
+- `command`（L46–L53）：接收`revision`、`stage`、`**extra`。 调用`ConnectionTestRequest`、`str`、`uuid.uuid4`。 返回路径：L47的`ConnectionTestRequest( stage=stage, expected_revision=revision, request_id=str(uuid.uuid4(…`。
+- `completion`（L56–L73）：接收`content`、`finish`。 调用`httpx.Response`。 返回路径：L57的`httpx.Response( 200, json={ "id": "test-probe", "object": "chat.completion", "created": 0,…`。
+- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data`（L76–L104）：接收`settings`、`configured`。 控制顺序：L88断言`result["ok"] and result["code"] == "connected"`；L89断言`result["phase"] == "completed" and result["attempts"] == 1`；L90断言`result["revision"] == saved["revision"] and result["stage"] == "coding"`；L91断言`result["model"] == "saved-coder"`；L92断言`result["usage"]["total_tokens"] == 17`；L93断言`len(seen) == 1`；L94断言`str(seen[0].url) == "https://provider.example/v1/chat/completions"`；L95断言`seen[0].headers["authorization"] == "Bearer " + SECRET`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`tester.test`、`command`、`len`、`str`、`json.loads`、`body.get`、`json.dumps(body).lower`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_uses_saved_effective_profile_one_bounded_call_and_no_project_data.handle`（L82–L84）：接收`request`。 调用`seen.append`、`completion`。 返回路径：L84的`completion()`。
+- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call`（L107–L121）：接收`settings`、`configured`。 控制顺序：L120断言`result["ok"] and result["revision"] == saved["revision"]`；L121断言`repository.public()["revision"] != result["revision"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`repository.public`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_keeps_one_snapshot_when_configuration_changes_during_call.handle`（L110–L115）：接收`request`。 控制顺序：L114断言`json.loads(request.content)["model"] == "saved-model"`。 调用`repository.update`、`json.loads`、`completion`。 返回路径：L115的`completion()`。
+- `test_http_failures_are_actionable_redacted_and_never_retried`（L135–L158）：接收`settings`、`configured`、`status`、`code`、`retryable`、`caplog`。 控制顺序：L152断言`not result["ok"] and result["code"] == code and result["phase"] == "request"`；L153断言`result["retryable"] is retryable and result["http_status"] == status`；L154断言`len(requests) == result["attempts"] == 1`；L155断言`SECRET not in json.dumps(result) + caplog.text`；L156断言`len(result["trace_id"]) == 32`；L157按`status == 403`分支；L158断言`"中间网关" in result["message"]`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_http_failures_are_actionable_redacted_and_never_retried.handle`（L141–L147）：接收`request`。 调用`requests.append`、`httpx.Response`。 返回路径：L143的`httpx.Response( status, headers={"location": "https://unapproved.example/v1"}, json={"erro…`。
+- `test_transport_errors_do_not_echo_exception_text`（L164–L176）：接收`settings`、`configured`、`exception`、`code`。 控制顺序：L175断言`result["code"] == code and result["retryable"]`；L176断言`len(calls) == 1 and SECRET not in json.dumps(result)`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_errors_do_not_echo_exception_text.handle`（L168–L170）：接收`request`。 控制顺序：L170抛异常，停止当前正常路径。 调用`calls.append`、`exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_typed_proxy_and_certificate_failures_survive_sdk_wrapping`（L187–L209）：接收`settings`、`configured`、`kind`、`code`、`caplog`。 控制顺序：L206断言`result["code"] == code and result["retryable"] is False`；L207断言`"http_status" not in result`；L208断言`len(calls) == 1`；L209断言`SECRET not in json.dumps(result) + caplog.text`。 调用`ModelConnectionTester(settings, httpx.MockTransport(handle)).test`、`ModelConnectionTester`、`httpx.MockTransport`、`command`、`len`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_typed_proxy_and_certificate_failures_survive_sdk_wrapping.handle`（L192–L201）：接收`request`。 控制顺序：L194按`kind == "proxy"`分支；L195抛异常，停止当前正常路径；L197抛异常，停止当前正常路径；L199按`kind == "proxy_certificate"`分支；L200抛异常，停止当前正常路径；L201抛异常，停止当前正常路径。 调用`calls.append`、`httpx.ProxyError`、`ssl.SSLCertVerificationError`、`httpx.ConnectError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_classification_does_not_infer_from_text_or_loop`（L212–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216断言`transport_failure(error) is None`；L218断言`transport_failure(error) is None`。 调用`httpx.ConnectError`、`transport_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_model_output_is_not_reported_as_connected`（L230–L238）：接收`settings`、`configured`、`content`、`finish`、`code`。 控制顺序：L237断言`not result["ok"] and result["phase"] == "validation" and result["code"] == code`；L238断言`SECRET not in json.dumps(result)`。 调用`ModelConnectionTester( settings, httpx.MockTransport(lambda reque…`、`ModelConnectionTester`、`httpx.MockTransport`、`completion`、`command`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_duplicate_request_is_cached_and_stale_configuration_cannot_call`（L241–L254）：接收`settings`、`configured`。 控制顺序：L249断言`tester.test(request) == first and len(calls) == 1`；L254断言`len(calls) == 1`。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`command`、`tester.test`、`len`、`pytest.raises`、`request.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_concurrent_probe_is_blocked_before_second_model_call`（L257–L278）：接收`settings`、`configured`。 控制顺序：L270断言`started.wait(5)`；L278断言`running.result()["ok"]`。 调用`threading.Event`、`ModelConnectionTester`、`httpx.MockTransport`、`ThreadPoolExecutor`、`executor.submit`、`command`、`started.wait`、`pytest.raises`、`tester.test`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_concurrent_probe_is_blocked_before_second_model_call.handle`（L261–L264）：接收`request`。 控制顺序：L263断言`release.wait(5)`。 调用`started.set`、`release.wait`、`completion`。 返回路径：L264的`completion()`。
+- `test_missing_configuration_never_uses_network`（L281–L286）：接收`settings`。 控制顺序：L286断言`result["code"] == "invalid_configuration" and result["attempts"] == 0`。 调用`ModelConnectionTester(settings, httpx.MockTransport(unexpected)).…`、`ModelConnectionTester`、`httpx.MockTransport`、`command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_configuration_never_uses_network.unexpected`（L282–L283）：接收`request`。 控制顺序：L283抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation`（L289–L333）：接收`settings`、`configured`、`monkeypatch`。 控制顺序：L307断言`client.post("/settings/models/test", json=body).status_code == 401`；L309断言`client.post( "/settings/models/test", json=body, headers={"origin": "https://evil.exa…`；L315遍历`( {**body, "confirm_cost": False}, {**body, "stage": SECRET}, {**…`；L321断言`response.status_code == 422 and SECRET not in response.text`；L322断言`client.post( "/settings/models/test", json={**body, "expected_revision": "stale"} ).s…`；L328断言`not calls`；L330断言`response.status_code == 200 and response.json()["ok"]`；L331断言`response.headers["cache-control"] == "no-store"`。后续分支沿下方源码相同行号继续阅读。 调用`ModelConnectionTester`、`httpx.MockTransport`、`calls.append`、`completion`、`monkeypatch.setattr`、`FastAPI`、`register_model_settings_routes`、`command(saved["revision"]).model_dump`、`command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_test_route_requires_auth_origin_saved_revision_and_explicit_cost_confirmation.auth`（L300–L302）：接收`request`。用本机Dex真实签发的JWT访问本机API创建密钥，不伪造token，也不向云身份服务注册账号。 控制顺序：L301按`request.headers.get("authorization") != "Bearer local-test-token"`分支；L302抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_model_connection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L288。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_model_connection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L333。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10150`。本段原文以LF换行结束。
+本段原始字节数：`11731`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_model_connection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "37a936277740d836603f49e430703e9e188447b7a53c761f6fa14562c98a41ff"} -->
+<!-- learning-source: {"path": "tests/test_model_connection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60c3624d9fa591e40d031df7f41da0571559af714bea6c65b8354548c6df2fae"} -->
 ````python
 # tests/test_model_connection.py
 """Offline connection probes: real adapter, mocked transport, no paid calls."""
 
 import json
+import ssl
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -199,6 +203,8 @@ def test_http_failures_are_actionable_redacted_and_never_retried(
     assert len(requests) == result["attempts"] == 1
     assert SECRET not in json.dumps(result) + caplog.text
     assert len(result["trace_id"]) == 32
+    if status == 403:
+        assert "中间网关" in result["message"]
 
 
 @pytest.mark.parametrize(
@@ -217,6 +223,48 @@ def test_transport_errors_do_not_echo_exception_text(settings, configured, excep
     )
     assert result["code"] == code and result["retryable"]
     assert len(calls) == 1 and SECRET not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "kind,code",
+    [
+        ("proxy", "proxy_connection_failed"),
+        ("certificate", "tls_certificate_verification_failed"),
+        ("proxy_certificate", "tls_certificate_verification_failed"),
+    ],
+)
+def test_typed_proxy_and_certificate_failures_survive_sdk_wrapping(
+    settings, configured, kind, code, caplog
+):
+    calls = []
+
+    def handle(request):
+        calls.append(request)
+        if kind == "proxy":
+            raise httpx.ProxyError("403 " + SECRET, request=request)
+        try:
+            raise ssl.SSLCertVerificationError(1, SECRET)
+        except ssl.SSLCertVerificationError as cause:
+            if kind == "proxy_certificate":
+                raise httpx.ProxyError(SECRET, request=request) from cause
+            raise httpx.ConnectError(SECRET, request=request) from cause
+
+    result = ModelConnectionTester(settings, httpx.MockTransport(handle)).test(
+        command(configured[1]["revision"])
+    )
+    assert result["code"] == code and result["retryable"] is False
+    assert "http_status" not in result
+    assert len(calls) == 1
+    assert SECRET not in json.dumps(result) + caplog.text
+
+
+def test_transport_classification_does_not_infer_from_text_or_loop():
+    from workbench.model_diagnostics import transport_failure
+
+    error = httpx.ConnectError("certificate verify failed; CONNECT 403; " + SECRET)
+    assert transport_failure(error) is None
+    error.__cause__ = error
+    assert transport_failure(error) is None
 
 
 @pytest.mark.parametrize(

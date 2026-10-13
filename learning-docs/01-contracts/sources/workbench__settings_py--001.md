@@ -21,30 +21,30 @@
 - `ModelProfile`（L74–L104）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_http`；类型约束/数据库列参数以完整定义为准。
 - `ModelProfile.validate_endpoint`（L86–L93）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L90抛异常，停止当前正常路径；L91按`not self.model.strip() or not self.api_key.get_secret_value().strip()`分支；L92抛异常，停止当前正常路径。 调用`validate_model_url`、`ValueError`、`self.model.strip`、`self.api_key.get_secret_value().strip`、`self.api_key.get_secret_value`。 返回路径：L93的`self`。
 - `ModelProfile.public`（L95–L104）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L96的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L107–L314）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_model_http`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`module_coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`capability_execution_enabled`、`capability_profile_directory`、`capability_browser_image`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L199–L200）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L200的`local_http_url(value)`。
-- `Settings.only_local_databases`（L204–L205）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L205的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L209–L210）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L210的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L213–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L214的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L219–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L221遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_configuration`（L224–L229）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L229的`configuration`。
-- `Settings._remember_model_keys`（L231–L236）：接收`configuration`。 控制顺序：L233遍历`(configuration.default, *configuration.stages.values())`；L235按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L238–L239）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L239的`self.model_configuration().profile(stage)`。
-- `Settings.require_model`（L241–L243）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.models_ready`（L245–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L249的`False`；L250的`True`。
-- `Settings.review_enabled`（L253–L254）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L254的`self.model_configuration().review_enabled`。
-- `Settings.redaction_secrets`（L256–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L264遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L272按`value`分支。 调用`self.model_configuration`、`set`、`getattr(self, field).get_secret_value`、`getattr`、`values.add`、`sorted`。 返回路径：L274的`sorted((value for value in values if value), key=len, reverse=True)`。
-- `Settings.redact`（L276–L279）：接收`text`。 控制顺序：L277遍历`self.redaction_secrets()`。 调用`self.redaction_secrets`、`text.replace`。 返回路径：L279的`text`。
-- `Settings.redact_fragments`（L281–L299）：接收`fragments`。 源码说明：Hide all pieces of a newly registered secret in historical SSE replay.。 控制顺序：L285遍历`self.redaction_secrets()`；L287在`start >= 0`成立时循环；L291遍历`fragments`。 调用`"".join`、`self.redaction_secrets`、`joined.find`、`spans.append`、`len`、`result.append`、`any`。 返回路径：L299的`result`。
-- `Settings.redact_data`（L301–L314）：接收`value`。 源码说明：Redact JSON string leaves and keys before escaping; preserve inputs.。 控制顺序：L303按`isinstance(value, str)`分支；L305按`isinstance(value, dict)`分支；L310按`isinstance(value, list)`分支；L312按`isinstance(value, tuple)`分支。 调用`isinstance`、`self.redact`、`self.redact_data`、`value.items`、`tuple`。 返回路径：L304的`self.redact(value)`；L306的`{ self.redact(key) if isinstance(key, str) else key: self.redact_data(item) for key, item …`；L311的`[self.redact_data(item) for item in value]`。
+- `Settings`（L107–L323）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`allow_insecure_model_http`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`module_coding_engine`、`mini_swe_enabled`、`mini_swe_max_tokens`、`mini_swe_max_cost_usd`、`mini_swe_billing_mode`、`mini_swe_zero_billing_ack`、`mini_swe_zero_billing_endpoint`、`mini_swe_usd_per_million_tokens`、`mini_swe_timeout`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`capability_execution_enabled`、`capability_profile_directory`、`capability_browser_image`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L208–L209）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L209的`local_http_url(value)`。
+- `Settings.only_local_databases`（L213–L214）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L214的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L218–L219）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L219的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L222–L226）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L223的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L228–L231）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L230遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_configuration`（L233–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L238的`configuration`。
+- `Settings._remember_model_keys`（L240–L245）：接收`configuration`。 控制顺序：L242遍历`(configuration.default, *configuration.stages.values())`；L244按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L247–L248）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L248的`self.model_configuration().profile(stage)`。
+- `Settings.require_model`（L250–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.models_ready`（L254–L259）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L258的`False`；L259的`True`。
+- `Settings.review_enabled`（L262–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L263的`self.model_configuration().review_enabled`。
+- `Settings.redaction_secrets`（L265–L283）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L273遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L281按`value`分支。 调用`self.model_configuration`、`set`、`getattr(self, field).get_secret_value`、`getattr`、`values.add`、`sorted`。 返回路径：L283的`sorted((value for value in values if value), key=len, reverse=True)`。
+- `Settings.redact`（L285–L288）：接收`text`。 控制顺序：L286遍历`self.redaction_secrets()`。 调用`self.redaction_secrets`、`text.replace`。 返回路径：L288的`text`。
+- `Settings.redact_fragments`（L290–L308）：接收`fragments`。 源码说明：Hide all pieces of a newly registered secret in historical SSE replay.。 控制顺序：L294遍历`self.redaction_secrets()`；L296在`start >= 0`成立时循环；L300遍历`fragments`。 调用`"".join`、`self.redaction_secrets`、`joined.find`、`spans.append`、`len`、`result.append`、`any`。 返回路径：L308的`result`。
+- `Settings.redact_data`（L310–L323）：接收`value`。 源码说明：Redact JSON string leaves and keys before escaping; preserve inputs.。 控制顺序：L312按`isinstance(value, str)`分支；L314按`isinstance(value, dict)`分支；L319按`isinstance(value, list)`分支；L321按`isinstance(value, tuple)`分支。 调用`isinstance`、`self.redact`、`self.redact_data`、`value.items`、`tuple`。 返回路径：L313的`self.redact(value)`；L315的`{ self.redact(key) if isinstance(key, str) else key: self.redact_data(item) for key, item …`；L320的`[self.redact_data(item) for item in value]`。
 
 </details>
 
-**创建路径：** `workbench/settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L314。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L323。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12567`。本段原文以LF换行结束。
+本段原始字节数：`13130`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9e2ffd3dc099dfd980b9040905f0d9af161804028522d956568ae581822074a4"} -->
+<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f7899c02df202a6b880c9bdb9c8a2d7ca817cb57936a404624ae570da294c7da"} -->
 ````python
 # workbench/settings.py
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
@@ -215,6 +215,15 @@ class Settings(BaseSettings):
     tool_timeout: int = Field(default=180, ge=10, le=900)
     coding_engine: Literal["bounded", "aider"] = "bounded"
     module_coding_engine: Literal["structured", "openhands"] = "structured"
+    mini_swe_enabled: bool = False
+    mini_swe_max_tokens: int = Field(default=2000000, ge=1000, le=2000000)
+    mini_swe_max_cost_usd: float = Field(default=10, ge=0, le=100)
+    mini_swe_billing_mode: Literal["metered", "declared_free"] = "metered"
+    mini_swe_zero_billing_ack: bool = False
+    mini_swe_zero_billing_endpoint: str = ""
+    # Operator-provided conservative maximum tariff, never guessed model pricing.
+    mini_swe_usd_per_million_tokens: float = Field(default=0, ge=0, le=10000)
+    mini_swe_timeout: int = Field(default=180, ge=10, le=900)
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
     retrieval_engine: Literal["local", "continue"] = "local"

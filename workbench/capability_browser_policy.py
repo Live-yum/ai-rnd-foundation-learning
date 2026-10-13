@@ -25,6 +25,25 @@ WORKFLOWS = {
 }
 
 
+def approved_manual_module_scope():
+    """User-approved 2026-10-11 extension, not a workflow-wide name allowance."""
+    env = os.environ
+    head, ref = env.get("GITHUB_SHA", ""), env.get("GITHUB_REF", "")
+    return (
+        env.get("GITHUB_WORKFLOW") == "Manual real-model customer acceptance"
+        and env.get("GITHUB_JOB") == "mini-swe-sla"
+        and env.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and env.get("GITHUB_RUN_ATTEMPT") == "1"
+        and env.get("LIVE_SCENARIO") == "mini-swe-sla"
+        and bool(re.fullmatch(r"[a-f0-9]{40}", head))
+        and env.get("REVIEWED_SHA") == head
+        and env.get("GITHUB_WORKFLOW_SHA") == head
+        and bool(re.fullmatch(r"refs/heads/[A-Za-z0-9._/-]+", ref))
+        and env.get("GITHUB_WORKFLOW_REF")
+        == "Live-yum/ai-rnd-foundation-learning/.github/workflows/real-model.yml@" + ref
+    )
+
+
 def selected_policy():
     selected = os.environ.get("CAPABILITY_BROWSER_APPROVED_POLICY", "")
     if not selected:
@@ -33,7 +52,7 @@ def selected_policy():
         selected != POLICY_SHA256
         or os.environ.get("GITHUB_ACTIONS") != "true"
         or os.environ.get("GITHUB_REPOSITORY") != "Live-yum/ai-rnd-foundation-learning"
-        or os.environ.get("GITHUB_WORKFLOW") not in WORKFLOWS
+        or not (os.environ.get("GITHUB_WORKFLOW") in WORKFLOWS or approved_manual_module_scope())
         or not re.fullmatch(r"[1-9][0-9]{0,19}", os.environ.get("GITHUB_RUN_ID", ""))
     ):
         raise ValueError("Reviewed browser policy requires its approved Actions scope")

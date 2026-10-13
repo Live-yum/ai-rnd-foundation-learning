@@ -10,19 +10,51 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L165。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L296。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6559`。本段原文以LF换行结束。
+本段原始字节数：`13464`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1b4fefea4a7d275641e7f7b83b0fa8c10e58424c307627616c8798d178e5fccc"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19c7e8c98db992145b347401823868c347f6f57d6da6e51b4fd698286acce3cf"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
 on:
   workflow_dispatch:
     inputs:
+      scenario:
+        description: Reviewed acceptance scope; mini-SWE uses HTTPS and its own explicit USD ceiling
+        type: choice
+        options: [legacy, mini-swe-sla]
+        default: legacy
+      billing_mode:
+        description: Metered pricing or explicit user-confirmed no-charge service
+        type: choice
+        options: [metered, declared_free]
+        default: metered
+      mini_swe_output_mode:
+        description: mini-swe-sla only; strict is a compatibility trial, never an automatic fallback
+        type: choice
+        options: [json_object, json_schema]
+        default: json_object
+      confirm_no_charge:
+        description: I confirm this exact service has no charges for this test
+        type: boolean
+        default: false
+      test_ca:
+        description: Test-client-only CA; caddy-ip is pinned to 170.106.181.109:8317
+        type: choice
+        options: [system, caddy-ip]
+        default: system
+      max_cost_usd:
+        description: Authorized total USD ceiling for this manual mini-SWE run (greater than 0, maximum 10)
+        type: string
+        default: '0'
+      usd_per_million_tokens:
+        description: Conservative USD price per million input OR output tokens; zero only for confirmed declared_free mode
+        type: string
+        default: '0'
       reviewed_sha:
-        description: Exact reviewed commit for the bounded model-feedback repair job
+        description: Exact reviewed commit SHA for mini-SWE or the bounded model-feedback repair job
         type: string
         required: false
         default: ''
@@ -39,7 +71,7 @@ concurrency:
 jobs:
   model-feedback:
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      github.event_name == 'workflow_dispatch' && inputs.scenario != 'mini-swe-sla' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       github.ref == 'refs/heads/fix/model-feedback-history' &&
       github.run_attempt == 1
@@ -80,7 +112,7 @@ jobs:
           retention-days: 7
   real-model:
     if: >-
-      github.event_name == 'workflow_dispatch' &&
+      github.event_name == 'workflow_dispatch' && inputs.scenario != 'mini-swe-sla' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/complete-platform-acceptance' || github.ref == 'refs/heads/feat/real-model-acceptance' || github.ref == 'refs/heads/feat/customer-service-acceptance')
     environment: rnd
@@ -180,6 +212,105 @@ jobs:
         with:
           name: customer-ui-${{ matrix.template }}-${{ github.sha }}
           path: reports/real-model/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+  mini-swe-sla:
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.scenario == 'mini-swe-sla' &&
+      github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.run_attempt == 1
+    environment: rnd
+    env:
+      LIVE_SCENARIO: ${{ inputs.scenario }}
+      LIVE_MINI_SWE_OUTPUT_MODE: ${{ inputs.mini_swe_output_mode }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
+      LIVE_TEST_CA: ${{ inputs.test_ca }}
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      LIVE_MAX_COST_USD: ${{ inputs.max_cost_usd }}
+      LIVE_USD_PER_MILLION_TOKENS: ${{ inputs.usd_per_million_tokens }}
+      BASE_URL: ${{ vars.BASE_URL }}
+      MODE: ${{ vars.MODE }}
+      PLAYWRIGHT_BROWSERS_PATH: '0'
+      PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+      PRODUCT_VERIFY_BROWSER_CHANNEL: 'chrome'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Validate exact dispatch HTTPS endpoint and explicit budget without a model key
+        run: uv run python -m scripts.ci_live_modules --preflight
+      - name: Require strict unauthenticated TLS before any provider key is available
+        run: uv run python -m scripts.live_test_client
+      - name: Verify offline live-acceptance contracts
+        env:
+          LIVE_BILLING_MODE: metered
+          LIVE_TEST_CA: system
+          LIVE_ZERO_BILLING_ACK: 'false'
+        run: uv run pytest -q tests/test_ci_live_modules.py tests/test_live_test_client.py
+      - name: Install the isolated pinned Worker
+        run: uv sync --project tools/mini-swe --python 3.12 --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Require sandboxed browser readiness before building the local service
+        run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Build immutable networkless browser worker in this same job
+        run: |
+          docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
+          echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
+      - name: Require real browser network resource and cleanup proof in this same job
+        run: uv run python -m scripts.ci_capability_browser_isolation
+      - name: Create the local control plane with random local credentials
+        run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
+      - name: Build pinned release locally and lock immutable images
+        run: uv run python -m scripts.daytona_local images --directory .data/daytona-capability
+      - name: Build the offline snapshot in the local registry
+        run: uv run python -m scripts.daytona_capability_profile prepare
+      - name: Start local API, Runner, Dex, database, registry and storage
+        run: uv run python -m scripts.daytona_capability_profile up
+      - name: Authenticate through real local Dex and API
+        run: uv run python -m scripts.daytona_bootstrap auth --directory .data/daytona-capability
+      - name: Register the prebuilt snapshot without any hosted service
+        run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
+      - name: Require positive fixed-application isolation profile and real HTTP browser database restart
+        run: uv run python -m scripts.ci_capability_profile
+      - name: Require real adversarial isolation and resource enforcement before source admission
+        run: uv run python -m scripts.ci_capability_security
+      - name: Run real mini-SWE edits and independent fresh-ZIP acceptance
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+        run: uv run python -m scripts.ci_live_modules
+      - name: Stop this local test deployment without deleting persistent volumes
+        if: always()
+        run: |
+          if test -f .data/daytona-capability/compose.capability.lock.yaml; then
+            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-capability -f .data/daytona-capability/compose.capability.lock.yaml down
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-mini-swe-sla-${{ github.sha }}-${{ github.run_id }}
+          # Only the exact sanitized JSON files below; never upload .data itself.
+          include-hidden-files: true
+          path: |
+            reports/live-modules/summary.json
+            reports/live-tls.json
+            reports/capability-browser-isolation.json
+            reports/capability-browser-memory-diagnostic.json
+            .data/daytona-capability/api-build-observation.json
           if-no-files-found: error
           retention-days: 7
 ````

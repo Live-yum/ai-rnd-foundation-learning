@@ -24,29 +24,29 @@
 - `feedback_snapshot.diagnostic`（L188–L228）：接收`item`。 控制顺序：L191按`"source" in item`分支；L193遍历`( "targets", "target", "attribute", "expected", "actual", "missin…`；L204按`key in item`分支；L206按`type(item.get("count")) is int and 0 <= item["count"] <= 100000`分支；L208按`isinstance(item.get("sources"), list)`分支。 调用`item.get`、`isinstance`、`source_location`、`value`、`type`、`record.get`、`len`。 返回路径：L228的`result`。
 - `trusted_event`（L271–L300）：接收`env`、`event`。 源码说明：Bind every receipt and every credential-bearing request to the checked-out head.。 控制顺序：L279按`env.get("GITHUB_EVENT_NAME") == "pull_request"`分支。 调用`require`、`env.get`、`bool`、`re.fullmatch`、`event.get`、`event.get("label", {}).get`、`pr.get("head", {}).get("repo", {}).get`、`pr.get("head", {}).get`、`pr.get`等。 返回路径：L294的`{ "repository": REPOSITORY, "head_sha": head, "run_id": env.get("GITHUB_RUN_ID", ""), "run…`。
 - `acceptance_settings`（L303–L355）：接收`env`、`directory`。 控制顺序：L304遍历`("BASE_URL", "MODE", "API_KEY")`；L353遍历`STAGES`。 调用`require`、`isinstance`、`env.get`、`bool`、`env[name].strip`、`env["BASE_URL"].strip().rstrip`、`env["BASE_URL"].strip`、`env["MODE"].strip`、`SecretStr`等。 返回路径：L355的`settings`。
-- `BoundedTransport`（L358–L457）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedTransport.__init__`（L361–L367）：接收`settings`。 调用`httpx.HTTPTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.handle_request`（L369–L451）：接收`request`。 控制顺序：L373按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L390抛异常，停止当前正常路径；L403遍历`response.iter_bytes()`；L405按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L406抛异常，停止当前正常路径；L429按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L451的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
-- `BoundedTransport.close`（L453–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedTransport.shutdown`（L456–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway`（L460–L512）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ObservedGateway.__init__`（L461–L464）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ObservedGateway.complete`（L466–L499）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L488按`stage in {"plan", "recommend", "requirement"}`分支；L494按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L499的`result`。
-- `ObservedGateway.receipt_trace`（L501–L512）：接收`run_id`。 控制顺序：L505遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L508按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L512的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
-- `diagnostic_facts`（L515–L542）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L518遍历`details[:8]`；L519按`not isinstance(detail, dict)`分支；L523按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L525遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L530按`isinstance(values, dict)`分支；L539按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L542的`retained`。
-- `failure_events`（L545–L573）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L548遍历`range(4)`；L550按`not events`分支；L553遍历`events`；L554按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L559遍历`("stage", "code", "request_id", "response_id", "attempt")`；L561按`isinstance(value, str)`分支；L563按`type(value) is int`分支；L566按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L570的`failures`；L573的`failures`。
-- `verify_delivery`（L576–L624）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L606的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
-- `aggregate`（L627–L652）：接收`cases`、`results`。 控制顺序：L628按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L632遍历`cases`；L634按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L631的`False`；L651的`False`；L652的`True`。
-- `run_suite`（L655–L781）：接收`settings`、`directory`、`binding`。 控制顺序：L710遍历`cases`；L712遍历`assignments.items()`；L714按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L748按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L750按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L772的`summary`。
-- `main`（L784–L842）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L792按`args.validate_fixtures`分支；L819按`binding and (REPORTS / "summary.json").is_file()`分支；L821按`saved.get("run_identity") == binding`分支；L842抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport`（L358–L459）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedTransport.__init__`（L361–L369）：接收`settings`、`ca_mode`。 调用`TestServiceTransport`、`Counter`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.handle_request`（L371–L453）：接收`request`。 控制顺序：L375按`not ( self.run_id and self.stage in MODEL_STAGES and request.method == "POST" and str…`分支；L392抛异常，停止当前正常路径；L405遍历`response.iter_bytes()`；L407按`len(payload) > MAX_MODEL_CONTENT_BYTES`分支；L408抛异常，停止当前正常路径；L431按`self.schema is not None and response.status_code == 200`分支。 调用`json.loads`、`request.read`、`self.settings.model_for`、`str`、`body.get`、`all`、`type`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L453的`httpx.Response(response.status_code, headers=headers, content=bytes(payload))`。
+- `BoundedTransport.close`（L455–L456）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedTransport.shutdown`（L458–L459）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway`（L462–L514）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ObservedGateway.__init__`（L463–L466）：接收`settings`、`store`、`transport`、`cases`。 调用`super().__init__`、`super`、`feedback_vocabulary`、`suite_cases`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ObservedGateway.complete`（L468–L501）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L490按`stage in {"plan", "recommend", "requirement"}`分支；L496按`stage == "plan"`分支。 调用`key.split`、`re.fullmatch`、`digest`、`payload.get`、`trace.update`、`feedback_snapshot`、`self.traces.append`、`super().complete`、`super`。 返回路径：L501的`result`。
+- `ObservedGateway.receipt_trace`（L503–L514）：接收`run_id`。 控制顺序：L507遍历`reversed(records[-(MAX_MODEL_CALLS + 1) :])`；L510按`used + size > MAX_TRACE_BYTES - 100`分支。 调用`reversed`、`record.items`、`len`、`json.dumps(item, ensure_ascii=False).encode`、`json.dumps`、`retained.append`、`list`。 返回路径：L514的`{"items": list(reversed(retained)), "omitted": len(records) - len(retained)}`。
+- `diagnostic_facts`（L517–L544）：接收`details`。 源码说明：Keep existing schema facts and allowlisted numeric JSON diagnostics, not text.。 控制顺序：L520遍历`details[:8]`；L521按`not isinstance(detail, dict)`分支；L525按`isinstance(category, str) and category in JSON_DIAGNOSTIC_CATEGORIES`分支；L527遍历`( ("position", ("line", "column", "offset")), ("lengths", ("chara…`；L532按`isinstance(values, dict)`分支；L541按`numbers`分支。 调用`isinstance`、`detail.get`、`type`、`values.get`、`retained.append`。 返回路径：L544的`retained`。
+- `failure_events`（L547–L575）：接收`store`、`run_id`、`settings`。 源码说明：Keep bounded diagnostics already authored by the platform, never response text.。 控制顺序：L550遍历`range(4)`；L552按`not events`分支；L555遍历`events`；L556按`event["kind"] not in {"model_failure", "assistant_failed"}`分支；L561遍历`("stage", "code", "request_id", "response_id", "attempt")`；L563按`isinstance(value, str)`分支；L565按`type(value) is int`分支；L568按`len(json.dumps(details, ensure_ascii=False)) <= 3000`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`store.events`、`settings.redact_data`、`data.get`、`diagnostic.get`、`isinstance`、`type`、`diagnostic_facts`、`len`等。 返回路径：L572的`failures`；L575的`failures`。
+- `verify_delivery`（L578–L626）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L608的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
+- `aggregate`（L629–L654）：接收`cases`、`results`。 控制顺序：L630按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L634遍历`cases`；L636按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L633的`False`；L653的`False`；L654的`True`。
+- `run_suite`（L657–L784）：接收`settings`、`directory`、`binding`、`ca_mode`、`billing`。 控制顺序：L713遍历`cases`；L715遍历`assignments.items()`；L717按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L751按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L753按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L775的`summary`。
+- `main`（L787–L855）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L795按`args.validate_fixtures`分支；L832按`binding and (REPORTS / "summary.json").is_file()`分支；L834按`saved.get("run_identity") == binding`分支；L855抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L846。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L859。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35779`。本段原文以LF换行结束。
+本段原始字节数：`36337`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b554c0382b99d0e353a72551540eb4cd1260dd2d735de191b8c7184c8a003001"} -->
+<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "05f412c735596ddb89c773f2cfaa612a7ff1e622e094dd4db9ea390b2c02ba3b"} -->
 ````python
 # scripts/ci_template_projects.py
 """Bounded real-model batch acceptance for three independent project scenarios.
@@ -409,9 +409,11 @@ def acceptance_settings(env, directory):
 class BoundedTransport(httpx.BaseTransport):
     """Count actual provider requests, including failures, without retaining their text."""
 
-    def __init__(self, settings):
+    def __init__(self, settings, ca_mode="system"):
         self.settings = settings
-        self.inner = httpx.HTTPTransport(retries=0, trust_env=False)
+        from scripts.live_test_client import TestServiceTransport
+
+        self.inner = TestServiceTransport(settings.base_url, ca_mode)
         self.run_id, self.stage, self.schema = None, None, None
         self.logical_key = None
         self.calls = Counter()
@@ -703,7 +705,7 @@ def aggregate(cases, results):
     return True
 
 
-def run_suite(settings, directory, binding):
+def run_suite(settings, directory, binding, *, ca_mode="system", billing=None):
     cases = suite_cases()
     summary = {
         "version": 1,
@@ -721,10 +723,11 @@ def run_suite(settings, directory, binding):
         "scope": "Six-entity business complexity; not production load or native-template acceptance",
         "native_templates_exercised": [],
         "model_review_exercised": False,
+        "billing": billing or {"mode": "legacy_unspecified"},
         "cases": [],
     }
     REPORTS.mkdir(parents=True, exist_ok=True)
-    transport = BoundedTransport(settings)
+    transport = BoundedTransport(settings, ca_mode)
     store = Store(settings)
     try:
         store.migrate()
@@ -861,10 +864,20 @@ def main():
             ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
         ).stdout.strip()
         require(checkout == binding["head_sha"], "checkout_head_mismatch")
+        from scripts.live_test_client import zero_billing
+
+        ca_mode = os.environ.get("LIVE_TEST_CA", "system")
+        billing = (
+            zero_billing(os.environ)
+            if ca_mode == "caddy-ip" or os.environ.get("LIVE_BILLING_MODE") == "declared_free"
+            else None
+        )
         with tempfile.TemporaryDirectory(prefix="rnd-three-projects-") as temporary:
             settings = acceptance_settings(os.environ, Path(temporary))
             write_json(REPORTS / "summary.json", {**summary, "run_identity": binding})
-            summary = run_suite(settings, Path(temporary), binding)
+            summary = run_suite(
+                settings, Path(temporary), binding, ca_mode=ca_mode, billing=billing
+            )
     except Exception as error:
         # If execution already wrote per-case evidence, preserve it on controller failure.
         if binding and (REPORTS / "summary.json").is_file():

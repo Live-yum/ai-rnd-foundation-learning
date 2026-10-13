@@ -771,6 +771,31 @@ def body_nodes(node):
 
 def purpose(name):
     path = Path(name)
+    relocated = {
+        "core/contracts": "domain",
+        "planning/feature_planner": "feature_planning",
+        "planning/contracts": "capability_contracts",
+        "production/graph": "flow",
+        "production/dispatcher": "orchestration",
+        "production/worker": "runtime",
+        "infrastructure/persistence/store": "store",
+        "infrastructure/llm/gateway": "llm",
+        "generation/python_basic": "generator",
+        "interfaces/http": "api",
+        "interfaces/cli": "cli",
+        "requirements/source_ledger": "requirement_sources",
+        "requirements/coverage": "requirement_coverage",
+        "requirements/clarification": "clarification",
+        "requirements/intent": "requirement_intent",
+        "coding/bounded": "coding",
+        "coding/aider": "aider_tool",
+        "coding/candidates": "capability_editing",
+    }
+    relative = name.removeprefix("workbench/").removesuffix(".py")
+    if name.startswith("workbench/") and relative in relocated:
+        return purpose("workbench/" + relocated[relative] + ".py")
+    if name.startswith("ui/src/features/") and path.suffix == ".vue":
+        return purpose("ui/src/components/" + path.name)
     if name.startswith("ui/"):
         roles = {
             "ui/src/main.ts": "创建Vue应用并挂载顶层组件，统一导入界面样式。",

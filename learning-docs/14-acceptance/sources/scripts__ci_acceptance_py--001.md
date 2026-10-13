@@ -15,20 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `file_hashes`（L55–L63）：接收`folder`。 控制顺序：L57遍历`sorted(folder.rglob("*"))`；L58按`path.is_symlink()`分支；L59抛异常，停止当前正常路径；L60按`path.is_file() and path != folder / "stage.json"`分支。 调用`sorted`、`folder.rglob`、`path.is_symlink`、`ValueError`、`path.is_file`、`safe_name`、`path.relative_to(folder).as_posix`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`等。 返回路径：L63的`result`。
-- `stage_binding`（L66–L71）：接收`binding`、`name`。 调用`name.endswith`。 返回路径：L67的`{ **binding, "stage": name, "platform": "win32" if name.endswith("windows-latest") else "l…`。
-- `receipt`（L74–L88）：接收`name`、`folder`。 控制顺序：L75按`name not in STAGES`分支；L76抛异常，停止当前正常路径；L78按`(folder / "stage.json").exists()`分支；L79抛异常，停止当前正常路径；L80遍历`STAGES[name]`；L81按`not (folder / relative).is_file() or not (folder / relative).stat().st_size`分支；L82抛异常，停止当前正常路径；L84按`binding["platform"] != sys.platform`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`folder.mkdir`、`(folder / "stage.json").exists`、`(folder / relative).is_file`、`(folder / relative).stat`、`stage_binding`、`run_binding`、`write_json`、`file_hashes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_jobs`（L91–L100）：接收`needs`。 控制顺序：L92按`not isinstance(needs, dict) or set(needs) != REQUIRED_JOBS`分支；L93抛异常，停止当前正常路径；L99按`failed`分支；L100抛异常，停止当前正常路径。 调用`isinstance`、`set`、`ValueError`、`needs.items`、`value.get`、`", ".join`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `aggregate`（L103–L202）：接收`folder`、`needs`、`binding`、`count`。 控制顺序：L107按`type(count) is not int or not 1 <= count <= 64`分支；L108抛异常，停止当前正常路径；L121按`not folder.is_dir() or {path.name for path in folder.iterdir()} != expected`分支；L122抛异常，停止当前正常路径；L123遍历`STAGES`；L126按`digest(stage) != digest( {"version": 1, "binding": stage_binding(binding, name), "fil…`分支；L129抛异常，停止当前正常路径；L130按`any( not (path / item).is_file() or not (path / item).stat().st_size for item in STAG…`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_jobs`、`type`、`ValueError`、`expected.update`、`range`、`folder.is_dir`、`folder.iterdir`、`read_json`、`digest`等。 返回路径：L197的`{ "passed": True, "binding": binding, "groups": summaries, "required_jobs": sorted(REQUIRE…`。
-- `main`（L205–L221）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214按`args.command == "receipt"`分支。 调用`argparse.ArgumentParser`、`parser.add_subparsers`、`commands.add_parser`、`stage.add_argument`、`sorted`、`Path`、`gate.add_argument`、`parser.parse_args`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `file_hashes`（L57–L65）：接收`folder`。 控制顺序：L59遍历`sorted(folder.rglob("*"))`；L60按`path.is_symlink()`分支；L61抛异常，停止当前正常路径；L62按`path.is_file() and path != folder / "stage.json"`分支。 调用`sorted`、`folder.rglob`、`path.is_symlink`、`ValueError`、`path.is_file`、`safe_name`、`path.relative_to(folder).as_posix`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`等。 返回路径：L65的`result`。
+- `stage_binding`（L68–L73）：接收`binding`、`name`。 调用`name.endswith`。 返回路径：L69的`{ **binding, "stage": name, "platform": "win32" if name.endswith("windows-latest") else "l…`。
+- `receipt`（L76–L90）：接收`name`、`folder`。 控制顺序：L77按`name not in STAGES`分支；L78抛异常，停止当前正常路径；L80按`(folder / "stage.json").exists()`分支；L81抛异常，停止当前正常路径；L82遍历`STAGES[name]`；L83按`not (folder / relative).is_file() or not (folder / relative).stat().st_size`分支；L84抛异常，停止当前正常路径；L86按`binding["platform"] != sys.platform`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`folder.mkdir`、`(folder / "stage.json").exists`、`(folder / relative).is_file`、`(folder / relative).stat`、`stage_binding`、`run_binding`、`write_json`、`file_hashes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_jobs`（L93–L102）：接收`needs`。 控制顺序：L94按`not isinstance(needs, dict) or set(needs) != REQUIRED_JOBS`分支；L95抛异常，停止当前正常路径；L101按`failed`分支；L102抛异常，停止当前正常路径。 调用`isinstance`、`set`、`ValueError`、`needs.items`、`value.get`、`", ".join`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `aggregate`（L105–L204）：接收`folder`、`needs`、`binding`、`count`。 控制顺序：L109按`type(count) is not int or not 1 <= count <= 64`分支；L110抛异常，停止当前正常路径；L123按`not folder.is_dir() or {path.name for path in folder.iterdir()} != expected`分支；L124抛异常，停止当前正常路径；L125遍历`STAGES`；L128按`digest(stage) != digest( {"version": 1, "binding": stage_binding(binding, name), "fil…`分支；L131抛异常，停止当前正常路径；L132按`any( not (path / item).is_file() or not (path / item).stat().st_size for item in STAG…`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_jobs`、`type`、`ValueError`、`expected.update`、`range`、`folder.is_dir`、`folder.iterdir`、`read_json`、`digest`等。 返回路径：L199的`{ "passed": True, "binding": binding, "groups": summaries, "required_jobs": sorted(REQUIRE…`。
+- `main`（L207–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216按`args.command == "receipt"`分支。 调用`argparse.ArgumentParser`、`parser.add_subparsers`、`commands.add_parser`、`stage.add_argument`、`sorted`、`Path`、`gate.add_argument`、`parser.parse_args`、`receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L225。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L227。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8595`。本段原文以LF换行结束。
+本段原始字节数：`8660`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "53557fade9cb1a7d9e6a9ea2710da44fe828892c6e9b8ce3ba6a3238988c072a"} -->
+<!-- learning-source: {"path": "scripts/ci_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4c3f0f8e712cd150681a519598e8212c224a86637453a1071f1ea33a731f579a"} -->
 ````python
 # scripts/ci_acceptance.py
 """Always-run acceptance gate: failed dependencies or incomplete evidence are never green."""
@@ -50,6 +50,7 @@ from scripts.ci_evidence import (
 )
 
 REQUIRED_JOBS = {
+    "production-v2",
     "frontend",
     "source-validation",
     "tests",
@@ -63,6 +64,7 @@ REQUIRED_JOBS = {
     "browser",
 }
 STAGES = {
+    "production-v2": ["production-v2.xml"],
     "frontend": [],
     "source-validation-ubuntu-latest": ["protocol.xml"],
     "source-validation-windows-latest": ["protocol.xml"],

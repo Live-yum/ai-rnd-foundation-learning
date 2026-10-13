@@ -46,6 +46,7 @@ MODULE_STAGE = {
     "conversation": 3,
     "llm": 3,
     "model_protocol": 3,
+    "native_schema": 3,
     "model_connection": 3,
     "model_diagnostics": 3,
     "streaming": 3,
@@ -80,6 +81,7 @@ MODULE_STAGE = {
     "template_standards": 1,
     "feature_planning": 4,
     "capability_sandbox": 7,
+    "capability_diagnostics": 7,
     "capability_startup_paths": 7,
     "owned_lifecycle": 4,
     "symbols": 4,
@@ -141,6 +143,25 @@ MODULE_STAGE = {
 
 def stage_for(name):
     path = Path(name)
+    if name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.py"}:
+        return 2
+    domains = {
+        "workbench/core/": 1,
+        "workbench/projects/": 2,
+        "workbench/planning/": 4,
+        "workbench/requirements/": 3,
+        "workbench/specifications/": 4,
+        "workbench/coding/": 7,
+        "workbench/production/": 7,
+        "workbench/interfaces/": 8,
+        "workbench/generation/": 6,
+        "workbench/infrastructure/persistence/": 2,
+        "workbench/infrastructure/llm/": 3,
+        "workbench/infrastructure/sandbox/": 12,
+    }
+    for prefix, stage in domains.items():
+        if name.startswith(prefix):
+            return stage
     if name.startswith(("workbench/web/", "ui/")):
         return 8
     if name.startswith("scripts/extension_oracles/"):
@@ -207,6 +228,7 @@ def test_stage(name):
         return 10
     stem = Path(name).stem.removeprefix("test_")
     early = {
+        "native_schema": 3,
         "field_predicate_semantics": 3,
         "generation_preservation": 6,
         "product_browser_gate": 6,

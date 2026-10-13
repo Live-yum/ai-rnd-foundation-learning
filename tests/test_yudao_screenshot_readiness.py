@@ -330,3 +330,54 @@ def test_fixture_failure_prints_sanitized_capture_summary(tmp_path, monkeypatch,
         'Native screenshot capture summary: {"available": true, '
         '"capture_attempts": 2, "phase": "native-pixel-capture"}\n'
     )
+
+
+@pytest.mark.parametrize("boundary", ["before-send", "in-flight"])
+def test_capture_attempt_counts_only_issued_requests_at_deadline(tmp_path, boundary):
+    """Deterministic clock/CDP unit test; real pixel assertions remain unchanged."""
+    import shutil
+
+    from workbench.settings import ROOT
+    from workbench.tools import run_command
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required")
+    driver = r"""
+const assert=require('node:assert/strict'), fs=require('node:fs');
+const [modulePath,file,boundary]=process.argv.slice(1);
+const {captureNativeScreenshot}=require(modulePath);
+let now=0, issued=0, detached=false;
+const originalNow=Date.now;Date.now=()=>now;
+const state={ready:true,signature:'stable',fonts:[],font_faces:[],visible_text_nodes:1,images_ready:true};
+const session={detach:async()=>{detached=true;},send:async name=>{
+ if(name==='Page.getLayoutMetrics')return {cssContentSize:{width:700,height:400}};
+ assert.equal(name,'Page.captureScreenshot');issued++;now=1001;
+ throw new Error('Native screenshot native-pixel-capture did not become ready');
+}};
+const page={evaluate:async()=>state,locator:()=>({first:()=>({waitFor:async()=>{}})}),
+ context:()=>({newCDPSession:async()=>session}),viewportSize:()=>{
+  if(boundary==='before-send')now=1001;
+  return {width:700,height:400};
+ }};
+(async()=>{try{
+ await assert.rejects(captureNativeScreenshot(page,file,50,1000),/native-pixel-capture did not become ready/);
+ const diagnostic=JSON.parse(fs.readFileSync(file+'.capture.json','utf8'));
+ assert.equal(issued,boundary==='before-send'?0:1);
+ assert.equal(diagnostic.capture_attempts,issued);
+ assert.equal(diagnostic.phase,'native-pixel-capture');
+ assert(!fs.existsSync(file));assert(detached);
+}finally{Date.now=originalNow;}})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    run_command(
+        [
+            node,
+            "-e",
+            driver,
+            str(ROOT / "scripts/business_yudao_browser.cjs"),
+            str(tmp_path / "capture.png"),
+            boundary,
+        ],
+        ROOT,
+        timeout=10,
+    )

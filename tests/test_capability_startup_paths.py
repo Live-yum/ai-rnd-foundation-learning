@@ -2,6 +2,7 @@
 
 import ast
 import copy
+import inspect
 import json
 import os
 import shlex
@@ -9,11 +10,19 @@ import shutil
 import stat
 import struct
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
 
+from workbench import capability_sandbox
 from workbench import capability_startup_paths as diagnostic
+
+
+def absent_sandbox(identifier):
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned fixture absent")
 
 
 def helpers(loader):
@@ -474,6 +483,11 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
         },
         "native": native,
         "CheckFailure": CheckFailure,
+        "checkpoint": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint"]
+        .default,
+        "BusinessCheckFailure": capability_sandbox.BusinessCheckFailure,
+        "CheckpointExpired": capability_sandbox.CheckpointExpired,
     }
     exec(compile(ast.Module([start], []), "actual-start-function", "exec"), scope)
     with pytest.raises(CheckFailure, match="健康检查"):
@@ -676,18 +690,20 @@ def test_invalid_probe_roles_do_not_execute(monkeypatch, role):
 @pytest.mark.parametrize("failed_role", ["backend", "frontend"])
 @pytest.mark.parametrize("status", [1, None, True, "1", -1, 256, "wrong-command", "missing"])
 @pytest.mark.parametrize("phase", ["initial", "restart"])
+@pytest.mark.parametrize("handle_failure", [False, True])
 def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
-    monkeypatch, failed_role, status, phase
+    monkeypatch, failed_role, status, phase, handle_failure
 ):
-    from contextlib import closing, contextmanager
+    from contextlib import closing, contextmanager, nullcontext
     from pathlib import Path
 
     from daytona import SessionExecuteRequest
     from test_capability_startup_session import native_plan as complete_native_plan
 
+    from workbench.capability_isolation import IsolationUnavailable
     from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
     from workbench.capability_sandbox import startup_command_exit_facts, startup_failure_diagnostic
-    from workbench.capability_verification import CheckFailure
+    from workbench.capability_verification import BrowserFailure, CheckFailure
 
     source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
     tree = ast.parse(source.read_text())
@@ -727,7 +743,24 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
             i for i in range(begin, len(parent.body)) if isinstance(parent.body[i], ast.With)
         )
         body = [outer.body[first], *parent.body[begin : finish + 1]]
-    tested = ast.Try(body=body, handlers=[], orelse=[], finalbody=outer.finalbody)
+    # Copy the actual enclosing initialization with the cleanup block. A synthetic
+    # default here would hide changes to the production scope this fixture tests.
+    verify = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_verify")
+    initializers = [
+        n
+        for n in verify.body[: verify.body.index(outer)]
+        if isinstance(n, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "diagnostic_error" for target in n.targets
+        )
+    ]
+    assert len(initializers) == 1
+    tested = ast.Try(
+        body=body,
+        handlers=outer.handlers if handle_failure else [],
+        orelse=[],
+        finalbody=outer.finalbody,
+    )
     plan = complete_native_plan()
     plan.obligations = []  # Authored native diagnostic fixture, not atomic SQLite acceptance.
     plan.runtime.health_path = "/private-health-sentinel"
@@ -828,7 +861,9 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "shlex": shlex,
         "preview_url": lambda url, sid, port: "https://owned.invalid/" + str(port),
         "httpx": SimpleNamespace(Client=Client),
-        "time": SimpleNamespace(monotonic=lambda: next(moments), sleep=lambda *a: None),
+        "time": SimpleNamespace(
+            monotonic=lambda: next(moments, time.monotonic()), sleep=lambda *a: None
+        ),
         "read_command_output": read,
         "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
         "startup_failure_diagnostic": startup_failure_diagnostic,
@@ -838,23 +873,47 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
         "FRONTEND_PORT": FRONTEND_PORT,
         "frontend_start_command": frontend_start_command,
         "CheckFailure": CheckFailure,
+        "checkpoint": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint"]
+        .default,
+        "BusinessCheckFailure": capability_sandbox.BusinessCheckFailure,
+        "CheckpointExpired": capability_sandbox.CheckpointExpired,
+        "checkpoint_deadline": inspect.signature(capability_sandbox._verify)
+        .parameters["checkpoint_deadline"]
+        .default,
         "closing": closing,
         "oracle_adapter": None,
         "client": SimpleNamespace(
-            delete=lambda actual, **k: events.append(("deleted", actual is sandbox))
+            delete=lambda actual, **k: events.append(("deleted", actual is sandbox)),
+            get=absent_sandbox,
         ),
         "write_json": lambda *a: None,
         "receipt_path": "unused",
     }
-    with pytest.raises(CheckFailure, match="健康检查"):
+    failures = []
+    scope.update(
+        IsolationUnavailable=IsolationUnavailable,
+        BrowserFailure=BrowserFailure,
+        record_failure=lambda path, error: failures.append((path, error)),
+    )
+    with nullcontext() if handle_failure else pytest.raises(CheckFailure, match="健康检查"):
         exec(
             compile(
-                ast.fix_missing_locations(ast.Module([tested], [])),
+                ast.fix_missing_locations(ast.Module([*initializers, tested], [])),
                 "actual-sequential-start-and-cleanup",
                 "exec",
             ),
             scope,
         )
+    if handle_failure:
+        assert len(failures) == 1
+        assert failures[0][0] == scope["receipt_path"]
+        assert failures[0][1] is scope["diagnostic_error"]
+        assert isinstance(scope["diagnostic_error"], CheckFailure)
+        assert "健康检查" in scope["receipt"]["error"]
+    else:
+        assert scope["diagnostic_error"] is None
+        assert failures == []
     state = scope["receipt"]["startup_diagnostic"]
     assert state["target"] == {
         "role": failed_role,

@@ -10,6 +10,8 @@
 - [templates/standards/yudao-vben.md](sources/templates__standards__yudao-vben_md--001.md)：项目根配置或说明；1 段
 - [workbench/business_contracts.py](sources/workbench__business_contracts_py--001.md)：业务合同的类型和交叉校验；1 段
 - [workbench/catalog.py](sources/workbench__catalog_py--001.md)：技术栈组合目录；1 段
+- [workbench/core/__init__.py](sources/workbench__core____init___py--001.md)：项目根配置或说明；1 段
+- [workbench/core/contracts.py](sources/workbench__core__contracts_py--001.md)：模型、网页、数据库之间的数据合同；1 段
 - [workbench/domain.py](sources/workbench__domain_py--001.md)：模型、网页、数据库之间的数据合同；1 段
 - [workbench/errors.py](sources/workbench__errors_py--001.md)：区分暂停预算和超出能力；1 段
 - [workbench/model_settings.py](sources/workbench__model_settings_py--001.md)：本机模型配置的版本化保存与密钥边界；1 段

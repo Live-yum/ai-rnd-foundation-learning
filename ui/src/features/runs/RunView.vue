@@ -1,0 +1,1213 @@
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { Modal } from 'ant-design-vue'
+import {
+  ApartmentOutlined,
+  FileTextOutlined,
+  MessageOutlined,
+  ArrowUpOutlined,
+  ArrowRightOutlined,
+  CheckOutlined,
+  ReloadOutlined,
+  DownloadOutlined,
+  SafetyCertificateOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons-vue'
+import {
+  state,
+  openRun,
+  refreshRun,
+  mutationKey,
+  clearMutationKey,
+  reportError,
+  acknowledgeReview,
+} from '../../state'
+import { api, ApiError, downloadRun } from '../../api'
+import {
+  activeStage,
+  canAct,
+  formatDate,
+  gateIdentity,
+  gatePayload,
+  shortId,
+  stages,
+  statusColor,
+  statusLabel,
+  terminal,
+  milestoneStatus,
+  runNextAction,
+} from '../../presentation'
+import DataDocument from '../plans/DataDocument.vue'
+import Questionnaire from '../approvals/Questionnaire.vue'
+import StageTimeline from '../runs/StageTimeline.vue'
+const props = defineProps<{ view: string; runId: string }>()
+const emit = defineEmits<{ navigate: [path: string] }>()
+let mounted = true
+let actionDialog: ReturnType<typeof Modal.confirm> | undefined
+function cancelActionDialog() {
+  actionDialog?.destroy()
+  actionDialog = undefined
+}
+onBeforeUnmount(() => {
+  mounted = false
+  busyDraft.value = ''
+  answer.value = ''
+  cancelActionDialog()
+})
+watch(() => [props.runId, props.view], cancelActionDialog)
+function sameTarget(id: string, hash: string) {
+  return mounted && props.runId === id && state.run?.id === id && location.hash === hash
+}
+function jumpLatest() {
+  autoScroll.value = true
+  chatEnd.value?.scrollIntoView({ behavior: 'smooth' })
+}
+const busyDraft = ref('')
+const answer = ref(''),
+  submitting = ref(false),
+  reviewed = ref(false),
+  tab = ref('overview'),
+  showDetails = ref(false),
+  detailTab = ref('report'),
+  activeReports = ref<string[]>([]),
+  eventStage = ref('all'),
+  eventKind = ref('all'),
+  eventLimit = ref(30),
+  expandedEvents = ref(new Set<number>()),
+  chatEnd = ref<HTMLElement>(),
+  autoScroll = ref(true)
+const run = computed(() => state.run),
+  gate = computed(() => run.value?.pending),
+  project = computed(() => state.projects.find((p) => p.id === run.value?.project_id)),
+  stageIndex = computed(() => activeStage(run.value, state.events))
+const blocked = computed(() => {
+  const b = gate.value?.data?.blocked || gate.value?.data?.requirement?.unsupported
+  return Array.isArray(b) ? b : b ? [b] : []
+})
+const capabilityConflicts = computed(() => gate.value?.data?.capability_conflicts || [])
+const capabilityAlternatives = computed(() => [
+  ...new Set(capabilityConflicts.value.flatMap((item: any) => item.alternatives || [])),
+])
+const hasScopeChoices = computed(() =>
+  gate.value?.data?.requirement?.question_items?.some(
+    (item: any) => Array.isArray(item.options) && item.options.length > 0,
+  ),
+)
+const canSubmit = computed(
+  () => state.online && state.authenticated && !submitting.value && !state.stale,
+)
+const modelReady = computed(() => !!state.settings?.ready)
+const modelFreeApproval = computed(() => gate.value?.needs_model?.approve === false)
+const partialScope = computed(() => gate.value?.data?.delivery_kind === 'partial')
+const scopeLabel = computed(() => (partialScope.value ? '部分交付范围' : '已审阅交付范围'))
+const isQuestions = computed(() => gate.value?.actions.includes('answer'))
+const completeCount = computed(
+  () =>
+    stages.filter((_, index) => milestoneStatus(index, run.value, state.events) === 'done').length,
+)
+const gateTitle = computed(() =>
+  gate.value?.stage === 'requirements'
+    ? '先对齐需求，再往前走'
+    : ['design', 'extension_design'].includes(gate.value?.stage || '')
+      ? '把方案摊开，一起检查'
+      : gate.value?.stage === 'extension_scope'
+        ? partialScope.value
+          ? '明确部分成果和仍未完成的范围'
+          : '核对验收范围再准备交付'
+        : ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
+          ? '先看验证证据，再确认交付'
+          : '一起把需求说清楚',
+)
+function designData(key: string) {
+  const d = gate.value?.data || {}
+  const plan = d.extension?.baseline || d.plan || {}
+  if (key === 'atomic') return { source_units: d.source_units, atomic_review: d.atomic_review }
+  if (key === 'data') return plan.entities || plan
+  if (key === 'tasks') return d.extension?.implementation?.tasks || d.tasks || {}
+  if (key === 'interfaces')
+    return (
+      d.extension?.implementation?.scenarios || plan.endpoints || plan.api || plan.business || plan
+    )
+  return (
+    d.extension || {
+      ...plan,
+      ...(d.native_normalization?.field_mappings?.length
+        ? { native_normalization: d.native_normalization }
+        : {}),
+    }
+  )
+}
+const reviewData = computed(() => {
+  const d = gate.value?.data || {}
+  if (gate.value?.stage === 'requirements' || gate.value?.stage === 'clarification')
+    return d.requirement || d
+  if (['design', 'extension_design'].includes(gate.value?.stage || '')) return designData(tab.value)
+  return d
+})
+const downloadable = computed(() => ['READY', 'SOURCE_READY'].includes(run.value?.status || ''))
+const evidence = computed(
+  () => state.report['verification.json'] || state.report['daytona-verification.json'],
+)
+const delivery = computed(() =>
+  ['delivery', 'extension_scope', 'extension_delivery'].includes(gate.value?.stage || '')
+    ? gate.value?.data
+    : state.report['delivery.json'] || run.value?.result || {},
+)
+const extensionCoverageNotice = computed(() => {
+  if (delivery.value?.delivery_kind === 'partial')
+    return '本次仅交付明确批准的部分成果。完整原始需求、外部服务和未验证迁移仍保留，下载不代表这些义务已完成。'
+  const level =
+    delivery.value?.coverage_level || state.report['extension-coverage.json']?.coverage_level
+  if (level === 'reviewed-executable-contract')
+    return '仅证明已审阅可执行合同通过运行验收，不代表全部原始需求的语义均已证明。请对照原始来源与验收合同查看覆盖范围。'
+  if (level === 'bounded-business-slice')
+    return '仅完成独立业务切片验收；完整原始需求与外部服务义务仍有未完成项，未经明确部分范围批准不能交付。'
+  if (level === 'operator-reviewed-atomic-contracts')
+    return '通过的是人工明确审阅的原子业务合同及独立物理读回，不保证任意自然语言需求的语义完整性。'
+  return ''
+})
+const eventsReversed = computed(() =>
+  [...state.events]
+    .filter((event) => {
+      if (event.kind === 'assistant_delta') return false
+      const kind = ['stage', 'step'].includes(event.kind)
+        ? 'stage'
+        : event.kind.startsWith('assistant_')
+          ? 'model'
+          : 'status'
+      if (eventKind.value !== 'all' && eventKind.value !== kind) return false
+      if (eventStage.value === 'all') return true
+      const name = event.data.name || event.data.stage || ''
+      return stages
+        .find((stage) => stage.key === eventStage.value)
+        ?.steps.some((step) => name === step || name.startsWith(step + ':'))
+    })
+    .reverse(),
+)
+const visibleEvents = computed(() => eventsReversed.value.slice(0, eventLimit.value))
+watch([eventStage, eventKind], () => {
+  eventLimit.value = 30
+  expandedEvents.value.clear()
+})
+function openReport(name: string) {
+  detailTab.value = 'report'
+  activeReports.value = [name]
+  showDetails.value = true
+}
+function toggleEvent(id: number, event: Event) {
+  if ((event.target as HTMLDetailsElement).open) expandedEvents.value.add(id)
+  else expandedEvents.value.delete(id)
+}
+watch(
+  () => gateIdentity(gate.value),
+  () => {
+    reviewed.value = false
+    answer.value = ''
+    tab.value = 'overview'
+  },
+)
+watch(
+  () => state.messages.map((m) => m.content).join('').length,
+  () => {
+    if (autoScroll.value)
+      nextTick(() => chatEnd.value?.scrollIntoView({ block: 'end', behavior: 'smooth' }))
+  },
+)
+const route = (view: string) => emit('navigate', `run/${props.runId}/${view}`)
+function phaseLabel(phase: string) {
+  return (
+    ({ started: '开始执行', waiting: '等待确认', completed: '已完成', failed: '失败' } as any)[
+      phase
+    ] || phase
+  )
+}
+function eventSummary(event: any) {
+  const data = event.data || {}
+  if (event.kind === 'stage')
+    return `${data.name} · 第 ${data.round || 1} 轮 · ${phaseLabel(data.phase)}`
+  if (event.kind === 'step') return `${data.name} 步骤已完成，产物已保存`
+  if (event.kind === 'status')
+    return `${statusLabel(data.status)}${data.error ? ' · ' + data.error : ''}`
+  if (event.kind === 'delegation') return data.enabled ? '智能推荐持续委托已启用' : '已恢复人工确认'
+  if (event.kind.startsWith('assistant_'))
+    return `${data.stage || '模型'} · ${event.kind === 'assistant_completed' ? '响应已完成，' + (data.validation === 'validated' ? '结构校验通过' : '等待校验') : event.kind === 'assistant_failed' ? '响应未通过校验或请求失败' : '开始响应'}`
+  return data.message || data.name || event.kind
+}
+async function decide(action: string, text = '', answers?: any[]) {
+  if (!gate.value || !canSubmit.value || !canAct(run.value, action)) return
+  if (
+    !modelReady.value &&
+    action !== 'reject' &&
+    !(action === 'approve' && modelFreeApproval.value)
+  )
+    return
+  if (action === 'approve' && !reviewed.value) return
+  const current = structuredClone(JSON.parse(JSON.stringify(gate.value))),
+    body = gatePayload(current, action, text, answers),
+    targetId = props.runId,
+    targetHash = location.hash,
+    fingerprint = targetId + JSON.stringify(body)
+  submitting.value = true
+  state.error = ''
+  try {
+    await api(`/runs/${targetId}/resume`, {
+      method: 'POST',
+      body,
+      key: mutationKey(fingerprint),
+    })
+    clearMutationKey(fingerprint)
+    if (!sameTarget(targetId, targetHash)) return
+    answer.value = ''
+    await openRun(targetId)
+    if (!sameTarget(targetId, targetHash)) return
+    acknowledgeReview()
+    state.notice = action === 'reject' ? '已提交拒绝决定' : '已提交，后台将继续这一轮运行'
+    if (action !== 'reject') route('conversation')
+  } catch (e) {
+    if (!sameTarget(targetId, targetHash)) return
+    if (e instanceof ApiError && e.status === 409) {
+      await refreshRun().catch(reportError)
+      state.stale = true
+      reviewed.value = false
+      state.error = '当前审核版本已变化。请重新阅读最新内容，再手动决定；不会自动重试。'
+    } else reportError(e)
+  } finally {
+    submitting.value = false
+  }
+}
+function reject() {
+  const targetId = props.runId,
+    targetHash = location.hash,
+    identity = gateIdentity(gate.value)
+  actionDialog = Modal.confirm({
+    title: '拒绝当前版本？',
+    content: '将记录你的拒绝决定，并结束当前流程。历史记录仍会保留。',
+    okText: '确认拒绝',
+    cancelText: '返回审核',
+    okButtonProps: { danger: true },
+    onOk: () => {
+      if (!sameTarget(targetId, targetHash) || gateIdentity(gate.value) !== identity) return
+      return decide('reject')
+    },
+  })
+}
+async function retry() {
+  if (
+    submitting.value ||
+    !state.online ||
+    (!modelReady.value && !run.value?.model_free_retry) ||
+    gate.value
+  )
+    return
+  submitting.value = true
+  const targetId = props.runId,
+    targetHash = location.hash,
+    f = 'retry:' + targetId + run.value?.status
+  try {
+    await api(`/runs/${targetId}/retry`, { method: 'POST', key: mutationKey(f) })
+    clearMutationKey(f)
+    if (sameTarget(targetId, targetHash)) await refreshRun()
+  } catch (e) {
+    if (sameTarget(targetId, targetHash)) reportError(e)
+  } finally {
+    submitting.value = false
+  }
+}
+function automation() {
+  if (!run.value || terminal(run.value) || submitting.value || !state.online) return
+  if (!run.value.auto_mode && capabilityConflicts.value.length) return
+  const enabled = !run.value.auto_mode,
+    targetId = props.runId,
+    targetHash = location.hash,
+    identity = gateIdentity(gate.value)
+  const submit = async () => {
+    if (!sameTarget(targetId, targetHash) || gateIdentity(gate.value) !== identity) return
+    submitting.value = true
+    const f = 'automation:' + targetId + enabled
+    try {
+      await api(`/runs/${targetId}/automation`, {
+        method: 'POST',
+        body: { enabled, accepted: enabled },
+        key: mutationKey(f),
+      })
+      clearMutationKey(f)
+      if (!sameTarget(targetId, targetHash)) return
+      await refreshRun()
+      acknowledgeReview()
+    } catch (e) {
+      if (sameTarget(targetId, targetHash)) reportError(e)
+    } finally {
+      submitting.value = false
+    }
+  }
+  if (enabled)
+    actionDialog = Modal.confirm({
+      title: '启用智能推荐持续委托？',
+      content:
+        'AI 会决定未明确项，并自动批准本轮后续设计与交付，不再逐项询问。测试门禁仍有效。可随时恢复人工确认，但不会撤销已经执行的动作。',
+      okText: '确认授权',
+      cancelText: '保持人工确认',
+      onOk: submit,
+    })
+  else void submit()
+}
+async function download() {
+  if (!downloadable.value || submitting.value || !state.online) return
+  submitting.value = true
+  try {
+    await downloadRun(props.runId)
+  } catch (e) {
+    reportError(e)
+  } finally {
+    submitting.value = false
+  }
+}
+function send() {
+  const action = canAct(run.value, 'answer') ? 'answer' : 'revise'
+  if (!answer.value.trim()) return
+  void decide(action, answer.value.trim())
+}
+function keydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+    event.preventDefault()
+    send()
+  }
+}
+function reread() {
+  acknowledgeReview()
+  reviewed.value = false
+  route('review')
+}
+</script>
+<template>
+  <div v-if="state.loading" class="page">
+    <a-skeleton active :paragraph="{ rows: 9 }" />
+    <p class="muted">正在读取保存的运行、对话与事件…</p>
+  </div>
+  <div v-else-if="!run" class="page">
+    <a-empty description="暂时无法读取这轮运行"
+      ><a-button @click="openRun(runId)">重新读取</a-button></a-empty
+    >
+  </div>
+  <div
+    v-else
+    class="run-view"
+    data-testid="run-workspace"
+    :data-run-id="run.id"
+    :data-status="run.status"
+  >
+    <header class="run-heading">
+      <div>
+        <h1>
+          {{ project?.title || '项目 ' + shortId(run.project_id) }}
+          <a-tag :color="statusColor(run.status)">{{ statusLabel(run.status) }}</a-tag>
+        </h1>
+        <p>
+          项目 {{ shortId(run.project_id) }} <span>·</span> 当前运行 {{ shortId(run.id) }}
+          <span>·</span> {{ run.template }}
+        </p>
+      </div>
+      <div class="header-actions">
+        <a-button @click="showDetails = true"
+          ><FileTextOutlined aria-hidden="true" />项目资料</a-button
+        >
+        <a-button
+          type="text"
+          :disabled="
+            terminal(run) ||
+            submitting ||
+            !state.online ||
+            (!run.auto_mode && (!modelReady || capabilityConflicts.length > 0))
+          "
+          @click="automation"
+          >{{ run.auto_mode ? '恢复人工确认' : '了解并开启智能推荐' }}</a-button
+        >
+      </div>
+    </header>
+    <nav class="run-tabs" aria-label="当前运行视图">
+      <button
+        v-for="item in [
+          { key: 'conversation', label: '对话与审批' },
+          { key: 'progress', label: '执行过程' },
+          { key: 'delivery', label: '产物与验收' },
+        ]"
+        :key="item.key"
+        type="button"
+        :class="{ active: view === item.key || (view === 'review' && item.key === 'conversation') }"
+        :aria-current="
+          view === item.key || (view === 'review' && item.key === 'conversation')
+            ? 'page'
+            : undefined
+        "
+        @click="route(item.key)"
+      >
+        {{ item.label }}
+      </button>
+    </nav>
+    <div class="run-context" role="status">
+      <span
+        ><strong>{{ stages[stageIndex].label }}</strong> · {{ runNextAction(run) }}</span
+      ><span class="stream-status"
+        ><span class="status-dot" :class="state.stream === 'connected' ? 'online' : 'warning'" />{{
+          state.stream === 'connected'
+            ? '实时更新'
+            : state.stream === 'connecting'
+              ? '连接中'
+              : '等待重连'
+        }}
+        · {{ formatDate(state.lastSync) }}</span
+      >
+    </div>
+    <div v-if="state.stream === 'reconnecting' || state.stream === 'offline'" class="run-notice">
+      <a-alert
+        type="warning"
+        show-icon
+        message="实时连接已中断，正在保留最后一次数据"
+        description="断开页面连接不会停止后台任务。重新连接后从保存的事件游标继续，不会重复提交操作。"
+        ><template #action><a-button @click="openRun(runId)">重新连接</a-button></template></a-alert
+      >
+    </div>
+    <div v-if="state.stale" class="run-notice">
+      <a-alert
+        type="warning"
+        show-icon
+        message="审核内容已更新，需要重新阅读"
+        description="已禁用旧版本的审批与回答，不会自动提交到新版本。"
+        ><template #action><a-button @click="reread">查看最新版本</a-button></template></a-alert
+      >
+    </div>
+    <div v-if="!modelReady && !modelFreeApproval && !run.model_free_retry" class="run-notice">
+      <a-alert
+        type="warning"
+        show-icon
+        message="模型配置尚未就绪"
+        description="先保存有效配置，再回答、批准或重试。拒绝与恢复人工确认仍可使用。"
+        ><template #action
+          ><a-button @click="emit('navigate', 'settings')">检查配置</a-button></template
+        ></a-alert
+      >
+    </div>
+    <div v-if="['FAILED', 'PAUSED_LIMIT', 'BLOCKED'].includes(run.status)" class="run-notice">
+      <section class="panel recovery-panel">
+        <a-tag :color="statusColor(run.status)">{{ run.status }}</a-tag>
+        <h2>
+          {{
+            run.status === 'PAUSED_LIMIT'
+              ? '预算暂停，当前结果已保存'
+              : run.status === 'BLOCKED'
+                ? '先处理阻塞，再继续这一轮'
+                : '先定位原因，再恢复同一轮运行'
+          }}
+        </h2>
+        <p v-if="capabilityConflicts.length">
+          当前运行与原始目标已保留。请在下方明确实现范围，已有审批不会自动批准新的范围。
+        </p>
+        <p v-else>{{ run.error || '请查看当前关卡与执行证据，确认问题后继续。' }}</p>
+        <details v-if="capabilityConflicts.length && run.error" class="field-hint">
+          <summary>查看恢复诊断</summary>
+          <p>{{ run.error }}</p>
+        </details>
+        <div class="header-actions">
+          <a-button
+            v-if="!gate"
+            type="primary"
+            :loading="submitting"
+            :disabled="!state.online || (!modelReady && !run.model_free_retry)"
+            @click="retry"
+            ><ReloadOutlined aria-hidden="true" />重试当前运行</a-button
+          ><a-button v-else @click="route('conversation')">处理当前关卡</a-button
+          ><a-button @click="emit('navigate', 'settings')">查看模型配置</a-button
+          ><span class="muted">保留运行 ID 与已完成步骤</span>
+        </div>
+      </section>
+    </div>
+    <div v-if="view === 'conversation'" class="conversation-layout">
+      <div class="conversation-main" @wheel="autoScroll = false">
+        <div class="messages" aria-label="研发对话记录">
+          <article
+            v-for="(item, index) in state.messages"
+            :key="item.message_id || item.id || index"
+            class="chat-message"
+            :data-testid="item.role === 'user' ? 'user-message' : 'assistant-message'"
+            :data-validation="item.validation"
+            :data-message-id="item.message_id"
+            :class="item.role === 'user' ? 'user-message' : 'assistant-message'"
+          >
+            <div v-if="item.role !== 'user'" class="assistant-avatar">
+              <ThunderboltOutlined aria-hidden="true" />
+            </div>
+            <div class="message-body">
+              <div v-if="item.role !== 'user'" class="message-meta">
+                <strong>研发助手</strong><span>{{ formatDate(item.created_at) }}</span
+                ><a-tag v-if="item.validation === 'pending'" color="blue">生成中 · 待校验</a-tag
+                ><a-tag v-if="item.validation === 'failed'" color="red">未通过校验</a-tag
+                ><a-tag v-if="item.transport === 'non_streaming'">完整响应</a-tag>
+              </div>
+              <div class="message-text">
+                {{
+                  item.content ||
+                  item.text ||
+                  (item.validation === 'pending'
+                    ? '正在等待模型响应…'
+                    : item.validation === 'failed'
+                      ? '模型调用未完成有效结果，请查看下方诊断。'
+                      : '暂无可展示的摘要')
+                }}<span
+                  v-if="item.validation === 'pending'"
+                  class="typing-cursor"
+                  aria-label="响应生成中"
+                />
+              </div>
+              <section v-if="item.validation === 'failed'" class="failure-diagnostic" role="status">
+                <p>{{ item.diagnostic?.summary || '响应未通过校验或请求失败。' }}</p>
+                <p>
+                  阶段：{{ item.stage || '模型' }} · 环节：{{
+                    item.diagnostic?.phase || 'response_validation'
+                  }}
+                  · 错误码：{{ item.code || 'unknown' }}
+                </p>
+                <p>
+                  追踪 ID：{{ item.diagnostic?.trace_id || item.response_id || item.message_id
+                  }}<span v-if="item.diagnostic?.attempt">
+                    · 第 {{ item.diagnostic.attempt }} 次尝试</span
+                  >
+                </p>
+                <ul v-if="item.diagnostic?.details?.length">
+                  <li v-for="(detail, detailIndex) in item.diagnostic.details" :key="detailIndex">
+                    {{ detail.path?.join('.') || '根对象' }}：{{ detail.type }} ·
+                    {{ detail.message || '字段结构或类型不符合约定' }}
+                  </li>
+                </ul>
+                <p>
+                  {{
+                    item.diagnostic?.retry_hint ||
+                    '先检查模型配置与运行错误，再重试当前运行；已提交回答会保留。'
+                  }}
+                </p>
+              </section>
+              <p v-if="item.validation === 'failed'" class="field-hint">
+                此响应不能作为已批准方案，后续以有效关卡和验证证据为准。
+              </p>
+            </div>
+          </article>
+          <div v-if="!state.messages.length" class="quiet-empty">此轮尚未产生对话记录</div>
+        </div>
+        <div v-if="gate" class="conversation-gate">
+          <section v-if="capabilityConflicts.length" class="panel gate-preview">
+            <div class="section-top">
+              <h2>先确认模板能力与本次范围</h2>
+              <a-tag color="orange">不能自动缩减目标</a-tag>
+            </div>
+            <p>你的原始目标已保留。请明确选择可用的实现方式，或确认需要扩展的范围。</p>
+            <p v-for="(item, index) in capabilityConflicts" :key="index">
+              {{ item.message }}
+            </p>
+            <h3 v-if="!hasScopeChoices">可选路径，需要你明确决定</h3>
+            <ul v-if="!hasScopeChoices">
+              <li v-for="item in capabilityAlternatives" :key="String(item)">{{ item }}</li>
+            </ul>
+            <p class="field-hint">下方答复只提交你填写的选择，不会自动采用任何替代范围。</p>
+          </section>
+          <div v-if="blocked.length && !capabilityConflicts.length" class="blocked-list">
+            <a-alert type="warning" show-icon message="当前仍有需要解决的内容" />
+            <ul>
+              <li v-for="(item, index) in blocked" :key="index">{{ item }}</li>
+            </ul>
+          </div>
+          <Questionnaire
+            v-if="isQuestions"
+            :key="gate.gate_id"
+            :gate="gate"
+            :disabled="!canSubmit || !modelReady"
+            :busy="submitting"
+            @submit="(text, answers) => decide('answer', text, answers)"
+          />
+          <section v-else class="panel gate-preview">
+            <div class="section-top">
+              <h2>{{ gateTitle }}</h2>
+              <a-tag color="gold">等待你确认</a-tag>
+            </div>
+            <p>
+              {{
+                gate.data?.requirement?.summary ||
+                gate.data?.plan?.title ||
+                '当前阶段已产生可审核结果。阅读完整内容后，再决定是否继续。'
+              }}
+            </p>
+            <p class="field-hint">审核版本 v{{ gate.version }} · {{ gate.stage }}</p>
+            <a-button
+              type="primary"
+              size="large"
+              @click="
+                route(
+                  ['delivery', 'extension_delivery'].includes(gate.stage) ? 'delivery' : 'review',
+                )
+              "
+              ><ArrowRightOutlined aria-hidden="true" />查看并审核当前版本</a-button
+            >
+          </section>
+          <a-button
+            v-if="isQuestions && canAct(run, 'reject')"
+            danger
+            type="text"
+            class="question-reject"
+            :disabled="!canSubmit"
+            @click="reject"
+            >拒绝并结束本轮</a-button
+          >
+        </div>
+        <div v-else-if="['RUNNING', 'QUEUED'].includes(run.status)" class="working-note">
+          <span class="pulse-dot" />
+          <div>
+            <strong>{{ run.status === 'QUEUED' ? '已进入队列' : '后台正在串行执行' }}</strong>
+            <p>完成当前步骤后会自动更新。离开页面不会取消运行。</p>
+          </div>
+        </div>
+        <div v-else-if="downloadable" class="info-callout">
+          <CheckOutlined aria-hidden="true" />
+          <div>
+            <strong>{{ statusLabel(run.status) }}</strong>
+            <p>
+              {{
+                run.status === 'SOURCE_READY'
+                  ? '源码包已通过交付确认；这不代表已经完成运行环境验收。'
+                  : '已通过运行级验收及交付确认，可查看报告与下载产物。'
+              }}
+            </p>
+            <a-button type="primary" @click="route('delivery')">查看交付结果</a-button>
+          </div>
+        </div>
+        <form
+          v-if="gate && !isQuestions && (canAct(run, 'revise') || canAct(run, 'answer'))"
+          class="chat-composer"
+          @submit.prevent="send"
+        >
+          <a-textarea
+            v-model:value="answer"
+            aria-label="修改意见或补充需求"
+            placeholder="继续补充需求，或描述想调整的地方…"
+            :bordered="false"
+            :auto-size="{ minRows: 1, maxRows: 8 }"
+            :maxlength="20000"
+            :disabled="!canSubmit || !modelReady"
+            @keydown="keydown"
+          /><a-button
+            type="primary"
+            html-type="submit"
+            aria-label="提交补充内容"
+            :loading="submitting"
+            :disabled="!canSubmit || !modelReady || !answer.trim()"
+            ><ArrowUpOutlined aria-hidden="true"
+          /></a-button>
+        </form>
+        <section
+          v-if="['RUNNING', 'QUEUED'].includes(run.status) || busyDraft"
+          class="local-draft-section"
+        >
+          <div class="chat-composer busy-composer">
+            <a-textarea
+              v-model:value="busyDraft"
+              aria-label="本轮补充草稿（仅保存在当前页面）"
+              placeholder="也可以先记下想补充的内容…"
+              :bordered="false"
+              :auto-size="{ minRows: 2, maxRows: 8 }"
+              :maxlength="20000"
+            />
+            <a-button type="primary" aria-label="当前步骤执行中，暂不可发送" disabled
+              ><ArrowUpOutlined aria-hidden="true"
+            /></a-button>
+          </div>
+          <div class="draft-explanation">
+            <span>{{
+              gate
+                ? '草稿仍保留在本页。请将要提交的内容填入当前问题或修改意见，草稿不会自动发送。'
+                : '当前步骤尚不能接收新回答。你可以先写草稿，出现可回答关卡后再提交。'
+            }}</span
+            ><a-button v-if="busyDraft" type="text" size="small" @click="busyDraft = ''"
+              >清空草稿</a-button
+            >
+          </div>
+        </section>
+        <div ref="chatEnd" />
+        <a-button v-if="!autoScroll" class="jump-latest" @click="jumpLatest">回到最新消息</a-button>
+      </div>
+      <aside class="progress-rail">
+        <div class="section-top">
+          <h3>研发进度</h3>
+          <ApartmentOutlined aria-hidden="true" />
+        </div>
+        <StageTimeline :run="run" :events="state.events" compact />
+        <div class="rail-callout">
+          <span>当前需要你</span
+          ><strong>{{
+            gate
+              ? isQuestions
+                ? '回答当前澄清问题'
+                : '审核当前阶段产物'
+              : ['FAILED', 'PAUSED_LIMIT'].includes(run.status)
+                ? '检查原因后重试'
+                : downloadable
+                  ? '查看交付结果'
+                  : '等待当前步骤结果'
+          }}</strong>
+          <p>{{ gate ? '收到回应后，流程才继续' : '进度依据真实事件更新' }}</p>
+        </div>
+        <p class="field-hint">
+          {{
+            run.auto_mode
+              ? '智能委托已开启，人工复核关卡仍会暂停。'
+              : '人工确认模式：需要你回应时会暂停等待。'
+          }}
+        </p>
+      </aside>
+    </div>
+    <div v-else-if="view === 'review'" class="page review-page">
+      <header class="page-heading">
+        <div>
+          <div class="eyebrow">
+            {{ gate?.stage === 'design' ? 'DESIGN REVIEW' : 'REQUIREMENTS REVIEW' }}
+          </div>
+          <h1>{{ gateTitle }}</h1>
+          <p>审核当前内容与范围，确认后再继续下一阶段。</p>
+        </div>
+        <a-button @click="route('conversation')"
+          ><MessageOutlined aria-hidden="true" />返回对话</a-button
+        >
+      </header>
+      <div v-if="gate" class="review-layout">
+        <article class="panel review-document">
+          <div class="document-title">
+            <div class="eyebrow">{{ gate.stage.toUpperCase() }}</div>
+            <h2>
+              {{ gate.data?.requirement?.summary || gate.data?.plan?.title || project?.title }}
+            </h2>
+            <p>版本 v{{ gate.version }} · AI 生成 / 人工审核</p>
+          </div>
+          <a-alert
+            v-if="gate.stage === 'extension_design'"
+            type="info"
+            show-icon
+            message="本次批准绑定原始来源和独立验收合同。请审阅业务正例、负例、权限及重启读回；源码节点不能更改已批准的验收标准。来源ID覆盖不等于业务完成。"
+          />
+          <section
+            v-if="
+              gate.stage === 'extension_design' && gate.data?.atomic_review?.obligations?.length
+            "
+            class="atomic-source-review"
+          >
+            <a-alert
+              type="warning"
+              show-icon
+              message="请逐条核对原文、原子断言和完整来源声明。批准表示你已确认这些断言与对应原文相关，且被声明完整的来源已穷尽分解；模型和自动模式不能替你确认。"
+            />
+            <DataDocument :data="designData('atomic')" />
+          </section>
+          <a-alert
+            v-if="gate.stage === 'extension_scope'"
+            type="warning"
+            show-icon
+            :message="
+              partialScope
+                ? '此批准仅允许交付当前明确范围的部分成果，不关闭未完成来源、外部服务或迁移义务。'
+                : '此批准绑定已审阅的原子合同与当前独立验收证据，不扩大为任意自然语言语义保证。'
+            "
+          />
+          <section
+            v-if="gate.stage === 'extension_scope' && gate.data?.review_conflicts?.length"
+            class="scope-review-conflicts"
+          >
+            <a-alert
+              type="warning"
+              show-icon
+              message="复核提出的遗漏仍需核实，原文完整性声明已重新打开；批准只接受部分成果。"
+            />
+            <ul>
+              <li v-for="(item, index) in gate.data.review_conflicts" :key="index">{{ item }}</li>
+            </ul>
+          </section>
+          <a-tabs
+            v-if="['design', 'extension_design'].includes(gate.stage)"
+            v-model:active-key="tab"
+          >
+            <a-tab-pane key="overview" tab="架构与模块"
+              ><DataDocument :data="designData('overview')"
+            /></a-tab-pane>
+            <a-tab-pane key="interfaces" tab="接口与业务"
+              ><DataDocument :data="designData('interfaces')"
+            /></a-tab-pane>
+            <a-tab-pane key="data" tab="数据模型"
+              ><DataDocument :data="designData('data')"
+            /></a-tab-pane>
+            <a-tab-pane key="tasks" tab="任务与覆盖"
+              ><DataDocument :data="designData('tasks')"
+            /></a-tab-pane>
+          </a-tabs>
+          <Questionnaire
+            v-else-if="isQuestions"
+            :gate="gate"
+            :disabled="!canSubmit || !modelReady"
+            :busy="submitting"
+            @submit="(text, answers) => decide('answer', text, answers)"
+          /><DataDocument v-else :data="reviewData" />
+        </article>
+        <aside class="review-actions">
+          <div class="panel approval-panel">
+            <a-tag color="gold"
+              >等待{{
+                gate.stage === 'extension_scope'
+                  ? scopeLabel
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '设计'
+                    : '需求'
+              }}确认</a-tag
+            >
+            <h2>
+              这份{{
+                gate.stage === 'extension_scope'
+                  ? scopeLabel
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '方案'
+                    : '需求'
+              }}符合预期吗？
+            </h2>
+            <p>确认后继续串行流程。需要修改时，将带着意见返回需求分析。</p>
+            <a-alert
+              v-if="blocked.length"
+              type="warning"
+              show-icon
+              message="存在阻塞，当前不可批准"
+            />
+            <ul v-if="blocked.length">
+              <li v-for="(item, index) in blocked" :key="index">{{ item }}</li>
+            </ul>
+            <a-checkbox
+              v-if="canAct(run, 'approve')"
+              v-model:checked="reviewed"
+              :disabled="!canSubmit"
+              >{{
+                gate.stage === 'extension_scope'
+                  ? partialScope
+                    ? '我接受当前部分成果，保留全部未完成义务'
+                    : '我已核对当前已审阅合同及交付证据'
+                  : gate.stage === 'extension_design' &&
+                      gate.data?.atomic_review?.obligations?.length
+                    ? '我已核对原文相关性和完整来源的穷尽分解'
+                    : '我已阅读并核对当前版本'
+              }}</a-checkbox
+            ><a-textarea
+              v-if="canAct(run, 'revise')"
+              v-model:value="answer"
+              aria-label="审核修改意见"
+              placeholder="填写具体修改意见…"
+              :auto-size="{ minRows: 3, maxRows: 10 }"
+              :disabled="!canSubmit || !modelReady"
+              :maxlength="20000"
+            /><a-button
+              v-if="gate.actions.includes('approve')"
+              type="primary"
+              size="large"
+              block
+              :loading="submitting"
+              :disabled="
+                !canSubmit ||
+                (!modelReady && !modelFreeApproval) ||
+                !canAct(run, 'approve') ||
+                !reviewed
+              "
+              @click="decide('approve')"
+              >{{
+                gate.stage === 'extension_scope'
+                  ? partialScope
+                    ? '确认部分范围，准备交付包'
+                    : '确认范围，准备交付包'
+                  : ['design', 'extension_design'].includes(gate.stage)
+                    ? '确认设计，开始生成'
+                    : '确认需求，生成计划'
+              }}</a-button
+            >
+            <div class="approval-secondary">
+              <a-button
+                v-if="canAct(run, 'revise')"
+                :loading="submitting"
+                :disabled="!canSubmit || !modelReady || !answer.trim()"
+                @click="decide('revise', answer.trim())"
+                >提交修改意见</a-button
+              ><a-button
+                v-if="canAct(run, 'reject')"
+                danger
+                type="text"
+                :disabled="!canSubmit"
+                @click="reject"
+                >拒绝</a-button
+              >
+            </div>
+            <p class="field-hint">
+              审核版本：v{{ gate.version }}<br />内容摘要：{{ gate.digest.slice(0, 16) }}…
+            </p>
+          </div>
+          <div class="info-callout">
+            <SafetyCertificateOutlined aria-hidden="true" />
+            <p>提交时校验审批版本和内容摘要。内容变化后需刷新重审，避免误批旧方案。</p>
+          </div>
+        </aside>
+      </div>
+      <a-empty v-else description="当前没有等待审核的关卡"
+        ><a-button @click="route('conversation')">返回对话</a-button></a-empty
+      >
+    </div>
+    <div v-else-if="view === 'progress'" class="page progress-page">
+      <header class="page-heading">
+        <div>
+          <div class="eyebrow">EXECUTION & EVIDENCE</div>
+          <h1>执行过程</h1>
+          <p>点击阶段查看相关事件；实际动作、输出与证据会持续保存。</p>
+        </div>
+      </header>
+      <div class="stat-grid">
+        <div class="panel stat">
+          <span>当前状态</span><strong>{{ statusLabel(run.status) }}</strong>
+          <p>{{ stages[stageIndex].label }}</p>
+        </div>
+        <div class="panel stat">
+          <span>已有完成记录的阶段</span><strong>{{ completeCount }} / {{ stages.length }}</strong>
+          <p>按当前版本的真实事件统计</p>
+        </div>
+        <div class="panel stat">
+          <span>当前审核</span><strong>{{ gate ? 'v' + gate.version : '无等待项' }}</strong>
+          <p>{{ gate ? '需要阅读并回应当前版本' : runNextAction(run) }}</p>
+        </div>
+        <div class="panel stat">
+          <span>已保存报告</span><strong>{{ Object.keys(state.report).length }} 份</strong>
+          <p>点击报告查看对应执行证据</p>
+        </div>
+      </div>
+      <div class="progress-columns">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>阶段时间线</h2>
+            <a-button v-if="eventStage !== 'all'" type="link" @click="eventStage = 'all'"
+              >查看全部阶段</a-button
+            >
+          </div>
+          <StageTimeline
+            :run="run"
+            :events="state.events"
+            :selected="eventStage"
+            @select="(key) => (eventStage = key)"
+          />
+        </section>
+        <section class="panel phase-details">
+          <h2>执行证据</h2>
+          <p>阶段完成后，相关报告会出现在这里。</p>
+          <a-button
+            v-for="name in Object.keys(state.report)"
+            :key="name"
+            type="link"
+            @click="openReport(name)"
+            ><FileTextOutlined aria-hidden="true" />{{ name }}</a-button
+          ><a-empty v-if="!Object.keys(state.report).length" description="尚未产生报告" />
+        </section>
+      </div>
+      <section class="panel event-panel">
+        <div class="panel-heading">
+          <div>
+            <h2>
+              事件记录{{
+                eventStage !== 'all'
+                  ? ' · ' + stages.find((stage) => stage.key === eventStage)?.label
+                  : ''
+              }}
+            </h2>
+            <p>最新事件在前 · {{ eventsReversed.length }} 条记录</p>
+          </div>
+          <a-select
+            v-model:value="eventKind"
+            aria-label="筛选事件类型"
+            :options="[
+              { value: 'all', label: '全部事件' },
+              { value: 'stage', label: '阶段执行' },
+              { value: 'model', label: '模型响应' },
+              { value: 'status', label: '状态与决策' },
+            ]"
+          />
+        </div>
+        <div v-if="visibleEvents.length" class="event-list">
+          <article v-for="event in visibleEvents" :key="event.id" class="event-row">
+            <time>{{ formatDate(event.created_at) }}</time
+            ><span class="event-kind">{{ event.kind }}</span>
+            <div>
+              <p>{{ eventSummary(event) }}</p>
+              <details @toggle="(toggle) => toggleEvent(event.id, toggle)">
+                <summary>查看事件数据</summary>
+                <DataDocument v-if="expandedEvents.has(event.id)" :data="event.data" />
+              </details>
+            </div>
+          </article>
+        </div>
+        <a-empty
+          v-else
+          :description="
+            state.events.length
+              ? '当前筛选下没有事件'
+              : '尚未收到执行事件，排队中的任务会在开始后更新'
+          "
+          class="list-empty"
+        />
+        <div v-if="eventsReversed.length > visibleEvents.length" class="panel-footer">
+          <span>已展示 {{ visibleEvents.length }} / {{ eventsReversed.length }} 条</span
+          ><a-button @click="eventLimit += 30">加载更多事件</a-button>
+        </div>
+      </section>
+      <p class="page-footnote">
+        阶段统计与验证通过情况分别呈现。历史失败、返工与未执行项都保留在事件和报告中。
+      </p>
+    </div>
+    <div v-else-if="view === 'delivery'" class="page delivery-page">
+      <header class="page-heading">
+        <div>
+          <div class="eyebrow">DELIVERY REVIEW</div>
+          <h1>先看验证证据，再确认交付</h1>
+          <p>当前状态 {{ run.status }} · {{ shortId(run.id) }}</p>
+        </div>
+        <a-tag :color="statusColor(run.status)">{{ statusLabel(run.status) }}</a-tag>
+      </header>
+      <a-alert
+        :type="run.status === 'READY' ? 'success' : 'info'"
+        show-icon
+        :message="
+          run.status === 'READY'
+            ? '运行级验收与交付确认已完成'
+            : run.status === 'SOURCE_READY'
+              ? delivery?.delivery_kind === 'partial'
+                ? '部分成果交付已确认，完整需求仍未完成'
+                : '源码级交付已确认，运行验收尚未证明'
+              : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
+                ? '验证结果已保存，等待你的交付确认'
+                : '本轮尚未进入交付确认'
+        "
+        :description="
+          downloadable
+            ? '可下载已经过哈希校验的交付包。'
+            : '批准前交付下载保持锁定。交付不等于自动部署或数据迁移。'
+        "
+      />
+      <a-alert
+        v-if="extensionCoverageNotice"
+        class="coverage-notice"
+        type="warning"
+        show-icon
+        :message="extensionCoverageNotice"
+      />
+      <div class="delivery-grid">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>交付产物</h2>
+            <a-tag :color="downloadable ? 'green' : 'gold'">{{
+              downloadable ? '可下载' : '下载锁定'
+            }}</a-tag>
+          </div>
+          <div class="panel-content">
+            <template v-if="Object.keys(delivery).length"
+              ><DataDocument :data="delivery" /></template
+            ><a-empty v-else description="尚无交付产物" /><a-button
+              type="primary"
+              size="large"
+              :loading="submitting"
+              :disabled="!downloadable || !state.online"
+              @click="download"
+              ><DownloadOutlined aria-hidden="true" />{{
+                delivery?.delivery_kind === 'partial' ? '下载部分成果包' : '下载完整交付包'
+              }}</a-button
+            >
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>验证证据</h2>
+            <a-tag>后端原始结果</a-tag>
+          </div>
+          <div class="panel-content">
+            <DataDocument v-if="evidence" :data="evidence" /><a-empty
+              v-else
+              description="尚无验证报告"
+            /><a-button
+              v-if="Object.keys(state.report).length"
+              type="link"
+              @click="showDetails = true"
+              >查看全部报告</a-button
+            >
+            <p class="field-hint">未执行与失败项不计入通过数量。</p>
+          </div>
+        </section>
+      </div>
+      <section class="panel definition-panel">
+        <h2>本次交付的完成定义</h2>
+        <div class="definition-grid">
+          <div class="definition runtime">
+            <h3>READY · 运行级交付</h3>
+            <p>运行验收通过，批准交付后可下载</p>
+          </div>
+          <div class="definition">
+            <h3>SOURCE_READY · 源码级交付</h3>
+            <p>源码级或明确批准的部分成果；查看覆盖报告，不代表完整需求完成或任意环境可运行</p>
+          </div>
+        </div>
+      </section>
+      <section
+        v-if="['delivery', 'extension_delivery'].includes(gate?.stage || '')"
+        class="info-callout delivery-approval"
+      >
+        <div>
+          <h2>你确认这份交付结果吗？</h2>
+          <p>批准时校对版本与交付内容摘要；内容变化会要求重新审核。</p>
+          <a-checkbox v-model:checked="reviewed" :disabled="!canSubmit"
+            >我已阅读本次验收证据与交付等级</a-checkbox
+          >
+        </div>
+        <div class="header-actions">
+          <a-button :disabled="!canSubmit" @click="reject">拒绝交付</a-button
+          ><a-button
+            type="primary"
+            size="large"
+            :loading="submitting"
+            :disabled="
+              !canSubmit ||
+              (!modelReady && !modelFreeApproval) ||
+              !reviewed ||
+              !canAct(run, 'approve')
+            "
+            @click="decide('approve')"
+            >确认交付并开放下载</a-button
+          >
+        </div>
+      </section>
+    </div>
+    <a-drawer v-model:open="showDetails" title="项目资料与执行证据" width="min(760px, 100vw)"
+      ><a-tabs v-model:active-key="detailTab"
+        ><a-tab-pane key="report" tab="报告"
+          ><a-collapse v-if="Object.keys(state.report).length" v-model:active-key="activeReports"
+            ><a-collapse-panel v-for="(report, name) in state.report" :key="name" :header="name"
+              ><DataDocument :data="report" /></a-collapse-panel></a-collapse
+          ><a-empty v-else description="当前尚无报告" /></a-tab-pane
+        ><a-tab-pane key="models" tab="实际模型记录"
+          ><div v-for="(record, index) in state.usedModels" :key="index" class="model-record">
+            <DataDocument :data="record" />
+          </div>
+          <a-empty v-if="!state.usedModels.length" description="尚未产生模型调用记录" /></a-tab-pane
+        ><a-tab-pane key="meta" tab="运行信息"
+          ><a-descriptions bordered :column="1"
+            ><a-descriptions-item label="项目">{{ project?.title }}</a-descriptions-item
+            ><a-descriptions-item label="运行 ID">{{ run.id }}</a-descriptions-item
+            ><a-descriptions-item label="状态">{{ run.status }}</a-descriptions-item
+            ><a-descriptions-item label="模板">{{ run.template }}</a-descriptions-item
+            ><a-descriptions-item label="自动决策">{{
+              run.auto_mode ? '已授权' : '人工确认'
+            }}</a-descriptions-item></a-descriptions
+          ><a-button class="question-text" @click="emit('navigate', 'project/' + run.project_id)"
+            >查看此项目的所有运行</a-button
+          ></a-tab-pane
+        ></a-tabs
+      ></a-drawer
+    >
+  </div>
+</template>

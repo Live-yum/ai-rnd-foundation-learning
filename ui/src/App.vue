@@ -17,10 +17,10 @@ import {
 } from '@ant-design/icons-vue'
 import { connect, state, lock, openRun, closeRun, refreshLists } from './state'
 import { shortId } from './presentation'
-import HomeView from './components/HomeView.vue'
-import ProjectsView from './components/ProjectsView.vue'
-import RunView from './components/RunView.vue'
-import SettingsView from './components/SettingsView.vue'
+import HomeView from './features/projects/HomeView.vue'
+import ProjectsView from './features/projects/ProjectsView.vue'
+import RunView from './features/runs/RunView.vue'
+import SettingsView from './features/settings/SettingsView.vue'
 const hash = ref(location.hash.slice(1).replace(/^\//, '') || 'home'),
   authOpen = ref(false),
   mobileOpen = ref(false),

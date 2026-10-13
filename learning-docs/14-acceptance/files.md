@@ -38,6 +38,7 @@
 - [docs/implementation-labs.md](sources/docs__implementation-labs_md--001.md)：本教材正文的源文件；1 段
 - [docs/implementation.md](sources/docs__implementation_md--001.md)：本教材正文的源文件；1 段
 - [docs/model-feedback-verification.md](sources/docs__model-feedback-verification_md--001.md)：本教材正文的源文件；1 段
+- [docs/modular-production-v2.md](sources/docs__modular-production-v2_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-baseline.md](sources/docs__native-baseline_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-toolchain.md](sources/docs__native-toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/provider-structured-outputs.md](sources/docs__provider-structured-outputs_md--001.md)：本教材正文的源文件；1 段
@@ -47,6 +48,7 @@
 - [docs/template-platform.md](sources/docs__template-platform_md--001.md)：本教材正文的源文件；1 段
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/workflow-optimization.md](sources/docs__workflow-optimization_md--001.md)：本教材正文的源文件；1 段
+- [scripts/browser_memory_observation.py](sources/scripts__browser_memory_observation_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
 - [scripts/build_learning_docs.py](sources/scripts__build_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser.cjs](sources/scripts__capability_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
@@ -71,6 +73,7 @@
 - [scripts/ci_guided_browser.py](sources/scripts__ci_guided_browser_py--001.md)：工作台到资讯产品的浏览器验收协调；1 段
 - [scripts/ci_handbook.py](sources/scripts__ci_handbook_py--001.md)：证明一本书足够重建平台；1 段
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_live_modules.py](sources/scripts__ci_live_modules_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_model_feedback.py](sources/scripts__ci_model_feedback_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_security.py](sources/scripts__ci_native_capability_security_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_source.py](sources/scripts__ci_native_capability_source_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -84,14 +87,20 @@
 - [scripts/ci_template_projects.py](sources/scripts__ci_template_projects_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/handbook_notes.py](sources/scripts__handbook_notes_py--001.md)：把源码变成逐文件教学提示；2 段
 - [scripts/learning_docs_content.json](sources/scripts__learning_docs_content_json--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/live_test_client.py](sources/scripts__live_test_client_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/signup_scope_browser.cjs](sources/scripts__signup_scope_browser_cjs--001.md)：在真实浏览器确认Vue报名能力范围；1 段
+- [scripts/sla_fixture.py](sources/scripts__sla_fixture_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_browser.cjs](sources/scripts__template_acceptance_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_cases.py](sources/scripts__template_acceptance_cases_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/template_acceptance_runtime.py](sources/scripts__template_acceptance_runtime_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [tests/capability_dependency_fixtures.py](sources/tests__capability_dependency_fixtures_py--001.md)：可重复的验收用例；1 段
+- [tests/resources/browser_fixture_cleanup.cjs](sources/tests__resources__browser_fixture_cleanup_cjs--001.md)：可重复的验收用例；1 段
+- [tests/resources/live-service/README.md](sources/tests__resources__live-service__README_md--001.md)：可重复的验收用例；1 段
+- [tests/resources/live-service/caddy-root.pem](sources/tests__resources__live-service__caddy-root_pem--001.md)：可重复的验收用例；1 段
 - [tests/test_batches.py](sources/tests__test_batches_py--001.md)：可重复的验收用例；1 段
+- [tests/test_browser_memory_observation.py](sources/tests__test_browser_memory_observation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_business_workflow_branches.py](sources/tests__test_business_workflow_branches_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_activation_review.py](sources/tests__test_capability_browser_activation_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_apparmor.py](sources/tests__test_capability_browser_apparmor_py--001.md)：可重复的验收用例；1 段
@@ -109,6 +118,7 @@
 - [tests/test_capability_consumer.py](sources/tests__test_capability_consumer_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_adapter.py](sources/tests__test_capability_contest_adapter_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_integration.py](sources/tests__test_capability_contest_integration_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_diagnostics.py](sources/tests__test_capability_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_editing.py](sources/tests__test_capability_editing_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_execution_gate.py](sources/tests__test_capability_execution_gate_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_form_dispatch.py](sources/tests__test_capability_form_dispatch_py--001.md)：可重复的验收用例；1 段
@@ -139,6 +149,7 @@
 - [tests/test_capability_startup_paths.py](sources/tests__test_capability_startup_paths_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_startup_session.py](sources/tests__test_capability_startup_session_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段
+- [tests/test_ci_live_modules.py](sources/tests__test_ci_live_modules_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_full_source.py](sources/tests__test_ci_native_capability_full_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_source.py](sources/tests__test_ci_native_capability_source_py--001.md)：可重复的验收用例；1 段
@@ -149,6 +160,7 @@
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_declarative_fields.py](sources/tests__test_declarative_fields_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
+- [tests/test_edit_and_submit.py](sources/tests__test_edit_and_submit_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_field_fact_inventory.py](sources/tests__test_entity_field_fact_inventory_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段
@@ -162,6 +174,7 @@
 - [tests/test_handbook_order.py](sources/tests__test_handbook_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_source_spans.py](sources/tests__test_handbook_source_spans_py--001.md)：可重复的验收用例；1 段
+- [tests/test_http_assertion_feedback.py](sources/tests__test_http_assertion_feedback_py--001.md)：可重复的验收用例；1 段
 - [tests/test_json_diagnostics.py](sources/tests__test_json_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_json_repair_reference.py](sources/tests__test_json_repair_reference_py--001.md)：可重复的验收用例；1 段
 - [tests/test_keyword_query_binding.py](sources/tests__test_keyword_query_binding_py--001.md)：可重复的验收用例；1 段
@@ -171,6 +184,10 @@
 - [tests/test_learning_order.py](sources/tests__test_learning_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_date_requirements.py](sources/tests__test_legacy_date_requirements_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_signup_recovery.py](sources/tests__test_legacy_signup_recovery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_live_billing_diagnostics.py](sources/tests__test_live_billing_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_live_http_trace.py](sources/tests__test_live_http_trace_py--001.md)：可重复的验收用例；1 段
+- [tests/test_live_test_client.py](sources/tests__test_live_test_client_py--001.md)：可重复的验收用例；1 段
+- [tests/test_mini_swe_checkpoints.py](sources/tests__test_mini_swe_checkpoints_py--001.md)：可重复的验收用例；2 段
 - [tests/test_model_connection.py](sources/tests__test_model_connection_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_feedback_ci.py](sources/tests__test_model_feedback_ci_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_feedback_history.py](sources/tests__test_model_feedback_history_py--001.md)：可重复的验收用例；1 段
@@ -184,6 +201,7 @@
 - [tests/test_planning_transcript.py](sources/tests__test_planning_transcript_py--001.md)：可重复的验收用例；1 段
 - [tests/test_postgres.py](sources/tests__test_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_reload_readiness.py](sources/tests__test_product_reload_readiness_py--001.md)：可重复的验收用例；1 段
+- [tests/test_production_v2.py](sources/tests__test_production_v2_py--001.md)：可重复的验收用例；1 段
 - [tests/test_pytest_reporting.py](sources/tests__test_pytest_reporting_py--001.md)：可重复的验收用例；1 段
 - [tests/test_query_attribute_references.py](sources/tests__test_query_attribute_references_py--001.md)：可重复的验收用例；1 段
 - [tests/test_query_obligation_pairing.py](sources/tests__test_query_obligation_pairing_py--001.md)：可重复的验收用例；1 段
@@ -202,6 +220,7 @@
 - [tests/test_safety.py](sources/tests__test_safety_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_domains.py](sources/tests__test_semantic_fact_domains_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
+- [tests/test_sla_vertical.py](sources/tests__test_sla_vertical_py--001.md)：可重复的验收用例；1 段
 - [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；2 段

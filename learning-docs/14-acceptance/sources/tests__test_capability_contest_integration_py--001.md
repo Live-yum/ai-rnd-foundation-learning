@@ -15,20 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_native_oracle_runs_initial_restart_and_fresh_replay`（L16–L145）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L49遍历`("inspect_stack", "require_container_evidence", "prepare_identity…`；L69遍历`("prepare_readonly_dependencies", "verify_readonly_dependencies")`；L144断言`events.index("restart-oracle") < events.index("fresh-db") < events.index("empty-oracl…`；L145断言`events.count("initial") == 2 and events[-1] == "deleted"`。 调用`fixed_application`、`Selection`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`real_client`、`httpx.MockTransport`、`httpx.Response`、`profile_record`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter`（L102–L110）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter.__init__`（L103–L107）：接收`*a`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter.close`（L109–L110）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_oracle_runs_initial_restart_and_fresh_replay.initial`（L114–L116）：接收`*a`。 调用`events.append`、`object`。 返回路径：L116的`object(), {key: True for key in contest.SEMANTICS[:5]}`。
-- `test_business_proof_rejects_incomplete_or_self_reported_results`（L151–L174）：接收`mutation`。 控制顺序：L165按`mutation == "self-report"`分支；L167按`mutation == "missing-replay"`分支；L169按`mutation == "full-complete"`分支；L171按`mutation == "missing-cleanup"`分支。 调用`list`、`pytest.raises`、`require_business_proof`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `absent_owned_sandbox`（L16–L20）：接收`identifier`。 源码说明：Offline SDK fixture: a completed delete is confirmed by a typed 404.。 控制顺序：L20抛异常，停止当前正常路径。 调用`DaytonaNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_oracle_runs_initial_restart_and_fresh_replay`（L23–L154）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L58遍历`("inspect_stack", "require_container_evidence", "prepare_identity…`；L78遍历`("prepare_readonly_dependencies", "verify_readonly_dependencies")`；L153断言`events.index("restart-oracle") < events.index("fresh-db") < events.index("empty-oracl…`；L154断言`events.count("initial") == 2 and events[-1] == "deleted"`。 调用`fixed_application`、`Selection`、`SimpleNamespace`、`events.append`、`monkeypatch.setattr`、`real_client`、`httpx.MockTransport`、`httpx.Response`、`profile_record`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter`（L111–L119）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter.__init__`（L112–L116）：接收`*a`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_oracle_runs_initial_restart_and_fresh_replay.Adapter.close`（L118–L119）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_oracle_runs_initial_restart_and_fresh_replay.initial`（L123–L125）：接收`*a`。 调用`events.append`、`object`。 返回路径：L125的`object(), {key: True for key in contest.SEMANTICS[:5]}`。
+- `test_business_proof_rejects_incomplete_or_self_reported_results`（L160–L183）：接收`mutation`。 控制顺序：L174按`mutation == "self-report"`分支；L176按`mutation == "missing-replay"`分支；L178按`mutation == "full-complete"`分支；L180按`mutation == "missing-cleanup"`分支。 调用`list`、`pytest.raises`、`require_business_proof`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_contest_integration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L174。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_contest_integration.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L183。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7096`。本段原文以LF换行结束。
+本段原始字节数：`7378`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_contest_integration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "37c0cc08902ac4d4167381dd8e44723bb2d934f8bd6ba4080a9126a005e22924"} -->
+<!-- learning-source: {"path": "tests/test_capability_contest_integration.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3ac1c7967330c73eb59d4741fae7d1853eedd261607ad32b542b64b9fe5c9379"} -->
 ````python
 # tests/test_capability_contest_integration.py
 """Mocked lifecycle wiring only; real CI must prove application/business behavior."""
@@ -44,6 +45,13 @@ from scripts.ci_contest_capability import require_business_proof
 from scripts.extension_oracles import contest
 from workbench import capability_sandbox as verifier
 from workbench.catalog import Selection
+
+
+def absent_owned_sandbox(identifier):
+    """Offline SDK fixture: a completed delete is confirmed by a typed 404."""
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned test sandbox absent")
 
 
 def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path, monkeypatch):
@@ -69,7 +77,9 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         ),
     )
     daytona = SimpleNamespace(
-        create=lambda *a, **kw: sandbox, delete=lambda *a, **kw: events.append("deleted")
+        get=absent_owned_sandbox,
+        create=lambda *a, **kw: sandbox,
+        delete=lambda *a, **kw: events.append("deleted"),
     )
     real_client = httpx.Client
     monkeypatch.setattr(

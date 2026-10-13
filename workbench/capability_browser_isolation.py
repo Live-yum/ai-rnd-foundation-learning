@@ -54,6 +54,7 @@ BROWSER_SOURCES = (
     "scripts/capability_browser_worker.cjs",
     "scripts/capability_browser_network_probe.cjs",
     "scripts/ci_capability_browser_isolation.py",
+    "scripts/browser_memory_observation.py",
     "tools/browser/Dockerfile",
     "tools/browser/seccomp.playwright-1.56.1.json",
 )

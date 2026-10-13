@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `uv.lock`；**本文件共有 1 段**。本段覆盖源文件 L1–L2496。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `uv.lock`；**本文件共有 1 段**。本段覆盖源文件 L1–L2498。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`370317`。本段原文以LF换行结束。
+本段原始字节数：`370399`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "uv.lock", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "16c886d0370d9b5035cff7055efb1594cdcec116305bdd2bd4a6718fa1b1c8db"} -->
+<!-- learning-source: {"path": "uv.lock", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "af26bf00a204441863204e54e7a8c0ae8cb408378b5910291518739eff92dc70"} -->
 ````toml
 # uv.lock
 version = 1
@@ -32,6 +32,7 @@ dependencies = [
     { name = "filelock" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "jsonschema" },
     { name = "langchain-deepseek" },
     { name = "langchain-openai" },
     { name = "langgraph" },
@@ -76,6 +77,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.20,<4" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "jinja2", specifier = ">=3.1.6,<4" },
+    { name = "jsonschema", specifier = "==4.26.0" },
     { name = "langchain-deepseek", specifier = ">=1.1,<2" },
     { name = "langchain-openai", specifier = ">=1.1,<2" },
     { name = "langgraph", specifier = ">=1.0,<2" },

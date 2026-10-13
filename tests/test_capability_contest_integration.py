@@ -13,6 +13,13 @@ from workbench import capability_sandbox as verifier
 from workbench.catalog import Selection
 
 
+def absent_owned_sandbox(identifier):
+    """Offline SDK fixture: a completed delete is confirmed by a typed 404."""
+    from daytona.common.errors import DaytonaNotFoundError
+
+    raise DaytonaNotFoundError("owned test sandbox absent")
+
+
 def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path, monkeypatch):
     product = tmp_path / "product"
     plan = fixed_application(product)
@@ -36,7 +43,9 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         ),
     )
     daytona = SimpleNamespace(
-        create=lambda *a, **kw: sandbox, delete=lambda *a, **kw: events.append("deleted")
+        get=absent_owned_sandbox,
+        create=lambda *a, **kw: sandbox,
+        delete=lambda *a, **kw: events.append("deleted"),
     )
     real_client = httpx.Client
     monkeypatch.setattr(

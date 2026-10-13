@@ -11,4 +11,5 @@
 - [pyproject.toml](sources/pyproject_toml--001.md)：项目根配置或说明；1 段
 - [uv.lock](sources/locks/uv_lock--001.md)：精确依赖锁；1 段
 - [workbench/__init__.py](sources/workbench____init___py--001.md)：包入口；1 段
+- [workbench/infrastructure/__init__.py](sources/workbench__infrastructure____init___py--001.md)：项目根配置或说明；1 段
 - [workbench/local_only.py](sources/workbench__local_only_py--001.md)：工具的本机运行边界；1 段

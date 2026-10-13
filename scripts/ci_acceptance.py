@@ -17,6 +17,7 @@ from scripts.ci_evidence import (
 )
 
 REQUIRED_JOBS = {
+    "production-v2",
     "frontend",
     "source-validation",
     "tests",
@@ -30,6 +31,7 @@ REQUIRED_JOBS = {
     "browser",
 }
 STAGES = {
+    "production-v2": ["production-v2.xml"],
     "frontend": [],
     "source-validation-ubuntu-latest": ["protocol.xml"],
     "source-validation-windows-latest": ["protocol.xml"],

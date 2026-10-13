@@ -21,6 +21,7 @@ const { loginNativeSession } = require('./scripts/business_yudao_browser.cjs');
 const { submitNativeLogin } = require('./scripts/native_browser.cjs');
 const [fault, playwrightPath, oldTimeout = '1800', driver = 'business'] = process.argv.slice(1);
 const { chromium } = require(playwrightPath);
+const { cleanupFixture } = require('./tests/resources/browser_fixture_cleanup.cjs');
 const actor = { username: 'fixture-manager', password: 'fixture-only-password' };
 const started = Date.now(), workDeadline = started + 25000; // Leave cleanup inside the unchanged 30 s outer cap.
 const remaining = () => Math.max(1, workDeadline - Date.now());
@@ -113,7 +114,7 @@ const server = http.createServer(async (req, res) => {
     </script>`);
 });
 (async () => {
-  let browser;
+  let browser, context;
   try {
     await stage('foreign-server-start', () => new Promise((resolve, reject) => {
       foreign.once('error', reject); foreign.listen(0, '127.0.0.1', resolve);
@@ -122,7 +123,8 @@ const server = http.createServer(async (req, res) => {
       server.once('error', reject); server.listen(0, '127.0.0.1', resolve);
     }));
     browser = await stage('browser-start', () => chromium.launch({ headless: true, timeout: remaining() }));
-    const page = await stage('page-start', () => browser.newPage()); page.setDefaultTimeout(1800);
+    context = await stage('context-start', () => browser.newContext());
+    const page = await stage('page-start', () => context.newPage()); page.setDefaultTimeout(1800);
     page.setDefaultNavigationTimeout(Number(oldTimeout));
     page.on('load', () => mark('page-load', 'delivered'));
     for (const event of ['requestfinished', 'requestfailed']) page.on(event, request => {
@@ -203,14 +205,8 @@ const server = http.createServer(async (req, res) => {
     console.log('Native login HTTP/Chromium fixture verified: ' + driver + '/' + fault + '; old load timeout=' + oldTimeout);
   } finally {
     closing = true; releaseHeldImages('cleanup');
-    try {
-      if (browser) await stage('browser-cleanup', () => browser.close(), 3000);
-    } finally {
-      await Promise.all([[server, 'server'], [foreign, 'foreign-server']].map(([service, name]) =>
-        stage(name + '-cleanup', () => new Promise(resolve => {
-          service.close(resolve); service.closeAllConnections();
-        }), 1000)));
-    }
+    await cleanupFixture({ browser, context, services: [[server, 'server'], [foreign, 'foreign-server']],
+      stage, deadline: started + 29000 }); // Reserve 1 s before the unchanged 30 s parent timeout.
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });
 """
@@ -278,7 +274,7 @@ def _stop_owned_tree(process):
             ["taskkill", "/PID", str(process.pid), "/T", "/F"],
             capture_output=True,
             timeout=3,
-            check=False,
+            check=True,
         )
         process.wait(timeout=3)
         return
@@ -430,7 +426,7 @@ def test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child(monke
     assert called == [
         (
             ["taskkill", "/PID", "100", "/T", "/F"],
-            {"capture_output": True, "timeout": 3, "check": False},
+            {"capture_output": True, "timeout": 3, "check": True},
         )
     ]
     assert waited == [{"timeout": 3}]
@@ -502,9 +498,12 @@ def test_fixture_diagnostics_and_cleanup_preserve_original_readiness_budgets():
         assert event in DRIVER
     assert "page.on('load', () => mark('page-load', 'delivered'))" in DRIVER
     assert "['requestfinished', 'requestfailed']" in DRIVER
-    assert DRIVER.index("let browser;\n  try {") < DRIVER.index("stage('foreign-server-start'")
-    assert "} finally {\n      await Promise.all([[server, 'server']" in DRIVER
-    assert "service.close(resolve); service.closeAllConnections();" in DRIVER
+    assert DRIVER.index("let browser, context;\n  try {") < DRIVER.index(
+        "stage('foreign-server-start'"
+    )
+    assert "services: [[server, 'server'], [foreign, 'foreign-server']]" in DRIVER
+    assert "deadline: started + 29000" in DRIVER
+    assert "context.newPage()" in DRIVER
 
 
 def test_diagnostic_output_is_bounded_and_retains_first_and_last_phase():
@@ -516,3 +515,89 @@ def test_diagnostic_output_is_bounded_and_retains_first_and_last_phase():
     assert "diagnostic bytes omitted" in result
     small = b'{"phase":"assertions","event":"done"}\n'
     assert _read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")
+
+
+# Execute the actual cleanup helper without needing a downloaded browser.
+CLEANUP_PROBE = r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const { cleanupFixture } = require('./tests/resources/browser_fixture_cleanup.cjs');
+const mode = process.argv[1], order = [];
+const server = http.createServer((request, response) => {});
+const stage = async (name, operation, budget) => {
+  let timer;
+  try {
+    return await Promise.race([Promise.resolve().then(operation), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(name + ' timed out')), budget);
+    })]);
+  } finally { clearTimeout(timer); }
+};
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const context = { close: async () => {
+    assert.equal(server.listening, false); order.push('context');
+    if (mode === 'context-error') throw new Error('context close rejected');
+  }};
+  const browser = { close: async () => {
+    order.push('browser');
+    if (mode === 'browser-error') throw new Error('browser close rejected');
+    if (mode === 'hung') return new Promise(() => {});
+    if (mode === 'slow') await new Promise(resolve => setTimeout(resolve, 3100));
+  }};
+  if (mode === 'server-error') server.close = callback => callback(new Error('server close rejected'));
+  await cleanupFixture({ context, browser, services: [[server, 'server']], stage,
+    deadline: Date.now() + (mode === 'slow' ? 5000 : 100) });
+  assert.deepEqual(order, ['context', 'browser']);
+  console.log('cleanup-complete');
+})().catch(error => { console.error(error.message); process.exitCode = 1; });
+"""
+
+
+def test_fixture_graceful_cleanup_can_use_spare_outer_budget():
+    result = subprocess.run(
+        [shutil.which("node"), "-e", CLEANUP_PROBE, "slow"],
+        cwd=ROOT,
+        env=clean_env(),
+        capture_output=True,
+        text=True,
+        timeout=8,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "cleanup-complete"
+
+
+@pytest.mark.parametrize("mode", ["hung", "browser-error", "context-error", "server-error"])
+def test_fixture_cleanup_failure_keeps_owned_root_alive_for_recovery(mode):
+    with tempfile.TemporaryFile(mode="w+b") as output:
+        process = subprocess.Popen(
+            [shutil.which("node"), "-e", CLEANUP_PROBE, mode],
+            cwd=ROOT,
+            env=clean_env(),
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            **process_options(),
+        )
+        try:
+            with pytest.raises(subprocess.TimeoutExpired):
+                process.wait(timeout=2)
+        finally:
+            _stop_owned_tree(process)
+        diagnostic = _read_diagnostic(output)
+    assert process.returncode != 0
+    expected = (
+        "browser-cleanup timed out" if mode == "hung" else mode.split("-")[0] + " close rejected"
+    )
+    assert expected in diagnostic
+    assert "cleanup-complete" not in diagnostic
+
+
+def test_windows_taskkill_failure_is_not_reported_as_success(monkeypatch):
+    monkeypatch.setitem(globals(), "os", SimpleNamespace(name="nt"))
+
+    def reject(command, **kwargs):
+        assert kwargs["check"] is True
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(subprocess, "run", reject)
+    with pytest.raises(subprocess.CalledProcessError):
+        _stop_owned_tree(SimpleNamespace(pid=100, poll=lambda: None))

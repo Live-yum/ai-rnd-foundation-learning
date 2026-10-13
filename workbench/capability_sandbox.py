@@ -19,6 +19,7 @@ from pathlib import Path
 import httpx
 
 from workbench.capability_contracts import CapabilityPlan
+from workbench.capability_diagnostics import http_assertion_diagnostic, record_failure
 from workbench.capability_isolation import (
     ContainerInspectionRejected,
     IsolationUnavailable,
@@ -37,6 +38,7 @@ from workbench.capability_stack import (
 )
 from workbench.capability_verification import (
     BrowserFailure,
+    BusinessCheckFailure,
     CheckFailure,
     preview_url,
     run_browser,
@@ -45,6 +47,7 @@ from workbench.capability_verification import (
 from workbench.domain import digest
 from workbench.filesystem import manifest, write_json
 from workbench.generator import PrerequisiteError
+from workbench.infrastructure.sandbox.deadline import CheckpointDeadline, CheckpointExpired
 from workbench.local_only import install_loopback_guard
 from workbench.tools import clean_env, process_options, stop_process
 
@@ -122,6 +125,7 @@ def startup_failure_diagnostic(
         "storage-full": ("No space left on device",),
         "memory-error": ("MemoryError", "out of memory"),
         "syntax-error": ("SyntaxError",),
+        "process-terminated": ("SIGKILL", "SIGTERM", "Killed", "Terminated"),
         "executable-format": ("Exec format error",),
     }
     categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
@@ -301,8 +305,41 @@ for name in ('tcp','tcp6'):
         raise CheckFailure("应用身份仍有存活进程或旧端口未关闭，拒绝伪造重启成功")
 
 
+def verifier_policy_environment():
+    """Forward only validated policy identity to the trusted verifier child."""
+    from workbench.capability_browser_policy import selected_policy
+
+    if selected_policy() is None:
+        return {}
+    names = (
+        "CAPABILITY_BROWSER_APPROVED_POLICY",
+        "GITHUB_ACTIONS",
+        "GITHUB_REPOSITORY",
+        "GITHUB_WORKFLOW",
+        "GITHUB_RUN_ID",
+        "GITHUB_JOB",
+        "GITHUB_EVENT_NAME",
+        "GITHUB_RUN_ATTEMPT",
+        "GITHUB_SHA",
+        "GITHUB_REF",
+        "GITHUB_WORKFLOW_REF",
+        "GITHUB_WORKFLOW_SHA",
+        "LIVE_SCENARIO",
+        "REVIEWED_SHA",
+    )
+    return {name: os.environ[name] for name in names if name in os.environ}
+
+
 def verify_capabilities(
-    product, plan, scenarios, settings, *, aggregate, selection=None, trusted_oracle=None
+    product,
+    plan,
+    scenarios,
+    settings,
+    *,
+    aggregate,
+    selection=None,
+    trusted_oracle=None,
+    checkpoint=None,
 ):
     from workbench.capability_execution import capability_execution_prerequisites
 
@@ -329,6 +366,10 @@ def verify_capabilities(
     # Never adopt an older successful attempt if the verifier dies before
     # writing its own fresh report.
     write_json(receipt_path, {"passed": False, "cleanup": "not-started"})
+    try:
+        Path(str(receipt_path) + ".diagnostic.json").unlink(missing_ok=True)
+    except OSError:
+        pass  # A stale sidecar is also rejected by receipt modification time.
     payload = {
         "product": str(product),
         "receipt": str(receipt_path),
@@ -337,6 +378,7 @@ def verify_capabilities(
         "scenario_ids": [s.id for s in scenarios],
         "aggregate": aggregate,
         "trusted_oracle": trusted_oracle,
+        "checkpoint": checkpoint,
         "settings": {
             name: getattr(settings, name)
             for name in (
@@ -370,20 +412,33 @@ def verify_capabilities(
                     "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT", ""),
                     "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
                     "CAPABILITY_BROWSER_IMAGE": settings.capability_browser_image,
+                    **verifier_policy_environment(),
                 }
             ),
             **process_options(),
         )
         try:
-            process.communicate(
-                body, timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
-            )
-        except subprocess.TimeoutExpired:
+            timeout = settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
+            if checkpoint is not None:
+                timeout = checkpoint["deadline"] - time.monotonic()
+                if timeout <= 0:
+                    stop_process(process)
+                    raise PrerequisiteError("模块检查截止时间已到，未续期")
+            process.communicate(body, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
             stop_process(process)
+            if checkpoint is not None:
+                terminate_checkpoint(receipt_path, checkpoint)
+            record_failure(receipt_path, exc)
             raise PrerequisiteError(
                 "自定义隔离验证超时；已保留沙箱名称回执，请在本机确认清理后重试"
             ) from None
+        if checkpoint is not None and time.monotonic() >= checkpoint["deadline"]:
+            terminate_checkpoint(receipt_path, checkpoint)
+            raise PrerequisiteError("模块检查结果晚于原截止时间，已停止")
         if process.returncode:
+            if checkpoint is not None:
+                terminate_checkpoint(receipt_path, checkpoint)
             # The child prints only a static classified error. Never echo provider/SDK objects.
             raise PrerequisiteError("自定义隔离验证进程失败；查看该节点的脱敏验证回执")
     if receipt_path.stat().st_size > 1_000_000:
@@ -392,6 +447,21 @@ def verify_capabilities(
     if receipt.get("cleanup") != "deleted":
         raise PrerequisiteError("自定义隔离环境清理未确认；已阻止交付，请按回执中的沙箱名称检查")
     return receipt
+
+
+def terminate_checkpoint(path, checkpoint):
+    """The parent freezes a killed/late child's receipt; it can never be repair feedback."""
+    try:
+        value = json.loads(path.read_text()) if path.stat().st_size <= 1_000_000 else {}
+        if type(value) is not dict:
+            value = {}
+    except OSError, ValueError:
+        value = {}
+    value.update(
+        passed=False, cleanup="unconfirmed", kind="checkpoint_timeout", checkpoint=checkpoint
+    )
+    value.pop("repairable_failure", None)
+    write_json(path, value)
 
 
 def _verify(
@@ -408,6 +478,8 @@ def _verify(
     security_probe=None,
     trusted_oracle=None,
     profile_record=None,
+    checkpoint=None,
+    checkpoint_deadline=None,
 ):
     from daytona import SessionExecuteRequest
 
@@ -485,9 +557,12 @@ def _verify(
             "existing_schema_migration": "unverified",
         },
     }
+    if checkpoint is not None:
+        receipt["checkpoint"] = checkpoint
     write_json(receipt_path, receipt)
     sandbox = None
     oracle_adapter = None
+    diagnostic_error = None
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
@@ -720,6 +795,25 @@ def _verify(
                     **target,
                     "backend_health_observed": receipt.get("backend_health_observed") is True,
                 }
+                # Only this admitted application-start boundary can request repair.
+                # Infrastructure hints never become instructions to change business code.
+                startup = receipt["startup_diagnostic"]
+                if (
+                    checkpoint is not None
+                    and startup["command_exit_status"] == "nonzero"
+                    and startup["command_exit_code"] in {1, 3}
+                    and startup["startup_phase_hint"] in {"lifespan", "import"}
+                    and not startup["application_startup_reported"]
+                    and not set(startup["output_hints"]) - {"syntax-error"}
+                    and startup["exception_type"]
+                    not in {
+                        "PermissionError",
+                        "OSError",
+                        "FileNotFoundError",
+                        "MemoryError",
+                    }
+                ):
+                    receipt["repairable_failure"] = "application_startup"
                 if target["role"] == "frontend":
                     from workbench.capability_startup_paths import node_failure_facts
 
@@ -969,11 +1063,22 @@ def _verify(
             require_obligation_evidence(plan, receipt, aggregate=True)
         receipt["passed"] = True
     except IsolationUnavailable as exc:
+        diagnostic_error = exc
         receipt.update(kind="isolation_environment", error=str(exc))
         receipt["isolation_diagnostic"] = exc.evidence
     except CheckFailure as exc:
+        diagnostic_error = exc
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BusinessCheckFailure):
+            assertion = http_assertion_diagnostic(exc.diagnostic)
+            if assertion is not None:
+                receipt["http_assertion"] = assertion
+        if checkpoint is not None and isinstance(exc, BusinessCheckFailure):
+            receipt["repairable_failure"] = "business_assertion"
+        if checkpoint is not None and isinstance(exc, BrowserFailure):
+            if exc.diagnostic.get("phase") == "assertion":
+                receipt["repairable_failure"] = "business_assertion"
         if native:
             from scripts.capability_native_shm_probe import native_shm_cleanup_diagnostic
 
@@ -982,26 +1087,46 @@ def _verify(
                 receipt["native_shm_cleanup_diagnostic"] = cleanup_diagnostic
         if isinstance(exc, BrowserFailure):
             receipt["browser_diagnostic"] = exc.diagnostic
+    except CheckpointExpired as exc:
+        diagnostic_error = exc
+        receipt.update(kind="checkpoint_timeout", error="模块检查时间预算耗尽")
+        receipt.pop("repairable_failure", None)
     except Exception as exc:
+        diagnostic_error = exc
         receipt["error"] = (
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
     finally:
+        if checkpoint_deadline is not None:
+            checkpoint_deadline.enter_cleanup()
         if oracle_adapter is not None:
             try:
                 oracle_adapter.close()
             except Exception:
                 receipt.update(passed=False, error="可信业务验证器连接清理失败")
+        creation_confirmed = sandbox is not None
         if sandbox is None:
             receipt["cleanup"] = "create-failed-unknown"
             try:
-                sandbox = client.get(name)
+                recovered = client.get(name)
+                if recovered.name != name:
+                    raise ValueError("Recovered sandbox ownership mismatch")
+                sandbox = recovered
             except Exception:
                 pass
         if sandbox is not None:
             try:
-                client.delete(sandbox, timeout=settings.tool_timeout)
-                receipt["cleanup"] = "deleted"
+                from workbench.infrastructure.sandbox.cleanup import confirm_deleted
+
+                confirm_deleted(
+                    client,
+                    sandbox,
+                    checkpoint["deadline"]
+                    if checkpoint is not None
+                    else time.monotonic() + settings.tool_timeout,
+                    settings.tool_timeout,
+                )
+                receipt["cleanup"] = "deleted" if creation_confirmed else "create-failed-unknown"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
                 receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
@@ -1009,6 +1134,8 @@ def _verify(
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)
+        if diagnostic_error is not None:
+            record_failure(receipt_path, diagnostic_error)
     return receipt
 
 
@@ -1017,6 +1144,22 @@ def main():
     if len(body) > 1_000_000:
         raise ValueError("自定义验收控制契约过大")
     payload = json.loads(body)
+    try:
+        _execute_payload(payload)
+    except Exception as exc:
+        record_failure(payload["receipt"], exc)
+        raise
+
+
+def _execute_payload(payload):
+    checkpoint = payload.get("checkpoint")
+    if checkpoint is None:
+        return _execute_payload_inner(payload)
+    with CheckpointDeadline(checkpoint.get("deadline")) as deadline:
+        return _execute_payload_inner(payload, checkpoint_deadline=deadline)
+
+
+def _execute_payload_inner(payload, *, checkpoint_deadline=None):
     install_loopback_guard()
     from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
@@ -1055,6 +1198,8 @@ def main():
             ),
             trusted_oracle=payload.get("trusted_oracle"),
             profile_record=record,
+            checkpoint=payload.get("checkpoint"),
+            checkpoint_deadline=checkpoint_deadline,
         )
     finally:
         close_client(client)

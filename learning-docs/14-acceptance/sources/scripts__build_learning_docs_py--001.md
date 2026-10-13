@@ -15,24 +15,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `stage_for`（L142–L198）：接收`name`。 控制顺序：L144按`name.startswith(("workbench/web/", "ui/"))`分支；L146按`name.startswith("scripts/extension_oracles/")`分支；L148按`name.startswith("workbench/")`分支；L150按`name.startswith("migrations/") or name == "alembic.ini"`分支；L152按`name.startswith("templates/standards/")`分支；L154按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L156按`name.startswith("templates/business/common/")`分支；L158按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L145的`8`；L147的`4`；L149的`MODULE_STAGE[path.stem]`。
-- `test_stage`（L201–L253）：接收`name`。 控制顺序：L202按`name == "tests/conftest.py"`分支；L204按`name == "tests/news_case.py"`分支；L206按`name.startswith("tests/fixtures/")`分支；L223按`stem in early`分支；L225按`stem == "store"`分支；L227按`stem in {"contracts", "business_contracts"}`分支；L229按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L231按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L203的`2`；L205的`7`；L207的`10`。
-- `language_for`（L256–L281）：接收`name`、`binary`。 控制顺序：L257按`binary`分支；L259按`name.endswith("uv.lock")`分支；L261按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L258的`"base64"`；L260的`"toml"`；L262的`"dockerfile"`。
-- `chunks`（L284–L323）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L286按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L290按`len(lines) <= 1000`分支；L293按`name.endswith(".py")`分支；L301按`name.endswith(".md")`分支；L311在`len(lines) - first > 1000`成立时循环；L313按`not options`分支；L321按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L287的`[data]`；L291的`[data]`；L323的`result or [b""]`。
-- `source_note`（L356–L387）：接收`name`、`content`、`first`、`last`。 控制顺序：L357按`isinstance(content, bytes)`分支；L358按`generated_frontend_asset(name)`分支；L372按`name in TEACHING_CASES`分支；L374按`not separator`分支；L377遍历`entries.splitlines()`；L379按`match and first <= int(match[1]) <= last`分支；L381按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L359的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L365的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L375的`head`。
-- `source_pages`（L390–L457）：接收`name`、`content`、`stage`。 控制顺序：L396按`binary`分支；L398按`name.endswith(("uv.lock", "package-lock.json"))`分支；L403遍历`enumerate(pieces)`；L420按`index`分支；L422按`index + 1 < len(pieces)`分支；L431按`not piece`分支；L433按`not binary`分支；L441按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L451的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L460–L461）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L461的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L464–L511）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L466按`[stage["id"] for stage in curriculum] != STAGES`分支；L467抛异常，停止当前正常路径；L469遍历`sources()`；L470遍历`files`；L472按`set(output).intersection(pages)`分支；L473抛异常，停止当前正常路径；L482遍历`curriculum`；L487按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L511的`output`。
-- `readme`（L514–L597）：接收`curriculum`、`records`。 控制顺序：L528遍历`curriculum`。 调用`len`。 返回路径：L597的`text`。
-- `main`（L600–L628）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L610按`args.check`分支；L617按`wrong`分支；L618抛异常，停止当前正常路径；L622遍历`actual.difference(expected)`；L624遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stage_for`（L144–L219）：接收`name`。 控制顺序：L146按`name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.…`分支；L162遍历`domains.items()`；L163按`name.startswith(prefix)`分支；L165按`name.startswith(("workbench/web/", "ui/"))`分支；L167按`name.startswith("scripts/extension_oracles/")`分支；L169按`name.startswith("workbench/")`分支；L171按`name.startswith("migrations/") or name == "alembic.ini"`分支；L173按`name.startswith("templates/standards/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`domains.items`、`name.startswith`、`test_stage`。 返回路径：L147的`2`；L164的`stage`；L166的`8`。
+- `test_stage`（L222–L275）：接收`name`。 控制顺序：L223按`name == "tests/conftest.py"`分支；L225按`name == "tests/news_case.py"`分支；L227按`name.startswith("tests/fixtures/")`分支；L245按`stem in early`分支；L247按`stem == "store"`分支；L249按`stem in {"contracts", "business_contracts"}`分支；L251按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L253按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L224的`2`；L226的`7`；L228的`10`。
+- `language_for`（L278–L303）：接收`name`、`binary`。 控制顺序：L279按`binary`分支；L281按`name.endswith("uv.lock")`分支；L283按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L280的`"base64"`；L282的`"toml"`；L284的`"dockerfile"`。
+- `chunks`（L306–L345）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L308按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L312按`len(lines) <= 1000`分支；L315按`name.endswith(".py")`分支；L323按`name.endswith(".md")`分支；L333在`len(lines) - first > 1000`成立时循环；L335按`not options`分支；L343按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L309的`[data]`；L313的`[data]`；L345的`result or [b""]`。
+- `source_note`（L378–L409）：接收`name`、`content`、`first`、`last`。 控制顺序：L379按`isinstance(content, bytes)`分支；L380按`generated_frontend_asset(name)`分支；L394按`name in TEACHING_CASES`分支；L396按`not separator`分支；L399遍历`entries.splitlines()`；L401按`match and first <= int(match[1]) <= last`分支；L403按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L381的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L387的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L397的`head`。
+- `source_pages`（L412–L479）：接收`name`、`content`、`stage`。 控制顺序：L418按`binary`分支；L420按`name.endswith(("uv.lock", "package-lock.json"))`分支；L425遍历`enumerate(pieces)`；L442按`index`分支；L444按`index + 1 < len(pieces)`分支；L453按`not piece`分支；L455按`not binary`分支；L463按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L473的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L482–L483）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L483的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L486–L533）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L488按`[stage["id"] for stage in curriculum] != STAGES`分支；L489抛异常，停止当前正常路径；L491遍历`sources()`；L492遍历`files`；L494按`set(output).intersection(pages)`分支；L495抛异常，停止当前正常路径；L504遍历`curriculum`；L509按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L533的`output`。
+- `readme`（L536–L619）：接收`curriculum`、`records`。 控制顺序：L550遍历`curriculum`。 调用`len`。 返回路径：L619的`text`。
+- `main`（L622–L650）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L632按`args.check`分支；L639按`wrong`分支；L640抛异常，停止当前正常路径；L644遍历`actual.difference(expected)`；L646遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L632。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L654。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`36237`。本段原文以LF换行结束。
+本段原始字节数：`37023`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7489e15c3bf61632392e3eda65e35b0b6d3abfef23811959cbf4e14216efbda"} -->
+<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "948796fc62877f0b373a7bec43df1fd474619c4c800efec69dcef34f6523d632"} -->
 ````python
 # scripts/build_learning_docs.py
 """Build small, staged lessons and lossless source pages from the actual platform."""
@@ -83,6 +83,7 @@ MODULE_STAGE = {
     "conversation": 3,
     "llm": 3,
     "model_protocol": 3,
+    "native_schema": 3,
     "model_connection": 3,
     "model_diagnostics": 3,
     "streaming": 3,
@@ -117,6 +118,7 @@ MODULE_STAGE = {
     "template_standards": 1,
     "feature_planning": 4,
     "capability_sandbox": 7,
+    "capability_diagnostics": 7,
     "capability_startup_paths": 7,
     "owned_lifecycle": 4,
     "symbols": 4,
@@ -178,6 +180,25 @@ MODULE_STAGE = {
 
 def stage_for(name):
     path = Path(name)
+    if name in {"workbench/requirements/clarification.py", "workbench/requirements/__init__.py"}:
+        return 2
+    domains = {
+        "workbench/core/": 1,
+        "workbench/projects/": 2,
+        "workbench/planning/": 4,
+        "workbench/requirements/": 3,
+        "workbench/specifications/": 4,
+        "workbench/coding/": 7,
+        "workbench/production/": 7,
+        "workbench/interfaces/": 8,
+        "workbench/generation/": 6,
+        "workbench/infrastructure/persistence/": 2,
+        "workbench/infrastructure/llm/": 3,
+        "workbench/infrastructure/sandbox/": 12,
+    }
+    for prefix, stage in domains.items():
+        if name.startswith(prefix):
+            return stage
     if name.startswith(("workbench/web/", "ui/")):
         return 8
     if name.startswith("scripts/extension_oracles/"):
@@ -244,6 +265,7 @@ def test_stage(name):
         return 10
     stem = Path(name).stem.removeprefix("test_")
     early = {
+        "native_schema": 3,
         "field_predicate_semantics": 3,
         "generation_preservation": 6,
         "product_browser_gate": 6,
