@@ -184,6 +184,7 @@
 - [tests/test_learning_order.py](sources/tests__test_learning_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_date_requirements.py](sources/tests__test_legacy_date_requirements_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_signup_recovery.py](sources/tests__test_legacy_signup_recovery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_live_billing_diagnostics.py](sources/tests__test_live_billing_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_live_http_trace.py](sources/tests__test_live_http_trace_py--001.md)：可重复的验收用例；1 段
 - [tests/test_live_test_client.py](sources/tests__test_live_test_client_py--001.md)：可重复的验收用例；1 段
 - [tests/test_mini_swe_checkpoints.py](sources/tests__test_mini_swe_checkpoints_py--001.md)：可重复的验收用例；2 段

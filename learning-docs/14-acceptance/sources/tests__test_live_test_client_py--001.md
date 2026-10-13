@@ -15,36 +15,43 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `env`（L12–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L13的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": live.REPOSITORY, "GITHUB_EVENT_NAME": "wo…`。
-- `test_public_pinned_ca_keeps_hostname_and_certificate_verification`（L31–L34）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33断言`context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED`；L34断言`"PRIVATE KEY" not in client.CA.read_text()`。 调用`client.test_context`、`client.CA.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_private_ca_never_applies_to_other_destinations`（L47–L49）：接收`endpoint`。 调用`pytest.raises`、`client.test_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_tampered_certificate_is_rejected_before_trust`（L52–L57）：接收`tmp_path`、`monkeypatch`。 调用`path.write_text`、`client.CA.read_text().replace`、`client.CA.read_text`、`monkeypatch.setattr`、`pytest.raises`、`client.test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_free_mode_is_explicit_zero_and_still_bounded`（L60–L65）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62断言`config["max_cost_usd"] == config["usd_per_million_tokens"] == 0`；L63断言`config["billing"]["attestation"] == client.ATTESTATION`；L64断言`config["max_model_calls"] == 32 and config["max_output_tokens"] == 8192`；L65断言`config["max_tokens_total"] == 4_000_000`。 调用`live.configuration`、`env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_free_mode_cannot_silently_replace_paid_budget`（L79–L81）：接收`key`、`value`。 调用`pytest.raises`、`live.configuration`、`env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects`（L85–L107）：接收`monkeypatch`、`status`、`success`。 控制顺序：L102按`success`分支；L103断言`client.probe({**env(), "API_KEY": "never-send-this"})["strict_tls"]`；L107断言`len(requests) == 1`。 调用`monkeypatch.setattr`、`client.probe`、`env`、`pytest.raises`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory`（L90–L99）：接收`**kwargs`。 控制顺序：L91断言`kwargs["verify"].check_hostname`；L92断言`kwargs["verify"].verify_mode == ssl.CERT_REQUIRED`。 调用`httpx.MockTransport`。 返回路径：L99的`httpx.MockTransport(handle)`。
-- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory.handle`（L94–L97）：接收`request`。 控制顺序：L96断言`"authorization" not in request.headers`。 调用`requests.append`、`httpx.Response`。 返回路径：L97的`httpx.Response(status, headers={"location": "https://other.test/v1"})`。
-- `test_scoped_transport_refuses_cross_host_and_authenticated_probe`（L110–L123）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L113遍历`[ httpx.Request("POST", "https://other.test/v1/chat/completions")…`；L121断言`transport.calls == 0`。 调用`client.TestServiceTransport`、`httpx.Request`、`pytest.raises`、`transport.handle_request`、`transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_platform_free_mode_needs_attested_exact_endpoint`（L135–L176）：接收`settings`、`tmp_path`、`monkeypatch`、`ack`、`endpoint`、`cost`、`price`、`accepted`。 控制顺序：L172按`accepted`分支；L173断言`invoke() == "offline-authority-checked"`。 调用`settings.model_copy`、`monkeypatch.setattr`、`design`、`invoke`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_platform_free_mode_needs_attested_exact_endpoint.invoke`（L160–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`mini_swe.run_agent`、`ModelGateway`。 返回路径：L161的`mini_swe.run_agent( settings, ModelGateway(settings, None), "offline", plan.tasks[0], plan…`。
-- `test_transport_timings_preserve_response_and_timeout_semantics`（L180–L235）：接收`monkeypatch`、`failure`。 控制顺序：L213按`failure`分支；L217断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L221断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L223断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L234断言`bool(closed) is (failure != "headers")`；L235断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_transport_timings_preserve_response_and_timeout_semantics.Body`（L191–L201）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_transport_timings_preserve_response_and_timeout_semantics.Body.__iter__`（L192–L198）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L196按`failure == "body"`分支；L197抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_transport_timings_preserve_response_and_timeout_semantics.Body.close`（L200–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closed.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_transport_timings_preserve_response_and_timeout_semantics.request`（L203–L208）：接收`req`。 控制顺序：L204断言`req.extensions["timeout"]["read"] == 7`；L206按`failure == "headers"`分支；L207抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`、`httpx.Response`、`Body`。 返回路径：L208的`httpx.Response(200, stream=Body())`。
-- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L238–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L243遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L244遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L247断言`len(result) == limit`；L248断言`all(value is None for row in result for value in row.values())`；L249断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `env`（L13–L29）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L14的`{ "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": live.REPOSITORY, "GITHUB_EVENT_NAME": "wo…`。
+- `test_public_pinned_ca_keeps_hostname_and_certificate_verification`（L32–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L34断言`context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED`；L35断言`"PRIVATE KEY" not in client.CA.read_text()`。 调用`client.test_context`、`client.CA.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_private_ca_never_applies_to_other_destinations`（L48–L50）：接收`endpoint`。 调用`pytest.raises`、`client.test_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_tampered_certificate_is_rejected_before_trust`（L53–L58）：接收`tmp_path`、`monkeypatch`。 调用`path.write_text`、`client.CA.read_text().replace`、`client.CA.read_text`、`monkeypatch.setattr`、`pytest.raises`、`client.test_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_free_mode_is_explicit_zero_and_still_bounded`（L61–L66）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L63断言`config["max_cost_usd"] == config["usd_per_million_tokens"] == 0`；L64断言`config["billing"]["attestation"] == client.ATTESTATION`；L65断言`config["max_model_calls"] == 32 and config["max_output_tokens"] == 8192`；L66断言`config["max_tokens_total"] == 4_000_000`。 调用`live.configuration`、`env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_free_mode_cannot_silently_replace_paid_budget`（L80–L82）：接收`key`、`value`。 调用`pytest.raises`、`live.configuration`、`env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects`（L86–L108）：接收`monkeypatch`、`status`、`success`。 控制顺序：L103按`success`分支；L104断言`client.probe({**env(), "API_KEY": "never-send-this"})["strict_tls"]`；L108断言`len(requests) == 1`。 调用`monkeypatch.setattr`、`client.probe`、`env`、`pytest.raises`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory`（L91–L100）：接收`**kwargs`。 控制顺序：L92断言`kwargs["verify"].check_hostname`；L93断言`kwargs["verify"].verify_mode == ssl.CERT_REQUIRED`。 调用`httpx.MockTransport`。 返回路径：L100的`httpx.MockTransport(handle)`。
+- `test_probe_is_strict_unauthenticated_and_does_not_follow_redirects.factory.handle`（L95–L98）：接收`request`。 控制顺序：L97断言`"authorization" not in request.headers`。 调用`requests.append`、`httpx.Response`。 返回路径：L98的`httpx.Response(status, headers={"location": "https://other.test/v1"})`。
+- `labeled_env`（L111–L136）：接收`tmp_path`、`mutation`。 控制顺序：L131按`mutation`分支。 调用`env`、`mutation`、`path.write_text`、`json.dumps`、`str`。 返回路径：L136的`values`。
+- `test_label_probe_binds_reviewed_same_repository_head_without_credentials`（L139–L157）：接收`tmp_path`、`monkeypatch`。 控制顺序：L155断言`result["head_sha"] == "b" * 40`；L156断言`result["authentication_sent"] is False and result["ca_mode"] == "system"`；L157断言`len(requests) == 1`。 调用`monkeypatch.setattr`、`client.probe`、`labeled_env`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_label_probe_binds_reviewed_same_repository_head_without_credentials.handle`（L142–L145）：接收`request`。 控制顺序：L144断言`request.method == "GET" and "authorization" not in request.headers`。 调用`requests.append`、`httpx.Response`。 返回路径：L145的`httpx.Response(401)`。
+- `test_label_probe_binds_reviewed_same_repository_head_without_credentials.transport`（L147–L151）：接收`**kwargs`。 控制顺序：L148断言`kwargs["verify"].check_hostname`；L149断言`kwargs["verify"].verify_mode == ssl.CERT_REQUIRED`；L150断言`kwargs["retries"] == 0 and kwargs["trust_env"] is False`。 调用`httpx.MockTransport`。 返回路径：L151的`httpx.MockTransport(handle)`。
+- `test_label_probe_rejects_unreviewed_event_before_network`（L176–L183）：接收`tmp_path`、`monkeypatch`、`mutation`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`client.probe`、`labeled_env`、`pytest.mark.parametrize`、`e.update`、`p.update`、`p["label"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_label_workflow_defaults_do_not_grant_no_charge_or_custom_ca`（L186–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L193断言`"github.run_attempt == 1" in job["if"]`；L194断言`"github.event_name == 'pull_request'" in job["if"]`；L195断言`job["environment"] == "rnd"`；L196断言`"github.event.pull_request.head.sha" in job["env"]["REVIEWED_SHA"]`；L197断言`job["env"]["LIVE_BILLING_MODE"] == "${{ inputs.billing_mode \|\| 'metered' }}"`；L198断言`job["env"]["LIVE_TEST_CA"] == "${{ inputs.test_ca \|\| 'system' }}"`；L199断言`job["env"]["LIVE_ZERO_BILLING_ACK"] == "${{ inputs.confirm_no_charge \|\| false }}"`；L200断言`job["steps"][0]["with"]["persist-credentials"] is False`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.safe_load`、`(live.ROOT / ".github/workflows/template-project-acceptance.yml")…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_scoped_transport_refuses_cross_host_and_authenticated_probe`（L204–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L207遍历`[ httpx.Request("POST", "https://other.test/v1/chat/completions")…`；L215断言`transport.calls == 0`。 调用`client.TestServiceTransport`、`httpx.Request`、`pytest.raises`、`transport.handle_request`、`transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_free_mode_needs_attested_exact_endpoint`（L229–L270）：接收`settings`、`tmp_path`、`monkeypatch`、`ack`、`endpoint`、`cost`、`price`、`accepted`。 控制顺序：L266按`accepted`分支；L267断言`invoke() == "offline-authority-checked"`。 调用`settings.model_copy`、`monkeypatch.setattr`、`design`、`invoke`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_free_mode_needs_attested_exact_endpoint.invoke`（L254–L264）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`mini_swe.run_agent`、`ModelGateway`。 返回路径：L255的`mini_swe.run_agent( settings, ModelGateway(settings, None), "offline", plan.tasks[0], plan…`。
+- `test_transport_timings_preserve_response_and_timeout_semantics`（L274–L329）：接收`monkeypatch`、`failure`。 控制顺序：L307按`failure`分支；L311断言`http.post(client.ENDPOINT + "/chat/completions", content=b"private-request").content …`；L315断言`transport.calls == 1 and transport.responses == (0 if failure == "headers" else 1)`；L317断言`data == [ { "attempt": 1, "request_body_bytes": 15, "read_timeout_seconds": 7, "heade…`；L328断言`bool(closed) is (failure != "headers")`；L329断言`"private" not in json.dumps(data)`。 调用`monkeypatch.setattr`、`type`、`staticmethod`、`httpx.MockTransport`、`client.TestServiceTransport`、`httpx.Client`、`pytest.raises`、`http.post`、`timing_receipts`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_timings_preserve_response_and_timeout_semantics.Body`（L285–L295）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_transport_timings_preserve_response_and_timeout_semantics.Body.__iter__`（L286–L292）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L290按`failure == "body"`分支；L291抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_transport_timings_preserve_response_and_timeout_semantics.Body.close`（L294–L295）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closed.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_timings_preserve_response_and_timeout_semantics.request`（L297–L302）：接收`req`。 控制顺序：L298断言`req.extensions["timeout"]["read"] == 7`；L300按`failure == "headers"`分支；L301抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`、`httpx.Response`、`Body`。 返回路径：L302的`httpx.Response(200, stream=Body())`。
+- `test_timing_projection_rejects_non_numeric_data_and_limits_inventory`（L332–L343）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L337遍历`((False, TURN_FIELDS, 8), (True, ATTEMPT_FIELDS, 32))`；L338遍历`("private-text", True, -1, float("nan"), float("inf"), 10**1000, …`；L341断言`len(result) == limit`；L342断言`all(value is None for row in result for value in row.values())`；L343断言`"private" not in json.dumps(result)`。 调用`float`、`dict.fromkeys`、`timing_receipts`、`len`、`all`、`row.values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L249。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_live_test_client.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L343。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8814`。本段原文以LF换行结束。
+本段原始字节数：`12547`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0ed08af58e8d98f769fad40183e69f9b821b778cf690ec8905c60d62681d7e2e"} -->
+<!-- learning-source: {"path": "tests/test_live_test_client.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f0e961059283e7d6c14609494751a0dac47935e9b03d8e1c5ef108c77cac0da2"} -->
 ````python
 # tests/test_live_test_client.py
 """Offline trust scope, no-charge attestation and bounded client contracts."""
 
+import json
 import ssl
 
 import httpx
@@ -150,6 +157,99 @@ def test_probe_is_strict_unauthenticated_and_does_not_follow_redirects(
         with pytest.raises(ValueError):
             client.probe(env())
     assert len(requests) == 1
+
+
+def labeled_env(tmp_path, *, mutation=None):
+    head = "b" * 40
+    event = {
+        "action": "labeled",
+        "label": {"name": "run-live-acceptance"},
+        "pull_request": {
+            "head": {"sha": head, "repo": {"full_name": live.REPOSITORY}},
+            "base": {"repo": {"full_name": live.REPOSITORY}},
+        },
+    }
+    values = {
+        **env(),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_SHA": "c" * 40,  # GitHub's merge ref differs from the checked-out PR head.
+        "ACCEPTANCE_HEAD_SHA": head,
+        "REVIEWED_SHA": head,
+        "LIVE_TEST_CA": "system",
+        "LIVE_BILLING_MODE": "metered",
+        "LIVE_ZERO_BILLING_ACK": "false",
+    }
+    if mutation:
+        mutation(values, event)
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(event))
+    values["GITHUB_EVENT_PATH"] = str(path)
+    return values
+
+
+def test_label_probe_binds_reviewed_same_repository_head_without_credentials(tmp_path, monkeypatch):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        assert request.method == "GET" and "authorization" not in request.headers
+        return httpx.Response(401)
+
+    def transport(**kwargs):
+        assert kwargs["verify"].check_hostname
+        assert kwargs["verify"].verify_mode == ssl.CERT_REQUIRED
+        assert kwargs["retries"] == 0 and kwargs["trust_env"] is False
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(client.httpx, "HTTPTransport", transport)
+    result = client.probe({**labeled_env(tmp_path), "API_KEY": "must-not-be-sent"})
+    assert result["head_sha"] == "b" * 40
+    assert result["authentication_sent"] is False and result["ca_mode"] == "system"
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda e, p: e.update(GITHUB_EVENT_NAME="pull_request_target"),
+        lambda e, p: e.update(GITHUB_RUN_ATTEMPT="2"),
+        lambda e, p: e.update(GITHUB_REPOSITORY="untrusted/repo"),
+        lambda e, p: e.update(ACCEPTANCE_HEAD_SHA="not-a-sha"),
+        lambda e, p: e.update(REVIEWED_SHA="a" * 40),
+        lambda e, p: p.update(action="synchronize"),
+        lambda e, p: p["label"].update(name="unrelated"),
+        lambda e, p: p["pull_request"]["head"]["repo"].update(full_name="fork/repo"),
+        lambda e, p: p["pull_request"]["base"]["repo"].update(full_name="other/repo"),
+        lambda e, p: p["pull_request"]["head"].update(sha="a" * 40),
+        lambda e, p: p.update(pull_request={}),
+    ],
+)
+def test_label_probe_rejects_unreviewed_event_before_network(tmp_path, monkeypatch, mutation):
+    monkeypatch.setattr(
+        client.httpx,
+        "HTTPTransport",
+        lambda **kwargs: pytest.fail("unreviewed event reached the network"),
+    )
+    with pytest.raises(ValueError):
+        client.probe(labeled_env(tmp_path, mutation=mutation))
+
+
+def test_label_workflow_defaults_do_not_grant_no_charge_or_custom_ca():
+    import yaml
+
+    workflow = yaml.safe_load(
+        (live.ROOT / ".github/workflows/template-project-acceptance.yml").read_text()
+    )
+    job = workflow["jobs"]["all-three-projects"]
+    assert "github.run_attempt == 1" in job["if"]
+    assert "github.event_name == 'pull_request'" in job["if"]
+    assert job["environment"] == "rnd"
+    assert "github.event.pull_request.head.sha" in job["env"]["REVIEWED_SHA"]
+    assert job["env"]["LIVE_BILLING_MODE"] == "${{ inputs.billing_mode || 'metered' }}"
+    assert job["env"]["LIVE_TEST_CA"] == "${{ inputs.test_ca || 'system' }}"
+    assert job["env"]["LIVE_ZERO_BILLING_ACK"] == "${{ inputs.confirm_no_charge || false }}"
+    assert job["steps"][0]["with"]["persist-credentials"] is False
+    assert "API_KEY" not in job["env"]
 
 
 def test_scoped_transport_refuses_cross_host_and_authenticated_probe():

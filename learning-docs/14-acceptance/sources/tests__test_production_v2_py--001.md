@@ -16,43 +16,48 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `design_v1`（L25–L52）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`make_plan`、`task.model_dump`、`FeatureDesign`、`outline`、`fixture_baseline`。 返回路径：L48的`FeatureDesign( outline=outline(payload, modules=modules, entity=None), baseline=fixture_ba…`。
-- `test_v1_dump_and_gate_identity_are_not_upgraded`（L55–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L58断言`"version" not in saved["implementation"]`；L59断言`"version" not in saved["outline"]["modules"][0]`；L60断言`version_for_run({"options": {}}) == 1`；L61断言`FeatureDesign.model_validate(saved).model_dump() == saved`；L63断言`original.model_dump() == saved`；L64断言`upgraded.outline.version == upgraded.implementation.version == 2`；L65断言`upgraded.implementation.tasks[0].executor == "bounded_edit"`；L66断言`upgraded.implementation.tasks[0].max_steps == 1`。后续分支沿下方源码相同行号继续阅读。 调用`design_v1`、`original.model_dump`、`version_for_run`、`FeatureDesign.model_validate(saved).model_dump`、`FeatureDesign.model_validate`、`compile_v2`、`upgraded.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_v2_rejects_conflicting_authority`（L81–L85）：接收`field`、`value`。 调用`compile_v2(design_v1()).implementation.tasks[0].model_dump`、`compile_v2`、`design_v1`、`pytest.raises`、`CapabilityTaskV2.model_validate`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_versions_and_dag_cannot_be_mixed`（L88–L96）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`compile_v2(design_v1()).model_dump`、`compile_v2`、`design_v1`、`pytest.raises`、`FeatureDesign.model_validate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unknown_route_and_stale_document_sources_are_rejected`（L99–L113）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`design_v1().outline.model_dump`、`design_v1`、`pytest.raises`、`FeatureOutline.model_validate`、`SpecificationBundle`、`validate_sources`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_openspec_document_only_commands`（L116–L141）：接收`tmp_path`。 控制顺序：L119按`not (ROOT / "tools/openspec/node_modules").exists()`分支；L120断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L125断言`cli.validate_schema()["valid"] is True`；L127遍历`("proposal", "specs", "design", "tasks")`；L128断言`cli.instructions(name)["artifactId"] == name`；L140断言`cli.status()["isComplete"] is True`；L141断言`not (tmp_path / "product.py").exists()`。 调用`(ROOT / "tools/openspec/node_modules").exists`、`os.environ.get`、`pytest.skip`、`initialize_workspace`、`OpenSpecCLI`、`cli.check_version`、`cli.validate_schema`、`cli.new_change`、`cli.instructions`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_agent_snapshot_guards_preimage_and_file_scope`（L144–L161）：接收`tmp_path`。 控制顺序：L146遍历`task.files`；L154断言`all(edit.before_sha256 == hashlib.sha256(b"before").hexdigest() for edit in edits.fil…`。 调用`compile_v2`、`design_v1`、`path.parent.mkdir`、`path.write_text`、`snapshot_edits`、`design_v1().implementation.selection.model_dump`、`all`、`hashlib.sha256(b"before").hexdigest`、`hashlib.sha256`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_python312_worker_mock_model_and_environment`（L164–L237）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L169按`not worker_python().exists()`分支；L170断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L229断言`gateway.calls == 2`；L230断言`set(snapshots) == set(task.files)`；L231断言`not list(product.iterdir())`；L232断言`all(edit.before_sha256 is None for edit in edits.files)`；L236断言`receipt["candidate_submitted"] is True`；L237断言`receipt["implementation_verified"] is False`。 调用`monkeypatch.setattr`、`digest`、`manifest`、`worker_python().exists`、`worker_python`、`os.environ.get`、`pytest.skip`、`compile_v2`、`design_v1`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_python312_worker_mock_model_and_environment.Gateway`（L182–L204）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_real_python312_worker_mock_model_and_environment.Gateway.complete`（L185–L204）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L187按`self.calls == 1`分支。 调用`AgentTurn.model_validate`、`AgentTurn`。 返回路径：L188的`AgentTurn.model_validate( { "operation": "edit", "edits": { "explanation": "authored test"…`；L204的`AgentTurn(operation="submit")`。
-- `test_real_python312_worker_mock_model_and_environment.Environment`（L206–L211）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_real_python312_worker_mock_model_and_environment.Environment.write`（L207–L208）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_python312_worker_mock_model_and_environment.Environment.snapshot`（L210–L211）：接收`paths`。 调用`deepcopy`。 返回路径：L211的`deepcopy(snapshots)`。
-- `test_real_python312_worker_mock_model_and_environment.environment`（L214–L215）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_ledger_rejects_agent_success_as_acceptance`（L240–L254）：接收`tmp_path`。 控制顺序：L254断言`ledger._load()["version"] == 0`。 调用`compile_v2`、`design_v1`、`baseline.mkdir`、`(baseline / "app.py").write_text`、`ProductLedger`、`ledger.baseline`、`pytest.raises`、`ledger.promote`、`ledger._load`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_ledger_atomic_pointer_replay_and_predecessor`（L257–L297）：接收`tmp_path`、`monkeypatch`。 控制顺序：L285断言`ledger._load()["version"] == 0`；L288断言`promoted["version"] == 1`；L289断言`ledger.promote(candidate, plan.tasks[0], {"fixture": True}, manifest(base)) == promot…`；L290断言`checked[-1]["plan_digest"] == ledger.identity`。 调用`compile_v2`、`design_v1`、`base.mkdir`、`(base / "app.py").write_text`、`candidate.mkdir`、`(candidate / "app.py").write_text`、`module.ProductLedger`、`ledger.baseline`、`monkeypatch.setattr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_ledger_atomic_pointer_replay_and_predecessor.interrupted`（L277–L280）：接收`path`、`value`。 控制顺序：L278按`path == ledger.pointer`分支；L279抛异常，停止当前正常路径。 调用`OSError`、`original`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_planner_cannot_upgrade_configured_executor`（L300–L303）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`compile_v2`、`design_v1`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_run_pins_version_without_mutating_existing_runs`（L306–L310）：接收`store`。 控制顺序：L309断言`store.get_run(first)["options"]["production_version"] == 2`；L310断言`version_for_run({"options": {"template": "python-basic"}}) == 1`。 调用`store.create_project`、`store.create_run`、`store.get_run`、`version_for_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_worker_rejects_platform_interpreter`（L313–L327）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L326断言`result.returncode != 0`；L327断言`b"Worker requires reviewed Python 3.12" in result.stderr`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_restored_design_cannot_change_pinned_run_policy`（L331–L362）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_requires_an_explicit_output_token_limit`（L365–L401）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L386–L387）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes`（L407–L483）：接收`settings`、`tmp_path`、`original`、`monkeypatch`。 控制顺序：L417按`not worker_python().is_file()`分支；L423遍历`task.files`；L482遍历`task.files`；L483断言`(candidate / name).read_bytes() == (product / name).read_bytes() == original`。 调用`monkeypatch.setattr`、`digest`、`manifest`、`worker_python().is_file`、`worker_python`、`pytest.skip`、`compile_v2`、`design_v1`、`product.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway`（L428–L453）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway.complete`（L431–L453）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L433遍历`payload["context"].items()`；L434断言`value["content"].encode("utf-8") == original`；L435断言`value["sha256"] == sha(product / name)`；L436按`self.calls == 2`分支。 调用`payload["context"].items`、`value["content"].encode`、`sha`、`schema`、`schema.model_validate`。 返回路径：L437的`schema(operation="submit")`；L438的`schema.model_validate( { "operation": "edit", "edits": { "explanation": "offline unchanged…`。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment`（L455–L460）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.write`（L456–L457）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.snapshot`（L459–L460）：接收`paths`。 调用`dict`。 返回路径：L460的`dict(snapshots)`。
-- `test_real_worker_echo_preserves_context_and_candidate_bytes.environment`（L463–L464）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_dispatcher_only_prepares_retrieval_for_the_executor_using_it`（L57–L113）：接收`settings`、`tmp_path`、`monkeypatch`、`executor`、`unavailable`。 控制顺序：L106按`executor == "mini_swe"`分支；L109断言`calls == []`；L113断言`calls[-1] == unavailable`。 调用`compile_v2`、`design_v1`、`product.mkdir`、`monkeypatch.setattr`、`prepare`、`SimpleNamespace`、`settings.model_copy`、`str`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dispatcher_only_prepares_retrieval_for_the_executor_using_it.AgentReached`（L70–L71）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_dispatcher_only_prepares_retrieval_for_the_executor_using_it.prepare`（L73–L80）：接收`name`、`result`。 返回路径：L80的`invoke`。
+- `test_dispatcher_only_prepares_retrieval_for_the_executor_using_it.prepare.invoke`（L74–L78）：接收`*args`、`**kwargs`。 控制顺序：L76按`name == unavailable`分支；L77抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。 返回路径：L78的`result`。
+- `test_dispatcher_only_prepares_retrieval_for_the_executor_using_it.agent`（L86–L90）：接收`*args`。 控制顺序：L87断言`args[3] == task and args[4] == selected.implementation`；L88断言`args[5] == product`；L89断言`args[7]["source_units"] == [{"id": "source-1"}]`；L90抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_v1_dump_and_gate_identity_are_not_upgraded`（L116–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L119断言`"version" not in saved["implementation"]`；L120断言`"version" not in saved["outline"]["modules"][0]`；L121断言`version_for_run({"options": {}}) == 1`；L122断言`FeatureDesign.model_validate(saved).model_dump() == saved`；L124断言`original.model_dump() == saved`；L125断言`upgraded.outline.version == upgraded.implementation.version == 2`；L126断言`upgraded.implementation.tasks[0].executor == "bounded_edit"`；L127断言`upgraded.implementation.tasks[0].max_steps == 1`。后续分支沿下方源码相同行号继续阅读。 调用`design_v1`、`original.model_dump`、`version_for_run`、`FeatureDesign.model_validate(saved).model_dump`、`FeatureDesign.model_validate`、`compile_v2`、`upgraded.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_v2_rejects_conflicting_authority`（L142–L146）：接收`field`、`value`。 调用`compile_v2(design_v1()).implementation.tasks[0].model_dump`、`compile_v2`、`design_v1`、`pytest.raises`、`CapabilityTaskV2.model_validate`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_versions_and_dag_cannot_be_mixed`（L149–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`compile_v2(design_v1()).model_dump`、`compile_v2`、`design_v1`、`pytest.raises`、`FeatureDesign.model_validate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_route_and_stale_document_sources_are_rejected`（L160–L174）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`design_v1().outline.model_dump`、`design_v1`、`pytest.raises`、`FeatureOutline.model_validate`、`SpecificationBundle`、`validate_sources`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_openspec_document_only_commands`（L177–L202）：接收`tmp_path`。 控制顺序：L180按`not (ROOT / "tools/openspec/node_modules").exists()`分支；L181断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L186断言`cli.validate_schema()["valid"] is True`；L188遍历`("proposal", "specs", "design", "tasks")`；L189断言`cli.instructions(name)["artifactId"] == name`；L201断言`cli.status()["isComplete"] is True`；L202断言`not (tmp_path / "product.py").exists()`。 调用`(ROOT / "tools/openspec/node_modules").exists`、`os.environ.get`、`pytest.skip`、`initialize_workspace`、`OpenSpecCLI`、`cli.check_version`、`cli.validate_schema`、`cli.new_change`、`cli.instructions`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_agent_snapshot_guards_preimage_and_file_scope`（L205–L222）：接收`tmp_path`。 控制顺序：L207遍历`task.files`；L215断言`all(edit.before_sha256 == hashlib.sha256(b"before").hexdigest() for edit in edits.fil…`。 调用`compile_v2`、`design_v1`、`path.parent.mkdir`、`path.write_text`、`snapshot_edits`、`design_v1().implementation.selection.model_dump`、`all`、`hashlib.sha256(b"before").hexdigest`、`hashlib.sha256`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_python312_worker_mock_model_and_environment`（L225–L298）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L230按`not worker_python().exists()`分支；L231断言`not os.environ.get("RND_REQUIRE_V2_TOOLS")`；L290断言`gateway.calls == 2`；L291断言`set(snapshots) == set(task.files)`；L292断言`not list(product.iterdir())`；L293断言`all(edit.before_sha256 is None for edit in edits.files)`；L297断言`receipt["candidate_submitted"] is True`；L298断言`receipt["implementation_verified"] is False`。 调用`monkeypatch.setattr`、`digest`、`manifest`、`worker_python().exists`、`worker_python`、`os.environ.get`、`pytest.skip`、`compile_v2`、`design_v1`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_python312_worker_mock_model_and_environment.Gateway`（L243–L265）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_python312_worker_mock_model_and_environment.Gateway.complete`（L246–L265）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L248按`self.calls == 1`分支。 调用`AgentTurn.model_validate`、`AgentTurn`。 返回路径：L249的`AgentTurn.model_validate( { "operation": "edit", "edits": { "explanation": "authored test"…`；L265的`AgentTurn(operation="submit")`。
+- `test_real_python312_worker_mock_model_and_environment.Environment`（L267–L272）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_python312_worker_mock_model_and_environment.Environment.write`（L268–L269）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_python312_worker_mock_model_and_environment.Environment.snapshot`（L271–L272）：接收`paths`。 调用`deepcopy`。 返回路径：L272的`deepcopy(snapshots)`。
+- `test_real_python312_worker_mock_model_and_environment.environment`（L275–L276）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_ledger_rejects_agent_success_as_acceptance`（L301–L315）：接收`tmp_path`。 控制顺序：L315断言`ledger._load()["version"] == 0`。 调用`compile_v2`、`design_v1`、`baseline.mkdir`、`(baseline / "app.py").write_text`、`ProductLedger`、`ledger.baseline`、`pytest.raises`、`ledger.promote`、`ledger._load`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ledger_atomic_pointer_replay_and_predecessor`（L318–L358）：接收`tmp_path`、`monkeypatch`。 控制顺序：L346断言`ledger._load()["version"] == 0`；L349断言`promoted["version"] == 1`；L350断言`ledger.promote(candidate, plan.tasks[0], {"fixture": True}, manifest(base)) == promot…`；L351断言`checked[-1]["plan_digest"] == ledger.identity`。 调用`compile_v2`、`design_v1`、`base.mkdir`、`(base / "app.py").write_text`、`candidate.mkdir`、`(candidate / "app.py").write_text`、`module.ProductLedger`、`ledger.baseline`、`monkeypatch.setattr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ledger_atomic_pointer_replay_and_predecessor.interrupted`（L338–L341）：接收`path`、`value`。 控制顺序：L339按`path == ledger.pointer`分支；L340抛异常，停止当前正常路径。 调用`OSError`、`original`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_planner_cannot_upgrade_configured_executor`（L361–L364）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`compile_v2`、`design_v1`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_run_pins_version_without_mutating_existing_runs`（L367–L371）：接收`store`。 控制顺序：L370断言`store.get_run(first)["options"]["production_version"] == 2`；L371断言`version_for_run({"options": {"template": "python-basic"}}) == 1`。 调用`store.create_project`、`store.create_run`、`store.get_run`、`version_for_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_rejects_platform_interpreter`（L374–L388）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L387断言`result.returncode != 0`；L388断言`b"Worker requires reviewed Python 3.12" in result.stderr`。 调用`subprocess.run`、`str`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_restored_design_cannot_change_pinned_run_policy`（L392–L423）：接收`settings`、`monkeypatch`、`version`、`executor`。 调用`compile_v2`、`design_v1`、`proposal.outline.selection.model_dump`、`Workflow`、`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`workflow.checked_feature`、`proposal.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit`（L426–L462）：接收`settings`、`tmp_path`、`monkeypatch`。 调用`settings.model_copy`、`monkeypatch.setattr`、`type(tmp_path)`、`type`、`ModelGateway`、`httpx.MockTransport`、`compile_v2`、`design_v1`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_gateway_requires_an_explicit_output_token_limit.forbidden_request`（L447–L448）：接收`request`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes`（L468–L544）：接收`settings`、`tmp_path`、`original`、`monkeypatch`。 控制顺序：L478按`not worker_python().is_file()`分支；L484遍历`task.files`；L543遍历`task.files`；L544断言`(candidate / name).read_bytes() == (product / name).read_bytes() == original`。 调用`monkeypatch.setattr`、`digest`、`manifest`、`worker_python().is_file`、`worker_python`、`pytest.skip`、`compile_v2`、`design_v1`、`product.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway`（L489–L514）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Gateway.complete`（L492–L514）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L494遍历`payload["context"].items()`；L495断言`value["content"].encode("utf-8") == original`；L496断言`value["sha256"] == sha(product / name)`；L497按`self.calls == 2`分支。 调用`payload["context"].items`、`value["content"].encode`、`sha`、`schema`、`schema.model_validate`。 返回路径：L498的`schema(operation="submit")`；L499的`schema.model_validate( { "operation": "edit", "edits": { "explanation": "offline unchanged…`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment`（L516–L521）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.write`（L517–L518）：接收`edits`。 调用`snapshots.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.Environment.snapshot`（L520–L521）：接收`paths`。 调用`dict`。 返回路径：L521的`dict(snapshots)`。
+- `test_real_worker_echo_preserves_context_and_candidate_bytes.environment`（L524–L525）：接收`*args`。 调用`Environment`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L483。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L544。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17349`。本段原文以LF换行结束。
+本段原始字节数：`19565`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b9c45e4d13fbb20f1b18756ec164b669aa179ad333264f6892ce7aec8001c8a0"} -->
+<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4411a63bdc409530b3246462459933fb14a1e6ac15f038631b83efc0dce1dc1e"} -->
 ````python
 # tests/test_production_v2.py
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
@@ -107,6 +112,67 @@ def design_v1():
         baseline=fixture_baseline(),
         implementation=plan,
     )
+
+
+@pytest.mark.parametrize("executor", ["mini_swe", "bounded_edit"])
+@pytest.mark.parametrize("unavailable", ["build_index", "repo_map", "query"])
+def test_dispatcher_only_prepares_retrieval_for_the_executor_using_it(
+    settings, tmp_path, monkeypatch, executor, unavailable
+):
+    from types import SimpleNamespace
+
+    from workbench.production.dispatcher import ExtensionWorkflow
+
+    selected = compile_v2(design_v1(), executor=executor)
+    task = selected.implementation.tasks[0]
+    product = tmp_path / "product"
+    product.mkdir()
+    calls = []
+
+    class AgentReached(Exception):
+        pass
+
+    def prepare(name, result):
+        def invoke(*args, **kwargs):
+            calls.append(name)
+            if name == unavailable:
+                raise RuntimeError("optional retrieval unavailable")
+            return result
+
+        return invoke
+
+    monkeypatch.setattr("workbench.knowledge.build_index", prepare("build_index", None))
+    monkeypatch.setattr("workbench.aider_tool.repo_map", prepare("repo_map", "fixture map"))
+    monkeypatch.setattr("workbench.retrieval.query", prepare("query", []))
+
+    def agent(*args):
+        assert args[3] == task and args[4] == selected.implementation
+        assert args[5] == product
+        assert args[7]["source_units"] == [{"id": "source-1"}]
+        raise AgentReached
+
+    monkeypatch.setattr("workbench.coding.mini_swe.run_agent", agent)
+    workflow = SimpleNamespace(
+        settings=settings.model_copy(update={"repo_map_provider": "aider"}),
+        gateway=None,
+        checked_extension=lambda state: selected,
+        extension_task=lambda state, design: task,
+    )
+    state = {
+        "extension_product": str(product),
+        "extension_scope": {"sources": [{"id": "source-1"}]},
+        "extension_policy": {},
+        "run_id": "offline-dispatch",
+        "round": 1,
+    }
+    if executor == "mini_swe":
+        with pytest.raises(AgentReached):
+            ExtensionWorkflow.extension_code(workflow, state)
+        assert calls == []
+    else:
+        with pytest.raises(RuntimeError, match="optional retrieval unavailable"):
+            ExtensionWorkflow.extension_code(workflow, state)
+        assert calls[-1] == unavailable
 
 
 def test_v1_dump_and_gate_identity_are_not_upgraded():

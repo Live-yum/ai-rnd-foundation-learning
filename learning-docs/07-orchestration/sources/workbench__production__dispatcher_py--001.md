@@ -35,7 +35,7 @@
 - `ExtensionWorkflow.extension_generate`（L513–L546）：接收`state`。 控制顺序：L542按`manifest(baseline) != receipt["files"]`分支；L543抛异常，停止当前正常路径；L544按`design.implementation.version == 2`分支。 调用`self.checked_extension`、`digest`、`design.model_dump`、`design.implementation.selection.model_dump`、`self.store.step`、`manifest`、`PrerequisiteError`、`self.product_ledger(state, design.implementation).baseline`、`self.product_ledger`等。 返回路径：L546的`{"extension_product": str(baseline), "extension_baseline": receipt["files"]}`。
 - `ExtensionWorkflow.extension_generate.generate`（L524–L537）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L525按`selection["template"] == "python-basic"`分支；L533按`selection["template"] == "python-basic"`分支。 调用`generate_basic`、`generate_native`、`prepare_consumer`、`manifest`。 返回路径：L537的`{"files": manifest(baseline)}`。
 - `ExtensionWorkflow.extension_task`（L548–L557）：接收`state`、`design`。 调用`state.get`、`next`、`set`。 返回路径：L550的`next( ( task for task in design.implementation.tasks if task.id not in completed and set(t…`。
-- `ExtensionWorkflow.extension_code`（L559–L680）：接收`state`。 控制顺序：L562按`task is None`分支；L563抛异常，停止当前正常路径；L566遍历`task.files`；L578按`self.settings.repo_map_provider == "aider"`分支；L601按`getattr(task, "executor", "bounded_edit") == "mini_swe"`分支。 调用`self.checked_extension`、`self.extension_task`、`PrerequisiteError`、`Path`、`inside`、`path.is_file`、`sha`、`path.read_text`、`build_index`等。 返回路径：L667的`{ "extension_candidate": "", "extension_error": str(exc)[:4000], "extension_candidate_pass…`；L675的`{ "extension_candidate": str(candidate), "extension_edit_receipt": receipt, "extension_err…`。
+- `ExtensionWorkflow.extension_code`（L559–L680）：接收`state`。 控制顺序：L562按`task is None`分支；L563抛异常，停止当前正常路径；L574按`getattr(task, "executor", "bounded_edit") == "mini_swe"`分支；L600遍历`task.files`；L612按`self.settings.repo_map_provider == "aider"`分支。 调用`self.checked_extension`、`self.extension_task`、`PrerequisiteError`、`Path`、`digest`、`design.model_dump`、`manifest`、`state.get`、`getattr`等。 返回路径：L667的`{ "extension_candidate": "", "extension_error": str(exc)[:4000], "extension_candidate_pass…`；L675的`{ "extension_candidate": str(candidate), "extension_edit_receipt": receipt, "extension_err…`。
 - `ExtensionWorkflow.extension_verify`（L682–L734）：接收`state`。 控制顺序：L687按`not state.get("extension_candidate")`分支；L720按`plan.version == 2`分支。 调用`self.checked_extension`、`self.extension_task`、`state.get`、`Path`、`self.extension_progress`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`等。 返回路径：L688的`{"extension_candidate_passed": False}`；L711的`{ "extension_candidate_passed": False, "extension_error": self.settings.redact( str(exc) +…`；L728的`{ "extension_completed": completed, "extension_product": str(candidate), "extension_candid…`。
 - `ExtensionWorkflow.extension_after_verify`（L736–L748）：接收`state`。 控制顺序：L737按`state.get("extension_candidate_passed")`分支；L741按`getattr(self.extension_task(state, design), "executor", None) == "mini_swe"`分支；L742抛异常，停止当前正常路径；L743按`state.get("extension_attempt", 0) < self.settings.max_repair_attempts`分支；L745抛异常，停止当前正常路径。 调用`state.get`、`ExtensionDesign.model_validate`、`self.extension_task`、`self.checked_extension`、`getattr`、`UnsupportedScope`。 返回路径：L739的`"extension_code" if self.extension_task(state, design) else "extension_aggregate"`；L744的`"extension_repair"`。
 - `ExtensionWorkflow.extension_repair`（L750–L751）：接收`state`。 调用`state.get`。 返回路径：L751的`{"extension_attempt": state.get("extension_attempt", 0) + 1}`。
@@ -48,9 +48,9 @@
 
 **创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L867。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`42023`。本段原文以LF换行结束。
+本段原始字节数：`42123`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "43d6b1b8a04cf34ac88640087316b989b3e096823058c01ef02f6c544f94ad06"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "8b2fb6a6afafd3bb22e58f1a852d32c0d5d870a507933b41b8d6ec4534da769c"} -->
 ````python
 # workbench/production/dispatcher.py
 """Durable reviewed capability development, preserving the selected template.
@@ -617,33 +617,6 @@ class ExtensionWorkflow:
         if task is None:
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
         product = Path(state["extension_product"])
-        context = {}
-        for name in task.files:
-            path = inside(product, name)
-            context[name] = (
-                {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
-                if path.is_file()
-                else {"sha256": None, "content": None}
-            )
-        from workbench.knowledge import build_index
-        from workbench.retrieval import compact_map, query
-
-        index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
-        build_index(product, index)
-        if self.settings.repo_map_provider == "aider":
-            from workbench.aider_tool import repo_map
-
-            mapping = repo_map(product, index, self.settings)
-        else:
-            mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
-        retrieved = query(
-            product,
-            index,
-            task.title + " " + task.contract,
-            limit=4,
-            max_chars=6000,
-            settings=self.settings,
-        )
         identity = digest(
             {
                 "design": design.model_dump(),
@@ -678,6 +651,33 @@ class ExtensionWorkflow:
                 },
             )
         else:
+            context = {}
+            for name in task.files:
+                path = inside(product, name)
+                context[name] = (
+                    {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
+                    if path.is_file()
+                    else {"sha256": None, "content": None}
+                )
+            from workbench.knowledge import build_index
+            from workbench.retrieval import compact_map, query
+
+            index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
+            build_index(product, index)
+            if self.settings.repo_map_provider == "aider":
+                from workbench.aider_tool import repo_map
+
+                mapping = repo_map(product, index, self.settings)
+            else:
+                mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
+            retrieved = query(
+                product,
+                index,
+                task.title + " " + task.contract,
+                limit=4,
+                max_chars=6000,
+                settings=self.settings,
+            )
             value = self.gateway.complete(
                 state["run_id"],
                 f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",

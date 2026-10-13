@@ -20,22 +20,22 @@
 - `transport_failure`（L58–L79）：接收`exc`。 源码说明：Classify typed causes only; never parse or expose exception/provider text.。 控制顺序：L62遍历`range(12)`；L63按`exc is None or id(exc) in seen`分支；L66按`isinstance(exc, ssl.SSLCertVerificationError)`分支；L71按`isinstance(exc, httpx.ProxyError)`分支；L74按`proxy`分支。 调用`set`、`range`、`id`、`seen.add`、`isinstance`。 返回路径：L67的`( "tls_certificate_verification_failed", "TLS 证书校验失败；请检查证书有效期、信任链及地址与证书名称是否匹配，不能关闭校验", )`；L75的`( "proxy_connection_failed", "代理连接或隧道失败；请检查代理访问策略。这不能证明目标服务证书或 API Key 无效", )`；L79的`None`。
 - `json_failure_facts`（L109–L136）：接收`details`。 源码说明：Project the single JSON diagnostic into bounded, text-free receipt facts.。 控制顺序：L111按`not isinstance(details, list) or len(details) != 1 or not isinstance(details[0], dict…`分支；L115按`type(category) is not str or category not in JSON_DIAGNOSTIC_CATEGORIES or category =…`分支；L122遍历`( ("position", {"line": (1, 1), "column": (1, 1), "offset": (0, 0…`；L127按`not isinstance(source, dict)`分支；L130遍历`fields.items()`；L132按`type(value) is int and minimum <= value <= MAX_MODEL_CONTENT_BYTES + extra`分支；L134按`safe`分支。 调用`isinstance`、`len`、`detail.get`、`type`、`fields.items`、`source.get`。 返回路径：L112的`{}`；L120的`{}`；L136的`result`。
 - `json_syntax_category`（L139–L145）：接收`exc`。 控制顺序：L141按`category == "extra_data"`分支；L143按`tail.strip(" \t\r\n") and not set(tail).difference("}] \t\r\n")`分支。 调用`JSON_SYNTAX_CATEGORIES.get`、`tail.strip`、`set(tail).difference`、`set`。 返回路径：L144的`"extra_closing_delimiters"`；L145的`category`。
-- `failure_diagnostic`（L148–L226）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L152按`code.startswith("http_") or code == "transport_error"`分支；L156按`code in {"http_401", "http_403"}`分支；L158按`code == "http_429"`分支；L160按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L164按`code in {"refusal", "content_filter"}`分支；L167按`code == "unexpected_model_error"`分支；L171按`code in { "native_scope_rejected", "native_sdk_unsupported", "native_request_mismatch…`分支；L180按`code == "native_schema_violation"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L218的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
-- `json_diagnostics`（L229–L275）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L233按`isinstance(exc, json.JSONDecodeError)`分支；L259按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`json_syntax_category`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L247的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L262的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
-- `_schema_nodes`（L278–L309）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L298遍历`path`；L300遍历`nodes`；L301遍历`expand(node)`；L302按`isinstance(part, int)`分支；L306按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L309的`[candidate for node in nodes for candidate in expand(node)]`。
-- `_schema_nodes.expand`（L281–L295）：接收`node`、`seen`。 控制顺序：L282按`not isinstance(node, dict)`分支；L286按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L288遍历`ref[2:].split("/")`；L289按`not isinstance(target, dict)`分支；L293遍历`("anyOf", "oneOf", "allOf")`；L294遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_constraint_hint`（L312–L342）：接收`document`、`error`。 控制顺序：L320按`error["type"] not in rules or len(error["loc"]) > 20`分支；L324按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L327按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L333按`isinstance(node.get("description"), str)`分支；L340按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L321的`None`；L325的`None`；L331的`None`。
-- `schema_diagnostics`（L345–L415）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 控制顺序：L402遍历`errors`。 调用`set`、`schema.model_json_schema`、`collect`、`exc.errors`、`document.get`、`tuple`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`等。 返回路径：L404的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
-- `schema_diagnostics.collect`（L353–L360）：接收`node`。 控制顺序：L354按`isinstance(node, dict)`分支；L356遍历`node.values()`；L358按`isinstance(node, list)`分支；L359遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `schema_diagnostics.safe_message`（L394–L396）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L396的`value if value in safe_messages else "字段结构或类型不符合约定"`。
+- `failure_diagnostic`（L148–L234）：接收`code`、`trace_id`、`attempt`、`details`。 控制顺序：L152按`code.startswith("http_") or code in { "transport_error", "tls_certificate_verificatio…`分支；L160按`code in {"http_401", "http_403"}`分支；L162按`code == "http_429"`分支；L164按`code == "tls_certificate_verification_failed"`分支；L166按`code == "proxy_connection_failed"`分支；L168按`code in {"interrupted", "worker_interrupted", "abandoned_attempt"}`分支；L172按`code in {"refusal", "content_filter"}`分支；L175按`code == "unexpected_model_error"`分支。后续分支沿下方源码相同行号继续阅读。 调用`code.startswith`。 返回路径：L226的`{ "phase": phase, "code": code, "trace_id": trace_id, "attempt": attempt, "summary": summa…`。
+- `json_diagnostics`（L237–L283）：接收`exc`、`content`。 源码说明：Expose syntax locations and static guard names, never parser docs or snippets.。 控制顺序：L241按`isinstance(exc, json.JSONDecodeError)`分支；L267按`isinstance(exc, UnicodeDecodeError)`分支。 调用`isinstance`、`json_lengths`、`json_syntax_category`、`len`、`str`、`JSON_GUARD_MESSAGES.get`。 返回路径：L255的`[ { "type": "json_syntax", "category": category, "path": [], "position": {"line": exc.line…`；L270的`[ { "type": code, "category": code, "path": [], "lengths": lengths, "message": JSON_GUARD_…`。
+- `_schema_nodes`（L286–L317）：接收`document`、`path`。 源码说明：Resolve only schema-owned properties/items through local refs and unions.。 控制顺序：L306遍历`path`；L308遍历`nodes`；L309遍历`expand(node)`；L310按`isinstance(part, int)`分支；L314按`isinstance(child, dict)`分支。 调用`expand`、`isinstance`、`candidate.get`、`candidate.get("properties", {}).get`、`children.append`。 返回路径：L317的`[candidate for node in nodes for candidate in expand(node)]`。
+- `_schema_nodes.expand`（L289–L303）：接收`node`、`seen`。 控制顺序：L290按`not isinstance(node, dict)`分支；L294按`isinstance(ref, str) and ref.startswith("#/") and ref not in seen`分支；L296遍历`ref[2:].split("/")`；L297按`not isinstance(target, dict)`分支；L301遍历`("anyOf", "oneOf", "allOf")`；L302遍历`node.get(key, [])`。 调用`frozenset`、`isinstance`、`node.get`、`ref.startswith`、`ref[2:].split`、`target.get`、`part.replace("~1", "/").replace`、`part.replace`、`expand`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_constraint_hint`（L320–L350）：接收`document`、`error`。 控制顺序：L328按`error["type"] not in rules or len(error["loc"]) > 20`分支；L332按`not matches or any(node[key] != matches[0][key] for node in matches)`分支；L335按`not ( (key == "pattern" and isinstance(constraint, str) and len(constraint) <= 200) o…`分支；L341按`isinstance(node.get("description"), str)`分支；L348按`examples`分支。 调用`len`、`_schema_nodes`、`any`、`isinstance`、`type`、`message.format`、`node.get`、`"、".join`。 返回路径：L329的`None`；L333的`None`；L339的`None`。
+- `schema_diagnostics`（L353–L423）：接收`exc`、`schema`。 源码说明：Only schema-owned path segments and validator type, never arbitrary model values. Pydantic root validator messages and extra-field locations can contain the raw response or credentials; neither is saf。 控制顺序：L410遍历`errors`。 调用`set`、`schema.model_json_schema`、`collect`、`exc.errors`、`document.get`、`tuple`、`safe_message`、`error["type"].replace("_", "").isalnum`、`error["type"].replace`等。 返回路径：L412的`[ { "message": safe_message(error), "type": error["type"] if error["type"].replace("_", ""…`。
+- `schema_diagnostics.collect`（L361–L368）：接收`node`。 控制顺序：L362按`isinstance(node, dict)`分支；L364遍历`node.values()`；L366按`isinstance(node, list)`分支；L367遍历`node`。 调用`isinstance`、`allowed.update`、`node.get`、`node.values`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `schema_diagnostics.safe_message`（L402–L404）：接收`error`。 调用`error["msg"].removeprefix`。 返回路径：L404的`value if value in safe_messages else "字段结构或类型不符合约定"`。
 
 </details>
 
-**创建路径：** `workbench/model_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L415。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L423。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18537`。本段原文以LF换行结束。
+本段原始字节数：`19091`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "729c6e0b8fea67a710c52477b015602c6323877333bf9a3db7c29ca7ab8c1633"} -->
+<!-- learning-source: {"path": "workbench/model_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "da105467b7e8bc7cccc8b71be5a00f070ecac26251372a20989c21ec7f971a1c"} -->
 ````python
 # workbench/model_diagnostics.py
 """Safe actionable provider failures. Never persist provider bodies or input values."""
@@ -189,7 +189,11 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     phase = "response_validation"
     summary = "模型响应未通过结构校验，未生成可批准结果。"
     hint = "按字段路径与约束提示检查该阶段的模型和规划契约，再重试当前运行；JSON 对象模式不保证符合 Schema。无需重填已提交的回答。"
-    if code.startswith("http_") or code == "transport_error":
+    if code.startswith("http_") or code in {
+        "transport_error",
+        "tls_certificate_verification_failed",
+        "proxy_connection_failed",
+    }:
         phase = "provider_request"
         summary = "模型请求失败，尚未取得有效响应。"
         hint = "先在模型与配置中测试该阶段连接，检查网络、服务额度与模型权限，再重试当前运行。"
@@ -197,6 +201,10 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
             hint = "检查该阶段的密钥与模型访问权限，保存后测试连接；不要把密钥放入对话。"
         elif code == "http_429":
             hint = "检查服务商额度或限流状态，稍后手动重试当前运行。"
+        elif code == "tls_certificate_verification_failed":
+            hint = "检查证书有效期、信任链及地址与证书名称是否匹配；不能关闭校验。修复后测试连接，再手动重试当前运行。"
+        elif code == "proxy_connection_failed":
+            hint = "检查代理访问策略和隧道连接；该错误不能证明目标服务证书或 API Key 无效。修复后测试连接，再手动重试当前运行。"
     elif code in {"interrupted", "worker_interrupted", "abandoned_attempt"}:
         phase = "response_stream"
         summary = "响应在完成前中断，已保留历史回答。"

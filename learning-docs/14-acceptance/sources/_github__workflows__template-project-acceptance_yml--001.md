@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/template-project-acceptance.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L106。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/template-project-acceptance.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L107。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4064`。本段原文以LF换行结束。
+本段原始字节数：`4247`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/template-project-acceptance.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f0263c747386cf4c88c62dd82bfdedc6fc0e834a84075ecc0f4ef2894f69e877"} -->
+<!-- learning-source: {"path": ".github/workflows/template-project-acceptance.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c5169e3585d09e65d22b456b338296834ea47f499669125609e3afbb6692b66a"} -->
 ````yaml
 # .github/workflows/template-project-acceptance.yml
 name: Three-project live acceptance
@@ -52,8 +52,9 @@ jobs:
   all-three-projects:
     if: >-
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
+      github.run_attempt == 1 &&
       (github.event_name == 'workflow_dispatch' ||
-       (github.event.action == 'labeled' &&
+       (github.event_name == 'pull_request' && github.event.action == 'labeled' &&
         github.event.label.name == 'run-live-acceptance' &&
         github.event.pull_request.head.repo.full_name == github.repository &&
         github.event.pull_request.base.repo.full_name == github.repository))
@@ -63,10 +64,10 @@ jobs:
     env:
       ACCEPTANCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       PYTHONUTF8: '1'
-      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
-      LIVE_BILLING_MODE: ${{ inputs.billing_mode }}
-      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge }}
-      LIVE_TEST_CA: ${{ inputs.test_ca }}
+      REVIEWED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.reviewed_sha }}
+      LIVE_BILLING_MODE: ${{ inputs.billing_mode || 'metered' }}
+      LIVE_ZERO_BILLING_ACK: ${{ inputs.confirm_no_charge || false }}
+      LIVE_TEST_CA: ${{ inputs.test_ca || 'system' }}
       BASE_URL: ${{ vars.BASE_URL }}
       MODE: ${{ vars.MODE }}
     steps:

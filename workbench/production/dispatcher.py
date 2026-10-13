@@ -562,33 +562,6 @@ class ExtensionWorkflow:
         if task is None:
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
         product = Path(state["extension_product"])
-        context = {}
-        for name in task.files:
-            path = inside(product, name)
-            context[name] = (
-                {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
-                if path.is_file()
-                else {"sha256": None, "content": None}
-            )
-        from workbench.knowledge import build_index
-        from workbench.retrieval import compact_map, query
-
-        index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
-        build_index(product, index)
-        if self.settings.repo_map_provider == "aider":
-            from workbench.aider_tool import repo_map
-
-            mapping = repo_map(product, index, self.settings)
-        else:
-            mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
-        retrieved = query(
-            product,
-            index,
-            task.title + " " + task.contract,
-            limit=4,
-            max_chars=6000,
-            settings=self.settings,
-        )
         identity = digest(
             {
                 "design": design.model_dump(),
@@ -623,6 +596,33 @@ class ExtensionWorkflow:
                 },
             )
         else:
+            context = {}
+            for name in task.files:
+                path = inside(product, name)
+                context[name] = (
+                    {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
+                    if path.is_file()
+                    else {"sha256": None, "content": None}
+                )
+            from workbench.knowledge import build_index
+            from workbench.retrieval import compact_map, query
+
+            index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
+            build_index(product, index)
+            if self.settings.repo_map_provider == "aider":
+                from workbench.aider_tool import repo_map
+
+                mapping = repo_map(product, index, self.settings)
+            else:
+                mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
+            retrieved = query(
+                product,
+                index,
+                task.title + " " + task.contract,
+                limit=4,
+                max_chars=6000,
+                settings=self.settings,
+            )
             value = self.gateway.complete(
                 state["run_id"],
                 f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",

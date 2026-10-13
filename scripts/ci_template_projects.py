@@ -816,7 +816,11 @@ def main():
         from scripts.live_test_client import zero_billing
 
         ca_mode = os.environ.get("LIVE_TEST_CA", "system")
-        billing = zero_billing(os.environ) if ca_mode == "caddy-ip" else None
+        billing = (
+            zero_billing(os.environ)
+            if ca_mode == "caddy-ip" or os.environ.get("LIVE_BILLING_MODE") == "declared_free"
+            else None
+        )
         with tempfile.TemporaryDirectory(prefix="rnd-three-projects-") as temporary:
             settings = acceptance_settings(os.environ, Path(temporary))
             write_json(REPORTS / "summary.json", {**summary, "run_identity": binding})

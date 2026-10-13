@@ -149,7 +149,11 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     phase = "response_validation"
     summary = "模型响应未通过结构校验，未生成可批准结果。"
     hint = "按字段路径与约束提示检查该阶段的模型和规划契约，再重试当前运行；JSON 对象模式不保证符合 Schema。无需重填已提交的回答。"
-    if code.startswith("http_") or code == "transport_error":
+    if code.startswith("http_") or code in {
+        "transport_error",
+        "tls_certificate_verification_failed",
+        "proxy_connection_failed",
+    }:
         phase = "provider_request"
         summary = "模型请求失败，尚未取得有效响应。"
         hint = "先在模型与配置中测试该阶段连接，检查网络、服务额度与模型权限，再重试当前运行。"
@@ -157,6 +161,10 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
             hint = "检查该阶段的密钥与模型访问权限，保存后测试连接；不要把密钥放入对话。"
         elif code == "http_429":
             hint = "检查服务商额度或限流状态，稍后手动重试当前运行。"
+        elif code == "tls_certificate_verification_failed":
+            hint = "检查证书有效期、信任链及地址与证书名称是否匹配；不能关闭校验。修复后测试连接，再手动重试当前运行。"
+        elif code == "proxy_connection_failed":
+            hint = "检查代理访问策略和隧道连接；该错误不能证明目标服务证书或 API Key 无效。修复后测试连接，再手动重试当前运行。"
     elif code in {"interrupted", "worker_interrupted", "abandoned_attempt"}:
         phase = "response_stream"
         summary = "响应在完成前中断，已保留历史回答。"

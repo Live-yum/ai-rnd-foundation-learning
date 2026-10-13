@@ -52,6 +52,67 @@ def design_v1():
     )
 
 
+@pytest.mark.parametrize("executor", ["mini_swe", "bounded_edit"])
+@pytest.mark.parametrize("unavailable", ["build_index", "repo_map", "query"])
+def test_dispatcher_only_prepares_retrieval_for_the_executor_using_it(
+    settings, tmp_path, monkeypatch, executor, unavailable
+):
+    from types import SimpleNamespace
+
+    from workbench.production.dispatcher import ExtensionWorkflow
+
+    selected = compile_v2(design_v1(), executor=executor)
+    task = selected.implementation.tasks[0]
+    product = tmp_path / "product"
+    product.mkdir()
+    calls = []
+
+    class AgentReached(Exception):
+        pass
+
+    def prepare(name, result):
+        def invoke(*args, **kwargs):
+            calls.append(name)
+            if name == unavailable:
+                raise RuntimeError("optional retrieval unavailable")
+            return result
+
+        return invoke
+
+    monkeypatch.setattr("workbench.knowledge.build_index", prepare("build_index", None))
+    monkeypatch.setattr("workbench.aider_tool.repo_map", prepare("repo_map", "fixture map"))
+    monkeypatch.setattr("workbench.retrieval.query", prepare("query", []))
+
+    def agent(*args):
+        assert args[3] == task and args[4] == selected.implementation
+        assert args[5] == product
+        assert args[7]["source_units"] == [{"id": "source-1"}]
+        raise AgentReached
+
+    monkeypatch.setattr("workbench.coding.mini_swe.run_agent", agent)
+    workflow = SimpleNamespace(
+        settings=settings.model_copy(update={"repo_map_provider": "aider"}),
+        gateway=None,
+        checked_extension=lambda state: selected,
+        extension_task=lambda state, design: task,
+    )
+    state = {
+        "extension_product": str(product),
+        "extension_scope": {"sources": [{"id": "source-1"}]},
+        "extension_policy": {},
+        "run_id": "offline-dispatch",
+        "round": 1,
+    }
+    if executor == "mini_swe":
+        with pytest.raises(AgentReached):
+            ExtensionWorkflow.extension_code(workflow, state)
+        assert calls == []
+    else:
+        with pytest.raises(RuntimeError, match="optional retrieval unavailable"):
+            ExtensionWorkflow.extension_code(workflow, state)
+        assert calls[-1] == unavailable
+
+
 def test_v1_dump_and_gate_identity_are_not_upgraded():
     original = design_v1()
     saved = original.model_dump()

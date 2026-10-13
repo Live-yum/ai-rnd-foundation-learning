@@ -7,6 +7,7 @@ import os
 import re
 import ssl
 import time
+from pathlib import Path
 
 import httpx
 
@@ -170,16 +171,38 @@ class TimedResponseStream(httpx.SyncByteStream):
             self.finish()
 
 
-def probe(env):
+def reviewed_head(env):
+    """Accept only the existing explicit dispatch or same-repository label scope."""
     if (
         env.get("GITHUB_ACTIONS") != "true"
         or env.get("GITHUB_REPOSITORY") != "Live-yum/ai-rnd-foundation-learning"
-        or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
         or env.get("GITHUB_RUN_ATTEMPT") != "1"
-        or not re.fullmatch(r"[a-f0-9]{40}", env.get("GITHUB_SHA", ""))
-        or env.get("REVIEWED_SHA") != env.get("GITHUB_SHA")
     ):
-        raise ValueError("reviewed_first_manual_dispatch_required")
+        raise ValueError("reviewed_first_acceptance_event_required")
+    event_name = env.get("GITHUB_EVENT_NAME")
+    if event_name == "workflow_dispatch":
+        head = env.get("GITHUB_SHA", "")
+    elif event_name == "pull_request":
+        head = env.get("ACCEPTANCE_HEAD_SHA", "")
+        event = json.loads(Path(env["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+        pr = event.get("pull_request", {})
+        if not (
+            event.get("action") == "labeled"
+            and event.get("label", {}).get("name") == "run-live-acceptance"
+            and pr.get("head", {}).get("repo", {}).get("full_name") == env["GITHUB_REPOSITORY"]
+            and pr.get("base", {}).get("repo", {}).get("full_name") == env["GITHUB_REPOSITORY"]
+            and pr.get("head", {}).get("sha") == head
+        ):
+            raise ValueError("untrusted_pull_request")
+    else:
+        raise ValueError("reviewed_first_acceptance_event_required")
+    if not re.fullmatch(r"[a-f0-9]{40}", head) or env.get("REVIEWED_SHA") != head:
+        raise ValueError("reviewed_head_mismatch")
+    return head
+
+
+def probe(env):
+    head = reviewed_head(env)
     endpoint = env.get("BASE_URL", "").rstrip("/")
     if not endpoint.startswith("https://"):
         raise ValueError("https_required")
@@ -202,7 +225,7 @@ def probe(env):
                 "strict_tls": True,
                 "http_status": response.status_code,
                 "authentication_sent": False,
-                "head_sha": env["GITHUB_SHA"],
+                "head_sha": head,
                 "ca_mode": mode,
                 "ca_sha256": FINGERPRINT if mode == "caddy-ip" else None,
                 "billing": billing,

@@ -38,15 +38,15 @@
 - `verify_delivery`（L578–L626）：接收`case`、`run`、`settings`、`directory`。 调用`require`、`result.get`、`all`、`cleanroom.get`、`archive.is_file`、`sha`、`Path`、`unpack`、`manifest`等。 返回路径：L608的`{ "ready": True, "contract_preserved": True, "delivery_sha256": result["sha256"], "plan_sh…`。
 - `aggregate`（L629–L654）：接收`cases`、`results`。 控制顺序：L630按`len(results) != len(cases) or {result.get("case") for result in results} != { case.id…`分支；L634遍历`cases`；L636按`not ( result.get("passed") is True and result.get("source_digest") == case.source_dig…`分支。 调用`len`、`result.get`、`next`、`item.get`、`type`、`set`、`result.get("cleanroom", {}).get`、`result.get("scenario", {}).get`、`result.get("scenario", {}).get("browser", {}).get`。 返回路径：L633的`False`；L653的`False`；L654的`True`。
 - `run_suite`（L657–L784）：接收`settings`、`directory`、`binding`、`ca_mode`、`billing`。 控制顺序：L713遍历`cases`；L715遍历`assignments.items()`；L717按`run_id in processed or run["status"] in {"QUEUED", "RUNNING"}`分支；L751按`isinstance(error, AcceptanceFailure) and error.contract_difference`分支；L753按`run.get("error")`分支。 调用`suite_cases`、`len`、`REPORTS.mkdir`、`BoundedTransport`、`Store`、`store.migrate`、`store.create_batch`、`require`、`zip`等。 返回路径：L775的`summary`。
-- `main`（L787–L851）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L795按`args.validate_fixtures`分支；L828按`binding and (REPORTS / "summary.json").is_file()`分支；L830按`saved.get("run_identity") == binding`分支；L851抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L787–L855）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L795按`args.validate_fixtures`分支；L832按`binding and (REPORTS / "summary.json").is_file()`分支；L834按`saved.get("run_identity") == binding`分支；L855抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`suite_cases`、`print`、`json.dumps`、`json.loads`、`Path(os.environ["GITHUB_EVENT_PATH"]).read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L855。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_template_projects.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L859。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`36231`。本段原文以LF换行结束。
+本段原始字节数：`36337`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70bfc62275928ae77a13bd6e6e2e1560150699a64b3483530b11540033c82862"} -->
+<!-- learning-source: {"path": "scripts/ci_template_projects.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "05f412c735596ddb89c773f2cfaa612a7ff1e622e094dd4db9ea390b2c02ba3b"} -->
 ````python
 # scripts/ci_template_projects.py
 """Bounded real-model batch acceptance for three independent project scenarios.
@@ -867,7 +867,11 @@ def main():
         from scripts.live_test_client import zero_billing
 
         ca_mode = os.environ.get("LIVE_TEST_CA", "system")
-        billing = zero_billing(os.environ) if ca_mode == "caddy-ip" else None
+        billing = (
+            zero_billing(os.environ)
+            if ca_mode == "caddy-ip" or os.environ.get("LIVE_BILLING_MODE") == "declared_free"
+            else None
+        )
         with tempfile.TemporaryDirectory(prefix="rnd-three-projects-") as temporary:
             settings = acceptance_settings(os.environ, Path(temporary))
             write_json(REPORTS / "summary.json", {**summary, "run_identity": binding})

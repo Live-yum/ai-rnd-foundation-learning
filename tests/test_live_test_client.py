@@ -1,5 +1,6 @@
 """Offline trust scope, no-charge attestation and bounded client contracts."""
 
+import json
 import ssl
 
 import httpx
@@ -105,6 +106,99 @@ def test_probe_is_strict_unauthenticated_and_does_not_follow_redirects(
         with pytest.raises(ValueError):
             client.probe(env())
     assert len(requests) == 1
+
+
+def labeled_env(tmp_path, *, mutation=None):
+    head = "b" * 40
+    event = {
+        "action": "labeled",
+        "label": {"name": "run-live-acceptance"},
+        "pull_request": {
+            "head": {"sha": head, "repo": {"full_name": live.REPOSITORY}},
+            "base": {"repo": {"full_name": live.REPOSITORY}},
+        },
+    }
+    values = {
+        **env(),
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_SHA": "c" * 40,  # GitHub's merge ref differs from the checked-out PR head.
+        "ACCEPTANCE_HEAD_SHA": head,
+        "REVIEWED_SHA": head,
+        "LIVE_TEST_CA": "system",
+        "LIVE_BILLING_MODE": "metered",
+        "LIVE_ZERO_BILLING_ACK": "false",
+    }
+    if mutation:
+        mutation(values, event)
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps(event))
+    values["GITHUB_EVENT_PATH"] = str(path)
+    return values
+
+
+def test_label_probe_binds_reviewed_same_repository_head_without_credentials(tmp_path, monkeypatch):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        assert request.method == "GET" and "authorization" not in request.headers
+        return httpx.Response(401)
+
+    def transport(**kwargs):
+        assert kwargs["verify"].check_hostname
+        assert kwargs["verify"].verify_mode == ssl.CERT_REQUIRED
+        assert kwargs["retries"] == 0 and kwargs["trust_env"] is False
+        return httpx.MockTransport(handle)
+
+    monkeypatch.setattr(client.httpx, "HTTPTransport", transport)
+    result = client.probe({**labeled_env(tmp_path), "API_KEY": "must-not-be-sent"})
+    assert result["head_sha"] == "b" * 40
+    assert result["authentication_sent"] is False and result["ca_mode"] == "system"
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda e, p: e.update(GITHUB_EVENT_NAME="pull_request_target"),
+        lambda e, p: e.update(GITHUB_RUN_ATTEMPT="2"),
+        lambda e, p: e.update(GITHUB_REPOSITORY="untrusted/repo"),
+        lambda e, p: e.update(ACCEPTANCE_HEAD_SHA="not-a-sha"),
+        lambda e, p: e.update(REVIEWED_SHA="a" * 40),
+        lambda e, p: p.update(action="synchronize"),
+        lambda e, p: p["label"].update(name="unrelated"),
+        lambda e, p: p["pull_request"]["head"]["repo"].update(full_name="fork/repo"),
+        lambda e, p: p["pull_request"]["base"]["repo"].update(full_name="other/repo"),
+        lambda e, p: p["pull_request"]["head"].update(sha="a" * 40),
+        lambda e, p: p.update(pull_request={}),
+    ],
+)
+def test_label_probe_rejects_unreviewed_event_before_network(tmp_path, monkeypatch, mutation):
+    monkeypatch.setattr(
+        client.httpx,
+        "HTTPTransport",
+        lambda **kwargs: pytest.fail("unreviewed event reached the network"),
+    )
+    with pytest.raises(ValueError):
+        client.probe(labeled_env(tmp_path, mutation=mutation))
+
+
+def test_label_workflow_defaults_do_not_grant_no_charge_or_custom_ca():
+    import yaml
+
+    workflow = yaml.safe_load(
+        (live.ROOT / ".github/workflows/template-project-acceptance.yml").read_text()
+    )
+    job = workflow["jobs"]["all-three-projects"]
+    assert "github.run_attempt == 1" in job["if"]
+    assert "github.event_name == 'pull_request'" in job["if"]
+    assert job["environment"] == "rnd"
+    assert "github.event.pull_request.head.sha" in job["env"]["REVIEWED_SHA"]
+    assert job["env"]["LIVE_BILLING_MODE"] == "${{ inputs.billing_mode || 'metered' }}"
+    assert job["env"]["LIVE_TEST_CA"] == "${{ inputs.test_ca || 'system' }}"
+    assert job["env"]["LIVE_ZERO_BILLING_ACK"] == "${{ inputs.confirm_no_charge || false }}"
+    assert job["steps"][0]["with"]["persist-credentials"] is False
+    assert "API_KEY" not in job["env"]
 
 
 def test_scoped_transport_refuses_cross_host_and_authenticated_probe():
