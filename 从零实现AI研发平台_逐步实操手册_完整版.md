@@ -435,6 +435,12 @@ controller将固定事实写入原检查回执，安全summary重滤这些字段
 
 离线验证覆盖四类真实HTTP断言产生固定坐标、controller处理及summary过滤、批准场景坐标拒绝，以及失败反馈进入同一Worker下一次edit_and_submit的原预算/截止。没有读取候选源码、增加模型请求或改变原验收标准。此补丁提供可定位且可修复的反馈，不证明第23轮根因已知，也不证明业务已修复；新真实双模块结果仍待原受控验收。
 
+### 审计消费者夹具的健康探测与业务请求预算
+
+普通 CI 的 `test_capability_consumer.py` 验证作者提供的 ZIP 冷启动、真实密码散列、SQLite 写入、越权拒绝和重启保留数据，不要求这些业务操作在一秒内完成。该夹具将健康探测固定为每次 1 秒，保持 20 秒启动窗口；业务 HTTP I/O 单次等待上限为 5 秒，失败不重发 POST，并始终回收启动器及其子进程。此改动仅在测试辅助函数内，生产独立验证器的 15 秒请求边界、总业务期限与 mini-SWE 模型预算均不变。
+
+确定性回归在真实 PBKDF2 前加入 1.25 秒延迟：旧共享 1 秒客户端在 `/users` 注册处超时，分离预算后完整复用原 ZIP、数据库、认证和重启断言。另一个审计夹具把密码散列前等待延长到 60 秒，必须在 5 秒读取上限失败，不能重发或插入账号，退出后进程已回收。异常保留原类型，并附最多最后 16 KiB 的审计夹具 stdout/stderr，不记录环境或模型内容。既有 Windows 失败产物未包含子进程日志，因此只能确认它在注册请求等待响应头时超时，不能据此断言密码散列、数据库或调度中的哪一项造成延迟。
+
 # 从零实现可批量定制的模板研发平台
 
 本指南的目标是：**使用 LangChain 产生可校验的需求与设计，使用 LangGraph 管理执行与恢复，从稳定的前后端模板生成不同业务，并用独立测试证明交付可以运行。** 新业务优先增加需求、声明式设计和验收数据；只有模板能力确实不足时才增加受控代码扩展。
@@ -134235,31 +134241,39 @@ def test_decoder_recursion_failure_is_classified_without_retaining_data(monkeypa
 - `product_fixture`（L52–L69）：接收`tmp_path`、`custom`、`port`。 控制顺序：L56按`custom`分支。 调用`generate_basic`、`fixture_baseline`、`fixture_plan`、`prepare_consumer`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`。 返回路径：L69的`product, plan`。
 - `extract_consumer`（L72–L81）：接收`product`、`tmp_path`。 控制顺序：L75遍历`files(product)`；L79断言`manifest(clean) == manifest(product)`；L80断言`not list(clean.rglob("*.db"))`。 调用`zipfile.ZipFile`、`files`、`handle.write`、`unpack`、`manifest`、`list`、`clean.rglob`。 返回路径：L81的`clean`。
 - `free_port`（L84–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85在`True`成立时循环；L89按`port not in {2280, 55432, 55433}`分支。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L90的`port`。
-- `running_consumer`（L94–L124）：接收`product`、`tmp_path`、`port`、`env`、`extra_args`。 源码说明：Only called on the audited, authored fixture above or golden template.。 控制顺序：L112在`time.monotonic() < deadline`成立时循环；L113断言`process.poll() is None`；L115按`client.get("/health").status_code == 200`分支。 调用`log_path.open`、`subprocess.Popen`、`str`、`clean_env`、`process_options`、`httpx.Client`、`time.monotonic`、`process.poll`、`log_path.read_text`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `invoke_start`（L127–L137）：接收`product`、`tmp_path`、`env`、`*args`。 调用`subprocess.run`、`str`、`clean_env`。 返回路径：L128的`subprocess.run( [sys.executable, str(product / "start.py"), "--no-install", *args], cwd=tm…`。
-- `test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_restart`（L140–L181）：接收`tmp_path`。 控制顺序：L145断言`contract["initialization"] == "application-startup"`；L146断言`contract["existing_schema_migration"] == "unverified"`；L152断言`client.post("/users", json=account).status_code == 201`；L156断言`saved.status_code == 201`；L158断言`client.get(f"/entries/{identifier}").status_code == 401`；L160断言`database.is_file()`；L161断言`not unrelated.exists()`；L162断言`not (clean / ".data/product.db").exists()`。后续分支沿下方源码相同行号继续阅读。 调用`free_port`、`product_fixture`、`extract_consumer`、`inspect_consumer`、`unrelated.as_posix`、`manifest`、`running_consumer`、`client.post`、`client.post("/login", json=account).json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_custom_product_uses_explicit_canonical_url_and_overwrites_ambient_alias`（L184–L196）：接收`tmp_path`。 控制顺序：L194断言`client.get("/health").json() == {"ok": True}`；L195断言`database.exists()`；L196断言`not (clean / plan.runtime.database_path).exists()`。 调用`free_port`、`product_fixture`、`extract_consumer`、`database.as_posix`、`running_consumer`、`client.get("/health").json`、`client.get`、`database.exists`、`(clean / plan.runtime.database_path).exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standard_template_zip_applies_versioned_migration_preserving_existing_data`（L199–L235）：接收`tmp_path`。 控制顺序：L203断言`initialized.returncode == 0`；L208断言`connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0001",)`；L217遍历`range(2)`；L219断言`migrated.returncode == 0`；L221断言`connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0002",)`；L222断言`connection.execute("SELECT id,owner_id,title,note FROM entries").fetchone() == ( "e",…`；L228断言`connection.execute("SELECT password FROM users WHERE id='u'").fetchone() == ( "preser…`；L235断言`connection.execute("SELECT title FROM entries").fetchone() == ("existing record",)`。 调用`product_fixture`、`extract_consumer`、`invoke_start`、`sqlite3.connect`、`connection.execute`、`connection.execute("SELECT version_num FROM alembic_version").fet…`、`(clean / "migrations/versions/0002_consumer_fixture.py").write_te…`、`range`、`connection.execute("SELECT id,owner_id,title,note FROM entries").…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspection_reads_data_only_and_shared_runtime_is_exact`（L238–L250）：接收`tmp_path`。 控制顺序：L242断言`observed == expected_consumer(plan)`；L243断言`prepare_consumer(product, plan) == observed`；L245断言`command.cwd == "."`；L246断言`command.argv[1:] == ["start.py", "--no-install", "--host", "0.0.0.0", "--port", "8123…`；L247断言`command.argv[0] == "/opt/rnd/runtime/python-basic/.venv/bin/python"`；L249断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L250断言`environment["DATABASE_URL"].endswith("/product/" + plan.runtime.database_path)`。 调用`product_fixture`、`(product / "app.py").write_text`、`inspect_consumer`、`expected_consumer`、`prepare_consumer`、`consumer_start_command`、`database_environment`、`environment["DATABASE_URL"].endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_consumer_contract_must_be_source_and_plan_bound`（L266–L289）：接收`tmp_path`、`case`。 控制顺序：L270按`case == "missing"`分支；L272断言`inspect_consumer(product, plan) is None`；L273按`case == "stale-plan"`分支；L275按`case == "extra-field"`分支；L277按`case == "boolean-schema"`分支；L279按`case == "launcher"`分支；L281按`case == "selection"`分支；L283按`case == "oversized"`分支。后续分支沿下方源码相同行号继续阅读。 调用`product_fixture`、`json.loads`、`path.read_text`、`path.unlink`、`inspect_consumer`、`write_json`、`(product / "start.py").write_text`、`Selection(template="fastapiadmin").model_dump`、`Selection`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_consumer_database_paths_fail_before_execution`（L305–L309）：接收`tmp_path`、`database_path`。 调用`product_fixture`、`pytest.raises`、`prepare_consumer`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_custom_launcher_rejects_unsupported_database_and_init_only`（L322–L330）：接收`tmp_path`、`url`。 控制顺序：L325断言`rejected.returncode != 0`；L326断言`"local persistent SQLite file" in rejected.stderr`；L328断言`no_migration.returncode != 0`；L329断言`"separately verified migration" in no_migration.stderr`；L330断言`not list(product.rglob("*.db"))`。 调用`product_fixture`、`invoke_start`、`list`、`product.rglob`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_profile_cannot_reuse_python_consumer_proof`（L333–L337）：接收`tmp_path`。 调用`product_fixture`、`Selection`、`pytest.raises`、`prepare_consumer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_downloaded_launcher_rejects_noncanonical_metadata_before_app_execution`（L352–L358）：接收`tmp_path`、`change`。 控制顺序：L356断言`rejected.returncode != 0`；L357断言`"Invalid consumer" in rejected.stderr`；L358断言`not list(product.rglob("*.db"))`。 调用`product_fixture`、`write_json`、`expected_consumer`、`invoke_start`、`list`、`product.rglob`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `observed_consumer_fixture`（L361–L378）：接收`product`、`plan`。 源码说明：Synthetic receipt for gate unit tests only, not actual sandbox proof.。 调用`inspect_consumer`、`digest`、`manifest`、`plan.model_dump`。 返回路径：L364的`{ "passed": True, "scope": "aggregate", "restarted": True, "source_digest": digest(manifes…`。
-- `test_consumer_gate_requires_observations_but_never_claims_migration`（L381–L386）：接收`tmp_path`。 控制顺序：L385断言`observed is proof["consumer"]`；L386断言`observed["existing_schema_migration"] == "unverified"`。 调用`product_fixture`、`observed_consumer_fixture`、`require_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_consumer_gate_rejects_unobserved_stale_and_overstated_receipts`（L410–L446）：接收`tmp_path`、`case`。 控制顺序：L413按`case == "missing"`分支；L415按`case == "cold"`分支；L417按`case == "restart"`分支；L419按`case == "integer-true"`分支；L421按`case == "migration-claim"`分支；L423按`case == "old-source"`分支；L425按`case == "old-plan"`分支；L427按`case == "failed-proof"`分支。后续分支沿下方源码相同行号继续阅读。 调用`product_fixture`、`observed_consumer_fixture`、`proof.pop`、`(product / "app.py").write_text`、`(product / CONSUMER_FILE).unlink`、`pytest.raises`、`require_consumer_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate`（L449–L488）：接收`tmp_path`、`monkeypatch`。 控制顺序：L486断言`calls[-1][0][-4:] == ["manage.py", "start", "--port", "8421"]`；L487断言`":5549/product" in calls[-1][1]["env"]["PRODUCT_DATABASE_URL"]`；L488断言`json.loads((tmp_path / ".data/deployment.json").read_text())["port"] == 5549`。 调用`runpy.run_path`、`str`、`write_json`、`Selection(template="python-basic", database="postgresql").model_d…`、`Selection`、`monkeypatch.setattr`、`calls.append`、`launch`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket`（L471–L482）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.__enter__`（L472–L473）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L473的`self`。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.__exit__`（L475–L476）：接收`*_`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.bind`（L478–L479）：接收`address`。 控制顺序：L479断言`address == ("127.0.0.1", 0)`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.getsockname`（L481–L482）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L482的`("127.0.0.1", 5549)`。
-- `test_live_authored_fixture_requires_consumer_and_pre_replay_obligations`（L491–L503）：接收`tmp_path`。 控制顺序：L498断言`inspect_consumer(product, plan, required=True)`；L499断言`len(plan.obligations) == 1`；L500断言`plan.complete_source_ids == []`；L501断言`coverage_errors(plan, scope_sources([GOAL])) == []`。 调用`fixed_application`、`inspect_consumer`、`len`、`coverage_errors`、`scope_sources`、`pytest.raises`、`require_atomic_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_consumer_data_directory_follows_canonical_database_not_ambient_directory`（L507–L529）：接收`tmp_path`、`external`。 控制顺序：L526断言`environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)`；L527断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L528断言`environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()`；L529断言`not (tmp_path / "wrong-data").exists()`。 调用`product_fixture`、`runpy.run_path`、`str`、`expected_consumer`、`namespace["consumer_environment"]`、`database.as_posix`、`database.resolve`、`database.resolve().as_posix`、`(tmp_path / "wrong-data").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source`（L532–L569）：接收`tmp_path`。 控制顺序：L537按`os.name != "posix" or os.getuid() == 0`分支；L556断言`denied.returncode != 0 and "PermissionError" in denied.stderr`；L557断言`"/.data'" in denied.stderr`；L561断言`accepted.returncode == 0`；L562断言`accepted.stdout.strip() == "schema-imported"`；L563断言`product.stat().st_mode & 0o777 == 0o555`；L564断言`not (product / ".data").exists()`；L565断言`not (product / "__pycache__").exists()`。 调用`os.getuid`、`pytest.skip`、`acceptance_design`、`generate_basic`、`plan.selection.model_dump`、`prepare_consumer`、`database.parent.mkdir`、`runpy.run_path`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `consumer_log_tail`（L93–L101）：接收`path`。 源码说明：Only audited fixture stdout/stderr; never process environment or model data.。 调用`path.open`、`source.seek`、`max`、`source.tell`、`source.read(16384).decode`、`source.read`。 返回路径：L99的`source.read(16384).decode("utf-8", errors="replace")`；L101的`"Authored consumer output unavailable"`。
+- `running_consumer`（L105–L143）：接收`product`、`tmp_path`、`port`、`env`、`extra_args`。 源码说明：Only called on the audited, authored fixture above or golden template.。 控制顺序：L126在`time.monotonic() < deadline`成立时循环；L127断言`process.poll() is None`；L129按`client.get("/health", timeout=1).status_code == 200`分支；L141抛异常，停止当前正常路径。 调用`log_path.open`、`subprocess.Popen`、`str`、`clean_env`、`process_options`、`httpx.Client`、`time.monotonic`、`process.poll`、`client.get`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `invoke_start`（L146–L156）：接收`product`、`tmp_path`、`env`、`*args`。 调用`subprocess.run`、`str`、`clean_env`。 返回路径：L147的`subprocess.run( [sys.executable, str(product / "start.py"), "--no-install", *args], cwd=tm…`。
+- `test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_restart`（L159–L200）：接收`tmp_path`。 控制顺序：L164断言`contract["initialization"] == "application-startup"`；L165断言`contract["existing_schema_migration"] == "unverified"`；L171断言`client.post("/users", json=account).status_code == 201`；L175断言`saved.status_code == 201`；L177断言`client.get(f"/entries/{identifier}").status_code == 401`；L179断言`database.is_file()`；L180断言`not unrelated.exists()`；L181断言`not (clean / ".data/product.db").exists()`。后续分支沿下方源码相同行号继续阅读。 调用`free_port`、`product_fixture`、`extract_consumer`、`inspect_consumer`、`unrelated.as_posix`、`manifest`、`running_consumer`、`client.post`、`client.post("/login", json=account).json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `slow_auth_fixture`（L203–L218）：接收`product`、`seconds`。 源码说明：Controlled delay in authored test code, keeping the real password hash intact.。 控制顺序：L208断言`source.count(original) == 1`。 调用`path.read_text`、`source.count`、`path.write_text`、`source.replace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_authored_consumer_slow_auth_preserves_full_zip_restart_contract`（L221–L241）：接收`tmp_path`、`monkeypatch`。 控制顺序：L241断言`health_timeouts and all(timeout == 1 for timeout in health_timeouts)`。 调用`monkeypatch.setattr`、`test_authored_downloaded_zip_custom_cold_bootstrap_and_data_prese…`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_authored_consumer_slow_auth_preserves_full_zip_restart_contract.delayed_fixture`（L226–L229）：接收`*args`、`**kwargs`。 调用`original`、`slow_auth_fixture`。 返回路径：L229的`product, plan`。
+- `test_authored_consumer_slow_auth_preserves_full_zip_restart_contract.observed_get`（L231–L234）：接收`client`、`url`、`**kwargs`。 控制顺序：L232按`url == "/health"`分支。 调用`health_timeouts.append`、`kwargs.get`、`get`。 返回路径：L234的`get(client, url, **kwargs)`。
+- `test_authored_consumer_stalled_auth_fails_without_retry_and_reaps_process`（L244–L266）：接收`tmp_path`、`monkeypatch`。 控制顺序：L260断言`client.timeout.read == 5`；L262断言`len(stopped) == 1 and stopped[0] is not None`；L263断言`(tmp_path / "consumer.log").read_text(encoding="utf-8").count("fixture-auth-start") =…`；L264断言`"fixture-auth-start" in "\n".join(caught.value.__notes__)`；L266断言`connection.execute("SELECT COUNT(*) FROM users").fetchone() == (0,)`。 调用`free_port`、`product_fixture`、`slow_auth_fixture`、`monkeypatch.setattr`、`pytest.raises`、`running_consumer`、`client.post`、`len`、`(tmp_path / "consumer.log").read_text(encoding="utf-8").count`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_authored_consumer_stalled_auth_fails_without_retry_and_reaps_process.observe_stop`（L253–L255）：接收`process`。 调用`stop`、`stopped.append`、`process.poll`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_error_output_is_bounded_and_retains_the_tail`（L269–L274）：接收`tmp_path`。 控制顺序：L273断言`len(tail.encode()) == 16384 and tail.endswith("fixture-error-tail")`；L274断言`"omitted-head" not in tail`。 调用`path.write_bytes`、`consumer_log_tail`、`len`、`tail.encode`、`tail.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_custom_product_uses_explicit_canonical_url_and_overwrites_ambient_alias`（L277–L289）：接收`tmp_path`。 控制顺序：L287断言`client.get("/health").json() == {"ok": True}`；L288断言`database.exists()`；L289断言`not (clean / plan.runtime.database_path).exists()`。 调用`free_port`、`product_fixture`、`extract_consumer`、`database.as_posix`、`running_consumer`、`client.get("/health").json`、`client.get`、`database.exists`、`(clean / plan.runtime.database_path).exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standard_template_zip_applies_versioned_migration_preserving_existing_data`（L292–L328）：接收`tmp_path`。 控制顺序：L296断言`initialized.returncode == 0`；L301断言`connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0001",)`；L310遍历`range(2)`；L312断言`migrated.returncode == 0`；L314断言`connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0002",)`；L315断言`connection.execute("SELECT id,owner_id,title,note FROM entries").fetchone() == ( "e",…`；L321断言`connection.execute("SELECT password FROM users WHERE id='u'").fetchone() == ( "preser…`；L328断言`connection.execute("SELECT title FROM entries").fetchone() == ("existing record",)`。 调用`product_fixture`、`extract_consumer`、`invoke_start`、`sqlite3.connect`、`connection.execute`、`connection.execute("SELECT version_num FROM alembic_version").fet…`、`(clean / "migrations/versions/0002_consumer_fixture.py").write_te…`、`range`、`connection.execute("SELECT id,owner_id,title,note FROM entries").…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspection_reads_data_only_and_shared_runtime_is_exact`（L331–L343）：接收`tmp_path`。 控制顺序：L335断言`observed == expected_consumer(plan)`；L336断言`prepare_consumer(product, plan) == observed`；L338断言`command.cwd == "."`；L339断言`command.argv[1:] == ["start.py", "--no-install", "--host", "0.0.0.0", "--port", "8123…`；L340断言`command.argv[0] == "/opt/rnd/runtime/python-basic/.venv/bin/python"`；L342断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L343断言`environment["DATABASE_URL"].endswith("/product/" + plan.runtime.database_path)`。 调用`product_fixture`、`(product / "app.py").write_text`、`inspect_consumer`、`expected_consumer`、`prepare_consumer`、`consumer_start_command`、`database_environment`、`environment["DATABASE_URL"].endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_contract_must_be_source_and_plan_bound`（L359–L382）：接收`tmp_path`、`case`。 控制顺序：L363按`case == "missing"`分支；L365断言`inspect_consumer(product, plan) is None`；L366按`case == "stale-plan"`分支；L368按`case == "extra-field"`分支；L370按`case == "boolean-schema"`分支；L372按`case == "launcher"`分支；L374按`case == "selection"`分支；L376按`case == "oversized"`分支。后续分支沿下方源码相同行号继续阅读。 调用`product_fixture`、`json.loads`、`path.read_text`、`path.unlink`、`inspect_consumer`、`write_json`、`(product / "start.py").write_text`、`Selection(template="fastapiadmin").model_dump`、`Selection`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_consumer_database_paths_fail_before_execution`（L398–L402）：接收`tmp_path`、`database_path`。 调用`product_fixture`、`pytest.raises`、`prepare_consumer`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_custom_launcher_rejects_unsupported_database_and_init_only`（L415–L423）：接收`tmp_path`、`url`。 控制顺序：L418断言`rejected.returncode != 0`；L419断言`"local persistent SQLite file" in rejected.stderr`；L421断言`no_migration.returncode != 0`；L422断言`"separately verified migration" in no_migration.stderr`；L423断言`not list(product.rglob("*.db"))`。 调用`product_fixture`、`invoke_start`、`list`、`product.rglob`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_profile_cannot_reuse_python_consumer_proof`（L426–L430）：接收`tmp_path`。 调用`product_fixture`、`Selection`、`pytest.raises`、`prepare_consumer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_downloaded_launcher_rejects_noncanonical_metadata_before_app_execution`（L445–L451）：接收`tmp_path`、`change`。 控制顺序：L449断言`rejected.returncode != 0`；L450断言`"Invalid consumer" in rejected.stderr`；L451断言`not list(product.rglob("*.db"))`。 调用`product_fixture`、`write_json`、`expected_consumer`、`invoke_start`、`list`、`product.rglob`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `observed_consumer_fixture`（L454–L471）：接收`product`、`plan`。 源码说明：Synthetic receipt for gate unit tests only, not actual sandbox proof.。 调用`inspect_consumer`、`digest`、`manifest`、`plan.model_dump`。 返回路径：L457的`{ "passed": True, "scope": "aggregate", "restarted": True, "source_digest": digest(manifes…`。
+- `test_consumer_gate_requires_observations_but_never_claims_migration`（L474–L479）：接收`tmp_path`。 控制顺序：L478断言`observed is proof["consumer"]`；L479断言`observed["existing_schema_migration"] == "unverified"`。 调用`product_fixture`、`observed_consumer_fixture`、`require_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_gate_rejects_unobserved_stale_and_overstated_receipts`（L503–L539）：接收`tmp_path`、`case`。 控制顺序：L506按`case == "missing"`分支；L508按`case == "cold"`分支；L510按`case == "restart"`分支；L512按`case == "integer-true"`分支；L514按`case == "migration-claim"`分支；L516按`case == "old-source"`分支；L518按`case == "old-plan"`分支；L520按`case == "failed-proof"`分支。后续分支沿下方源码相同行号继续阅读。 调用`product_fixture`、`observed_consumer_fixture`、`proof.pop`、`(product / "app.py").write_text`、`(product / CONSUMER_FILE).unlink`、`pytest.raises`、`require_consumer_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate`（L542–L581）：接收`tmp_path`、`monkeypatch`。 控制顺序：L579断言`calls[-1][0][-4:] == ["manage.py", "start", "--port", "8421"]`；L580断言`":5549/product" in calls[-1][1]["env"]["PRODUCT_DATABASE_URL"]`；L581断言`json.loads((tmp_path / ".data/deployment.json").read_text())["port"] == 5549`。 调用`runpy.run_path`、`str`、`write_json`、`Selection(template="python-basic", database="postgresql").model_d…`、`Selection`、`monkeypatch.setattr`、`calls.append`、`launch`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket`（L564–L575）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.__enter__`（L565–L566）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L566的`self`。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.__exit__`（L568–L569）：接收`*_`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.bind`（L571–L572）：接收`address`。 控制顺序：L572断言`address == ("127.0.0.1", 0)`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standard_postgres_auto_compose_keeps_server_and_database_ports_separate.AuthoredSocket.getsockname`（L574–L575）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L575的`("127.0.0.1", 5549)`。
+- `test_live_authored_fixture_requires_consumer_and_pre_replay_obligations`（L584–L596）：接收`tmp_path`。 控制顺序：L591断言`inspect_consumer(product, plan, required=True)`；L592断言`len(plan.obligations) == 1`；L593断言`plan.complete_source_ids == []`；L594断言`coverage_errors(plan, scope_sources([GOAL])) == []`。 调用`fixed_application`、`inspect_consumer`、`len`、`coverage_errors`、`scope_sources`、`pytest.raises`、`require_atomic_consumer_evidence`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_data_directory_follows_canonical_database_not_ambient_directory`（L600–L622）：接收`tmp_path`、`external`。 控制顺序：L619断言`environment["PRODUCT_DATA_DIR"] == str(database.resolve().parent)`；L620断言`environment["PRODUCT_DATABASE_URL"] == environment["DATABASE_URL"]`；L621断言`environment["PRODUCT_DATABASE_URL"] == "sqlite:///" + database.resolve().as_posix()`；L622断言`not (tmp_path / "wrong-data").exists()`。 调用`product_fixture`、`runpy.run_path`、`str`、`expected_consumer`、`namespace["consumer_environment"]`、`database.as_posix`、`database.resolve`、`database.resolve().as_posix`、`(tmp_path / "wrong-data").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_schema_import_uses_only_approved_data_directory_under_readonly_source`（L625–L662）：接收`tmp_path`。 控制顺序：L630按`os.name != "posix" or os.getuid() == 0`分支；L649断言`denied.returncode != 0 and "PermissionError" in denied.stderr`；L650断言`"/.data'" in denied.stderr`；L654断言`accepted.returncode == 0`；L655断言`accepted.stdout.strip() == "schema-imported"`；L656断言`product.stat().st_mode & 0o777 == 0o555`；L657断言`not (product / ".data").exists()`；L658断言`not (product / "__pycache__").exists()`。 调用`os.getuid`、`pytest.skip`、`acceptance_design`、`generate_basic`、`plan.selection.model_dump`、`prepare_consumer`、`database.parent.mkdir`、`runpy.run_path`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_consumer.py sha256: 3e385c3ac46a7e3c6e2326c6b2db513d492240cfc5b851afa534675351dfcf1c -->
+<!-- source-file: tests/test_capability_consumer.py sha256: 9fb83b73d2cc6f5efdd15676f5fa5a82b1e7aa8a1c8e4b12b37800010926fcb0 -->
 ````python
 """Authored ZIPs exercise the consumer command, never arbitrary generated source.
 
@@ -134353,6 +134367,17 @@ def free_port():
             return port
 
 
+def consumer_log_tail(path):
+    """Only audited fixture stdout/stderr; never process environment or model data."""
+    try:
+        with path.open("rb") as source:
+            source.seek(0, 2)
+            source.seek(max(0, source.tell() - 16384))
+            return source.read(16384).decode("utf-8", errors="replace")
+    except OSError:
+        return "Authored consumer output unavailable"
+
+
 @contextmanager
 def running_consumer(product, tmp_path, port, *, env=None, extra_args=()):
     """Only called on the audited, authored fixture above or golden template."""
@@ -134368,21 +134393,29 @@ def running_consumer(product, tmp_path, port, *, env=None, extra_args=()):
             **process_options(),
         )
         try:
+            # This is a functional ZIP/auth/persistence test, not a one-second
+            # PBKDF2/SQLite performance SLA. Keep health polling short and allow
+            # bounded business I/O, still below the verifier's 15-second cap.
             with httpx.Client(
-                base_url=f"http://127.0.0.1:{port}", timeout=1, trust_env=False
+                base_url=f"http://127.0.0.1:{port}", timeout=5, trust_env=False
             ) as client:
                 deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
-                    assert process.poll() is None, log_path.read_text(encoding="utf-8")
+                    assert process.poll() is None, "Authored consumer exited during startup"
                     try:
-                        if client.get("/health").status_code == 200:
+                        if client.get("/health", timeout=1).status_code == 200:
                             break
                     except httpx.HTTPError:
                         pass
                     time.sleep(0.05)
                 else:
-                    pytest.fail("Authored consumer failed startup: " + log_path.read_text())
+                    pytest.fail("Authored consumer failed startup")
                 yield client
+        except BaseException as error:
+            error.add_note(
+                "Authored consumer output (last 16 KiB):\n" + consumer_log_tail(log_path)
+            )
+            raise
         finally:
             stop_process(process)
 
@@ -134442,6 +134475,80 @@ def test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_resta
         }
         assert client.post("/login", json=account).status_code == 200
     assert manifest(clean) == before
+
+
+def slow_auth_fixture(product, seconds):
+    """Controlled delay in authored test code, keeping the real password hash intact."""
+    path = product / "app.py"
+    source = path.read_text(encoding="utf-8")
+    original = "def password_hash(password, salt):\n"
+    assert source.count(original) == 1
+    path.write_text(
+        source.replace(
+            original,
+            original
+            + "    import time\n"
+            + "    print('fixture-auth-start', flush=True)\n"
+            + f"    time.sleep({seconds!r})\n",
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_authored_consumer_slow_auth_preserves_full_zip_restart_contract(tmp_path, monkeypatch):
+    original = product_fixture
+    health_timeouts = []
+    get = httpx.Client.get
+
+    def delayed_fixture(*args, **kwargs):
+        product, plan = original(*args, **kwargs)
+        slow_auth_fixture(product, 1.25)
+        return product, plan
+
+    def observed_get(client, url, **kwargs):
+        if url == "/health":
+            health_timeouts.append(kwargs.get("timeout"))
+        return get(client, url, **kwargs)
+
+    monkeypatch.setattr(sys.modules[__name__], "product_fixture", delayed_fixture)
+    monkeypatch.setattr(httpx.Client, "get", observed_get)
+    # Reuse every existing cold-start, auth, DB, unauthorized-access, source
+    # integrity and data-preserving restart assertion, with real PBKDF2 + delay.
+    test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_restart(tmp_path)
+    assert health_timeouts and all(timeout == 1 for timeout in health_timeouts)
+
+
+def test_authored_consumer_stalled_auth_fails_without_retry_and_reaps_process(
+    tmp_path, monkeypatch
+):
+    port = free_port()
+    product, plan = product_fixture(tmp_path, port=port)
+    slow_auth_fixture(product, 60)
+    stopped = []
+    stop = stop_process
+
+    def observe_stop(process):
+        stop(process)
+        stopped.append(process.poll())
+
+    monkeypatch.setattr(sys.modules[__name__], "stop_process", observe_stop)
+    with pytest.raises(httpx.ReadTimeout) as caught:
+        with running_consumer(product, tmp_path, port) as client:
+            assert client.timeout.read == 5
+            client.post("/users", json={"name": "owner", "password": "authored-fixture-password"})
+    assert len(stopped) == 1 and stopped[0] is not None
+    assert (tmp_path / "consumer.log").read_text(encoding="utf-8").count("fixture-auth-start") == 1
+    assert "fixture-auth-start" in "\n".join(caught.value.__notes__)
+    with sqlite3.connect(product / plan.runtime.database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM users").fetchone() == (0,)
+
+
+def test_consumer_error_output_is_bounded_and_retains_the_tail(tmp_path):
+    path = tmp_path / "consumer.log"
+    path.write_bytes(b"omitted-head" + b"x" * 20000 + b"fixture-error-tail")
+    tail = consumer_log_tail(path)
+    assert len(tail.encode()) == 16384 and tail.endswith("fixture-error-tail")
+    assert "omitted-head" not in tail
 
 
 def test_custom_product_uses_explicit_canonical_url_and_overwrites_ambient_alias(tmp_path):
@@ -246637,7 +246744,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/modular-production-v2.md sha256: 5e151e453e57a39c33ae45a61446771912b45c9ff0cce7b7b9a3fa1a7d6a64a2 -->
+<!-- source-file: docs/modular-production-v2.md sha256: bde1ba348a83f9ac078d354a66fe1c4b7f5a2cfea402bdae4e3801fa3ffd6031 -->
 ````markdown
 # 模块化单体与 V2 生产路径
 
@@ -247075,6 +247182,12 @@ checks_count记录完整场景回执，不是已发送HTTP请求数。run_scenar
 controller将固定事实写入原检查回执，安全summary重滤这些字段；checkpoint投影仅在原绑定有效后附当前task与plan共同批准的failed_scenario，避免多场景步骤歧义。check_candidate必须先通过原task/plan/source/nonce、截止、清理与隔离资格校验，并且已有business_assertion资格和批准scenario匹配，才核对步骤/断言序号确实落在该场景内后附入同Worker反馈。状态不符还校对原期望状态，并拒绝将502/503/504诊断解释为业务断言；这些状态仍走原基础设施失败。无效或缺失诊断不授予资格、不改变原结果。
 
 离线验证覆盖四类真实HTTP断言产生固定坐标、controller处理及summary过滤、批准场景坐标拒绝，以及失败反馈进入同一Worker下一次edit_and_submit的原预算/截止。没有读取候选源码、增加模型请求或改变原验收标准。此补丁提供可定位且可修复的反馈，不证明第23轮根因已知，也不证明业务已修复；新真实双模块结果仍待原受控验收。
+
+### 审计消费者夹具的健康探测与业务请求预算
+
+普通 CI 的 `test_capability_consumer.py` 验证作者提供的 ZIP 冷启动、真实密码散列、SQLite 写入、越权拒绝和重启保留数据，不要求这些业务操作在一秒内完成。该夹具将健康探测固定为每次 1 秒，保持 20 秒启动窗口；业务 HTTP I/O 单次等待上限为 5 秒，失败不重发 POST，并始终回收启动器及其子进程。此改动仅在测试辅助函数内，生产独立验证器的 15 秒请求边界、总业务期限与 mini-SWE 模型预算均不变。
+
+确定性回归在真实 PBKDF2 前加入 1.25 秒延迟：旧共享 1 秒客户端在 `/users` 注册处超时，分离预算后完整复用原 ZIP、数据库、认证和重启断言。另一个审计夹具把密码散列前等待延长到 60 秒，必须在 5 秒读取上限失败，不能重发或插入账号，退出后进程已回收。异常保留原类型，并附最多最后 16 KiB 的审计夹具 stdout/stderr，不记录环境或模型内容。既有 Windows 失败产物未包含子进程日志，因此只能确认它在注册请求等待响应头时超时，不能据此断言密码散列、数据库或调度中的哪一项造成延迟。
 ````
 
 ### `docs/template-platform.md`

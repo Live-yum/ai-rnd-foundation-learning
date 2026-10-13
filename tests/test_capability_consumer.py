@@ -90,6 +90,17 @@ def free_port():
             return port
 
 
+def consumer_log_tail(path):
+    """Only audited fixture stdout/stderr; never process environment or model data."""
+    try:
+        with path.open("rb") as source:
+            source.seek(0, 2)
+            source.seek(max(0, source.tell() - 16384))
+            return source.read(16384).decode("utf-8", errors="replace")
+    except OSError:
+        return "Authored consumer output unavailable"
+
+
 @contextmanager
 def running_consumer(product, tmp_path, port, *, env=None, extra_args=()):
     """Only called on the audited, authored fixture above or golden template."""
@@ -105,21 +116,29 @@ def running_consumer(product, tmp_path, port, *, env=None, extra_args=()):
             **process_options(),
         )
         try:
+            # This is a functional ZIP/auth/persistence test, not a one-second
+            # PBKDF2/SQLite performance SLA. Keep health polling short and allow
+            # bounded business I/O, still below the verifier's 15-second cap.
             with httpx.Client(
-                base_url=f"http://127.0.0.1:{port}", timeout=1, trust_env=False
+                base_url=f"http://127.0.0.1:{port}", timeout=5, trust_env=False
             ) as client:
                 deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
-                    assert process.poll() is None, log_path.read_text(encoding="utf-8")
+                    assert process.poll() is None, "Authored consumer exited during startup"
                     try:
-                        if client.get("/health").status_code == 200:
+                        if client.get("/health", timeout=1).status_code == 200:
                             break
                     except httpx.HTTPError:
                         pass
                     time.sleep(0.05)
                 else:
-                    pytest.fail("Authored consumer failed startup: " + log_path.read_text())
+                    pytest.fail("Authored consumer failed startup")
                 yield client
+        except BaseException as error:
+            error.add_note(
+                "Authored consumer output (last 16 KiB):\n" + consumer_log_tail(log_path)
+            )
+            raise
         finally:
             stop_process(process)
 
@@ -179,6 +198,80 @@ def test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_resta
         }
         assert client.post("/login", json=account).status_code == 200
     assert manifest(clean) == before
+
+
+def slow_auth_fixture(product, seconds):
+    """Controlled delay in authored test code, keeping the real password hash intact."""
+    path = product / "app.py"
+    source = path.read_text(encoding="utf-8")
+    original = "def password_hash(password, salt):\n"
+    assert source.count(original) == 1
+    path.write_text(
+        source.replace(
+            original,
+            original
+            + "    import time\n"
+            + "    print('fixture-auth-start', flush=True)\n"
+            + f"    time.sleep({seconds!r})\n",
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_authored_consumer_slow_auth_preserves_full_zip_restart_contract(tmp_path, monkeypatch):
+    original = product_fixture
+    health_timeouts = []
+    get = httpx.Client.get
+
+    def delayed_fixture(*args, **kwargs):
+        product, plan = original(*args, **kwargs)
+        slow_auth_fixture(product, 1.25)
+        return product, plan
+
+    def observed_get(client, url, **kwargs):
+        if url == "/health":
+            health_timeouts.append(kwargs.get("timeout"))
+        return get(client, url, **kwargs)
+
+    monkeypatch.setattr(sys.modules[__name__], "product_fixture", delayed_fixture)
+    monkeypatch.setattr(httpx.Client, "get", observed_get)
+    # Reuse every existing cold-start, auth, DB, unauthorized-access, source
+    # integrity and data-preserving restart assertion, with real PBKDF2 + delay.
+    test_authored_downloaded_zip_custom_cold_bootstrap_and_data_preserving_restart(tmp_path)
+    assert health_timeouts and all(timeout == 1 for timeout in health_timeouts)
+
+
+def test_authored_consumer_stalled_auth_fails_without_retry_and_reaps_process(
+    tmp_path, monkeypatch
+):
+    port = free_port()
+    product, plan = product_fixture(tmp_path, port=port)
+    slow_auth_fixture(product, 60)
+    stopped = []
+    stop = stop_process
+
+    def observe_stop(process):
+        stop(process)
+        stopped.append(process.poll())
+
+    monkeypatch.setattr(sys.modules[__name__], "stop_process", observe_stop)
+    with pytest.raises(httpx.ReadTimeout) as caught:
+        with running_consumer(product, tmp_path, port) as client:
+            assert client.timeout.read == 5
+            client.post("/users", json={"name": "owner", "password": "authored-fixture-password"})
+    assert len(stopped) == 1 and stopped[0] is not None
+    assert (tmp_path / "consumer.log").read_text(encoding="utf-8").count("fixture-auth-start") == 1
+    assert "fixture-auth-start" in "\n".join(caught.value.__notes__)
+    with sqlite3.connect(product / plan.runtime.database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM users").fetchone() == (0,)
+
+
+def test_consumer_error_output_is_bounded_and_retains_the_tail(tmp_path):
+    path = tmp_path / "consumer.log"
+    path.write_bytes(b"omitted-head" + b"x" * 20000 + b"fixture-error-tail")
+    tail = consumer_log_tail(path)
+    assert len(tail.encode()) == 16384 and tail.endswith("fixture-error-tail")
+    assert "omitted-head" not in tail
 
 
 def test_custom_product_uses_explicit_canonical_url_and_overwrites_ambient_alias(tmp_path):

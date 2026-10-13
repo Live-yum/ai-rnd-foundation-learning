@@ -4886,8 +4886,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 88106,
-      "sha256": "5e151e453e57a39c33ae45a61446771912b45c9ff0cce7b7b9a3fa1a7d6a64a2",
+      "bytes": 89357,
+      "sha256": "bde1ba348a83f9ac078d354a66fe1c4b7f5a2cfea402bdae4e3801fa3ffd6031",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -5583,8 +5583,8 @@
     },
     {
       "path": "tests/test_capability_consumer.py",
-      "bytes": 22341,
-      "sha256": "3e385c3ac46a7e3c6e2326c6b2db513d492240cfc5b851afa534675351dfcf1c",
+      "bytes": 26154,
+      "sha256": "9fb83b73d2cc6f5efdd15676f5fa5a82b1e7aa8a1c8e4b12b37800010926fcb0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_consumer_py--001.md"

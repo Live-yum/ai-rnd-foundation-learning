@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L436。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/modular-production-v2.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L442。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`88106`。本段原文以LF换行结束。
+本段原始字节数：`89357`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5e151e453e57a39c33ae45a61446771912b45c9ff0cce7b7b9a3fa1a7d6a64a2"} -->
+<!-- learning-source: {"path": "docs/modular-production-v2.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bde1ba348a83f9ac078d354a66fe1c4b7f5a2cfea402bdae4e3801fa3ffd6031"} -->
 ````markdown
 <!-- docs/modular-production-v2.md -->
 # 模块化单体与 V2 生产路径
@@ -453,4 +453,10 @@ checks_count记录完整场景回执，不是已发送HTTP请求数。run_scenar
 controller将固定事实写入原检查回执，安全summary重滤这些字段；checkpoint投影仅在原绑定有效后附当前task与plan共同批准的failed_scenario，避免多场景步骤歧义。check_candidate必须先通过原task/plan/source/nonce、截止、清理与隔离资格校验，并且已有business_assertion资格和批准scenario匹配，才核对步骤/断言序号确实落在该场景内后附入同Worker反馈。状态不符还校对原期望状态，并拒绝将502/503/504诊断解释为业务断言；这些状态仍走原基础设施失败。无效或缺失诊断不授予资格、不改变原结果。
 
 离线验证覆盖四类真实HTTP断言产生固定坐标、controller处理及summary过滤、批准场景坐标拒绝，以及失败反馈进入同一Worker下一次edit_and_submit的原预算/截止。没有读取候选源码、增加模型请求或改变原验收标准。此补丁提供可定位且可修复的反馈，不证明第23轮根因已知，也不证明业务已修复；新真实双模块结果仍待原受控验收。
+
+### 审计消费者夹具的健康探测与业务请求预算
+
+普通 CI 的 `test_capability_consumer.py` 验证作者提供的 ZIP 冷启动、真实密码散列、SQLite 写入、越权拒绝和重启保留数据，不要求这些业务操作在一秒内完成。该夹具将健康探测固定为每次 1 秒，保持 20 秒启动窗口；业务 HTTP I/O 单次等待上限为 5 秒，失败不重发 POST，并始终回收启动器及其子进程。此改动仅在测试辅助函数内，生产独立验证器的 15 秒请求边界、总业务期限与 mini-SWE 模型预算均不变。
+
+确定性回归在真实 PBKDF2 前加入 1.25 秒延迟：旧共享 1 秒客户端在 `/users` 注册处超时，分离预算后完整复用原 ZIP、数据库、认证和重启断言。另一个审计夹具把密码散列前等待延长到 60 秒，必须在 5 秒读取上限失败，不能重发或插入账号，退出后进程已回收。异常保留原类型，并附最多最后 16 KiB 的审计夹具 stdout/stderr，不记录环境或模型内容。既有 Windows 失败产物未包含子进程日志，因此只能确认它在注册请求等待响应头时超时，不能据此断言密码散列、数据库或调度中的哪一项造成延迟。
 ````
