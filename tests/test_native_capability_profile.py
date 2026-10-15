@@ -46,7 +46,7 @@ def product(tmp_path):
         "raise RuntimeError('never execute candidate source')\n",
     )
     atomic_text(
-        root / "deployment/workbench/native_environment.py",
+        root / "deployment/workbench/infrastructure/native/environment.py",
         "raise RuntimeError('untrusted control')\n",
     )
     atomic_text(root / "frontend/web/.pnpmfile.cjs", "throw Error('untrusted package hook')")

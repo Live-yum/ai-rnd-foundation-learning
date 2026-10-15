@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_editing`、`workbench.capability_obligations`、`workbench.capability_policy`、`workbench.capability_readiness`、`workbench.capability_verification`、`workbench.catalog`、`workbench.domain`、`workbench.errors`、`workbench.feature_planning`、`workbench.filesystem`、`workbench.generator`、`workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.acceptance.capability_verification`、`workbench.coding.candidates`、`workbench.core.contracts`、`workbench.errors`、`workbench.extensions.obligations`、`workbench.extensions.policy`、`workbench.extensions.readiness`、`workbench.filesystem`、`workbench.generation.python_basic`、`workbench.planning.contracts`、`workbench.planning.feature_planner`、`workbench.templates.adapters`、`workbench.templates.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -24,9 +24,9 @@
 
 **创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L868–L1035。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7939`。本段原文以LF换行结束。
+本段原始字节数：`7950`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "625a892a18572e51c6f8d1b46f7af1a336bf529e4352e045dd5675d4358dfb71"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "b679574530163f3dded57059383f6116f5f92a204fede99b9a9451b8827709da"} -->
 ````python
 # workbench/production/dispatcher.py
     def extension_scope_data(self, state, design):
@@ -94,7 +94,7 @@
         return result
 
     def extension_package(self, state):
-        from workbench.capability_sandbox import verify_capabilities
+        from workbench.acceptance.capability_sandbox import verify_capabilities
 
         design = self.checked_extension(state)
         plan = design.implementation
@@ -152,7 +152,7 @@
             )
             self.extension_coverage(state, design, proof)
             if plan.selection.template == "python-basic":
-                from workbench.capability_consumer import require_consumer_evidence
+                from workbench.extensions.consumer import require_consumer_evidence
 
                 require_consumer_evidence(clean, plan, proof)
         temporary.replace(archive)

@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.requirements.canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -33,9 +33,9 @@
 
 **创建路径：** `workbench/requirements/intent.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L423。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19037`。本段原文以LF换行结束。
+本段原始字节数：`19046`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirements/intent.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d37f7becd451ff2d9e9ea512aa3d4aa33fef3859e64989c6f25f4f99fb647c39"} -->
+<!-- learning-source: {"path": "workbench/requirements/intent.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f09e2a5c9c9b665a3c65c364dae0589a39ba190fa1b2c407f1e675384af6718"} -->
 ````python
 # workbench/requirements/intent.py
 """Source-backed capability boundaries, independent of model scope rewording.
@@ -47,8 +47,8 @@ public entrant registration. Unknown prose remains for normal analysis.
 
 import re
 
-from workbench.domain import Requirement, digest
-from workbench.requirement_canonical import canonicalize_requirement
+from workbench.core.contracts import Requirement, digest
+from workbench.requirements.canonical import canonicalize_requirement
 
 PUBLIC_REGISTRATION = "entrant-registration-entrypoint"
 SCOPE_QUESTION = "参与者将通过哪种入口报名？"

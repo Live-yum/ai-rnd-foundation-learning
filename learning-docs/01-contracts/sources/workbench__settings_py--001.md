@@ -43,9 +43,9 @@
 
 **创建路径：** `workbench/settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L341。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14101`。本段原文以LF换行结束。
+本段原始字节数：`14102`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b0cf503deeb8ec569c67f3da350c4b7656eab5139933367b483ff2b499287373"} -->
+<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8073c25fedfa089a40385835a7cd81ade26ce559e5343b4ddf8bd3cf58e194c7"} -->
 ````python
 # workbench/settings.py
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
@@ -299,7 +299,7 @@ class Settings(BaseSettings):
             (self.data_dir / name).mkdir(exist_ok=True)
 
     def model_configuration(self):
-        from workbench.model_settings import ModelSettingsRepository
+        from workbench.models.settings import ModelSettingsRepository
 
         configuration = ModelSettingsRepository(self).snapshot()
         self._remember_model_keys(configuration)

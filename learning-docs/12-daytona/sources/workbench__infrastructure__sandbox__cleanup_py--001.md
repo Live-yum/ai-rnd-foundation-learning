@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.infrastructure.processes.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -28,9 +28,9 @@
 
 **创建路径：** `workbench/infrastructure/sandbox/cleanup.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L283。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10618`。本段原文以LF换行结束。
+本段原始字节数：`10691`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/cleanup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "941ae464896fbddf6d8009972a47e32ddf17b9874c8ded496c79604ee5fb148a"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/cleanup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b37bf2f89b5a4571010deca2c5d5440f209a8a0237f8244322a35c5dd74f4ef7"} -->
 ````python
 # workbench/infrastructure/sandbox/cleanup.py
 """Owned coding-sandbox deletion; the parent alone publishes terminal cleanup state."""
@@ -43,7 +43,7 @@ import time
 
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import write_json
-from workbench.tools import clean_env, process_options
+from workbench.infrastructure.processes.tools import clean_env, process_options
 
 NAME = re.compile(r"rnd-source-(?:native-)?agent-[a-f0-9]{32}")
 
@@ -159,8 +159,8 @@ def delete_owned(settings, name, identifier, binding, path, deadline):
 
 
 def perform(payload):
+    from workbench.infrastructure.sandbox.daytona.verification import client_for, close_client
     from workbench.local_only import install_loopback_guard
-    from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
 
     install_loopback_guard()
@@ -264,9 +264,9 @@ def public_receipt(path, task, plan):
 
 def checkpoint_receipts(workspace, task, plan):
     """Project at most eight owned checkpoint receipts before ephemeral source removal."""
-    from workbench.capability_diagnostics import node_diagnostic
     from workbench.core.contracts import digest
     from workbench.filesystem import manifest
+    from workbench.infrastructure.sandbox.diagnostics import node_diagnostic
 
     result = []
     for step in range(1, 9):

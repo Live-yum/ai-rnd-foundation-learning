@@ -21,19 +21,23 @@
 
 ## 目录与依赖
 
-- `core/contracts.py`：稳定输入、需求与基线产品合同。
-- `projects/models.py`：现有持久化项目、运行、审批、作业和步骤模型；不改变数据库表。
-- `requirements/source_ledger.py, coverage.py, clarification.py, intent.py`：原始来源、覆盖与澄清。
-- `planning/contracts.py, feature_planner.py, versioning.py, dependency_graph.py`：唯一权威 FeatureDesign、四路由、任务合同与串行 DAG。
-- `specifications/service.py, artifact_writer.py, validator.py, openspec/cli.py`：规格文档准备，不执行产品工作流。
-- `production/graph.py, state.py, dispatcher.py, worker.py, candidates.py`：LangGraph、恢复、分派与原子晋升。
-- `coding/ports.py, bounded.py, candidates.py, diff_guard.py, mini_swe.py, aider.py`：受控代码编辑与外部 Worker。
-- `infrastructure/persistence/store.py, llm/gateway.py, sandbox/coding.py`：平台数据、模型调用和经准入的本机 Daytona。
-- `interfaces/http.py, cli.py`：FastAPI 和 CLI 入口；`workbench.api`、`workbench.cli` 等旧入口继续有效。
-- `generation/python_basic.py`：完整基础模板生成。已有模板选择、原生栈和业务适配能力保留。
-- `ui/src/features/{projects,plans,runs,approvals,delivery,settings}`：实际 Vue 功能实现；旧组件导入保留兼容。
+完整目录职责与兼容约束见 [workbench 功能目录](workbench-layout.md)。实现按功能实际迁移：
 
-生产编排调用领域合同；领域合同不导入 production。为保持现有调用与 monkeypatch 兼容，旧 Python 模块通过 `sys.modules` 指向新实现对象。不能把兼容文件误当成全部实现，安全验收源码清单同时绑定新实现路径。
+- `core/`、`projects/`：稳定合同与现有持久化模型。
+- `requirements/`、`models/`、`knowledge_services/`、`templates/`：需求、模型配置、知识检索及模板资源合同。
+- `planning/`、`specifications/`：权威可执行计划与独立规格文档。
+- `coding/`、`production/`：受控编辑、编排、恢复与原子晋升。
+- `business/`、`generation/native/`、`acceptance/`、`delivery/`：业务适配、原生生成、独立验收和交付恢复。
+- `extensions/`：扩展消费者、策略、准入与义务。
+- `infrastructure/{persistence,llm,processes,native,sandbox}/`：事务、调用网关、进程、本机资源与隔离；sandbox 继续分 `browser/` 和 `daytona/`。
+- `interfaces/`：HTTP、CLI、流式接口与工具链；`_compat/`：精确旧名的惰性兼容注册。
+- `ui/src/features/{projects,plans,runs,approvals,delivery,settings}`：Vue 功能实现；构建资源仍在 `workbench/web/`。
+
+生产编排调用领域合同；领域合同不导入 production。旧 Python 导入与新实现共享同一个模块对象及 monkeypatch，注册旧名不提前导入目标。新增父包保持轻量，每个迁移实现保留原教材阶段。既有 `coding/__init__.py` 的编辑接口仍在第07阶段。
+
+根目录只保留8个 Python 文件：`__init__.py`、`errors.py`、`filesystem.py`、`local_only.py`、`settings.py`、`cli.py`、`capability_sandbox.py`、`daytona_worker.py`。最后三个保留 `python -m workbench.cli`、`python -m workbench.capability_sandbox`、`python -m workbench.daytona_worker` 命令，`rnd` 控制台入口不变；`workbench.settings.ROOT` 仍指向相同资源根。
+
+安全验收的精确源码清单必须绑定迁移后的真实实现和兼容入口/注册。不能只校验 shim 或漏掉嵌套实现，不能放宽路径、审批、源码哈希或隔离门禁。迁移会使旧源码回执失效；离线回归不能替代精确 head 的真实安全证据。
 
 ## 新 Run 的显式选择
 
@@ -205,7 +209,7 @@ Job 绑定既有 `rnd` 环境；`vars.BASE_URL` 必须是 HTTPS，`vars.MODE` �
 
 ### 453c24a 模型失败的诊断缺口
 
-父线程随后通过官方读取恢复mini-SWE运行38126262748/artifact11697773853：passed=false，ModelFailure/model_gateway/trusted_source_line312，model_call_reservations=3、model_http_attempts=3、model_http_responses=2，严格TLS检查通过。精确453c24a源码位置为`workbench/infrastructure/llm/gateway.py:312`；`workbench/llm.py`只是兼容导入。该行是两次尝试耗尽的共用出口，结构化输出失败、可重试HTTP状态或一般传输错误均可到达，不能仅凭少一个响应计数判断限流、超时或其他具体原因。此处不沿用旧运行的DaytonaError。
+父线程随后通过官方读取恢复mini-SWE运行38126262748/artifact11697773853：passed=false，ModelFailure/model_gateway/trusted_source_line312，model_call_reservations=3、model_http_attempts=3、model_http_responses=2，严格TLS检查通过。精确453c24a源码位置为`workbench/infrastructure/llm/gateway.py:312`；`workbench/infrastructure/llm/gateway.py`只是兼容导入。该行是两次尝试耗尽的共用出口，结构化输出失败、可重试HTTP状态或一般传输错误均可到达，不能仅凭少一个响应计数判断限流、超时或其他具体原因。此处不沿用旧运行的DaytonaError。
 
 网关原本会在临时数据库记录每次model_failure，但该场景清理后未向summary保留这些记录。本地补丁在既有finally中导出最多32项`model_failure_receipts`，只含白名单code、1/2次尝试序号，transport_error另含基于有界异常类型链的固定transport_kind。HTTP代码限100–599；未知分类为other，非法序号为null；不导出endpoint、模型名、请求ID、时间、headers、prompt、校验字段路径/值、异常或响应正文。读取诊断失败记null，不替换原验收结果。只增加诊断，不改变两次尝试、退避、TLS、超时、预算或严格输出契约。
 

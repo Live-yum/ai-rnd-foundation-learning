@@ -55,3 +55,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 # Source excerpts preserve exact bytes, including chunk-boundary blank lines.
 # The complete underlying Python files are still formatted and linted normally.
 exclude = ["learning-docs/**/sources/**"]
+
+[tool.ruff.lint.isort]
+# Legacy modules are provided by the explicit lazy compatibility registry.
+known-first-party = ["workbench", "scripts"]

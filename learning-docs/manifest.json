@@ -39,8 +39,8 @@
     },
     {
       "path": "pyproject.toml",
-      "bytes": 1769,
-      "sha256": "685c9e44b6d10726bc87cfceb8ebd86257976918e79dfbafea39a48a6ca79d5d",
+      "bytes": 1913,
+      "sha256": "2bbf5ea68cd7d2f8e10007f37189f7d1acb6ef385377b477879179b651a818b3",
       "stage": "00-environment",
       "parts": [
         "00-environment/sources/pyproject_toml--001.md"
@@ -57,11 +57,101 @@
     },
     {
       "path": "workbench/__init__.py",
-      "bytes": 158,
-      "sha256": "3f22bcb60abdf1341f089dbd93fdebe51501467bb1564be1535f6b6adf8cbd0f",
+      "bytes": 373,
+      "sha256": "8f9d4a8652ccf08b8578cce354a3472d43bb62d3c0da6c32aab7865a9eef6c36",
       "stage": "00-environment",
       "parts": [
         "00-environment/sources/workbench____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/_compat/__init__.py",
+      "bytes": 1322,
+      "sha256": "81b189738c1e6c28f7e056aedc0676e32f589e021b47a162ddd203325866c57c",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench___compat____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/_compat/aliases.py",
+      "bytes": 6983,
+      "sha256": "c4c9dbf9327ba83287de12459dcfdc3fbd8a879ba994bb31ca08880c070d8338",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench___compat__aliases_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/acceptance/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__acceptance____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__business____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/modules/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__business__modules____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/core/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__core____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/delivery/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__delivery____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/extensions/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__extensions____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/generation/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__generation____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/generation/native/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__generation__native____init___py--001.md"
       ]
     },
     {
@@ -74,12 +164,165 @@
       ]
     },
     {
+      "path": "workbench/infrastructure/llm/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__llm____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/native/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__native____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/persistence/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__persistence____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/processes/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__processes____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/__init__.py",
+      "bytes": 38,
+      "sha256": "3203440c63f1c0574ae15ae2a001867259e1540a40871da595b0b3c9ca4509ba",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__sandbox____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/browser/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__sandbox__browser____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/daytona/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__infrastructure__sandbox__daytona____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/interfaces/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__interfaces____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__knowledge_services____init___py--001.md"
+      ]
+    },
+    {
       "path": "workbench/local_only.py",
       "bytes": 5208,
       "sha256": "33aaf900346916934459fbacb3e926aae40b86c565d1b3e92e4d4179a86d3e95",
       "stage": "00-environment",
       "parts": [
         "00-environment/sources/workbench__local_only_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/models/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__models____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/planning/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__planning____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/production/__init__.py",
+      "bytes": 71,
+      "sha256": "1d11e195f90c3d8e1d71d8fce78d9669c4c2ae1106ab0660f716087d4373463d",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__production____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/projects/__init__.py",
+      "bytes": 37,
+      "sha256": "e05c37539cdf7d06af5d381b59a41c6a20c2f6c8da5e647bfe91226deb60beb0",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__projects____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/requirements/__init__.py",
+      "bytes": 37,
+      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__requirements____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/specifications/__init__.py",
+      "bytes": 84,
+      "sha256": "e3ce54b5a181d1ddcc6d08bf8b14c4f32931c98ff6c4f0a4ae4e68abc18a343b",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__specifications____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/specifications/openspec/__init__.py",
+      "bytes": 50,
+      "sha256": "e6cfa6f2a09885bc027ee1ad4f869ae6bfd03df6fba71823b70dda715cb0feb1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__specifications__openspec____init___py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/templates/__init__.py",
+      "bytes": 80,
+      "sha256": "b264c13176e5653adc2529fbac8e5ad46789adb644437f8b56af89b5639364f1",
+      "stage": "00-environment",
+      "parts": [
+        "00-environment/sources/workbench__templates____init___py--001.md"
       ]
     },
     {
@@ -119,48 +362,21 @@
       ]
     },
     {
-      "path": "workbench/business_contracts.py",
+      "path": "workbench/business/contracts.py",
       "bytes": 16149,
       "sha256": "6aab51dec85b1468515b5f89131082369c88b0396fb60d0c82d14f5d30187402",
       "stage": "01-contracts",
       "parts": [
-        "01-contracts/sources/workbench__business_contracts_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/catalog.py",
-      "bytes": 1489,
-      "sha256": "7eda7f37c7012acdf4dbe64048670176ec07ec0416d7c5d14eb665622cff776f",
-      "stage": "01-contracts",
-      "parts": [
-        "01-contracts/sources/workbench__catalog_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/core/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
-      "stage": "01-contracts",
-      "parts": [
-        "01-contracts/sources/workbench__core____init___py--001.md"
+        "01-contracts/sources/workbench__business__contracts_py--001.md"
       ]
     },
     {
       "path": "workbench/core/contracts.py",
-      "bytes": 22831,
-      "sha256": "837f32fc221e5d6ddf6da558b367d0f28200ffd5c031e24f161034d470dab2a8",
+      "bytes": 22854,
+      "sha256": "2aefc10351f689c3bfc2998c10e88b3f9007854d209a6135d4ba40f62f8f8aae",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__core__contracts_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/domain.py",
-      "bytes": 188,
-      "sha256": "826f412f0cc8b7f43dde69261b56b1b4f2e7115a1553d4b22eb50b040d6710b8",
-      "stage": "01-contracts",
-      "parts": [
-        "01-contracts/sources/workbench__domain_py--001.md"
       ]
     },
     {
@@ -173,39 +389,48 @@
       ]
     },
     {
-      "path": "workbench/model_settings.py",
-      "bytes": 21946,
-      "sha256": "f212dd59c1475b69c1683ecc58d14bd7f59746843c4263bfc423570725815790",
+      "path": "workbench/models/settings.py",
+      "bytes": 21948,
+      "sha256": "16613d911203be98b53da6e2318ca7b1f26c3fc24356dcb023000107dde7ad03",
       "stage": "01-contracts",
       "parts": [
-        "01-contracts/sources/workbench__model_settings_py--001.md"
+        "01-contracts/sources/workbench__models__settings_py--001.md"
       ]
     },
     {
       "path": "workbench/settings.py",
-      "bytes": 14101,
-      "sha256": "b0cf503deeb8ec569c67f3da350c4b7656eab5139933367b483ff2b499287373",
+      "bytes": 14102,
+      "sha256": "8073c25fedfa089a40385835a7cd81ade26ce559e5343b4ddf8bd3cf58e194c7",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__settings_py--001.md"
       ]
     },
     {
-      "path": "workbench/template_adapters.py",
-      "bytes": 17235,
-      "sha256": "84d2925b6500a5fd258059c69c3c2a478857f8cf4a177c2ae3669594e96dcc4e",
+      "path": "workbench/templates/adapters.py",
+      "bytes": 17236,
+      "sha256": "fc9ecaf17f3151564372823126cd5c227b637863ad9835f0f8adf82c3da7d751",
       "stage": "01-contracts",
       "parts": [
-        "01-contracts/sources/workbench__template_adapters_py--001.md"
+        "01-contracts/sources/workbench__templates__adapters_py--001.md"
       ]
     },
     {
-      "path": "workbench/template_standards.py",
+      "path": "workbench/templates/catalog.py",
+      "bytes": 1490,
+      "sha256": "e71e4e3c0ff355e2568f32196147acdd1d5106068cd2f66315e90a9d99e88ed5",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/workbench__templates__catalog_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/templates/standards.py",
       "bytes": 2634,
       "sha256": "3fe9544508f737fa238d17128753ef4ecd6cb4892303a3cd97dcfe424ecc4b12",
       "stage": "01-contracts",
       "parts": [
-        "01-contracts/sources/workbench__template_standards_py--001.md"
+        "01-contracts/sources/workbench__templates__standards_py--001.md"
       ]
     },
     {
@@ -290,39 +515,12 @@
       ]
     },
     {
-      "path": "workbench/clarification.py",
-      "bytes": 212,
-      "sha256": "ff59e64784d07e6083a345448f08cbd04b4a02b188d4fe5f6694533c9317b3a8",
-      "stage": "02-storage",
-      "parts": [
-        "02-storage/sources/workbench__clarification_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/infrastructure/persistence/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
-      "stage": "02-storage",
-      "parts": [
-        "02-storage/sources/workbench__infrastructure__persistence____init___py--001.md"
-      ]
-    },
-    {
       "path": "workbench/infrastructure/persistence/store.py",
-      "bytes": 43149,
-      "sha256": "ca5fd38c9784e83b28899bcee0e73a389a83e30ebd89508ffed1a8e69a99add0",
+      "bytes": 43170,
+      "sha256": "0ee98f03d9e5d7edd66c4de2b83c3f6cdf99851a7fab95cc936cd1c1f6689331",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__infrastructure__persistence__store_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/projects/__init__.py",
-      "bytes": 37,
-      "sha256": "e05c37539cdf7d06af5d381b59a41c6a20c2f6c8da5e647bfe91226deb60beb0",
-      "stage": "02-storage",
-      "parts": [
-        "02-storage/sources/workbench__projects____init___py--001.md"
       ]
     },
     {
@@ -335,30 +533,12 @@
       ]
     },
     {
-      "path": "workbench/requirements/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
-      "stage": "02-storage",
-      "parts": [
-        "02-storage/sources/workbench__requirements____init___py--001.md"
-      ]
-    },
-    {
       "path": "workbench/requirements/clarification.py",
-      "bytes": 2822,
-      "sha256": "ea794fb1e2ee487a4159f338009f7da4c8154813b091a35e17ac0a4d085ee760",
+      "bytes": 2857,
+      "sha256": "027b1354514cfcc280ced063950b57c20fc3135344ed23f94f05f082a69db89a",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__requirements__clarification_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/store.py",
-      "bytes": 203,
-      "sha256": "c07b18a3433bed53131a6b16e0d0e1a7e47b7245a3acdf12df1173dcc9cda627",
-      "stage": "02-storage",
-      "parts": [
-        "02-storage/sources/workbench__store_py--001.md"
       ]
     },
     {
@@ -480,8 +660,8 @@
     },
     {
       "path": "tests/test_native_schema.py",
-      "bytes": 19956,
-      "sha256": "4540a4563c06658ba1712516bd431523b368d6dfd0681d278d15c961b9d2def3",
+      "bytes": 19974,
+      "sha256": "b3c10c296c35d83ff8054e454a27c7f3d1de2d27efb9db7e740617f78ca36f37",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/tests__test_native_schema_py--001.md"
@@ -497,145 +677,100 @@
       ]
     },
     {
-      "path": "workbench/business_capabilities.py",
-      "bytes": 58714,
-      "sha256": "ef70ff6720da77c508654b94cb1990e4d201159a9d0dbe376f8ffb729f09ebba",
+      "path": "workbench/business/capabilities.py",
+      "bytes": 58715,
+      "sha256": "d8e9390c0a2bf72ab7acd841465e35ad249fe0960e1076db849881a289f37572",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__business_capabilities_py--001.md",
-        "03-requirements/sources/workbench__business_capabilities_py--002.md"
+        "03-requirements/sources/workbench__business__capabilities_py--001.md",
+        "03-requirements/sources/workbench__business__capabilities_py--002.md"
       ]
     },
     {
-      "path": "workbench/conversation.py",
-      "bytes": 1526,
-      "sha256": "24d550b3bc14694c91256de6f57c9f0da03bebd6c68ddf3a46b6b74a245ff9a1",
+      "path": "workbench/generation/native/schema.py",
+      "bytes": 4307,
+      "sha256": "86413e713ce08172f755162647be70c8e6ea15f206e6389b47685bee84cdce2c",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__conversation_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/entity_requirements.py",
-      "bytes": 2570,
-      "sha256": "47adafbcdcf6f286d0ad9c58cd3f94b56f92540b96110f7bd96506cafc5bec46",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__entity_requirements_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/infrastructure/llm/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__infrastructure__llm____init___py--001.md"
+        "03-requirements/sources/workbench__generation__native__schema_py--001.md"
       ]
     },
     {
       "path": "workbench/infrastructure/llm/gateway.py",
-      "bytes": 21512,
-      "sha256": "633f82c2c335918b9046cdac7aa6dec2c49f1eecf5201ea68cd7201094107893",
+      "bytes": 21674,
+      "sha256": "8534c52f968660a377c47b917893d7097cdce94a351dabad6c03ec24f98ec406",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__infrastructure__llm__gateway_py--001.md"
       ]
     },
     {
-      "path": "workbench/llm.py",
-      "bytes": 191,
-      "sha256": "2ea18b1c828f59fd6c7e0a7f4f3de13011973adc2468f426b49367489a378c68",
+      "path": "workbench/interfaces/streaming.py",
+      "bytes": 13600,
+      "sha256": "184e7f589ce1eabe75c908c2a370cb8d653c628702833be7b4a46a6dfa0e676c",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__llm_py--001.md"
+        "03-requirements/sources/workbench__interfaces__streaming_py--001.md"
       ]
     },
     {
-      "path": "workbench/model_connection.py",
-      "bytes": 11265,
-      "sha256": "8bdb5d2b2dde0458a81c8475fc2475ec905b319aa1e89062a14b94fc849c39cd",
+      "path": "workbench/models/connection.py",
+      "bytes": 11268,
+      "sha256": "e005dd1252eff97feb54db6fa84aa8c681a938920f37c71327bd86788aad2e85",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__model_connection_py--001.md"
+        "03-requirements/sources/workbench__models__connection_py--001.md"
       ]
     },
     {
-      "path": "workbench/model_diagnostics.py",
-      "bytes": 19091,
-      "sha256": "da105467b7e8bc7cccc8b71be5a00f070ecac26251372a20989c21ec7f971a1c",
+      "path": "workbench/models/diagnostics.py",
+      "bytes": 19092,
+      "sha256": "dfef91fb3409f4d62944c37ea1361a43a3b36e448fe8aa7686da89bea6bdf5a1",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__model_diagnostics_py--001.md"
+        "03-requirements/sources/workbench__models__diagnostics_py--001.md"
       ]
     },
     {
-      "path": "workbench/model_discovery.py",
-      "bytes": 15524,
-      "sha256": "42dc4d658945245563e18ac0dbaf52908165982a7ae33438b9d8c26bfd8c7b41",
+      "path": "workbench/models/discovery.py",
+      "bytes": 15526,
+      "sha256": "740d58c801ee249194efe7e042551a6d7579ba6ab34a4e2de83067260612ad0a",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__model_discovery_py--001.md"
+        "03-requirements/sources/workbench__models__discovery_py--001.md"
       ]
     },
     {
-      "path": "workbench/model_protocol.py",
+      "path": "workbench/models/protocol.py",
       "bytes": 21836,
       "sha256": "d0afe00c96a1d2d7a0c7d9a4a672dafc81a94435ce59bd3c2d67d804100730d4",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__model_protocol_py--001.md"
+        "03-requirements/sources/workbench__models__protocol_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_schema.py",
-      "bytes": 4306,
-      "sha256": "7eea12882612a372f58c7a5964febaca4a1ab0bc5626182c3db1a298e15e818c",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__native_schema_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/requirement_canonical.py",
+      "path": "workbench/requirements/canonical.py",
       "bytes": 2167,
       "sha256": "cc302c7b6e87e4a0b1187d23dffbed13ce1e0f4cea57809c1f4c6f783de08c12",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__requirement_canonical_py--001.md"
+        "03-requirements/sources/workbench__requirements__canonical_py--001.md"
       ]
     },
     {
-      "path": "workbench/requirement_coverage.py",
-      "bytes": 202,
-      "sha256": "2740f0d1226877977ac299511dfb89bd1c8f929ebb0380430cbcb0dd7830bbbe",
+      "path": "workbench/requirements/conversation.py",
+      "bytes": 1526,
+      "sha256": "24d550b3bc14694c91256de6f57c9f0da03bebd6c68ddf3a46b6b74a245ff9a1",
       "stage": "03-requirements",
       "parts": [
-        "03-requirements/sources/workbench__requirement_coverage_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/requirement_intent.py",
-      "bytes": 177,
-      "sha256": "e2a583b3a669086bf4118072afd80fbf210ad44822c0fb94e4d127456a317a1d",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__requirement_intent_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/requirement_sources.py",
-      "bytes": 212,
-      "sha256": "65616b8ba9c47aec8e5d651478faafc0758fb6e5f63044d86f76eaf2ed829aa3",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__requirement_sources_py--001.md"
+        "03-requirements/sources/workbench__requirements__conversation_py--001.md"
       ]
     },
     {
       "path": "workbench/requirements/coverage.py",
-      "bytes": 135132,
-      "sha256": "228feceba53326c28cef3c9de920bab35856f505a3439ffc5fe05b508ce6d20f",
+      "bytes": 135155,
+      "sha256": "b3879faa061d01aad163136ec918a304d4cb89573cc41636c7f6a9dd831c3c4c",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirements__coverage_py--001.md",
@@ -645,9 +780,18 @@
       ]
     },
     {
+      "path": "workbench/requirements/entities.py",
+      "bytes": 2570,
+      "sha256": "47adafbcdcf6f286d0ad9c58cd3f94b56f92540b96110f7bd96506cafc5bec46",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__requirements__entities_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/requirements/intent.py",
-      "bytes": 19037,
-      "sha256": "d37f7becd451ff2d9e9ea512aa3d4aa33fef3859e64989c6f25f4f99fb647c39",
+      "bytes": 19046,
+      "sha256": "1f09e2a5c9c9b665a3c65c364dae0589a39ba190fa1b2c407f1e675384af6718",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirements__intent_py--001.md"
@@ -655,20 +799,11 @@
     },
     {
       "path": "workbench/requirements/source_ledger.py",
-      "bytes": 10997,
-      "sha256": "b39b09edd027194762deb0226ed2f349232d1a38ec5fbeb05b442d28b24324e6",
+      "bytes": 11006,
+      "sha256": "198e14dd6ec9eb2b4d60ca5f895f7c2b721bb9ee6117996f2cd0920c3e63b150",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirements__source_ledger_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/streaming.py",
-      "bytes": 13599,
-      "sha256": "438640139ab7acd788784be6cab3176471d29f1e359cd2ccded92ebe7a013d27",
-      "stage": "03-requirements",
-      "parts": [
-        "03-requirements/sources/workbench__streaming_py--001.md"
       ]
     },
     {
@@ -681,156 +816,84 @@
       ]
     },
     {
-      "path": "workbench/capability_browser_isolation.py",
-      "bytes": 26598,
-      "sha256": "16f80e53f6e5a15b2e8e3c8a7ca54748c3212c9c29281de4673251bae1f43ec2",
+      "path": "workbench/acceptance/capability_verification.py",
+      "bytes": 30137,
+      "sha256": "4f37842e296eadb3d9176e528a641a599f5cd161113cb5476591fbeabc2b608d",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md"
+        "04-local-foundation/sources/workbench__acceptance__capability_verification_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_browser_policy.py",
-      "bytes": 11724,
-      "sha256": "7a66388f8026daaccd7c00e5db41d802cdaf7034c5ffac72508dd8ff47c57bba",
+      "path": "workbench/business/modules/imports.py",
+      "bytes": 6703,
+      "sha256": "a914d5d43488c93f2898296c8a187a1e5aaed7d3efca00a2e7638825d334ee5b",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_browser_policy_py--001.md"
+        "04-local-foundation/sources/workbench__business__modules__imports_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_consumer.py",
-      "bytes": 6413,
-      "sha256": "c6203c989993facccdf1c5cd82f4de9fdd1164982982f698f323cc16bf880788",
+      "path": "workbench/extensions/consumer.py",
+      "bytes": 6491,
+      "sha256": "a5891296e2ed854f234d55b737b109e34af6b97406fba3e3b6b4b4b333bb2f12",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_consumer_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__consumer_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_contest_oracle.py",
-      "bytes": 16039,
-      "sha256": "cebefd783721c7a2ede199a62b17787178682a6c817a5651da307e7022b257ef",
+      "path": "workbench/extensions/contest_oracle.py",
+      "bytes": 16077,
+      "sha256": "dccb926934c1e718ddec3ba271ddb7b80a2b45a877cb878b862fd298e75ba2c7",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_contest_oracle_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__contest_oracle_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_contracts.py",
-      "bytes": 196,
-      "sha256": "2f94dae3aff26557d3af6408e259a1e58e226fa42a5eeb5eca3da76057c4ecfa",
+      "path": "workbench/extensions/obligations.py",
+      "bytes": 13563,
+      "sha256": "3120825bbd7b01d3a405adc02a7fef5c2347efadccfcc9282b2ffdf014ea2e51",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_contracts_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__obligations_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_dependencies.py",
-      "bytes": 22864,
-      "sha256": "b53041110f5b12d2f0db6faad3f971469ce5d237faedb1161c8a8890ffbd359c",
+      "path": "workbench/extensions/policy.py",
+      "bytes": 11002,
+      "sha256": "1034429ec930135cefd20de4184e64bcba6760e2e2e827733ecd6761fc8706a4",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_dependencies_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__policy_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_execution.py",
-      "bytes": 16600,
-      "sha256": "a70a2666619fc1456a623cd4d870b6668a1932244f7c7f5056fdc8f0ab4afc21",
+      "path": "workbench/extensions/readiness.py",
+      "bytes": 3389,
+      "sha256": "db7be6aace826f4c5844e1960514bc6036c7749dcb5a9800c2cd46d325f17a49",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_execution_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__readiness_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_isolation.py",
-      "bytes": 20338,
-      "sha256": "fd48f048dabd9f28aee3e989ce477b02fba806b7ced305e28364c3f6127e6abc",
+      "path": "workbench/extensions/services.py",
+      "bytes": 8203,
+      "sha256": "080820dcfb8a9c038a1d8c5b240aa2c6fb1a8080bc2df7aa965a0b103bad9583",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_isolation_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__services_py--001.md"
       ]
     },
     {
-      "path": "workbench/capability_native_runtime.py",
-      "bytes": 8359,
-      "sha256": "048fd9ea2821a6047610a4029e7039b78f9e6755b975cac4750c1c859aec4ede",
+      "path": "workbench/extensions/stack.py",
+      "bytes": 19639,
+      "sha256": "10dcc171d627a74cd2a8f29786c4b82d3780b1acef5b889e38343d0810196cfa",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__capability_native_runtime_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_obligations.py",
-      "bytes": 13523,
-      "sha256": "84a9abdd13776e1cfcee6354414d45179ab514f3056a9193c792d568513667e7",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_obligations_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_policy.py",
-      "bytes": 10983,
-      "sha256": "a63c124257d8302f890b749e7594770f4b53e84938ca1b7a1e5687959a166b61",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_policy_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_readiness.py",
-      "bytes": 3381,
-      "sha256": "0c2d5bea7202012a325e7e6ba2ba7879ae8939fda41693411f9682b3701c2aa1",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_readiness_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_services.py",
-      "bytes": 8180,
-      "sha256": "2c5b44f04fe8be90fd40ff0cb13d264b3959578438a35da52df358fadc3469ef",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_services_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_stack.py",
-      "bytes": 19605,
-      "sha256": "9af417449ad9300c815dd4a6d3c4a76bca9a4706cb489038f7c0222f814b0bd7",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_stack_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_verification.py",
-      "bytes": 30070,
-      "sha256": "bf1fc00cb99aa0517fe26faf24a9e7988ebaba92804af1687d9fd2c70550f1fb",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__capability_verification_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/context_mcp.py",
-      "bytes": 2712,
-      "sha256": "e5002296bb06bc60d70072a6e9420ed3d09eee61906e7a1faa1b777b70089498",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__context_mcp_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/feature_planning.py",
-      "bytes": 208,
-      "sha256": "09dd9164a20759e461a86ae7bc0c7c7ba56ace70a3b9b23dbac95eac01c81dde",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__feature_planning_py--001.md"
+        "04-local-foundation/sources/workbench__extensions__stack_py--001.md"
       ]
     },
     {
@@ -843,45 +906,117 @@
       ]
     },
     {
-      "path": "workbench/knowledge.py",
-      "bytes": 8007,
-      "sha256": "0be98825da7f5e175b1c6476e1baa2a4c0a20b6bae6f6962eeca66305b57ae8e",
+      "path": "workbench/infrastructure/processes/owned_lifecycle.py",
+      "bytes": 1355,
+      "sha256": "aa626463787d6b495a235f53cd4cec77400c7b0f384136f51e5ac92b26906dfa",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__knowledge_py--001.md"
+        "04-local-foundation/sources/workbench__infrastructure__processes__owned_lifecycle_py--001.md"
       ]
     },
     {
-      "path": "workbench/module_imports.py",
-      "bytes": 6695,
-      "sha256": "bddc05558b86e27a5bc3b0150ed3fd36795ba5dbca498b3689a4a613eb50e416",
+      "path": "workbench/infrastructure/processes/tools.py",
+      "bytes": 5279,
+      "sha256": "6674521e19748a4a779874e9e6b772984ad1cc74a3a9854700446a1bebf0c232",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__module_imports_py--001.md"
+        "04-local-foundation/sources/workbench__infrastructure__processes__tools_py--001.md"
       ]
     },
     {
-      "path": "workbench/owned_lifecycle.py",
-      "bytes": 1330,
-      "sha256": "db84fbab1cfa381223fa8d1a452807fc4813ecc46c5f28892abff04e0970f963",
+      "path": "workbench/infrastructure/sandbox/browser/isolation.py",
+      "bytes": 28081,
+      "sha256": "ed1685918b43d8cf3d9e31151c7d9f4e9dcefea4af4543eb41e8aa9ec70c5a56",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__owned_lifecycle_py--001.md"
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__browser__isolation_py--001.md"
       ]
     },
     {
-      "path": "workbench/planning/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "path": "workbench/infrastructure/sandbox/browser/policy.py",
+      "bytes": 11749,
+      "sha256": "e28df719b154fcf9521cdb5696edb040f879753cf62508840f5179d7087c6467",
       "stage": "04-local-foundation",
       "parts": [
-        "04-local-foundation/sources/workbench__planning____init___py--001.md"
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__browser__policy_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/dependencies.py",
+      "bytes": 22954,
+      "sha256": "184f48510655beb5fcacd6a9087d6e2d330547bc28339f1d4197567853302a0f",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__dependencies_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/execution.py",
+      "bytes": 17600,
+      "sha256": "dbdea9e7ba353f9938fa81ac4fb23caeb0333f6935bdd774a4f83883b162f02a",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__execution_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/isolation.py",
+      "bytes": 20349,
+      "sha256": "8d83584e6b0055789466b5578418521e04ee06f5a150ee0a700299833fdf3c82",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__isolation_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/native_runtime.py",
+      "bytes": 8392,
+      "sha256": "2cb3a7df96ba83a3063c668583c85bc399b8de05bb61086cda7fd47121b047a0",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__infrastructure__sandbox__native_runtime_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/index.py",
+      "bytes": 8053,
+      "sha256": "51f8ec4fb3f3341817b5ac4f9d1e97ca21c4041a13d2cfce2517624c50b284a7",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__knowledge_services__index_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/mcp.py",
+      "bytes": 2731,
+      "sha256": "877e90f5a8652c6e191e7d2c8f11a10ae08b6943af2b2e8b4e5b4b8c294ee42c",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__knowledge_services__mcp_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/retrieval.py",
+      "bytes": 15367,
+      "sha256": "1d1eb0b0224ac97f8f6b543cce0625cb482120720b584d01cbada635e9b2cd77",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__knowledge_services__retrieval_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/symbols.py",
+      "bytes": 6628,
+      "sha256": "634f5146eb97ae12083d6589940cd75d3ca6ac698b6ae8301c35febeaf333fc4",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__knowledge_services__symbols_py--001.md"
       ]
     },
     {
       "path": "workbench/planning/contracts.py",
-      "bytes": 23252,
-      "sha256": "155814a553ae7c2364c9eb51936125795adf7d94e47fbdeb01d0ac0a184eb244",
+      "bytes": 23270,
+      "sha256": "90249be7499a8ad77939c0cbfa7c6d7ecffd286c0c41aafe5cfdacc572df90db",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__planning__contracts_py--001.md"
@@ -898,11 +1033,20 @@
     },
     {
       "path": "workbench/planning/feature_planner.py",
-      "bytes": 13822,
-      "sha256": "186fb3335390e4e7ef8991056ca57fd7ab40229fbfcd83fdd926a371ec033a50",
+      "bytes": 13849,
+      "sha256": "95367242fa03e17990c73882bc795ae865dce7140946973ce8e9b611b334e447",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__planning__feature_planner_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/planning/rules.py",
+      "bytes": 7812,
+      "sha256": "8fc135f9689c08bfcfafa8a627b198a09812e29bba78b8f13c4cdda6cfc812ef",
+      "stage": "04-local-foundation",
+      "parts": [
+        "04-local-foundation/sources/workbench__planning__rules_py--001.md"
       ]
     },
     {
@@ -915,33 +1059,6 @@
       ]
     },
     {
-      "path": "workbench/retrieval.py",
-      "bytes": 15340,
-      "sha256": "83da454daf503b6ffe7c2d0be8b570dca955b081d17076aa31f092a25a522103",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__retrieval_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/rules.py",
-      "bytes": 7812,
-      "sha256": "8fc135f9689c08bfcfafa8a627b198a09812e29bba78b8f13c4cdda6cfc812ef",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__rules_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/specifications/__init__.py",
-      "bytes": 84,
-      "sha256": "e3ce54b5a181d1ddcc6d08bf8b14c4f32931c98ff6c4f0a4ae4e68abc18a343b",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__specifications____init___py--001.md"
-      ]
-    },
-    {
       "path": "workbench/specifications/artifact_writer.py",
       "bytes": 2195,
       "sha256": "78c930a997fe0f6826bf5b512ecf6846a4cea34bf00e0f6a289e1524acae5bdd",
@@ -951,18 +1068,9 @@
       ]
     },
     {
-      "path": "workbench/specifications/openspec/__init__.py",
-      "bytes": 50,
-      "sha256": "e6cfa6f2a09885bc027ee1ad4f869ae6bfd03df6fba71823b70dda715cb0feb1",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__specifications__openspec____init___py--001.md"
-      ]
-    },
-    {
       "path": "workbench/specifications/openspec/cli.py",
-      "bytes": 2372,
-      "sha256": "b4c9e10ed34e9bce90af0151af9b585c0830d3d7640405c4e0732cff300c7483",
+      "bytes": 2397,
+      "sha256": "2e18a21e4cf41c25990ef9d8d2de621e0dfa2a404336dd04676dc48d085102e8",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__specifications__openspec__cli_py--001.md"
@@ -984,24 +1092,6 @@
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__specifications__validator_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/symbols.py",
-      "bytes": 6628,
-      "sha256": "634f5146eb97ae12083d6589940cd75d3ca6ac698b6ae8301c35febeaf333fc4",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__symbols_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/tools.py",
-      "bytes": 5279,
-      "sha256": "6674521e19748a4a779874e9e6b772984ad1cc74a3a9854700446a1bebf0c232",
-      "stage": "04-local-foundation",
-      "parts": [
-        "04-local-foundation/sources/workbench__tools_py--001.md"
       ]
     },
     {
@@ -1195,12 +1285,12 @@
       ]
     },
     {
-      "path": "workbench/business_python.py",
+      "path": "workbench/business/python.py",
       "bytes": 1760,
       "sha256": "e47b038187e60cf02d1d4518bc99a93d4c6b476e70421e252171e0d7d218d9e6",
       "stage": "05-product",
       "parts": [
-        "05-product/sources/workbench__business_python_py--001.md"
+        "05-product/sources/workbench__business__python_py--001.md"
       ]
     },
     {
@@ -1222,57 +1312,39 @@
       ]
     },
     {
-      "path": "workbench/generation/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "path": "workbench/acceptance/postgres_lab.py",
+      "bytes": 4216,
+      "sha256": "a9ccc5cd268a575dcefa67ce22f0d4b4841d6c7eb8447e8dda5cb5a19f53a2cf",
       "stage": "06-generation",
       "parts": [
-        "06-generation/sources/workbench__generation____init___py--001.md"
+        "06-generation/sources/workbench__acceptance__postgres_lab_py--001.md"
       ]
     },
     {
-      "path": "workbench/generation/python_basic.py",
-      "bytes": 7900,
-      "sha256": "05734c11d8c220ea88acc45b4aea0a55876def67c0fe0d199f393ab36f647cde",
+      "path": "workbench/acceptance/verification.py",
+      "bytes": 32536,
+      "sha256": "38052c0980913d279c3021aa98a1161f637aadf31a553d2ad26a95aff933a2cf",
       "stage": "06-generation",
       "parts": [
-        "06-generation/sources/workbench__generation__python_basic_py--001.md"
+        "06-generation/sources/workbench__acceptance__verification_py--001.md"
       ]
     },
     {
-      "path": "workbench/generator.py",
-      "bytes": 185,
-      "sha256": "aa30a824b4be932454e6a01df76e8afd62c7f7d826b8cf101c7c10a9c3b3d16b",
-      "stage": "06-generation",
-      "parts": [
-        "06-generation/sources/workbench__generator_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/postgres_lab.py",
-      "bytes": 4177,
-      "sha256": "72a304fe35d7a30d5d4bd48eb081067af98c3284064dcc5aee64ef4b5a9f4e8f",
-      "stage": "06-generation",
-      "parts": [
-        "06-generation/sources/workbench__postgres_lab_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/product_sql.py",
+      "path": "workbench/generation/product_sql.py",
       "bytes": 2520,
       "sha256": "d4378ffc9036e3717767a4f2639b18046b2333bc954268634c94f4684a8e60c0",
       "stage": "06-generation",
       "parts": [
-        "06-generation/sources/workbench__product_sql_py--001.md"
+        "06-generation/sources/workbench__generation__product_sql_py--001.md"
       ]
     },
     {
-      "path": "workbench/verification.py",
-      "bytes": 32469,
-      "sha256": "093d409221a10b0fc28e334a0a82d78bc1b043aa7893910ba5c2fb0f1b5dba59",
+      "path": "workbench/generation/python_basic.py",
+      "bytes": 7939,
+      "sha256": "8480f0fb8a53bfea51ffc985ee103e1f9a37553de87ff9d5b479e95d35d182c2",
       "stage": "06-generation",
       "parts": [
-        "06-generation/sources/workbench__verification_py--001.md"
+        "06-generation/sources/workbench__generation__python_basic_py--001.md"
       ]
     },
     {
@@ -1321,49 +1393,22 @@
       ]
     },
     {
-      "path": "workbench/aider_tool.py",
-      "bytes": 184,
-      "sha256": "de5b156ddcb7a47c2463738001cfef4e3d17624351f3d9b39cc6346ca2bc8053",
+      "path": "workbench/acceptance/capability_sandbox.py",
+      "bytes": 53789,
+      "sha256": "b060383346962665aed6bcd0436059952270ccc6d5776e735fd420753cf4b0da",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__aider_tool_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_diagnostics.py",
-      "bytes": 7418,
-      "sha256": "7aaf447094aef4c1119a5bd64246dba861a3f347a4462c755c129d5c7fafc275",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__capability_diagnostics_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_editing.py",
-      "bytes": 194,
-      "sha256": "8618f28656bfb5281a85c995577acc91892593bdc9122b84f292f6c634ca64e3",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__capability_editing_py--001.md"
+        "07-orchestration/sources/workbench__acceptance__capability_sandbox_py--001.md",
+        "07-orchestration/sources/workbench__acceptance__capability_sandbox_py--002.md"
       ]
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 53357,
-      "sha256": "f202012865b40ec0956ea29f6fd19aa5fbf10e4501474791262a7ced70a77efe",
+      "bytes": 279,
+      "sha256": "4f0795900a936bcc2a68ec81b927594edd16a9f2ceb684a0171ccbc4a3cfe468",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__capability_sandbox_py--001.md",
-        "07-orchestration/sources/workbench__capability_sandbox_py--002.md"
-      ]
-    },
-    {
-      "path": "workbench/capability_startup_paths.py",
-      "bytes": 23492,
-      "sha256": "b10dde2d8952fe1e0841aabec1c3cb624bc9e174eb1234863c3d28b55097ba32",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__capability_startup_paths_py--001.md"
+        "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
       ]
     },
     {
@@ -1377,8 +1422,8 @@
     },
     {
       "path": "workbench/coding/aider.py",
-      "bytes": 10120,
-      "sha256": "2dbb259cec7368bbe53e2a604c6f28667596fb7c751171be109a580a34bb9911",
+      "bytes": 10196,
+      "sha256": "66e4e2f3aceea2a952451f9ef5eb6bade23d406397b43095183ceb12de8b8056",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__aider_py--001.md"
@@ -1386,8 +1431,8 @@
     },
     {
       "path": "workbench/coding/bounded.py",
-      "bytes": 3432,
-      "sha256": "0532d922ad67e46221718c07b9358c8d3c7e12f7bb81baf1327c33d70368b98f",
+      "bytes": 3465,
+      "sha256": "a30c858dfc4c88597d738082cfb86360570c88e7d5a9cfca24ad02b05e561266",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__bounded_py--001.md"
@@ -1395,8 +1440,8 @@
     },
     {
       "path": "workbench/coding/candidates.py",
-      "bytes": 7342,
-      "sha256": "1985a970cea897b393cc3ab367ed07438472b69fdb89d530efa75809c72c0b6e",
+      "bytes": 7358,
+      "sha256": "0f1d440aacfa989b45c806f83e10686d0989df87f4b7b406bda7792a5b479cd4",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__candidates_py--001.md"
@@ -1413,8 +1458,8 @@
     },
     {
       "path": "workbench/coding/mini_swe.py",
-      "bytes": 23015,
-      "sha256": "4b9abd69abe48ff924f8f57fcbd06af961560bdc8a41bf76af3a95a8143b5bb3",
+      "bytes": 23169,
+      "sha256": "0d1a6d2d8d7cf13bfac947b872b101e45e99476dc5c7e7ee63270fa76ed400aa",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__coding__mini_swe_py--001.md"
@@ -1439,54 +1484,72 @@
       ]
     },
     {
-      "path": "workbench/continue_index.py",
-      "bytes": 6959,
-      "sha256": "42b57094f8a7b30537f26961d140b193d296510a525e0610dee1a5e38d719412",
+      "path": "workbench/infrastructure/sandbox/daytona/profiles.py",
+      "bytes": 2598,
+      "sha256": "991363c1de40df1160865a442b00cf1a148e22c0a9c167a5ca0331135edbec20",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__continue_index_py--001.md"
+        "07-orchestration/sources/workbench__infrastructure__sandbox__daytona__profiles_py--001.md"
       ]
     },
     {
-      "path": "workbench/daytona_profiles.py",
-      "bytes": 2590,
-      "sha256": "fc695b9f9576ee7631ac17900d948793d5bf1a2031f316598f47243106d5418b",
+      "path": "workbench/infrastructure/sandbox/daytona/verification.py",
+      "bytes": 15953,
+      "sha256": "651fe8e872a2fb22e8a03bd2dd9fecde93ca5a165cfd03ab83cba44c78677699",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__daytona_profiles_py--001.md"
+        "07-orchestration/sources/workbench__infrastructure__sandbox__daytona__verification_py--001.md"
       ]
     },
     {
-      "path": "workbench/flow.py",
-      "bytes": 171,
-      "sha256": "3cdc68c71334a7e2cf39a2bd00a4750085b56561bdaff7a37ae93c14eac7d29e",
+      "path": "workbench/infrastructure/sandbox/diagnostics.py",
+      "bytes": 7512,
+      "sha256": "5a7d60a16bd90eb027f2ebf8c66266f50c8eae5a13eff483df071984aed635c8",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__flow_py--001.md"
+        "07-orchestration/sources/workbench__infrastructure__sandbox__diagnostics_py--001.md"
       ]
     },
     {
-      "path": "workbench/orchestration.py",
-      "bytes": 181,
-      "sha256": "784d97404d7d2a1fa0b80ccbdb85a7b0bee83f6fdacde669d9b7fb0894374770",
+      "path": "workbench/infrastructure/sandbox/startup_paths.py",
+      "bytes": 23599,
+      "sha256": "11b2c8cf0ca97e1dc20fd4e66865dc4eec8936add7a0a19bfaeb27d2159423bb",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__orchestration_py--001.md"
+        "07-orchestration/sources/workbench__infrastructure__sandbox__startup_paths_py--001.md"
       ]
     },
     {
-      "path": "workbench/production/__init__.py",
-      "bytes": 71,
-      "sha256": "1d11e195f90c3d8e1d71d8fce78d9669c4c2ae1106ab0660f716087d4373463d",
+      "path": "workbench/interfaces/toolchain.py",
+      "bytes": 3953,
+      "sha256": "2232082a4b11c0e41024bb8695a6b0d84d02d359c6addc1aa747a2c7ba1ec59d",
       "stage": "07-orchestration",
       "parts": [
-        "07-orchestration/sources/workbench__production____init___py--001.md"
+        "07-orchestration/sources/workbench__interfaces__toolchain_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/knowledge_services/continue_index.py",
+      "bytes": 7011,
+      "sha256": "5c7c4eddb5279b71a396ff92141ab36402e3d031298320e14b25093a63104b73",
+      "stage": "07-orchestration",
+      "parts": [
+        "07-orchestration/sources/workbench__knowledge_services__continue_index_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/planning/recommendation.py",
+      "bytes": 1329,
+      "sha256": "e8fc7c6136fa951ee9c5baf3491ebc82412e3112a60e7acf88641cdd9b6d932c",
+      "stage": "07-orchestration",
+      "parts": [
+        "07-orchestration/sources/workbench__planning__recommendation_py--001.md"
       ]
     },
     {
       "path": "workbench/production/candidates.py",
-      "bytes": 5197,
-      "sha256": "90dd782bd490439d0e822b80b422c24efeba31d400550cd564506d46b551b086",
+      "bytes": 5208,
+      "sha256": "e54ae3b70f657d882ae38bdf446a72707bad2be7d176ffcdcfb9ddbc4e38497d",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__candidates_py--001.md"
@@ -1494,8 +1557,8 @@
     },
     {
       "path": "workbench/production/dispatcher.py",
-      "bytes": 50062,
-      "sha256": "a985c9b7629553f4426cc91e3473d8cc3632be274e594183b121548e6d0b6027",
+      "bytes": 50241,
+      "sha256": "a420dc1d6d47c63fb02234c67117354fad6b42a0e8f0928a682705b9442fd6a2",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__dispatcher_py--001.md",
@@ -1504,8 +1567,8 @@
     },
     {
       "path": "workbench/production/graph.py",
-      "bytes": 51870,
-      "sha256": "35aa5ed66afb705579c0267733e80b93d51758ff267c38d9d3fe33baee878084",
+      "bytes": 52147,
+      "sha256": "fa093e735beb3d796e94172af4f217a9e39ed48d39ed3290f154436dee10a7e9",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__graph_py--001.md"
@@ -1522,47 +1585,11 @@
     },
     {
       "path": "workbench/production/worker.py",
-      "bytes": 13028,
-      "sha256": "c48b8765f37a0332b75c24955185122eaf264d0a4f5d2b6e219e4e3ba1fc6db4",
+      "bytes": 13138,
+      "sha256": "70f5736761a02f5c3fc768de313543e53b8fd85d8598da32e67be43351d8b7bf",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__worker_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/recommendation.py",
-      "bytes": 1329,
-      "sha256": "e8fc7c6136fa951ee9c5baf3491ebc82412e3112a60e7acf88641cdd9b6d932c",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__recommendation_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/runtime.py",
-      "bytes": 173,
-      "sha256": "867aa51caaa067a3ff410e1660d780977b6b2317b26493499a41a05027fda4a4",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__runtime_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/sandbox.py",
-      "bytes": 15748,
-      "sha256": "f74eaf2ba52af163825468a449852313d1fb10c9ed9c1d9edd0154fca643810e",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__sandbox_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/toolchain.py",
-      "bytes": 3845,
-      "sha256": "49de446999cea14d8174ecbc4e4e4daef6d5be18c87354a7bfd09b88267d04cc",
-      "stage": "07-orchestration",
-      "parts": [
-        "07-orchestration/sources/workbench__toolchain_py--001.md"
       ]
     },
     {
@@ -2009,36 +2036,27 @@
       ]
     },
     {
-      "path": "workbench/api.py",
-      "bytes": 169,
-      "sha256": "db83afe2492d058b88ec640762ba9c2185e325bf84dc107f938fbaedac48e9ad",
-      "stage": "08-control-plane",
-      "parts": [
-        "08-control-plane/sources/workbench__api_py--001.md"
-      ]
-    },
-    {
       "path": "workbench/cli.py",
-      "bytes": 221,
-      "sha256": "1070e82616eadde2993977c4cfab0a316ea8186b91b5eaad677ef06363cf63e1",
+      "bytes": 248,
+      "sha256": "7dc50dc4a115ef3463561a84a42de576cfe3de30657610a1a9404e86175a8ad3",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__cli_py--001.md"
       ]
     },
     {
-      "path": "workbench/interfaces/__init__.py",
-      "bytes": 37,
-      "sha256": "ececebfe621a32d903de2a1791a6442eaf45f42aab5badad4b8ff9ae97421981",
+      "path": "workbench/generation/native/service.py",
+      "bytes": 20486,
+      "sha256": "524827f9fc50f98a43d87ae9d2a83a91953c20c1959a6b95584090e1b7160793",
       "stage": "08-control-plane",
       "parts": [
-        "08-control-plane/sources/workbench__interfaces____init___py--001.md"
+        "08-control-plane/sources/workbench__generation__native__service_py--001.md"
       ]
     },
     {
       "path": "workbench/interfaces/cli.py",
-      "bytes": 16875,
-      "sha256": "180134e0e953260f19122a073d3fea047b0958980091693e0ae986acd426ebc1",
+      "bytes": 17040,
+      "sha256": "fe3d868df483b3289baed5ffd8deb502432fceedbf58b9d11d2efbfc34736eb8",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__interfaces__cli_py--001.md"
@@ -2046,20 +2064,11 @@
     },
     {
       "path": "workbench/interfaces/http.py",
-      "bytes": 11954,
-      "sha256": "bdcfa81c30d2caea24d4a2341e634a4e90b4b7aa8403a443c1317a78ab2dc754",
+      "bytes": 12065,
+      "sha256": "cfbc5436d09dcf6452da5966025d50aa2fdcc4d8426b82c2ebddb932a5cf40d6",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__interfaces__http_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native.py",
-      "bytes": 20453,
-      "sha256": "73f32550f6ee9574caeeb886d52d7763458d0dff4f0b0741012851413bc9e8ff",
-      "stage": "08-control-plane",
-      "parts": [
-        "08-control-plane/sources/workbench__native_py--001.md"
       ]
     },
     {
@@ -2414,274 +2423,274 @@
       ]
     },
     {
-      "path": "workbench/business_browser.py",
-      "bytes": 6673,
-      "sha256": "68a3181d1d4da771b1653bfd9962bb9136b533e7248df63dba0a47b04e968f18",
+      "path": "workbench/acceptance/native_acceptance.py",
+      "bytes": 13634,
+      "sha256": "b0b3219ef0f944690608d64ffce016b1b58aa22c427389e7c224249520ac729e",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__business_browser_py--001.md"
+        "09-native/sources/workbench__acceptance__native_acceptance_py--001.md"
       ]
     },
     {
-      "path": "workbench/business_fastapi.py",
-      "bytes": 12473,
-      "sha256": "1338282e93e31e6f1e6b0e9fdc68260d9874392ade61e6446d9cd3b177ad5cf7",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__business_fastapi_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/business_native.py",
-      "bytes": 2036,
-      "sha256": "da56f59c8af6891b08113124d37d7b1fa346f9419997c544db3aeaf2d45d835e",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__business_native_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/business_probe.py",
-      "bytes": 46740,
-      "sha256": "debda2793fb04f718e671495994398ec49bddc3d614e513fc5bbebd88b5aecfe",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__business_probe_py--001.md",
-        "09-native/sources/workbench__business_probe_py--002.md"
-      ]
-    },
-    {
-      "path": "workbench/business_schema_receipt.py",
-      "bytes": 1712,
-      "sha256": "7b8da7085f5a8477d84dff208ec8e63a552885a880698ec93e2feb80467679d7",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__business_schema_receipt_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/business_yudao.py",
-      "bytes": 18395,
-      "sha256": "7015cd605a3551fd3ceadbcc98cdcb39efe0afc9039f5516ff502e5ce330076f",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__business_yudao_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_acceptance.py",
-      "bytes": 13597,
-      "sha256": "0acccbf3674fc8d1beb8ef99fccc0aff7b89cc2ec071662443d6bae1aeb4f228",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_acceptance_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_business_checks.py",
+      "path": "workbench/acceptance/native_business_checks.py",
       "bytes": 5988,
       "sha256": "9c693385054f732abedc324d8f5a0e7011cdecd3c96067ca85c4de50a0ae3b58",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_business_checks_py--001.md"
+        "09-native/sources/workbench__acceptance__native_business_checks_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_business_probe.py",
-      "bytes": 32474,
-      "sha256": "d2527f370b1432870696488bc82528742aa4bb49f8637452a848eea437e2f4a1",
+      "path": "workbench/acceptance/native_business_probe.py",
+      "bytes": 32493,
+      "sha256": "5998031576bcea226a7bc2ce23eabc84ea7541a5bc7feb888bc730e924cf14ec",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_business_probe_py--001.md"
+        "09-native/sources/workbench__acceptance__native_business_probe_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_checks.py",
-      "bytes": 7344,
-      "sha256": "c66b1085e05241b87d80cce74af50cb80df838dbe0a2534a471e8cfa74984236",
+      "path": "workbench/acceptance/native_checks.py",
+      "bytes": 7359,
+      "sha256": "db1163182ce4119e01be24b9b7fab450dddffb3ff6baceddbe32ef7eeaf39f2d",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_checks_py--001.md"
+        "09-native/sources/workbench__acceptance__native_checks_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_coding.py",
-      "bytes": 18294,
-      "sha256": "c48dc3f53b33f88c5c9e61e6ea06d0758dc80af2c324d3d6036dac29b7a60cf5",
+      "path": "workbench/acceptance/native_evidence.py",
+      "bytes": 26010,
+      "sha256": "3ebd3f41786df6bdad1b953249116b35722d0fb78cfbb880e600649494cd1d7d",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_coding_py--001.md"
+        "09-native/sources/workbench__acceptance__native_evidence_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_compatibility.py",
+      "path": "workbench/acceptance/native_lab.py",
+      "bytes": 15500,
+      "sha256": "deb34116e75b4ca538ebe072e1d7004f2c6c41b33870ef3eadd4d398f95cfdce",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__acceptance__native_lab_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/acceptance/portable_checks.py",
+      "bytes": 5161,
+      "sha256": "215a478a3000521d1b8e43d731040c1af90a72b1c4f70e27a59bd78d56320a41",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__acceptance__portable_checks_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/acceptance/yudao_navigation.py",
+      "bytes": 18650,
+      "sha256": "8a3ba849c404bc9e98b024147f69a6e50d7d9ed77f52c7aa5e39c3a272f0d26c",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__acceptance__yudao_navigation_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/browser.py",
+      "bytes": 6710,
+      "sha256": "18c90b67716580079dc288841d46b512524954e8eaff85f5e127b4048f9bd608",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__browser_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/fastapi.py",
+      "bytes": 12481,
+      "sha256": "f167e9f7e764dd4541448659f91e93b2ac1705d6e3056024d45edb81f21a1c95",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__fastapi_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/native.py",
+      "bytes": 2059,
+      "sha256": "a183426a882bcdeb62c2c76eb35e89adac62027c17c61f5b524b11f9969ff7db",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__native_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/probe.py",
+      "bytes": 46789,
+      "sha256": "2e272af585e731fda4a1f2fbc300f70d8a5c568120341db70ec76ba2817bae05",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__probe_py--001.md",
+        "09-native/sources/workbench__business__probe_py--002.md"
+      ]
+    },
+    {
+      "path": "workbench/business/schema_receipt.py",
+      "bytes": 1712,
+      "sha256": "7b8da7085f5a8477d84dff208ec8e63a552885a880698ec93e2feb80467679d7",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__schema_receipt_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/business/yudao.py",
+      "bytes": 18403,
+      "sha256": "bfad215f49df35e7e4c1d411eb266fa178d144c106b638d559f34f6de106673f",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__business__yudao_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/delivery/native.py",
+      "bytes": 19844,
+      "sha256": "148fc24bc28242e4b6494357ff7073326e9736d1d7360189dff1a1e70f0deb29",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__delivery__native_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/delivery/portable.py",
+      "bytes": 23137,
+      "sha256": "b0513fb21bdc5a6e4a895544e519c5e1ac21f7bb5b6cda672339b61a50c3258a",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__delivery__portable_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/delivery/recovery.py",
+      "bytes": 2055,
+      "sha256": "14e9bbaed183c1d451230b98391eccbff8f7001bf562762a71e1215b6e3f323c",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__delivery__recovery_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/generation/native/coding.py",
+      "bytes": 18438,
+      "sha256": "f8e1682ffcde6ef00983a2cb020f85e6db84d81668cd35591c1b82701aed21e7",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__generation__native__coding_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/generation/native/compatibility.py",
       "bytes": 5427,
       "sha256": "686218781494dd34d5909b253fd3f6fc4992d0b2a6835cf5221ef9f825f11cd9",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_compatibility_py--001.md"
+        "09-native/sources/workbench__generation__native__compatibility_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_delivery.py",
-      "bytes": 19670,
-      "sha256": "112d8e852ff7da073e33009daf1c23bbff8ca7c038a52f9823f2514c2d8fa809",
+      "path": "workbench/generation/native/frontend.py",
+      "bytes": 8184,
+      "sha256": "e2439c03679484965a6b8d8c125ce1071808b50227409a36027a097f6023857a",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_delivery_py--001.md"
+        "09-native/sources/workbench__generation__native__frontend_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_environment.py",
-      "bytes": 26015,
-      "sha256": "801d606e3cc0942d66a6f76d95eda2ac3d1142a4044051cf834e4d36a066907d",
+      "path": "workbench/generation/native/modules.py",
+      "bytes": 25436,
+      "sha256": "df3e87dd6b972f71b72f63b9a4f891a9232e0c0d141f1576b6b35b373711ce1b",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_environment_py--001.md"
+        "09-native/sources/workbench__generation__native__modules_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_evidence.py",
-      "bytes": 25973,
-      "sha256": "44e2640f6d806753cfdc07dff2ff113d4e4509eefae2b714de3d646cb1995db9",
+      "path": "workbench/generation/native/plan_normalization.py",
+      "bytes": 7537,
+      "sha256": "34260547c980e48d25026ac2ef59f9d4aa04083b2c2ae0f7497a2d4c52b01146",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_evidence_py--001.md"
+        "09-native/sources/workbench__generation__native__plan_normalization_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_frontend.py",
-      "bytes": 8127,
-      "sha256": "ce150159f6a71a141218411de16eeaa9f784eb2e7b55d024cfac435268924b33",
+      "path": "workbench/generation/native/style.py",
+      "bytes": 3871,
+      "sha256": "c52fc3ab1e42ef49e06624a369901ab8fbdd73b92c21002b8d3131fdb1be1a09",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_frontend_py--001.md"
+        "09-native/sources/workbench__generation__native__style_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_lab.py",
-      "bytes": 15291,
-      "sha256": "5eba199d60915a52afcfb982cbed54a41711a7f59e7b3a7d95e2a08c589d9c6e",
+      "path": "workbench/generation/native/vben.py",
+      "bytes": 13839,
+      "sha256": "ed6d5420a0e5705cec60e6ab6920e06a7d1055fd5b825268bb9e59d951062053",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__native_lab_py--001.md"
+        "09-native/sources/workbench__generation__native__vben_py--001.md"
       ]
     },
     {
-      "path": "workbench/native_modules.py",
-      "bytes": 25339,
-      "sha256": "e5bae641723fdda612df131bd4b254daa95db7ded2eb1a3dbee5f04cf09e788e",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_modules_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_plan_normalization.py",
-      "bytes": 7507,
-      "sha256": "eeefc28d1022a590a9992a1ed1d97f7e11c56dd9f7d268e720bc86cf263bbb76",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_plan_normalization_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_ports.py",
-      "bytes": 6848,
-      "sha256": "8ab2d6c94d221f4866d3b97ca9c82f0fc81c7c54e6b09ac3a890c2b532677645",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_ports_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_recovery.py",
-      "bytes": 2018,
-      "sha256": "0a4fb4f96543b76627a976df2aa4b8a15736bcb82f37dcfd8b07f7d93c997094",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_recovery_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_resources.py",
-      "bytes": 1651,
-      "sha256": "08410fef921e89c257dee75f43de78d868dec1e209e674b7ce072486087aab45",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_resources_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_style.py",
-      "bytes": 3841,
-      "sha256": "664b0b50b2caba667196096b8d76eb8dca8c81542cb9258bfbc7ba8971d041be",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_style_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/native_vben.py",
-      "bytes": 13806,
-      "sha256": "e13e6ea877325bdbba0b2bba1d003e5a44a6a3fbbd26cecffb1f1693e30379a9",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__native_vben_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/portable.py",
-      "bytes": 22137,
-      "sha256": "5e224be1b307413ec15f1a0a6726aabec1b4cded6e7fdc964e56901ca4d261e0",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__portable_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/portable_checks.py",
-      "bytes": 5123,
-      "sha256": "4ce3893293f2582c78edd04b9cea7e2bfaa245f2fe4bbe4ab1b62098c7245bdb",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__portable_checks_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/scaffolding.py",
-      "bytes": 9025,
-      "sha256": "a9c5ed3bf20a780936461d150216c0c5344fcbf81cc14aafacb54bb708982668",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__scaffolding_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/vendor.py",
-      "bytes": 3848,
-      "sha256": "a7c2d96ee2de466ce268a65f5e8ef46c079cdfe0c2603431a92a9d1e77da496d",
-      "stage": "09-native",
-      "parts": [
-        "09-native/sources/workbench__vendor_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/yudao_navigation.py",
+      "path": "workbench/generation/native/yudao_navigation.py",
       "bytes": 21890,
       "sha256": "38278e4d29c529d90d977d5160f2ddb1ead084f2a05b91d94417ea69a4bec8a8",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__yudao_navigation_py--001.md"
+        "09-native/sources/workbench__generation__native__yudao_navigation_py--001.md"
       ]
     },
     {
-      "path": "workbench/yudao_navigation_checks.py",
-      "bytes": 18616,
-      "sha256": "4fd523da8e59225f8488bcef439b2a80d0790ae7ad5b3232339ecd8ed29d3e90",
+      "path": "workbench/infrastructure/native/environment.py",
+      "bytes": 26079,
+      "sha256": "64f35ee27ea3cd80cefa657b8fe9af160390b4d0e4da258543a46067427622a2",
       "stage": "09-native",
       "parts": [
-        "09-native/sources/workbench__yudao_navigation_checks_py--001.md"
+        "09-native/sources/workbench__infrastructure__native__environment_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/native/ports.py",
+      "bytes": 6848,
+      "sha256": "8ab2d6c94d221f4866d3b97ca9c82f0fc81c7c54e6b09ac3a890c2b532677645",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__infrastructure__native__ports_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/native/resources.py",
+      "bytes": 1676,
+      "sha256": "2d894d15af0236bec0319792f9d11a1a9d2147bd7ac5fc9fa21e2dfe162e8982",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__infrastructure__native__resources_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/templates/scaffolding.py",
+      "bytes": 9069,
+      "sha256": "cfc94a75d320e99cccec04daae27a37be192434ebaf4c52e7b678fcfba1553ca",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__templates__scaffolding_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/templates/vendor.py",
+      "bytes": 3871,
+      "sha256": "4c56be21c5c98a6fa36e3f68181028b45baf472b585d1b0249a6b35c824addc4",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__templates__vendor_py--001.md"
       ]
     },
     {
@@ -3354,8 +3363,8 @@
     },
     {
       "path": "tests/test_customer_source_encoding.py",
-      "bytes": 8285,
-      "sha256": "f3c0d3b047ee9d617a0b964cb30a374171c02bcad9354cdf71e69216e2148435",
+      "bytes": 8406,
+      "sha256": "39cac88939da010b876599474f3909cf79d58e40424a82b9dee9fb5ce7da8e97",
       "stage": "10-business",
       "parts": [
         "10-business/sources/tests__test_customer_source_encoding_py--001.md"
@@ -3922,8 +3931,8 @@
     },
     {
       "path": "scripts/daytona_native_capability_profile.py",
-      "bytes": 33049,
-      "sha256": "17ebf6e26b5d89460bafefa3cb4ab3e176fed6d4c9c1904ef98c9529748de2e4",
+      "bytes": 34485,
+      "sha256": "63b86b83c6fd311c98974fdc6e3a3d127160ae7796724d16339cfaa8ee452bf8",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md"
@@ -4165,45 +4174,18 @@
       ]
     },
     {
-      "path": "workbench/daytona_diagnostics.py",
-      "bytes": 4774,
-      "sha256": "e47d5e40fdcb1568189568edab083544a44748e6d78b9fd35aa1fdc6dead4dec",
-      "stage": "12-daytona",
-      "parts": [
-        "12-daytona/sources/workbench__daytona_diagnostics_py--001.md"
-      ]
-    },
-    {
-      "path": "workbench/daytona_sessions.py",
-      "bytes": 4316,
-      "sha256": "bcd30bbddd2a08009368e23f7d18b710dbebba9de89cad015341df560c95f27f",
-      "stage": "12-daytona",
-      "parts": [
-        "12-daytona/sources/workbench__daytona_sessions_py--001.md"
-      ]
-    },
-    {
       "path": "workbench/daytona_worker.py",
-      "bytes": 3692,
-      "sha256": "f15b8fa6a533e3a3ae2131c0de9ab980217e9f8c2cb09d89ac125bec7f48940e",
+      "bytes": 295,
+      "sha256": "15832d42008311bbd783967aa7c395da2fe26a9af353c52ce498520d4c37715f",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__daytona_worker_py--001.md"
       ]
     },
     {
-      "path": "workbench/infrastructure/sandbox/__init__.py",
-      "bytes": 38,
-      "sha256": "3203440c63f1c0574ae15ae2a001867259e1540a40871da595b0b3c9ca4509ba",
-      "stage": "12-daytona",
-      "parts": [
-        "12-daytona/sources/workbench__infrastructure__sandbox____init___py--001.md"
-      ]
-    },
-    {
       "path": "workbench/infrastructure/sandbox/cleanup.py",
-      "bytes": 10618,
-      "sha256": "941ae464896fbddf6d8009972a47e32ddf17b9874c8ded496c79604ee5fb148a",
+      "bytes": 10691,
+      "sha256": "b37bf2f89b5a4571010deca2c5d5440f209a8a0237f8244322a35c5dd74f4ef7",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__cleanup_py--001.md"
@@ -4211,11 +4193,38 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/coding.py",
-      "bytes": 8522,
-      "sha256": "3320fdf8194c1d570499780442878f52df704d64c5c3b77e541fb47fd4d087e2",
+      "bytes": 8622,
+      "sha256": "ebd7cb7073107471260e82e8504934869ac05d04bc0fb8773ff1074c5957b8a4",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__coding_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/daytona/diagnostics.py",
+      "bytes": 4799,
+      "sha256": "49747f0fe877ee84b557a154414e42ffa0abd6a9d29405552bf49bef543584e0",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__daytona__diagnostics_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/daytona/sessions.py",
+      "bytes": 4316,
+      "sha256": "bcd30bbddd2a08009368e23f7d18b710dbebba9de89cad015341df560c95f27f",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__daytona__sessions_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/infrastructure/sandbox/daytona/worker.py",
+      "bytes": 3790,
+      "sha256": "813d510007fb4c6f784caf62a13c48d81a8f81c9d581b2a02335ed28db834e4c",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/workbench__infrastructure__sandbox__daytona__worker_py--001.md"
       ]
     },
     {
@@ -4229,8 +4238,8 @@
     },
     {
       "path": "workbench/infrastructure/sandbox/file_session.py",
-      "bytes": 14997,
-      "sha256": "58c2da988334cd6b337d06144aac44fe6dcfa070975bc8b4cf65f5c18508c331",
+      "bytes": 15033,
+      "sha256": "0a04f65046118772970377a6cd3c00646536101336276c8b4c674c70e27cd312",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/workbench__infrastructure__sandbox__file_session_py--001.md"
@@ -4355,8 +4364,8 @@
     },
     {
       "path": "tests/test_native_capability_profile.py",
-      "bytes": 35409,
-      "sha256": "edaeb57029483d06f68dcc01a350f987c17b0bf40f519d98b93a43f9bb615214",
+      "bytes": 35424,
+      "sha256": "1e7d191254d9080d25ad50b56efcff9fbdbe07a3328718daee1a14e05309e4db",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_capability_profile_py--001.md"
@@ -4436,8 +4445,8 @@
     },
     {
       "path": "tests/test_native_optional_dependencies.py",
-      "bytes": 8135,
-      "sha256": "aa641db46683f20705ec09b0b41c1fb09303ea309d9bfca72aa68e5ac3934073",
+      "bytes": 8471,
+      "sha256": "594a137bada2dfbe52bca77c80b397d4b61c170f2acb0f885d7e54077ef40446",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_optional_dependencies_py--001.md"
@@ -4454,8 +4463,8 @@
     },
     {
       "path": "tests/test_native_ports.py",
-      "bytes": 16068,
-      "sha256": "f7d372df331df880ce535016aea4be179d818b5676191605fdb494a2341865c2",
+      "bytes": 16083,
+      "sha256": "1e9f60abc373768295de33f99c5eac68eab6f2578690b02ec1c1b1aba3853085",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_ports_py--001.md"
@@ -4509,7 +4518,7 @@
     {
       "path": "tests/test_native_review_evidence.py",
       "bytes": 30224,
-      "sha256": "6ce2e501fc68bae46b9c124f350282366ae8ba51c60e025195b32912e3ff860a",
+      "sha256": "d487c46a0702dfe6e303a3929717ebd91c4b7b04ff449a100a0b87a2bbf50d24",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_review_evidence_py--001.md"
@@ -4562,8 +4571,8 @@
     },
     {
       "path": "tests/test_yudao_installed_navigation.py",
-      "bytes": 26301,
-      "sha256": "ca3835e6921c43561903c5cfb1e81b7fa9406e6155fe819f1a59d3de6eca3251",
+      "bytes": 26319,
+      "sha256": "1e6741257a8078c2ed5200d040a9d597c613dd60e7996b344cc2ced5a1b14d1a",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_yudao_installed_navigation_py--001.md"
@@ -4581,7 +4590,7 @@
     {
       "path": "tests/test_yudao_navigation_evidence.py",
       "bytes": 19631,
-      "sha256": "44dbde045268f4f44d3764e3677284f1d82730de99159f20cab91cc012f2fb4a",
+      "sha256": "794d7aeb9452990bf30352b105ced5f54805e37c05dd29190b30c5729c846f38",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_yudao_navigation_evidence_py--001.md"
@@ -4598,8 +4607,8 @@
     },
     {
       "path": ".github/workflows/capability-browser-isolation.yml",
-      "bytes": 2718,
-      "sha256": "f891099aaeb69e272f7535aa70793ab09c888451055f36eaffc42f00f94291e5",
+      "bytes": 2566,
+      "sha256": "b6d6e4af5864d380fed02fd23feaa97b6acb7b17b9915637fd78eb4744ec0832",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-browser-isolation_yml--001.md"
@@ -4607,8 +4616,8 @@
     },
     {
       "path": ".github/workflows/capability-profile.yml",
-      "bytes": 7615,
-      "sha256": "32ea326015fa0626720e677fada88194f43b02125fddcf24586ffb69dfcc6d5c",
+      "bytes": 7589,
+      "sha256": "fa1b0a7da82b8ef3824b59fa8d48507b50bd031805f272146e79111772ebc346",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-profile_yml--001.md"
@@ -4652,8 +4661,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 11360,
-      "sha256": "a846c8d0e32712d4ccd2adff881326b2ff6bf5cfb895ef22605544640e906482",
+      "bytes": 10952,
+      "sha256": "8a4aabccb9071181e2579169ed9bf32a6f9a6d7b2bfeb8555393f5af2de8afce",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -4661,8 +4670,8 @@
     },
     {
       "path": ".github/workflows/native-probe.yml",
-      "bytes": 6393,
-      "sha256": "a59aeef94576ea42c819aa4752d89c763776ecb532bc40a3e82f6f6a74752574",
+      "bytes": 6403,
+      "sha256": "c80760170488041d8d8bc7a39ad0232afa34863e77b35eaa7066ad8c8a94c7b1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-probe_yml--001.md"
@@ -4742,8 +4751,8 @@
     },
     {
       "path": "docs/acceptance-checklist.md",
-      "bytes": 12630,
-      "sha256": "282c97b9fd9999e6b873bee74d9955360c6b5e84548e1dce374b4c6933de186a",
+      "bytes": 12641,
+      "sha256": "ff327c7cc6bc7fc9b8e83f4c95d97cfe702f4f13287c9f8216f952e969a0243b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__acceptance-checklist_md--001.md"
@@ -4752,7 +4761,7 @@
     {
       "path": "docs/business-platform.md",
       "bytes": 27383,
-      "sha256": "5bd94baee400486ca27114b289fb58dd697034234b0ef171b1fbab17060d4943",
+      "sha256": "293c72db9a3223fb9a0088ec493635c131c68278abc832e644f16358f0732bca",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__business-platform_md--001.md"
@@ -4805,8 +4814,8 @@
     },
     {
       "path": "docs/guide.md",
-      "bytes": 48309,
-      "sha256": "bee61da9d40d94779573f896d37604ed8d63c6a201d2ac2390ee229f544ecf60",
+      "bytes": 48356,
+      "sha256": "a309d69ab0a17fc637a2a070b840bac06f42574108f1f691f7ce879d7ff47235",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__guide_md--001.md"
@@ -4886,8 +4895,8 @@
     },
     {
       "path": "docs/implementation-labs.md",
-      "bytes": 16658,
-      "sha256": "5c391d416d11540ab933a701a22440576622bc30ff4c71d46f82b03bb2d50329",
+      "bytes": 16667,
+      "sha256": "9c0aa631e89e37e871306d1635d556080c8f152856327cdf188fb7126f58944d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__implementation-labs_md--001.md"
@@ -4913,8 +4922,8 @@
     },
     {
       "path": "docs/modular-production-v2.md",
-      "bytes": 89357,
-      "sha256": "bde1ba348a83f9ac078d354a66fe1c4b7f5a2cfea402bdae4e3801fa3ffd6031",
+      "bytes": 89851,
+      "sha256": "e98e4d33b90706e418e2e87530dac1bc806e9d44eac76b8e5a8d6310a74f5f8d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__modular-production-v2_md--001.md"
@@ -4931,8 +4940,8 @@
     },
     {
       "path": "docs/native-toolchain.md",
-      "bytes": 15606,
-      "sha256": "1d50c5750d0c93a3ae701ae259b0a806887515b593ee5f6a1e445725b1a59905",
+      "bytes": 15711,
+      "sha256": "76b10b77ddc33e89ae438455a5a81327459f44cadde34fc9e79f8d49ef32b497",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__native-toolchain_md--001.md"
@@ -4940,8 +4949,8 @@
     },
     {
       "path": "docs/provider-structured-outputs.md",
-      "bytes": 11360,
-      "sha256": "d7ffcb450df229d5e2671c48929fa3184d39ab5a8d5a914278afab095ff51b7f",
+      "bytes": 11361,
+      "sha256": "c33f6badfa7c18c115e09e127ad70b65d29dc2849763562fa066063545a7a5db",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__provider-structured-outputs_md--001.md"
@@ -4967,8 +4976,8 @@
     },
     {
       "path": "docs/template-customization-roadmap.md",
-      "bytes": 11541,
-      "sha256": "3890bce42c933fc681cd6dffc87113ac6ef237f4f77f012e5fa3b03735616e37",
+      "bytes": 11561,
+      "sha256": "661aee99a32ea5612c031868316071ba33176093b64ed53c75c6a2a9fd067a46",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-customization-roadmap_md--001.md"
@@ -4976,8 +4985,8 @@
     },
     {
       "path": "docs/template-platform.md",
-      "bytes": 15128,
-      "sha256": "13ee3197dff8a6e9ee89b5f82f9586e7d9851abb8ad94f9f984a978d4e5360c2",
+      "bytes": 15129,
+      "sha256": "ecc7d06fa2d4a1c15899cf0899271602a83ac3e0cdd04aab03a35ed264bb3121",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__template-platform_md--001.md"
@@ -4985,11 +4994,20 @@
     },
     {
       "path": "docs/toolchain.md",
-      "bytes": 35078,
-      "sha256": "316a4fdc38e87a0a9913e7f53eb06c16c2b3480c9a291965b2618fa94c3d6603",
+      "bytes": 35097,
+      "sha256": "9b520c9d5193540d78a40043cd4aa51869eef93df74d35c7acad4d9da1a5b985",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__toolchain_md--001.md"
+      ]
+    },
+    {
+      "path": "docs/workbench-layout.md",
+      "bytes": 6931,
+      "sha256": "fca1e9889fbf6495cfa3c3f90695f0f3e7f41cb14b46fc93a0f2869a870058ea",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/docs__workbench-layout_md--001.md"
       ]
     },
     {
@@ -5012,8 +5030,8 @@
     },
     {
       "path": "scripts/build_handbook.py",
-      "bytes": 9871,
-      "sha256": "d832352a6b6355f31f99f5b12aecd5305bb40b1fdc5daff4d56cbc400aac61bd",
+      "bytes": 9903,
+      "sha256": "3d6a21257fb7900f9a404f9e14e7a68e1eb379ffa4eece6d141fe8285c166b54",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_handbook_py--001.md"
@@ -5021,8 +5039,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 37049,
-      "sha256": "8a9de12961bffb7d9384862469642840a140b9ceda3fd99fca282bffbf2a8f4b",
+      "bytes": 37789,
+      "sha256": "2f1e65d0dced92008c6de37abc8fee351a79de3ea60cab18139629edcd8dac41",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -5228,8 +5246,8 @@
     },
     {
       "path": "scripts/ci_live_modules.py",
-      "bytes": 22822,
-      "sha256": "786cd32ff3dbad783a326af453fb9f89cf1d43b32b1e125ffee34350912c3f25",
+      "bytes": 22857,
+      "sha256": "c60c9640481d36fda34dac1e44f45e810732c7cfe3ce9bcbd8ba47643524d18c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_live_modules_py--001.md"
@@ -5347,8 +5365,8 @@
     },
     {
       "path": "scripts/handbook_notes.py",
-      "bytes": 91611,
-      "sha256": "92045f08266b89511d8bc708da13fc7c7167f9d1129584f2ec497516ed5795a0",
+      "bytes": 97220,
+      "sha256": "02d317490502e1863deea89fe9bfae2b0b1302262f7f310b0b9ee5a1d1c0e3f3",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",
@@ -5583,8 +5601,8 @@
     },
     {
       "path": "tests/test_capability_browser_seccomp_proposal.py",
-      "bytes": 7784,
-      "sha256": "c52ebdedbbe3619355d0e3af1e8ad42e92eeca38eba4c0aa88992e382e75339d",
+      "bytes": 7787,
+      "sha256": "4bc2b5c1a96cb47c0180f1c54bdad15ab262eb3e2a86936966379347d98cece7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_seccomp_proposal_py--001.md"
@@ -5655,8 +5673,8 @@
     },
     {
       "path": "tests/test_capability_editing.py",
-      "bytes": 8870,
-      "sha256": "7ec6774aa5cb733253d12483b157e04c709a8cee761b6072ded054b6b87ad648",
+      "bytes": 8882,
+      "sha256": "6411215c7c7481246220f2fda003bf917203663863324d8a978739cdcac23930",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_editing_py--001.md"
@@ -5808,8 +5826,8 @@
     },
     {
       "path": "tests/test_capability_obligations.py",
-      "bytes": 33377,
-      "sha256": "b670ad29a3a3c18d90f88ff6be300f982577d3f478a3264a5a6706e3d86fd194",
+      "bytes": 33402,
+      "sha256": "fa16e9e190dd7a43543d7d3382c5166500666445ffafbdc2ecfba1900e70c937",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_obligations_py--001.md"
@@ -5899,8 +5917,8 @@
     },
     {
       "path": "tests/test_capability_startup_paths.py",
-      "bytes": 37544,
-      "sha256": "e07f513fad9f2bc021565bbd0f1efc048b95a9ef4a10249cee5d5ac9fccba572",
+      "bytes": 37566,
+      "sha256": "efc8d923191424936868da028f5b8aceeb3db1fa18fa1ec9d78bcc1c2c0f2022",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_paths_py--001.md"
@@ -5908,8 +5926,8 @@
     },
     {
       "path": "tests/test_capability_startup_session.py",
-      "bytes": 10600,
-      "sha256": "75739acef82c89a81f529e925cbaf1c5a201bba72c6e9d5219db28238ed98266",
+      "bytes": 10611,
+      "sha256": "279cadfa2e0f3fb5fd61df71ff18306a1ac1b35401fccdd6767234197954042d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_session_py--001.md"
@@ -5980,8 +5998,8 @@
     },
     {
       "path": "tests/test_ci_restored_acceptance.py",
-      "bytes": 22597,
-      "sha256": "597e489500d4eaa3ceef1b6a1509b4538883afd916c0a5ecaf6b6bfb6db64b33",
+      "bytes": 22720,
+      "sha256": "09bf67faf64a635c1687057179b0508cb1d7aa73e3ae047fc86a62f7f3ba1567",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_restored_acceptance_py--001.md"
@@ -6078,6 +6096,15 @@
       ]
     },
     {
+      "path": "tests/test_functional_layout.py",
+      "bytes": 7429,
+      "sha256": "63ac4955343c659c3d0c681f143bdd22324ed1c14911cca8a0973e5ce2ac2d6c",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_functional_layout_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_guided_completion.py",
       "bytes": 3619,
       "sha256": "5b63c2937e5a9185a3e90bb48c2587efbe7306b3372a01cf8df761de5ae385e2",
@@ -6115,8 +6142,8 @@
     },
     {
       "path": "tests/test_handbook_customer.py",
-      "bytes": 8034,
-      "sha256": "eca42e2f96cb5186d99fe32c26b1dfe1c1f786c3c03252f039ef77d8f5a417ab",
+      "bytes": 8318,
+      "sha256": "fd6172d685e10679d31e8dfa974a0e540aef45dc966827ca144224dcac03fa00",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_handbook_customer_py--001.md"
@@ -6124,8 +6151,8 @@
     },
     {
       "path": "tests/test_handbook_labs.py",
-      "bytes": 1499,
-      "sha256": "9a7ac624eddeee3d3d88d2b6b4cfd55b42ad590cb5c2cfdfc0fe461d50465024",
+      "bytes": 1522,
+      "sha256": "7cd8ca4f60745a19f579ce3639ee3bbb833449eaba7a61174dcfb9e2ea0bbf9c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_handbook_labs_py--001.md"
@@ -6205,8 +6232,8 @@
     },
     {
       "path": "tests/test_learning_docs_frontend.py",
-      "bytes": 7944,
-      "sha256": "2167d7bfa82b3633fc4c43f9a84b547dde4d2c0e981352de40d77f49e1d31b41",
+      "bytes": 7969,
+      "sha256": "d944907f27f0e2ac5f8574c346345d03c62d22977906de2d1e800ae3ca5d9224",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_docs_frontend_py--001.md"
@@ -6223,8 +6250,8 @@
     },
     {
       "path": "tests/test_learning_order.py",
-      "bytes": 2996,
-      "sha256": "4a344c54f42a8890bff9bb6dec160288d7d71730cf65e2c7196cc86a08d64d27",
+      "bytes": 4502,
+      "sha256": "2e0667fcd1fff42396cef99b9fdc95c8f9ab4ef2db8300ddda7258dd7bc05649",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_order_py--001.md"
@@ -6403,6 +6430,15 @@
       ]
     },
     {
+      "path": "tests/test_portable_helper_layout.py",
+      "bytes": 2978,
+      "sha256": "b4137f533f93494fe1fc045132cb89e67f3b31f0321eb5b82071394813fa3808",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_portable_helper_layout_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_postgres.py",
       "bytes": 1307,
       "sha256": "e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a",
@@ -6422,8 +6458,8 @@
     },
     {
       "path": "tests/test_production_v2.py",
-      "bytes": 19565,
-      "sha256": "4411a63bdc409530b3246462459933fb14a1e6ac15f038631b83efc0dce1dc1e",
+      "bytes": 19577,
+      "sha256": "d18b6ae7084d4a75c3e9e06f8a47f8035788c8eb9ff7dcb0e1ed3678fe1ffc1b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_production_v2_py--001.md"

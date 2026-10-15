@@ -48,6 +48,7 @@
 - [docs/template-customization-roadmap.md](sources/docs__template-customization-roadmap_md--001.md)：本教材正文的源文件；1 段
 - [docs/template-platform.md](sources/docs__template-platform_md--001.md)：本教材正文的源文件；1 段
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
+- [docs/workbench-layout.md](sources/docs__workbench-layout_md--001.md)：本教材正文的源文件；1 段
 - [docs/workflow-optimization.md](sources/docs__workflow-optimization_md--001.md)：本教材正文的源文件；1 段
 - [scripts/browser_memory_observation.py](sources/scripts__browser_memory_observation_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
@@ -168,6 +169,7 @@
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_feature_workflow.py](sources/tests__test_feature_workflow_py--001.md)：可重复的验收用例；1 段
+- [tests/test_functional_layout.py](sources/tests__test_functional_layout_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_completion.py](sources/tests__test_guided_completion_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_delivery_rereview.py](sources/tests__test_guided_delivery_rereview_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_postgres.py](sources/tests__test_guided_postgres_py--001.md)：可重复的验收用例；1 段
@@ -204,6 +206,7 @@
 - [tests/test_permission_contract_equivalence.py](sources/tests__test_permission_contract_equivalence_py--001.md)：可重复的验收用例；1 段
 - [tests/test_planning_model_contracts.py](sources/tests__test_planning_model_contracts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_planning_transcript.py](sources/tests__test_planning_transcript_py--001.md)：可重复的验收用例；1 段
+- [tests/test_portable_helper_layout.py](sources/tests__test_portable_helper_layout_py--001.md)：可重复的验收用例；1 段
 - [tests/test_postgres.py](sources/tests__test_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_product_reload_readiness.py](sources/tests__test_product_reload_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_production_v2.py](sources/tests__test_production_v2_py--001.md)：可重复的验收用例；1 段

@@ -10,29 +10,23 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L212。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L200。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11360`。本段原文以LF换行结束。
+本段原始字节数：`10952`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a846c8d0e32712d4ccd2adff881326b2ff6bf5cfb895ef22605544640e906482"} -->
+<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8a4aabccb9071181e2579169ed9bf32a6f9a6d7b2bfeb8555393f5af2de8afce"} -->
 ````yaml
 # .github/workflows/native-capability-profile.yml
 name: Authored native PostgreSQL isolation profile
 on:
   pull_request:
     paths:
-      - 'workbench/capability_*.py'
-      - 'workbench/orchestration.py'
-      - 'workbench/flow.py'
-      - 'workbench/runtime.py'
-      - 'workbench/store.py'
+      - 'workbench/**'
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/ci_native_capability_security.py'
       - 'scripts/ci_native_capability_source.py'
       - 'scripts/ci_native_tools.py'
-      - 'workbench/native_lab.py'
-      - 'workbench/portable.py'
       - 'tests/test_ci_native_capability_source.py'
       - 'tests/test_ci_native_capability_full_source.py'
       - 'scripts/ci_contest_capability.py'
@@ -50,15 +44,9 @@ on:
   push:
     branches: [main, feature/durable-capability-orchestration]
     paths:
-      - 'workbench/capability_*.py'
-      - 'workbench/orchestration.py'
-      - 'workbench/flow.py'
-      - 'workbench/runtime.py'
-      - 'workbench/store.py'
+      - 'workbench/**'
       - 'scripts/ci_native_capability_source.py'
       - 'scripts/ci_native_tools.py'
-      - 'workbench/native_lab.py'
-      - 'workbench/portable.py'
       - 'tests/test_ci_native_capability_source.py'
       - 'tests/test_ci_native_capability_full_source.py'
       - 'scripts/capability_guard.py'

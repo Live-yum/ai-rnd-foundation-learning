@@ -6,7 +6,7 @@
 
 **作用：第三方源码来源与许可证。** 模板属于第三方依赖。manifest记录固定提交、归档哈希、逐文件内容摘要及排除项；LICENSE原样保留。只从教材也可以用vendor_templates --fetch重建源码归档，不需要复制本仓库已有ZIP。
 
-**对应关系：** scripts/vendor_templates.py → manifest/ZIP → workbench/vendor.py → 原生生成器。
+**对应关系：** scripts/vendor_templates.py → manifest/ZIP → workbench/templates/vendor.py → 原生生成器。
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 

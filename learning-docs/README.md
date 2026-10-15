@@ -26,11 +26,11 @@
 - [13 · 独立交付与重启](13-delivery/README.md)
 - [14 · 全平台验收与证据阅读](14-acceptance/README.md)
 
-本版完整收录 **738 个源文件**；[源文件总索引](source-index.md)供查找，`manifest.json`记录每个文件的完整SHA-256、字节数、阶段和全部分段。它不是另一个代码下载地址。
+本版完整收录 **742 个源文件**；[源文件总索引](source-index.md)供查找，`manifest.json`记录每个文件的完整SHA-256、字节数、阶段和全部分段。它不是另一个代码下载地址。
 
 ## 每个代码块第一行是什么
 
-第一行始终是对应文件的项目相对路径注释，例如 Python 的 `# workbench/business_contracts.py`、JS/JSON 的 `// tools/node/package.json`、HTML/Vue/Markdown 的HTML注释、SQL 的 `--`、CSS 的 `/* */`、INI 的 `;`。JSON、`.python-version`、Base64等本身不支持该注释；它是统一的教材定位行，不属于原文件。
+第一行始终是对应文件的项目相对路径注释，例如 Python 的 `# workbench/business/contracts.py`、JS/JSON 的 `// tools/node/package.json`、HTML/Vue/Markdown 的HTML注释、SQL 的 `--`、CSS 的 `/* */`、INI 的 `;`。JSON、`.python-version`、Base64等本身不支持该注释；它是统一的教材定位行，不属于原文件。
 
 手抄时只删除每块的第一行定位注释，然后按序拼接同一文件全部分段。原文件已有注释、shebang、空行和缩进都保留。不把Markdown围栏复制进去，不把JSON另存为JSONC，不给锁文件加说明文字。源码页的行号不计定位行。自动还原器删除的也是恰好这一行，先检查分段和整文件哈希，正确恢复空文件、无结尾换行、二进制图片及构建资产后才写盘。
 

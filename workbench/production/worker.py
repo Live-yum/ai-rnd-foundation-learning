@@ -16,13 +16,13 @@ from sqlalchemy.engine import make_url
 
 from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.filesystem import write_json
-from workbench.flow import Workflow
-from workbench.generator import PrerequisiteError
-from workbench.llm import ModelFailure, ModelGateway
+from workbench.generation.python_basic import PrerequisiteError
+from workbench.infrastructure.llm.gateway import ModelFailure, ModelGateway
+from workbench.infrastructure.persistence.store import Conflict, action_needs_model
+from workbench.infrastructure.processes.tools import ToolFailure
 from workbench.local_only import local_database_url
-from workbench.recommendation import blocked_report
-from workbench.store import Conflict, action_needs_model
-from workbench.tools import ToolFailure
+from workbench.planning.recommendation import blocked_report
+from workbench.production.graph import Workflow
 
 logger = logging.getLogger(__name__)
 

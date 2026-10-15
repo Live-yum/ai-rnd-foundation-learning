@@ -48,7 +48,7 @@
 
 本段原始字节数：`30224`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_review_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ce2e501fc68bae46b9c124f350282366ae8ba51c60e025195b32912e3ff860a"} -->
+<!-- learning-source: {"path": "tests/test_native_review_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d487c46a0702dfe6e303a3929717ebd91c4b7b04ff449a100a0b87a2bbf50d24"} -->
 ````python
 # tests/test_native_review_evidence.py
 """Synthetic fixtures test proof validation; these are NOT native runtime receipts."""
@@ -271,7 +271,7 @@ def detailed_fixture(tmp_path):
 
 def test_model_projection_preserves_executed_detail_and_all_bindings(detailed_fixture):
     report, plan = detailed_fixture
-    files = {"start.py": "c" * 64, "deployment/workbench/business_probe.py": "b" * 64}
+    files = {"start.py": "c" * 64, "deployment/workbench/business/probe.py": "b" * 64}
     result = native_review_evidence(report, plan, files, "a" * 64)
     assert result["source_digest"] == digest(files)
     assert result["spec_digest"] == digest(plan.model_dump())
@@ -734,7 +734,7 @@ def test_exact_approved_fastapi_plan_protocol_projection_fits_unchanged_budget(d
         browser["pages"] = [page for page in browser["pages"] if "entity" in page]
         browser["pages"].extend(login_shell_observation(actor) for actor in actors)
         browser["checks"].extend(f"{actor}:real_native_login_menu_shell" for actor in actors)
-    files = {"start.py": "b" * 64, "deployment/workbench/business_probe.py": "c" * 64}
+    files = {"start.py": "b" * 64, "deployment/workbench/business/probe.py": "c" * 64}
     projected = native_review_evidence(report, plan, files, "a" * 64)
     assert projected["version"] == 2
     assert MAX_EVIDENCE_BYTES == 64_000

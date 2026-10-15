@@ -32,9 +32,9 @@
 
 **创建路径：** `tests/test_capability_browser_seccomp_proposal.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L211。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7784`。本段原文以LF换行结束。
+本段原始字节数：`7787`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_browser_seccomp_proposal.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c52ebdedbbe3619355d0e3af1e8ad42e92eeca38eba4c0aa88992e382e75339d"} -->
+<!-- learning-source: {"path": "tests/test_capability_browser_seccomp_proposal.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4bc2b5c1a96cb47c0180f1c54bdad15ab262eb3e2a86936966379347d98cece7"} -->
 ````python
 # tests/test_capability_browser_seccomp_proposal.py
 """Static review-artifact checks; never load seccomp or launch containers."""
@@ -240,7 +240,7 @@ def test_proposal_is_not_selected_copied_or_part_of_existing_acceptance():
     for path in [
         ROOT / "tools/browser/Dockerfile",
         *ROOT.glob(".github/workflows/*.yml"),
-        *ROOT.glob("workbench/*.py"),
+        *ROOT.glob("workbench/**/*.py"),
         *ROOT.glob("scripts/*.py"),
     ]:
         text = path.read_text()

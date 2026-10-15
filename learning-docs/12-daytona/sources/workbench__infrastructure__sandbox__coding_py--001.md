@@ -10,28 +10,28 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_execution`、`workbench.capability_isolation`、`workbench.coding.candidates`、`workbench.errors`、`workbench.filesystem`、`workbench.sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.coding.candidates`、`workbench.errors`、`workbench.filesystem`、`workbench.infrastructure.sandbox.daytona.verification`、`workbench.infrastructure.sandbox.execution`、`workbench.infrastructure.sandbox.isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `DaytonaFiles`（L24–L73）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `DaytonaFiles.__init__`（L25–L28）：接收`sandbox`、`task`、`timeout`、`deadline`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.bind_candidate`（L30–L40）：接收`source`。 控制顺序：L32按`self.cleanup_record is not None`分支。 调用`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.remaining`（L42–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`remaining <= 0`分支；L50抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L51的`remaining`。
-- `DaytonaFiles.write`（L53–L60）：接收`edits`。 控制顺序：L54按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L55抛异常，停止当前正常路径；L56遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DaytonaFiles.snapshot`（L62–L73）：接收`paths`。 控制顺序：L63按`paths != self.task.allowed_paths`分支；L64抛异常，停止当前正常路径；L66遍历`paths`；L70按`not isinstance(content, bytes) or len(content) > 100000`分支；L71抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L73的`result`。
-- `_local_environment`（L77–L210）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`、`owned_name`、`on_created`、`external_cleanup`、`on_phase`。 控制顺序：L97按`task_path_errors(task, selection)`分支；L98抛异常，停止当前正常路径；L128按`cleanup_record is not None`分支；L137按`on_created is not None`分支；L142按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L143抛异常，停止当前正常路径；L155按`cleanup_record is not None`分支；L181按`external_cleanup`分支。后续分支沿下方源码相同行号继续阅读。 调用`phase`、`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_local_environment.remaining`（L107–L121）：接收`cleanup`。 控制顺序：L115按`available <= 0`分支；L116按`cleanup`分支；L120抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L119的`1`；L121的`available`。
-- `coding_environment`（L213–L227）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 源码说明：All production SDK work runs in a process supervised until owned cleanup ends.。 调用`supervised_environment`。 返回路径：L219的`supervised_environment( settings, task, selection, product, deadline=deadline, cleanup_rec…`。
+- `DaytonaFiles`（L28–L77）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DaytonaFiles.__init__`（L29–L32）：接收`sandbox`、`task`、`timeout`、`deadline`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.bind_candidate`（L34–L44）：接收`source`。 控制顺序：L36按`self.cleanup_record is not None`分支。 调用`write_json`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.remaining`（L46–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L53按`remaining <= 0`分支；L54抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L55的`remaining`。
+- `DaytonaFiles.write`（L57–L64）：接收`edits`。 控制顺序：L58按`{edit.path for edit in edits.files} != set(self.task.allowed_paths)`分支；L59抛异常，停止当前正常路径；L60遍历`edits.files`。 调用`set`、`ValueError`、`self.remaining`、`self.sandbox.fs.create_folder`、`remote.rsplit`、`self.sandbox.fs.upload_file`、`edit.content.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DaytonaFiles.snapshot`（L66–L77）：接收`paths`。 控制顺序：L67按`paths != self.task.allowed_paths`分支；L68抛异常，停止当前正常路径；L70遍历`paths`；L74按`not isinstance(content, bytes) or len(content) > 100000`分支；L75抛异常，停止当前正常路径。 调用`ValueError`、`self.sandbox.fs.download_file`、`self.remaining`、`isinstance`、`len`、`content.decode`。 返回路径：L77的`result`。
+- `_local_environment`（L81–L214）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`、`owned_name`、`on_created`、`external_cleanup`、`on_phase`。 控制顺序：L101按`task_path_errors(task, selection)`分支；L102抛异常，停止当前正常路径；L132按`cleanup_record is not None`分支；L141按`on_created is not None`分支；L146按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L147抛异常，停止当前正常路径；L159按`cleanup_record is not None`分支；L185按`external_cleanup`分支。后续分支沿下方源码相同行号继续阅读。 调用`phase`、`task_path_errors`、`UnsupportedScope`、`capability_execution_prerequisites`、`client_for`、`_DEADLINE.set`、`uuid.uuid4`、`write_json`、`receipt`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_local_environment.remaining`（L111–L125）：接收`cleanup`。 控制顺序：L119按`available <= 0`分支；L120按`cleanup`分支；L124抛异常，停止当前正常路径。 调用`min`、`time.monotonic`、`int`、`UnsupportedScope`。 返回路径：L123的`1`；L125的`available`。
+- `coding_environment`（L217–L231）：接收`settings`、`task`、`selection`、`product`、`deadline`、`cleanup_record`、`cleanup_binding`。 源码说明：All production SDK work runs in a process supervised until owned cleanup ends.。 调用`supervised_environment`。 返回路径：L223的`supervised_environment( settings, task, selection, product, deadline=deadline, cleanup_rec…`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L227。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/sandbox/coding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L231。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8522`。本段原文以LF换行结束。
+本段原始字节数：`8622`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3320fdf8194c1d570499780442878f52df704d64c5c3b77e541fb47fd4d087e2"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/coding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ebd7cb7073107471260e82e8504934869ac05d04bc0fb8773ff1074c5957b8a4"} -->
 ````python
 # workbench/infrastructure/sandbox/coding.py
 """File-only coding session on the existing admitted private Daytona channel.
@@ -44,15 +44,19 @@ import time
 import uuid
 from contextlib import contextmanager
 
-from workbench.capability_execution import (
-    capability_execution_prerequisites,
-    require_profile_container_binding,
-)
-from workbench.capability_isolation import require_container_evidence
 from workbench.coding.candidates import task_path_errors
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, write_json
-from workbench.sandbox import client_for, close_client, params_for
+from workbench.infrastructure.sandbox.daytona.verification import (
+    client_for,
+    close_client,
+    params_for,
+)
+from workbench.infrastructure.sandbox.execution import (
+    capability_execution_prerequisites,
+    require_profile_container_binding,
+)
+from workbench.infrastructure.sandbox.isolation import require_container_evidence
 
 REMOTE = "/tmp/rnd-agent-business"
 
@@ -125,7 +129,7 @@ def _local_environment(
     on_phase=None,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
-    from workbench.daytona_sessions import _DEADLINE
+    from workbench.infrastructure.sandbox.daytona.sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
 
     phase = on_phase or (lambda value: None)

@@ -5,8 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from workbench.infrastructure.processes.tools import clean_env
 from workbench.settings import ROOT
-from workbench.tools import clean_env
 
 VERSION = "1.14.1"
 SCHEMA = "rnd-factory"

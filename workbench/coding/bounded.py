@@ -4,11 +4,11 @@ import difflib
 import hashlib
 from pathlib import Path
 
-from workbench.domain import Patches
+from workbench.core.contracts import Patches
 from workbench.filesystem import atomic_text, sha, write_json
-from workbench.knowledge import build_index, context_for
-from workbench.rules import Rules
-from workbench.template_standards import coding_standard
+from workbench.knowledge_services.index import build_index, context_for
+from workbench.planning.rules import Rules
+from workbench.templates.standards import coding_standard
 
 INSTRUCTION = """你只实现已批准的逐实体字段验证规则，不生成 CRUD 或测试代码。
 遵循 coding_standard 中当前模板的编码规范；规范不扩大本任务允许编辑的文件和语法。

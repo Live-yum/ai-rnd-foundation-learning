@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/provider-structured-outputs.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L103。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11360`。本段原文以LF换行结束。
+本段原始字节数：`11361`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/provider-structured-outputs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7ffcb450df229d5e2671c48929fa3184d39ab5a8d5a914278afab095ff51b7f"} -->
+<!-- learning-source: {"path": "docs/provider-structured-outputs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c33f6badfa7c18c115e09e127ad70b65d29dc2849763562fa066063545a7a5db"} -->
 ````markdown
 <!-- docs/provider-structured-outputs.md -->
 # LangGraph 工作流的统一结构化输出
@@ -25,7 +25,7 @@
 
 ## 框架接线
 
-`workbench/model_protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
+`workbench/models/protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
 
 ```python
 structured = model.with_structured_output(

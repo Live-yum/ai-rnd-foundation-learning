@@ -569,7 +569,9 @@ def test_actual_restart_order_rejects_reconstruction_before_any_challenge_replay
         plan, {"obligation_checks": initial + reconstructed}, aggregate=True
     )
 
-    tree = ast.parse((Path(__file__).parents[1] / "workbench/capability_sandbox.py").read_text())
+    tree = ast.parse(
+        (Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py").read_text()
+    )
     block = next(
         node
         for node in ast.walk(tree)

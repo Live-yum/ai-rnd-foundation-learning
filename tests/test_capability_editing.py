@@ -52,7 +52,7 @@ def test_candidate_is_separate_and_replay_is_hash_bound(tmp_path):
     [
         "pyproject.toml",
         "verify.py",
-        "workbench/flow.py",
+        "workbench/production/graph.py",
         "deployment/run.py",
         "start.py",
         "package.json",

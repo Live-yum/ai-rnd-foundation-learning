@@ -132,7 +132,7 @@ def test_v1_dump_and_gate_identity_are_not_upgraded():
     "field,value",
     [
         ("task_id", "other"),
-        ("allowed_paths", ["workbench/flow.py"]),
+        ("allowed_paths", ["workbench/production/graph.py"]),
         ("requirement_ids", ["invented"]),
         ("acceptance_ids", ["fake"]),
         ("max_steps", 0),

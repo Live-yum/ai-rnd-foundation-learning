@@ -153,7 +153,7 @@ uv run python -m scripts.ci_toolchain
 
 #### 20.5.1 先建立能独立运行的真实索引组件
 
-先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
+先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/knowledge_services/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
 
 本模块需要Node22，至少22.13。没有Node时从Node.js官方历史发布页选择22.x的本机安装包；Windows安装器完成后重新打开终端，WSL使用Linux版本而非Windows可执行文件。先用`node --version`确认版本，再按顺序执行：
 

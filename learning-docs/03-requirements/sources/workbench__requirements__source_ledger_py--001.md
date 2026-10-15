@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.requirement_coverage`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.requirements.coverage`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 先把用户原文、已确认合同和模型候选放在各自来源中比较。若同一字段被明确要求为必填，而候选却明确写成可选，应返回冲突诊断交回分析纠错；函数不替用户选择哪项约束获胜。无法可靠定位的旧文本继续保守校验，不能把猜测写成已批准事实。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -27,9 +29,9 @@
 
 **创建路径：** `workbench/requirements/source_ledger.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10997`。本段原文以LF换行结束。
+本段原始字节数：`11006`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirements/source_ledger.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b39b09edd027194762deb0226ed2f349232d1a38ec5fbeb05b442d28b24324e6"} -->
+<!-- learning-source: {"path": "workbench/requirements/source_ledger.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "198e14dd6ec9eb2b4d60ca5f895f7c2b721bb9ee6117996f2cd0920c3e63b150"} -->
 ````python
 # workbench/requirements/source_ledger.py
 """Reject contradictory analysis output without choosing between requirement sources.
@@ -50,8 +52,8 @@ Unknown prose remains untouched.
 import json
 from collections import defaultdict
 
-from workbench.domain import Requirement, RequirementChange, digest
-from workbench.requirement_coverage import _authorized, explicit_legacy_field_constraints
+from workbench.core.contracts import Requirement, RequirementChange, digest
+from workbench.requirements.coverage import _authorized, explicit_legacy_field_constraints
 
 
 def _records(requirement):

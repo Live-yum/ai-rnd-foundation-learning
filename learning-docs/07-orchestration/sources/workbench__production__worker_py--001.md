@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.flow`、`workbench.generator`、`workbench.llm`、`workbench.local_only`、`workbench.recommendation`、`workbench.store`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.generation.python_basic`、`workbench.infrastructure.llm.gateway`、`workbench.infrastructure.persistence.store`、`workbench.infrastructure.processes.tools`、`workbench.local_only`、`workbench.planning.recommendation`、`workbench.production.graph`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 队列任务只是唤醒同一run_id的理由，LangGraph检查点才说明流程停在哪。Runtime认领任务并恢复原图，遇到interrupt保存等待状态；崩溃后不能把上个任务误当下一关的新批准。一个控制库只允许一个Worker，退出时关闭锁与检查点连接，才能在Windows等平台安全恢复。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -28,9 +30,9 @@
 
 **创建路径：** `workbench/production/worker.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L275。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13028`。本段原文以LF换行结束。
+本段原始字节数：`13138`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/worker.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c48b8765f37a0332b75c24955185122eaf264d0a4f5d2b6e219e4e3ba1fc6db4"} -->
+<!-- learning-source: {"path": "workbench/production/worker.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70f5736761a02f5c3fc768de313543e53b8fd85d8598da32e67be43351d8b7bf"} -->
 ````python
 # workbench/production/worker.py
 """Single durable worker. A recovered job never consumes a later approval gate."""
@@ -51,13 +53,13 @@ from sqlalchemy.engine import make_url
 
 from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.filesystem import write_json
-from workbench.flow import Workflow
-from workbench.generator import PrerequisiteError
-from workbench.llm import ModelFailure, ModelGateway
+from workbench.generation.python_basic import PrerequisiteError
+from workbench.infrastructure.llm.gateway import ModelFailure, ModelGateway
+from workbench.infrastructure.persistence.store import Conflict, action_needs_model
+from workbench.infrastructure.processes.tools import ToolFailure
 from workbench.local_only import local_database_url
-from workbench.recommendation import blocked_report
-from workbench.store import Conflict, action_needs_model
-from workbench.tools import ToolFailure
+from workbench.planning.recommendation import blocked_report
+from workbench.production.graph import Workflow
 
 logger = logging.getLogger(__name__)
 

@@ -33,9 +33,9 @@
 
 **创建路径：** `tests/test_capability_startup_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L295。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10600`。本段原文以LF换行结束。
+本段原始字节数：`10611`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "75739acef82c89a81f529e925cbaf1c5a201bba72c6e9d5219db28238ed98266"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "279cadfa2e0f3fb5fd61df71ff18306a1ac1b35401fccdd6767234197954042d"} -->
 ````python
 # tests/test_capability_startup_session.py
 """Real shell regression for Daytona 0.190.0's sourced-command protocol.
@@ -97,7 +97,7 @@ def native_plan():
 
 def startup_submission(*, remote, product_argv=isolation.product_argv):
     """Execute only the actual session-construction statements, never start()."""
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     start = next(
         node

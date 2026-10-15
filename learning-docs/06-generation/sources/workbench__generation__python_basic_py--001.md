@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.settings`、`workbench.template_standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.filesystem`、`workbench.settings`、`workbench.templates.standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** generate_basic把批准Plan和已校验选择写成不可含糊的产物身份，再复制模板、生成迁移并登记每个文件SHA。第一次创建目标目录应得到完整产品；同一路径已经有文件却无相符回执时应停止并保留现场。这里不能用删除重建来伪装幂等，因为目录可能已包含用户修改或数据。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -23,9 +25,9 @@
 
 **创建路径：** `workbench/generation/python_basic.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L171。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7900`。本段原文以LF换行结束。
+本段原始字节数：`7939`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/generation/python_basic.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "05734c11d8c220ea88acc45b4aea0a55876def67c0fe0d199f393ab36f647cde"} -->
+<!-- learning-source: {"path": "workbench/generation/python_basic.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8480f0fb8a53bfea51ffc985ee103e1f9a37553de87ff9d5b479e95d35d182c2"} -->
 ````python
 # workbench/generation/python_basic.py
 """Deterministic generation: approved metadata -> reviewed golden files, never LLM boilerplate."""
@@ -36,10 +38,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from workbench.domain import Plan, digest
+from workbench.core.contracts import Plan, digest
 from workbench.filesystem import atomic_text, files, manifest, write_json
 from workbench.settings import ROOT
-from workbench.template_standards import write_coding_standard
+from workbench.templates.standards import write_coding_standard
 
 
 class PrerequisiteError(RuntimeError):
@@ -47,7 +49,7 @@ class PrerequisiteError(RuntimeError):
 
 
 def generate_basic(plan: Plan, destination: Path, selection=None):
-    from workbench.catalog import Selection
+    from workbench.templates.catalog import Selection
 
     selection = Selection.model_validate(selection or {"template": "python-basic"}).model_dump()
     if (plan.business is None and plan.data_scope != "per_user") or plan.unsupported:
@@ -126,7 +128,7 @@ def _generate_product(plan, destination, selection):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    shutil.copyfile(ROOT / "workbench/rules.py", destination / "rule_engine.py")
+    shutil.copyfile(ROOT / "workbench/planning/rules.py", destination / "rule_engine.py")
     write_json(destination / "approved-spec.json", plan.model_dump())
     write_json(destination / "selection.json", selection)
     if selection["frontend"] == "simple-admin":
@@ -184,11 +186,11 @@ def downgrade():
     ast.parse(text)
     atomic_text(destination / "migrations/versions/0001_initial.py", text)
     if plan.business is not None:
-        from workbench.business_python import prepare_product
+        from workbench.business.python import prepare_product
 
         prepare_product(plan, destination)
     else:
-        from workbench.product_sql import render
+        from workbench.generation.product_sql import render
 
         render(plan, destination)
     write_coding_standard(destination, selection["template"])

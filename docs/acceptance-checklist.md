@@ -57,7 +57,7 @@ Windows/Linux全套验收前先运行浏览器协议、回执与固定源码夹�
 
 原生模板的页面必须由对应原生生成器生成并挂载到原管理端。FastapiAdmin保留原生Vue布局、Fa组件和Element Plus；芋道保留Vben5 web-antd布局、Ant Design Vue和VXE。不得替换成Python Basic通用页面。
 
-`workbench/native_style.py`逐文件比对原模板布局、主题、核心设计源码的SHA，并用Tree-sitter核对每个生成页面的原生组件及导入。`scripts/native_browser.cjs`在实际生成路由检查侧栏、顶栏、原生表格/按钮/表单和主题变量，并保存表格与编辑对话框截图；修改布局主题或用通用页面替代会阻止交付。`tests/test_native_style.py`包含缺组件、改主题、替换布局的失败反例。截图和浏览器证据必须来自当前提交的Native/Daytona工作流，不沿用旧截图冒充新提交验收。
+`workbench/generation/native/style.py`逐文件比对原模板布局、主题、核心设计源码的SHA，并用Tree-sitter核对每个生成页面的原生组件及导入。`scripts/native_browser.cjs`在实际生成路由检查侧栏、顶栏、原生表格/按钮/表单和主题变量，并保存表格与编辑对话框截图；修改布局主题或用通用页面替代会阻止交付。`tests/test_native_style.py`包含缺组件、改主题、替换布局的失败反例。截图和浏览器证据必须来自当前提交的Native/Daytona工作流，不沿用旧截图冒充新提交验收。
 
 
 ## 业务合同路径的附加验收

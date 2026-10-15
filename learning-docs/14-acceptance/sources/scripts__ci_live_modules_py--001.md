@@ -29,9 +29,9 @@
 
 **创建路径：** `scripts/ci_live_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L549。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`22822`。本段原文以LF换行结束。
+本段原始字节数：`22857`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "786cd32ff3dbad783a326af453fb9f89cf1d43b32b1e125ffee34350912c3f25"} -->
+<!-- learning-source: {"path": "scripts/ci_live_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c60c9640481d36fda34dac1e44f45e810732c7cfe3ce9bcbd8ba47643524d18c"} -->
 ````python
 # scripts/ci_live_modules.py
 """Manual HTTPS executor acceptance; reviewed plans, real models, real isolation.
@@ -152,13 +152,13 @@ def failure_diagnostic(exc):
         "scripts/ci_live_modules.py": "acceptance_controller",
         "workbench/coding/mini_swe.py": "agent_controller",
         "workbench/infrastructure/sandbox/coding.py": "coding_sandbox",
-        "workbench/capability_execution.py": "isolation_admission",
+        "workbench/infrastructure/sandbox/execution.py": "isolation_admission",
         "scripts/daytona_capability_profile.py": "container_inspection",
-        "workbench/capability_isolation.py": "container_evidence",
+        "workbench/infrastructure/sandbox/isolation.py": "container_evidence",
         "workbench/infrastructure/llm/gateway.py": "model_gateway",
         "workbench/coding/candidates.py": "candidate_application",
         "workbench/production/candidates.py": "product_ledger",
-        "workbench/capability_sandbox.py": "independent_verification",
+        "workbench/acceptance/capability_sandbox.py": "independent_verification",
     }
     # Membership produces a fixed value; unknown/provider-defined names are suppressed.
     names = {

@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.business_contracts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.business.contracts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 以批准为例：网页传入的是ResumeInput，不是任意字典。action=approve必须携带严格布尔true，字符串true不能当批准；gate_id随后还要与数据库当前关口相符。Plan的字段、关系和业务合同先完成交叉校验，再允许生成器接收，所以模型写出一段JSON并不是绕过边界的办法。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -59,9 +61,9 @@
 
 **创建路径：** `workbench/core/contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L559。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`22831`。本段原文以LF换行结束。
+本段原始字节数：`22854`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/core/contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "837f32fc221e5d6ddf6da558b367d0f28200ffd5c031e24f161034d470dab2a8"} -->
+<!-- learning-source: {"path": "workbench/core/contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2aefc10351f689c3bfc2998c10e88b3f9007854d209a6135d4ba40f62f8f8aae"} -->
 ````python
 # workbench/core/contracts.py
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
@@ -87,7 +89,7 @@ from pydantic import (
 )
 from pydantic_core import SchemaError
 
-from workbench.business_contracts import BusinessSpec
+from workbench.business.contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
 UserText = Annotated[str, StringConstraints(strip_whitespace=False)]
@@ -122,7 +124,7 @@ class RunInput(Contract):
 
     @model_validator(mode="after")
     def validate_selection(self):
-        from workbench.catalog import Selection
+        from workbench.templates.catalog import Selection
 
         chosen = Selection.model_validate(self.selection or {"template": self.template})
         if chosen.template != self.template:
@@ -181,7 +183,7 @@ class ResumeInput(Contract):
         if self.action in {"answer", "revise"} and not self.text.strip() and not self.answers:
             raise ValueError("回答或修改意见不能为空")
         if self.action in {"answer", "revise"}:
-            from workbench.conversation import command_word
+            from workbench.requirements.conversation import command_word
 
             if command_word(self.text) in {
                 "批准",

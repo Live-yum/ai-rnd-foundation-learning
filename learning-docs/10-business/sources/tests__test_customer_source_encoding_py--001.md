@@ -26,9 +26,9 @@
 
 **创建路径：** `tests/test_customer_source_encoding.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L218。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8285`。本段原文以LF换行结束。
+本段原始字节数：`8406`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_customer_source_encoding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f3c0d3b047ee9d617a0b964cb30a374171c02bcad9354cdf71e69216e2148435"} -->
+<!-- learning-source: {"path": "tests/test_customer_source_encoding.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "39cac88939da010b876599474f3909cf79d58e40424a82b9dee9fb5ce7da8e97"} -->
 ````python
 # tests/test_customer_source_encoding.py
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
@@ -63,12 +63,12 @@ SOURCE_READERS = (
     "tests/test_native_login_readiness.py",
     "tests/test_native_relation_picker_browser.py",
     "tests/test_real_model_execution_diagnostics.py",
-    "workbench/verification.py",
+    "workbench/acceptance/verification.py",
     "workbench/filesystem.py",
-    "workbench/native_delivery.py",
-    "workbench/native_environment.py",
-    "workbench/native_lab.py",
-    "workbench/portable.py",
+    "workbench/delivery/native.py",
+    "workbench/infrastructure/native/environment.py",
+    "workbench/acceptance/native_lab.py",
+    "workbench/delivery/portable.py",
     "tests/test_native_archive_limits.py",
     "tests/test_native_approved_replay.py",
     "tests/test_native_projection_gate.py",
@@ -79,9 +79,9 @@ SOURCE_READERS = (
     "tests/test_query_obligation_pairing.py",
     "tests/test_requirement_source_conflicts.py",
     "tests/test_real_model_source_conflict_diagnostics.py",
-    "workbench/requirement_sources.py",
-    "workbench/yudao_navigation.py",
-    "workbench/yudao_navigation_checks.py",
+    "workbench/requirements/source_ledger.py",
+    "workbench/generation/native/yudao_navigation.py",
+    "workbench/acceptance/yudao_navigation.py",
     "tests/test_yudao_installed_navigation.py",
     "tests/test_yudao_navigation_evidence.py",
     "tests/test_yudao_navigation_browser.py",
@@ -90,13 +90,13 @@ SOURCE_READERS = (
     "tests/test_product_reload_readiness.py",
     "tests/test_semantic_fact_domains.py",
     "tests/test_semantic_fact_namespace_aliases.py",
-    "workbench/model_protocol.py",
-    "workbench/native_business_probe.py",
-    "workbench/native_evidence.py",
+    "workbench/models/protocol.py",
+    "workbench/acceptance/native_business_probe.py",
+    "workbench/acceptance/native_evidence.py",
     "tests/test_native_business_probes.py",
     "tests/test_native_review_evidence.py",
     "tests/test_yudao_business_queries.py",
-    "workbench/llm.py",
+    "workbench/infrastructure/llm/gateway.py",
 )
 
 

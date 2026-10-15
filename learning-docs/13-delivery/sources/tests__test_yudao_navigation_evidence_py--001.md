@@ -39,7 +39,7 @@
 
 本段原始字节数：`19631`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_yudao_navigation_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "44dbde045268f4f44d3764e3677284f1d82730de99159f20cab91cc012f2fb4a"} -->
+<!-- learning-source: {"path": "tests/test_yudao_navigation_evidence.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "794d7aeb9452990bf30352b105ced5f54805e37c05dd29190b30c5729c846f38"} -->
 ````python
 # tests/test_yudao_navigation_evidence.py
 """Unit-only protocol/codec fixtures, never substitute for native Actions receipts."""
@@ -528,7 +528,7 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
     for ui in (report["business_browser"], report["portable_restored"]["browser"]):
         ui["spec_digest"] = report["spec_digest"]
         ui["installed_navigation"] = deepcopy(browser)
-    files = {"start.py": "b" * 64, "deployment/workbench/business_probe.py": "c" * 64}
+    files = {"start.py": "b" * 64, "deployment/workbench/business/probe.py": "c" * 64}
     projected = native_review_evidence(report, plan, files, "d" * 64)
     assert MAX_EVIDENCE_BYTES == 64_000
     assert len(json.dumps(projected, separators=(",", ":")).encode()) <= MAX_EVIDENCE_BYTES

@@ -23,9 +23,9 @@
 
 **创建路径：** `tests/test_handbook_labs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L46。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1499`。本段原文以LF换行结束。
+本段原始字节数：`1522`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_handbook_labs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9a7ac624eddeee3d3d88d2b6b4cfd55b42ad590cb5c2cfdfc0fe461d50465024"} -->
+<!-- learning-source: {"path": "tests/test_handbook_labs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7cd8ca4f60745a19f579ce3639ee3bbb833449eaba7a61174dcfb9e2ea0bbf9c"} -->
 ````python
 # tests/test_handbook_labs.py
 """Every complete teaching experiment must run as written, without network/model keys."""
@@ -68,8 +68,8 @@ def test_complete_lesson_runs_from_the_printed_code(source, number, tmp_path):
 def test_teaching_notes_do_not_confuse_same_named_functions():
     from scripts.handbook_notes import notes
 
-    auth = notes("workbench/api.py", "def auth():\n    return None\n")
-    sql = notes("workbench/product_sql.py", "def render():\n    return None\n")
+    auth = notes("workbench/interfaces/http.py", "def auth():\n    return None\n")
+    sql = notes("workbench/generation/product_sql.py", "def render():\n    return None\n")
     assert "不联系Dex" in auth
     assert "真实签发" not in auth
     assert "可读DDL" in sql

@@ -35,9 +35,9 @@
 
 **创建路径：** `tests/test_learning_docs_frontend.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L199。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7944`。本段原文以LF换行结束。
+本段原始字节数：`7969`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_docs_frontend.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2167d7bfa82b3633fc4c43f9a84b547dde4d2c0e981352de40d77f49e1d31b41"} -->
+<!-- learning-source: {"path": "tests/test_learning_docs_frontend.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d944907f27f0e2ac5f8574c346345d03c62d22977906de2d1e800ae3ca5d9224"} -->
 ````python
 # tests/test_learning_docs_frontend.py
 """Lossless Vue source/asset teaching and genuinely rebuilt clean-room assets."""
@@ -113,9 +113,9 @@ def test_generated_assets_use_labeled_folded_base64_without_losing_bytes(name):
         ("ui/src/api.ts", 8),
         ("ui/tests/stream.test.ts", 8),
         ("ui/package-lock.json", 8),
-        ("workbench/model_settings.py", 1),
-        ("workbench/clarification.py", 2),
-        ("workbench/streaming.py", 3),
+        ("workbench/models/settings.py", 1),
+        ("workbench/requirements/clarification.py", 2),
+        ("workbench/interfaces/streaming.py", 3),
         ("tests/test_streaming_backend.py", 8),
         ("tests/test_model_settings.py", 8),
         ("tests/test_clarification_choices.py", 8),

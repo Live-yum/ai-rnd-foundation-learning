@@ -4,10 +4,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from workbench.capability_contracts import source_path
-from workbench.domain import digest
-from workbench.feature_planning import PlannedModule, module_path_errors
+from workbench.core.contracts import digest
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, write_json
+from workbench.planning.contracts import source_path
+from workbench.planning.feature_planner import PlannedModule, module_path_errors
 
 
 class CandidateFileSetError(ValueError):
@@ -104,7 +104,7 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
         candidate = root / "candidate"
         copy_source(product, candidate)
         if settings is not None and settings.coding_engine == "aider":
-            from workbench.aider_tool import command, git
+            from workbench.coding.aider import command, git
 
             work, home = root / "work", root / "home"
             work.mkdir()

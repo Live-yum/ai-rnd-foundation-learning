@@ -8,17 +8,17 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from workbench.capability_contracts import (
+from workbench.business.modules.imports import ImportModuleSpec
+from workbench.core.contracts import ClarificationQuestion, Contract, Plan, digest
+from workbench.planning.contracts import (
     CapabilityPlan,
     CapabilityTask,
     CapabilityTaskV2,
     Identifier,
 )
-from workbench.catalog import Selection
-from workbench.domain import ClarificationQuestion, Contract, Plan, digest
-from workbench.module_imports import ImportModuleSpec
 from workbench.settings import ROOT
-from workbench.template_adapters import get_adapter
+from workbench.templates.adapters import get_adapter
+from workbench.templates.catalog import Selection
 
 
 class RoutedFeature(Contract):

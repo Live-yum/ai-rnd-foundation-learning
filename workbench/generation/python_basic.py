@@ -6,10 +6,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from workbench.domain import Plan, digest
+from workbench.core.contracts import Plan, digest
 from workbench.filesystem import atomic_text, files, manifest, write_json
 from workbench.settings import ROOT
-from workbench.template_standards import write_coding_standard
+from workbench.templates.standards import write_coding_standard
 
 
 class PrerequisiteError(RuntimeError):
@@ -17,7 +17,7 @@ class PrerequisiteError(RuntimeError):
 
 
 def generate_basic(plan: Plan, destination: Path, selection=None):
-    from workbench.catalog import Selection
+    from workbench.templates.catalog import Selection
 
     selection = Selection.model_validate(selection or {"template": "python-basic"}).model_dump()
     if (plan.business is None and plan.data_scope != "per_user") or plan.unsupported:
@@ -96,7 +96,7 @@ def _generate_product(plan, destination, selection):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
-    shutil.copyfile(ROOT / "workbench/rules.py", destination / "rule_engine.py")
+    shutil.copyfile(ROOT / "workbench/planning/rules.py", destination / "rule_engine.py")
     write_json(destination / "approved-spec.json", plan.model_dump())
     write_json(destination / "selection.json", selection)
     if selection["frontend"] == "simple-admin":
@@ -154,11 +154,11 @@ def downgrade():
     ast.parse(text)
     atomic_text(destination / "migrations/versions/0001_initial.py", text)
     if plan.business is not None:
-        from workbench.business_python import prepare_product
+        from workbench.business.python import prepare_product
 
         prepare_product(plan, destination)
     else:
-        from workbench.product_sql import render
+        from workbench.generation.product_sql import render
 
         render(plan, destination)
     write_coding_standard(destination, selection["template"])

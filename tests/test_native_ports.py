@@ -151,7 +151,7 @@ def test_portable_export_includes_allocator_and_no_runtime_receipt():
     from workbench.filesystem import EXCLUDED_DIRS
     from workbench.portable import HELPERS
 
-    assert "native_ports.py" in HELPERS
+    assert "infrastructure/native/ports.py" in HELPERS
     assert ".deployment" in EXCLUDED_DIRS
 
 

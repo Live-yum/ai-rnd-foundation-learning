@@ -62,9 +62,9 @@
 
 **创建路径：** `tests/test_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L860。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35409`。本段原文以LF换行结束。
+本段原始字节数：`35424`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "edaeb57029483d06f68dcc01a350f987c17b0bf40f519d98b93a43f9bb615214"} -->
+<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e7d191254d9080d25ad50b56efcff9fbdbe07a3328718daee1a14e05309e4db"} -->
 ````python
 # tests/test_native_capability_profile.py
 """Native preparation contracts use explicit fakes, never live Docker/runtime proof."""
@@ -115,7 +115,7 @@ def product(tmp_path):
         "raise RuntimeError('never execute candidate source')\n",
     )
     atomic_text(
-        root / "deployment/workbench/native_environment.py",
+        root / "deployment/workbench/infrastructure/native/environment.py",
         "raise RuntimeError('untrusted control')\n",
     )
     atomic_text(root / "frontend/web/.pnpmfile.cjs", "throw Error('untrusted package hook')")

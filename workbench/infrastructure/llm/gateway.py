@@ -8,8 +8,10 @@ import httpx
 from openai import APIError
 from pydantic import ValidationError
 
-from workbench.domain import digest
-from workbench.model_diagnostics import (
+from workbench.core.contracts import digest
+from workbench.infrastructure.persistence.store import Conflict
+from workbench.interfaces.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
+from workbench.models.diagnostics import (
     failure_diagnostic,
     json_diagnostics,
     json_syntax_category,
@@ -18,7 +20,7 @@ from workbench.model_diagnostics import (
     transport_category,
     transport_failure,
 )
-from workbench.model_protocol import (
+from workbench.models.protocol import (
     MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
     JSONGuardFailure,
@@ -28,8 +30,6 @@ from workbench.model_protocol import (
     structured_model,
     validate_content,
 )
-from workbench.store import Conflict
-from workbench.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
 
 
 class ModelFailure(RuntimeError):
@@ -79,7 +79,11 @@ class ModelGateway:
             profile = self.settings.model_for(stage).validate_endpoint()
             contract = output_contract(profile, schema)
             if self.native_strict:
-                from workbench.native_schema import SDK_VERSIONS, NativeSchema, native_receipt
+                from workbench.generation.native.schema import (
+                    SDK_VERSIONS,
+                    NativeSchema,
+                    native_receipt,
+                )
 
                 contract = replace(contract, mode="json_schema", reason="mini_swe_native_strict")
                 prepared = NativeSchema(
@@ -158,7 +162,7 @@ class ModelGateway:
             def native_facts():
                 if not self.native_strict:
                     return {}
-                from workbench.native_schema import native_receipt
+                from workbench.generation.native.schema import native_receipt
 
                 return native_receipt(native, status=getattr(audited, "http_status", None))
 
@@ -224,7 +228,7 @@ class ModelGateway:
                 )
                 try:
                     if self.native_strict:
-                        from workbench.native_schema import NativeSchema
+                        from workbench.generation.native.schema import NativeSchema
 
                         native = NativeSchema(
                             profile,

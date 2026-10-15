@@ -37,27 +37,27 @@
 - `test_json_object_default_and_cache_are_separate_from_opt_in.handler`（L389–L391）：接收`request`。 调用`seen.append`、`json.loads`、`response`。 返回路径：L391的`response('{"operation":"submit","edits":null}')`。
 - `test_cached_native_result_cannot_bypass_sdk_version_preflight`（L399–L416）：接收`store`、`monkeypatch`。 控制顺序：L408断言`invoke(model, run).operation == "submit"`；L412断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L414断言`record["code"] == "native_sdk_unsupported"`；L415断言`record["attempt"] is None`；L416断言`record["native_request_verified"] is False`。 调用`model_gateway`、`new_run`、`invoke`、`monkeypatch.setattr`、`pytest.raises`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_cached_native_result_cannot_bypass_sdk_version_preflight.handler`（L402–L404）：接收`request`。 调用`calls.append`、`response`。 返回路径：L404的`response('{"operation":"submit","edits":null}')`。
-- `test_native_guards_are_bound_into_isolation_source_identity`（L420–L428）：接收`monkeypatch`、`name`。 控制顺序：L428断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_transport_cannot_be_constructed_without_wire_guard`（L431–L435）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L435断言`failure.value.code == "native_request_mismatch"`。 调用`OutputContract`、`pytest.raises`、`AuditedTransport`、`httpx.MockTransport`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry`（L438–L458）：接收`store`。 控制顺序：L457断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L458断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose`（L441–L446）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.__iter__`（L442–L443）：不接收显式业务参数，从已配置对象/模块读取依赖。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.close`（L445–L446）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L446抛异常，停止当前正常路径。 调用`httpx.ReadError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejected_stream_cleanup_error_cannot_authorize_retry.handler`（L448–L452）：接收`request`。 调用`calls.append`、`httpx.Response`、`BrokenClose`。 返回路径：L450的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, stream=BrokenClose() )`。
-- `test_fixture_still_blocks_every_new_connection`（L464–L474）：接收`address`、`operation`。 控制顺序：L469按`operation in {"connect", "connect_ex"}`分支；L471按`operation == "create_connection"`分支。 调用`socket.socket`、`pytest.raises`、`getattr(connection, operation)`、`getattr`、`socket.create_connection`、`socket.getaddrinfo`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fixture_socketpairs_are_connected_owned_and_bounded`（L478–L489）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L480遍历`pairs`；L483断言`reader.recv(9) == b"self-pipe"`；L484断言`reader.getpeername() == writer.getsockname()`；L485断言`writer.getpeername() == reader.getsockname()`。 调用`socket.socketpair`、`range`、`reader.settimeout`、`writer.sendall`、`reader.recv`、`reader.getpeername`、`writer.getsockname`、`writer.getpeername`、`reader.getsockname`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity`（L492–L526）：接收`store`、`monkeypatch`。 控制顺序：L521断言`invoke(model, run).operation == "submit"`；L522断言`invoke(model, run).operation == "edit_and_submit"`；L523断言`invoke(model, run).operation == "edit_and_submit"`；L524断言`seen == [["edit", "submit"], ["edit", "submit", "edit_and_submit"]]`；L525断言`store.get_run(run)["model_calls"] == 2`；L526断言`store.model_records(run)[-1]["native_local_conformant"] is True`。 调用`design`、`edit`、`model_gateway`、`new_run`、`monkeypatch.context`、`patch.setattr`、`invoke`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity.ApprovedAgentTurn`（L499–L500）：继承`approved_turn_schema(task)`。声明的数据项为`operation`；类型约束/数据库列参数以完整定义为准。
-- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity.handler`（L505–L515）：接收`request`。 控制顺序：L509断言`body["stream"] is False`；L510断言`body["max_completion_tokens"] == 8192`。 调用`json.loads`、`seen.append`、`response`、`json.dumps`。 返回路径：L511的`response( json.dumps(combined) if "edit_and_submit" in enum else '{"operation":"submit","e…`。
-- `test_combined_contract_and_worker_bound_into_source_proof`（L533–L541）：接收`monkeypatch`、`name`。 控制顺序：L541断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_guards_are_bound_into_isolation_source_identity`（L422–L430）：接收`monkeypatch`、`name`。 控制顺序：L430断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_transport_cannot_be_constructed_without_wire_guard`（L433–L437）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L437断言`failure.value.code == "native_request_mismatch"`。 调用`OutputContract`、`pytest.raises`、`AuditedTransport`、`httpx.MockTransport`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry`（L440–L460）：接收`store`。 控制顺序：L459断言`len(calls) == store.get_run(run)["model_calls"] == 1`；L460断言`store.model_records(run)[0]["code"] == "native_request_mismatch"`。 调用`new_run`、`pytest.raises`、`invoke`、`model_gateway`、`len`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose`（L443–L448）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.__iter__`（L444–L445）：不接收显式业务参数，从已配置对象/模块读取依赖。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.BrokenClose.close`（L447–L448）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L448抛异常，停止当前正常路径。 调用`httpx.ReadError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejected_stream_cleanup_error_cannot_authorize_retry.handler`（L450–L454）：接收`request`。 调用`calls.append`、`httpx.Response`、`BrokenClose`。 返回路径：L452的`httpx.Response( 200, headers={"content-type": "text/event-stream"}, stream=BrokenClose() )`。
+- `test_fixture_still_blocks_every_new_connection`（L466–L476）：接收`address`、`operation`。 控制顺序：L471按`operation in {"connect", "connect_ex"}`分支；L473按`operation == "create_connection"`分支。 调用`socket.socket`、`pytest.raises`、`getattr(connection, operation)`、`getattr`、`socket.create_connection`、`socket.getaddrinfo`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_socketpairs_are_connected_owned_and_bounded`（L480–L491）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L482遍历`pairs`；L485断言`reader.recv(9) == b"self-pipe"`；L486断言`reader.getpeername() == writer.getsockname()`；L487断言`writer.getpeername() == reader.getsockname()`。 调用`socket.socketpair`、`range`、`reader.settimeout`、`writer.sendall`、`reader.recv`、`reader.getpeername`、`writer.getsockname`、`writer.getpeername`、`reader.getsockname`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity`（L494–L528）：接收`store`、`monkeypatch`。 控制顺序：L523断言`invoke(model, run).operation == "submit"`；L524断言`invoke(model, run).operation == "edit_and_submit"`；L525断言`invoke(model, run).operation == "edit_and_submit"`；L526断言`seen == [["edit", "submit"], ["edit", "submit", "edit_and_submit"]]`；L527断言`store.get_run(run)["model_calls"] == 2`；L528断言`store.model_records(run)[-1]["native_local_conformant"] is True`。 调用`design`、`edit`、`model_gateway`、`new_run`、`monkeypatch.context`、`patch.setattr`、`invoke`、`store.get_run`、`store.model_records`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity.ApprovedAgentTurn`（L501–L502）：继承`approved_turn_schema(task)`。声明的数据项为`operation`；类型约束/数据库列参数以完整定义为准。
+- `test_combined_action_actual_sdk_wire_and_legacy_schema_cache_identity.handler`（L507–L517）：接收`request`。 控制顺序：L511断言`body["stream"] is False`；L512断言`body["max_completion_tokens"] == 8192`。 调用`json.loads`、`seen.append`、`response`、`json.dumps`。 返回路径：L513的`response( json.dumps(combined) if "edit_and_submit" in enum else '{"operation":"submit","e…`。
+- `test_combined_contract_and_worker_bound_into_source_proof`（L535–L543）：接收`monkeypatch`、`name`。 控制顺序：L543断言`execution.verifier_identity() != original`。 调用`execution.verifier_identity`、`monkeypatch.setattr`、`real_sha`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L541。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_schema.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L543。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19956`。本段原文以LF换行结束。
+本段原始字节数：`19974`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4540a4563c06658ba1712516bd431523b368d6dfd0681d278d15c961b9d2def3"} -->
+<!-- learning-source: {"path": "tests/test_native_schema.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b3c10c296c35d83ff8054e454a27c7f3d1de2d27efb9db7e740617f78ca36f37"} -->
 ````python
 # tests/test_native_schema.py
 """Real locked SDK serialization; only lowest HTTP is replaced, no external model."""
@@ -478,7 +478,9 @@ def test_cached_native_result_cannot_bypass_sdk_version_preflight(store, monkeyp
     assert record["native_request_verified"] is False
 
 
-@pytest.mark.parametrize("name", ["workbench/native_schema.py", "workbench/model_protocol.py"])
+@pytest.mark.parametrize(
+    "name", ["workbench/generation/native/schema.py", "workbench/models/protocol.py"]
+)
 def test_native_guards_are_bound_into_isolation_source_identity(monkeypatch, name):
     from workbench import capability_execution as execution
 

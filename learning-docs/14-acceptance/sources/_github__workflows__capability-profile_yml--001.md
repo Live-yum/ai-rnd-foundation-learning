@@ -12,16 +12,16 @@
 
 **创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L143。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7615`。本段原文以LF换行结束。
+本段原始字节数：`7589`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "32ea326015fa0626720e677fada88194f43b02125fddcf24586ffb69dfcc6d5c"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fa1b0a7da82b8ef3824b59fa8d48507b50bd031805f272146e79111772ebc346"} -->
 ````yaml
 # .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
 on:
   pull_request:
     paths:
-      - 'workbench/capability_*.py'
+      - 'workbench/**'
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/daytona_capability_profile.py'
@@ -34,7 +34,7 @@ on:
   push:
     branches: [main, feature/durable-capability-orchestration]
     paths:
-      - 'workbench/capability_*.py'
+      - 'workbench/**'
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
       - 'scripts/capability_browser.cjs'

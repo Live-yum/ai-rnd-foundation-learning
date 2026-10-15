@@ -15,20 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `generated_frontend_asset`（L110–L112）：接收`name`。 源码说明：Vite output is a lossless runtime snapshot, not handwritten lesson source.。 调用`name.startswith`。 返回路径：L112的`name.startswith(GENERATED_FRONTEND_PREFIX)`。
-- `encoded_lines`（L115–L118）：接收`content`。 源码说明：Wrap ASCII Base64 at 76 characters without repeatedly slicing a long word.。 调用`base64.b64encode(content).decode`、`base64.b64encode`、`"\n".join`、`range`、`len`。 返回路径：L118的`"\n".join(encoded[index : index + 76] for index in range(0, len(encoded), 76))`。
-- `sources`（L121–L169）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L123遍历`GROUPS`；L125遍历`paths`；L127按`not path.exists()`分支；L128抛异常，停止当前正常路径；L134遍历`items`；L135按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L156按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L161按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `guide_text`（L172–L179）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L175的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
-- `render`（L182–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L185遍历`sources()`；L187遍历`rows`；L188按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`encoded_lines`、`generated_frontend_asset`、`hashlib.sha256(content.encode()).hexdigest`等。 返回路径：L236的`text`。
-- `main`（L239–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L244按`args.check`分支；L245按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L246抛异常，停止当前正常路径；L247按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L248抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_frontend_asset`（L111–L113）：接收`name`。 源码说明：Vite output is a lossless runtime snapshot, not handwritten lesson source.。 调用`name.startswith`。 返回路径：L113的`name.startswith(GENERATED_FRONTEND_PREFIX)`。
+- `encoded_lines`（L116–L119）：接收`content`。 源码说明：Wrap ASCII Base64 at 76 characters without repeatedly slicing a long word.。 调用`base64.b64encode(content).decode`、`base64.b64encode`、`"\n".join`、`range`、`len`。 返回路径：L119的`"\n".join(encoded[index : index + 76] for index in range(0, len(encoded), 76))`。
+- `sources`（L122–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124遍历`GROUPS`；L126遍历`paths`；L128按`not path.exists()`分支；L129抛异常，停止当前正常路径；L135遍历`items`；L136按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L157按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L162按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `guide_text`（L173–L180）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L176的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
+- `render`（L183–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L186遍历`sources()`；L188遍历`rows`；L189按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`encoded_lines`、`generated_frontend_asset`、`hashlib.sha256(content.encode()).hexdigest`等。 返回路径：L237的`text`。
+- `main`（L240–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L245按`args.check`分支；L246按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L247抛异常，停止当前正常路径；L248按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L249抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L256。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L257。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9871`。本段原文以LF换行结束。
+本段原始字节数：`9903`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d832352a6b6355f31f99f5b12aecd5305bb40b1fdc5daff4d56cbc400aac61bd"} -->
+<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3d6a21257fb7900f9a404f9e14e7a68e1eb379ffa4eece6d141fe8285c166b54"} -->
 `````python
 # scripts/build_handbook.py
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
@@ -45,6 +45,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
 GUIDES = [
     "docs/modular-production-v2.md",
+    "docs/workbench-layout.md",
     "docs/template-platform.md",
     "docs/guide.md",
     "docs/implementation.md",

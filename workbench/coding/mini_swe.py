@@ -19,8 +19,8 @@ from workbench.coding.timing import record_turn
 from workbench.core.contracts import digest
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, manifest, write_json
+from workbench.infrastructure.processes.tools import clean_env, process_options, stop_process
 from workbench.settings import ROOT
-from workbench.tools import clean_env, process_options, stop_process
 
 LIMIT = 1_200_000
 FINISH_SECONDS = 15
@@ -28,14 +28,17 @@ FINISH_SECONDS = 15
 
 def check_candidate(settings, task, plan, candidate, deadline):
     """Only the platform's independent verifier can classify a submit checkpoint."""
-    from workbench.capability_diagnostics import http_assertion_diagnostic, startup_diagnostic
-    from workbench.capability_execution import VERIFIER
-    from workbench.capability_isolation import (
+    from workbench.acceptance.capability_sandbox import verify_capabilities
+    from workbench.acceptance.capability_verification import require_evidence
+    from workbench.infrastructure.sandbox.diagnostics import (
+        http_assertion_diagnostic,
+        startup_diagnostic,
+    )
+    from workbench.infrastructure.sandbox.execution import VERIFIER
+    from workbench.infrastructure.sandbox.isolation import (
         require_container_evidence,
         require_isolation_evidence,
     )
-    from workbench.capability_sandbox import verify_capabilities
-    from workbench.capability_verification import require_evidence
 
     if deadline - time.monotonic() <= 10:
         raise UnsupportedScope("模块剩余时间不足以检查并清理，未续期")
@@ -134,7 +137,7 @@ def run_agent(
         raise UnsupportedScope(
             "缺少锁定Python3.12 Worker；运行 uv sync --project tools/mini-swe --python 3.12 --locked"
         )
-    from workbench.llm import ModelGateway
+    from workbench.infrastructure.llm.gateway import ModelGateway
 
     if isinstance(gateway, ModelGateway):
         profile = settings.model_for("coding")
@@ -331,7 +334,7 @@ def _run(
                         budget["tokens_reserved"] += token_ceiling
                         budget["cost_reserved_usd"] += cost_ceiling
                         write_json(record, budget)
-                        from workbench.llm import ModelGateway
+                        from workbench.infrastructure.llm.gateway import ModelGateway
 
                         bounded_gateway = gateway
                         if isinstance(gateway, ModelGateway):

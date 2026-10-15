@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/acceptance-checklist.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L67。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12630`。本段原文以LF换行结束。
+本段原始字节数：`12641`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "282c97b9fd9999e6b873bee74d9955360c6b5e84548e1dce374b4c6933de186a"} -->
+<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ff327c7cc6bc7fc9b8e83f4c95d97cfe702f4f13287c9f8216f952e969a0243b"} -->
 ````markdown
 <!-- docs/acceptance-checklist.md -->
 # 功能与验收对照清单
@@ -76,7 +76,7 @@ Windows/Linux全套验收前先运行浏览器协议、回执与固定源码夹�
 
 原生模板的页面必须由对应原生生成器生成并挂载到原管理端。FastapiAdmin保留原生Vue布局、Fa组件和Element Plus；芋道保留Vben5 web-antd布局、Ant Design Vue和VXE。不得替换成Python Basic通用页面。
 
-`workbench/native_style.py`逐文件比对原模板布局、主题、核心设计源码的SHA，并用Tree-sitter核对每个生成页面的原生组件及导入。`scripts/native_browser.cjs`在实际生成路由检查侧栏、顶栏、原生表格/按钮/表单和主题变量，并保存表格与编辑对话框截图；修改布局主题或用通用页面替代会阻止交付。`tests/test_native_style.py`包含缺组件、改主题、替换布局的失败反例。截图和浏览器证据必须来自当前提交的Native/Daytona工作流，不沿用旧截图冒充新提交验收。
+`workbench/generation/native/style.py`逐文件比对原模板布局、主题、核心设计源码的SHA，并用Tree-sitter核对每个生成页面的原生组件及导入。`scripts/native_browser.cjs`在实际生成路由检查侧栏、顶栏、原生表格/按钮/表单和主题变量，并保存表格与编辑对话框截图；修改布局主题或用通用页面替代会阻止交付。`tests/test_native_style.py`包含缺组件、改主题、替换布局的失败反例。截图和浏览器证据必须来自当前提交的Native/Daytona工作流，不沿用旧截图冒充新提交验收。
 
 
 ## 业务合同路径的附加验收

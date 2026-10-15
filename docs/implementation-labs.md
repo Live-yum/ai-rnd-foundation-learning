@@ -205,7 +205,7 @@ source和index是并列目录。如果把index放进source，下一次扫描会�
 
 ## 第5课：业务表达式为何不能变成任意Python
 
-**先完成**`workbench/rules.py`。新建`learning/lesson_05.py`：
+**先完成**`workbench/planning/rules.py`。新建`learning/lesson_05.py`：
 
 ```python
 # lesson: 05

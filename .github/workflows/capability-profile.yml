@@ -2,7 +2,7 @@ name: Fixed authored SQLite isolation profile
 on:
   pull_request:
     paths:
-      - 'workbench/capability_*.py'
+      - 'workbench/**'
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/daytona_capability_profile.py'
@@ -15,7 +15,7 @@ on:
   push:
     branches: [main, feature/durable-capability-orchestration]
     paths:
-      - 'workbench/capability_*.py'
+      - 'workbench/**'
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
       - 'scripts/capability_browser.cjs'

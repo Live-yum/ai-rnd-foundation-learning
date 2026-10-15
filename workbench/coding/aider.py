@@ -14,12 +14,12 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from workbench.coding import INSTRUCTION, apply_patch, rule_context
-from workbench.domain import Patch, digest
+from workbench.core.contracts import Patch, digest
 from workbench.filesystem import atomic_text, files, manifest, sha, write_json
-from workbench.knowledge import build_index
-from workbench.rules import Rules
+from workbench.infrastructure.processes.tools import ToolFailure, run_command
+from workbench.knowledge_services.index import build_index
+from workbench.planning.rules import Rules
 from workbench.settings import ROOT
-from workbench.tools import ToolFailure, run_command
 
 AIDER_VERSION = "0.86.2"
 
@@ -227,7 +227,7 @@ def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, err
 
 
 def repo_map(source, index_dir, settings):
-    from workbench.retrieval import CODE_SUFFIXES, current_index
+    from workbench.knowledge_services.retrieval import CODE_SUFFIXES, current_index
 
     index = current_index(source, index_dir)
     selected = [

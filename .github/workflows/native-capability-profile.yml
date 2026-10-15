@@ -2,18 +2,12 @@ name: Authored native PostgreSQL isolation profile
 on:
   pull_request:
     paths:
-      - 'workbench/capability_*.py'
-      - 'workbench/orchestration.py'
-      - 'workbench/flow.py'
-      - 'workbench/runtime.py'
-      - 'workbench/store.py'
+      - 'workbench/**'
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/ci_native_capability_security.py'
       - 'scripts/ci_native_capability_source.py'
       - 'scripts/ci_native_tools.py'
-      - 'workbench/native_lab.py'
-      - 'workbench/portable.py'
       - 'tests/test_ci_native_capability_source.py'
       - 'tests/test_ci_native_capability_full_source.py'
       - 'scripts/ci_contest_capability.py'
@@ -31,15 +25,9 @@ on:
   push:
     branches: [main, feature/durable-capability-orchestration]
     paths:
-      - 'workbench/capability_*.py'
-      - 'workbench/orchestration.py'
-      - 'workbench/flow.py'
-      - 'workbench/runtime.py'
-      - 'workbench/store.py'
+      - 'workbench/**'
       - 'scripts/ci_native_capability_source.py'
       - 'scripts/ci_native_tools.py'
-      - 'workbench/native_lab.py'
-      - 'workbench/portable.py'
       - 'tests/test_ci_native_capability_source.py'
       - 'tests/test_ci_native_capability_full_source.py'
       - 'scripts/capability_guard.py'

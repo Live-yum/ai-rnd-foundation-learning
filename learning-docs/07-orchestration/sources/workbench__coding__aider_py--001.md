@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.coding`、`workbench.domain`、`workbench.filesystem`、`workbench.knowledge`、`workbench.rules`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.coding`、`workbench.core.contracts`、`workbench.filesystem`、`workbench.infrastructure.processes.tools`、`workbench.knowledge_services.index`、`workbench.planning.rules`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -29,9 +29,9 @@
 
 **创建路径：** `workbench/coding/aider.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L272。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10120`。本段原文以LF换行结束。
+本段原始字节数：`10196`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/aider.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2dbb259cec7368bbe53e2a604c6f28667596fb7c751171be109a580a34bb9911"} -->
+<!-- learning-source: {"path": "workbench/coding/aider.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "66e4e2f3aceea2a952451f9ef5eb6bade23d406397b43095183ceb12de8b8056"} -->
 ````python
 # workbench/coding/aider.py
 """Pinned Aider CLI, used only in a disposable local Git worktree with no keys.
@@ -50,12 +50,12 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from workbench.coding import INSTRUCTION, apply_patch, rule_context
-from workbench.domain import Patch, digest
+from workbench.core.contracts import Patch, digest
 from workbench.filesystem import atomic_text, files, manifest, sha, write_json
-from workbench.knowledge import build_index
-from workbench.rules import Rules
+from workbench.infrastructure.processes.tools import ToolFailure, run_command
+from workbench.knowledge_services.index import build_index
+from workbench.planning.rules import Rules
 from workbench.settings import ROOT
-from workbench.tools import ToolFailure, run_command
 
 AIDER_VERSION = "0.86.2"
 
@@ -263,7 +263,7 @@ def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, err
 
 
 def repo_map(source, index_dir, settings):
-    from workbench.retrieval import CODE_SUFFIXES, current_index
+    from workbench.knowledge_services.retrieval import CODE_SUFFIXES, current_index
 
     index = current_index(source, index_dir)
     selected = [

@@ -6,7 +6,7 @@
 
 | 对象 | 解决什么问题 | 对应位置 |
 |---|---|---|
-| 技术模板 | 选后端、前端、数据库、已有能力与代码规范 | `workbench/template_adapters.py`、`templates/standards/` |
+| 技术模板 | 选后端、前端、数据库、已有能力与代码规范 | `workbench/templates/adapters.py`、`templates/standards/` |
 | 业务需求 | 定义这个项目的角色、数据、操作、流程与验收 | `examples/acceptance/*/requirement.md` |
 | 一次运行 | 保存本次输入、批准版本、步骤、模型调用、产物与验证结果 | `Store`、`Runtime`、LangGraph checkpoint |
 

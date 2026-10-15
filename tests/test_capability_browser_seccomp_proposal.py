@@ -201,7 +201,7 @@ def test_proposal_is_not_selected_copied_or_part_of_existing_acceptance():
     for path in [
         ROOT / "tools/browser/Dockerfile",
         *ROOT.glob(".github/workflows/*.yml"),
-        *ROOT.glob("workbench/*.py"),
+        *ROOT.glob("workbench/**/*.py"),
         *ROOT.glob("scripts/*.py"),
     ]:
         text = path.read_text()

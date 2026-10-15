@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.infrastructure.processes.tools`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -28,9 +28,9 @@
 
 **创建路径：** `workbench/specifications/openspec/cli.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L62。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2372`。本段原文以LF换行结束。
+本段原始字节数：`2397`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/specifications/openspec/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b4c9e10ed34e9bce90af0151af9b585c0830d3d7640405c4e0732cff300c7483"} -->
+<!-- learning-source: {"path": "workbench/specifications/openspec/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2e18a21e4cf41c25990ef9d8d2de621e0dfa2a404336dd04676dc48d085102e8"} -->
 ````python
 # workbench/specifications/openspec/cli.py
 """The only OpenSpec commands permitted by production are document operations."""
@@ -40,8 +40,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from workbench.infrastructure.processes.tools import clean_env
 from workbench.settings import ROOT
-from workbench.tools import clean_env
 
 VERSION = "1.14.1"
 SCHEMA = "rnd-factory"

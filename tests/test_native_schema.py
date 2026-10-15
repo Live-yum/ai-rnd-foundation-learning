@@ -416,7 +416,9 @@ def test_cached_native_result_cannot_bypass_sdk_version_preflight(store, monkeyp
     assert record["native_request_verified"] is False
 
 
-@pytest.mark.parametrize("name", ["workbench/native_schema.py", "workbench/model_protocol.py"])
+@pytest.mark.parametrize(
+    "name", ["workbench/generation/native/schema.py", "workbench/models/protocol.py"]
+)
 def test_native_guards_are_bound_into_isolation_source_identity(monkeypatch, name):
     from workbench import capability_execution as execution
 
