@@ -571,8 +571,8 @@
     },
     {
       "path": "workbench/model_discovery.py",
-      "bytes": 12206,
-      "sha256": "5704e62ecb563086bd1e72eb24f4ba207623966514ec0605ff7d53a4fcfcc2ce",
+      "bytes": 15524,
+      "sha256": "42dc4d658945245563e18ac0dbaf52908165982a7ae33438b9d8c26bfd8c7b41",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_discovery_py--001.md"
@@ -6296,8 +6296,8 @@
     },
     {
       "path": "tests/test_model_discovery.py",
-      "bytes": 24718,
-      "sha256": "8f54521976fb14b847ed46738a775c64b2b85a38bdef5fc837bb1f993a99559a",
+      "bytes": 28322,
+      "sha256": "fae075340548e70e02c6b844b77c84e1884d76caa46a9ffbb36d6d3d76f736fe",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_model_discovery_py--001.md"

@@ -61,14 +61,19 @@
 - `test_catalog_trace_is_request_local_and_preserves_unrelated_debug_logs.SynchronizedBackend.connect_tcp`（L636–L638）：接收`*args`、`**kwargs`。 调用`barrier.wait`、`super().connect_tcp`、`super`。 返回路径：L638的`super().connect_tcp(*args, **kwargs)`。
 - `test_catalog_trace_is_request_local_and_preserves_unrelated_debug_logs.transport`（L640–L651）：接收`marker`。 调用`httpx.HTTPTransport`、`httpcore.ConnectionPool`、`SynchronizedBackend`、`marker.encode`。 返回路径：L651的`result`。
 - `test_catalog_trace_is_request_local_and_preserves_unrelated_debug_logs.unrelated`（L653–L655）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`httpx.Client`、`transport`、`client.get`。 返回路径：L655的`client.get("https://unrelated.example").status_code`。
+- `test_short_symbol_key_allows_public_hostname_and_embedded_model_word`（L669–L688）：接收`settings`、`draft`。 控制顺序：L671按`draft`分支；L685断言`result["ok"] and result["models"] == ["rapid-model", "capital-v2"]`；L686断言`len(calls) == 1`；L687断言`calls[0].headers["authorization"] == "Bearer api"`；L688断言`str(calls[0].url) == "https://api.example/v1/models"`。 调用`command`、`ModelSettingsRepository(settings).update`、`ModelSettingsRepository`、`ModelDiscoverer( settings, httpx.MockTransport( lambda request: c…`、`ModelDiscoverer`、`httpx.MockTransport`、`calls.append`、`catalog`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_short_symbol_exact_delimited_and_encoded_echoes_are_rejected`（L695–L699）：接收`settings`、`model`。 控制顺序：L699断言`result["code"] == "invalid_response" and result["models"] == []`。 调用`ModelDiscoverer( settings, httpx.MockTransport(lambda request: ca…`、`ModelDiscoverer`、`httpx.MockTransport`、`catalog`、`command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_short_symbol_path_or_decorated_hostname_echo_is_rejected`（L715–L720）：接收`settings`、`endpoint`。 控制顺序：L720断言`result["code"] == "invalid_configuration" and not calls`。 调用`ModelDiscoverer( settings, httpx.MockTransport(lambda request: ca…`、`ModelDiscoverer`、`httpx.MockTransport`、`calls.append`、`command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_structured_or_long_credentials_remain_blocked_inside_larger_values`（L726–L757）：接收`settings`、`secret`、`encoding`、`target`、`caplog`。 控制顺序：L747按`target in {"path", "hostname"} and encoding == "html"`分支；L754断言`result["models"] == []`；L755断言`result["code"] == ("invalid_response" if target == "model" else "invalid_configuratio…`；L756断言`len(calls) == (1 if target == "model" else 0)`；L757断言`secret not in caplog.text + json.dumps(result)`。 调用`caplog.set_level`、`encode`、`"".join`、`ord`、`endpoint.replace`、`ModelDiscoverer( settings, httpx.MockTransport(lambda request: ca…`、`ModelDiscoverer`、`httpx.MockTransport`、`calls.append`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_structured_or_long_credentials_remain_blocked_inside_larger_values.encode`（L731–L732）：接收`value`。 调用`"".join`、`value.encode`。 返回路径：L732的`"".join(f"%{byte:02X}" for byte in value.encode())`。
 
 </details>
 
-**创建路径：** `tests/test_model_discovery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L665。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_model_discovery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L757。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`24718`。本段原文以LF换行结束。
+本段原始字节数：`28322`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_model_discovery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8f54521976fb14b847ed46738a775c64b2b85a38bdef5fc837bb1f993a99559a"} -->
+<!-- learning-source: {"path": "tests/test_model_discovery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fae075340548e70e02c6b844b77c84e1884d76caa46a9ffbb36d6d3d76f736fe"} -->
 ````python
 # tests/test_model_discovery.py
 """Offline catalog lookup: no inference, real credentials or provider requests."""
@@ -736,4 +741,96 @@ def test_catalog_trace_is_request_local_and_preserves_unrelated_debug_logs(
     assert SECRET not in caplog.text
     assert "unrelated-debug-preserved" in caplog.text
     assert "http_status=200" in caplog.text
+
+
+@pytest.mark.parametrize("draft", (False, True))
+def test_short_symbol_key_allows_public_hostname_and_embedded_model_word(settings, draft):
+    profile = {"base_url": "https://api.example/v1", "api_key": "api"}
+    if draft:
+        request = command(profile=profile)
+    else:
+        saved = ModelSettingsRepository(settings).update(
+            {"expected_revision": "0", "default": profile}
+        )
+        request = command(saved["revision"])
+    calls = []
+    result = ModelDiscoverer(
+        settings,
+        httpx.MockTransport(
+            lambda request: calls.append(request) or catalog("rapid-model", "capital-v2")
+        ),
+    ).discover(request)
+    assert result["ok"] and result["models"] == ["rapid-model", "capital-v2"]
+    assert len(calls) == 1
+    assert calls[0].headers["authorization"] == "Bearer api"
+    assert str(calls[0].url) == "https://api.example/v1/models"
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["api", "echo-api", "api/model", "model_api", "%61pi", "%2561pi", "&#97;pi", "%26%2397%3Bpi"],
+)
+def test_short_symbol_exact_delimited_and_encoded_echoes_are_rejected(settings, model):
+    result = ModelDiscoverer(
+        settings, httpx.MockTransport(lambda request: catalog(model))
+    ).discover(command(profile={"base_url": "https://api.example/v1", "api_key": "api"}))
+    assert result["code"] == "invalid_response" and result["models"] == []
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://api.example/api",
+        "https://api.example/echo-api",
+        "https://api.example/%61pi",
+        "https://api.example/%2561pi",
+        "https://api.example/%25252561pi",
+        "https://echo-api.example/v1",
+        "https://%61pi.example/v1",
+        "https://%2561pi.example/v1",
+    ],
+)
+def test_short_symbol_path_or_decorated_hostname_echo_is_rejected(settings, endpoint):
+    calls = []
+    result = ModelDiscoverer(
+        settings, httpx.MockTransport(lambda request: calls.append(request))
+    ).discover(command(profile={"base_url": endpoint, "api_key": "api"}))
+    assert result["code"] == "invalid_configuration" and not calls
+
+
+@pytest.mark.parametrize("secret", ["A1b2C3d4E5f6G7h8", "sk-ab", SECRET, "key%61"])
+@pytest.mark.parametrize("encoding", ["raw", "percent", "double", "html"])
+@pytest.mark.parametrize("target", ["model", "path", "hostname"])
+def test_structured_or_long_credentials_remain_blocked_inside_larger_values(
+    settings, secret, encoding, target, caplog
+):
+    caplog.set_level(logging.DEBUG)
+
+    def encode(value):
+        return "".join(f"%{byte:02X}" for byte in value.encode())
+
+    encoded = {
+        "raw": secret,
+        "percent": encode(secret),
+        "double": encode(encode(secret)),
+        "html": "".join(f"&#{ord(char)};" for char in secret),
+    }[encoding]
+    endpoint = (
+        f"https://x{encoded}x.example/v1"
+        if target == "hostname"
+        else f"https://provider.example/x{encoded}x"
+        if target == "path"
+        else "https://provider.example/v1"
+    )
+    if target in {"path", "hostname"} and encoding == "html":
+        endpoint = endpoint.replace("#", "%23")
+    calls = []
+    result = ModelDiscoverer(
+        settings,
+        httpx.MockTransport(lambda request: calls.append(request) or catalog("x" + encoded + "x")),
+    ).discover(command(profile={"base_url": endpoint, "api_key": secret}))
+    assert result["models"] == []
+    assert result["code"] == ("invalid_response" if target == "model" else "invalid_configuration")
+    assert len(calls) == (1 if target == "model" else 0)
+    assert secret not in caplog.text + json.dumps(result)
 ````

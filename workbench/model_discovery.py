@@ -4,10 +4,12 @@ Only GET /models is sent. Drafts never enter credential storage, and use the sam
 destination/key binding checks as saved configuration. No inference or retries.
 """
 
+import html
 import json
 import time
 import unicodedata
 from typing import Any, Literal
+from urllib.parse import unquote, urlsplit
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,6 +22,86 @@ DISCOVERY_TIMEOUT_SECONDS = 20
 MAX_DISCOVERY_BYTES = 1024 * 1024
 MAX_DISCOVERY_MODELS = 1000
 MAX_MODEL_ID_LENGTH = 256
+
+
+def _representations(value):
+    """Inspect literal and successively decoded text, never only the last form.
+
+    Keeping intermediate forms matters when a credential itself contains an
+    escape sequence. These decoders shorten changed input, bounding the loop by
+    the already limited URL/model length. JSON escapes are decoded by json.loads.
+    """
+    yield value
+    while True:
+        previous = value
+        for decode in (html.unescape, unquote):
+            decoded = decode(value)
+            if decoded != value:
+                yield decoded
+                value = decoded
+        if value == previous:
+            return
+
+
+def _short_symbol(secret):
+    # This is a narrow lexical exception, not a minimum credential length or an
+    # entropy claim. Longer or punctuation-bearing keys retain substring checks.
+    return 0 < len(secret) < 8 and secret.isascii() and secret.isalnum()
+
+
+def _credential_token(value, secret):
+    start = value.find(secret)
+    while start >= 0:
+        end = start + len(secret)
+        if (start == 0 or not value[start - 1].isalnum()) and (
+            end == len(value) or not value[end].isalnum()
+        ):
+            return True
+        start = value.find(secret, start + 1)
+    return False
+
+
+def _contains_credential(value, secrets, *, hostname=False):
+    """Conservative disclosure screening, not proof of arbitrary echo absence.
+
+    A short symbol inside a word cannot be distinguished from a coincidence
+    (key 'api', model 'rapid'). The narrow lexical exception permits that case;
+    exact/delimited echoes remain blocked even when they might be legitimate IDs.
+    """
+    for representation in _representations(value):
+        for secret in secrets:
+            if not secret:
+                continue
+            if not _short_symbol(secret):
+                if secret in representation:
+                    return True
+                continue
+            # A short key can coincide with a public destination label such as
+            # api.example. Do not treat that label (or 'api' inside 'rapid') as
+            # evidence of credential embedding. A decorated echo-api label is
+            # still rejected, as are exact/delimited keys in paths/model IDs.
+            parts = representation.split(".") if hostname else (representation,)
+            if any(
+                not (hostname and representation == value and part == secret)
+                and _credential_token(part, secret)
+                for part in parts
+            ):
+                return True
+    return False
+
+
+def _endpoint_contains_credential(endpoint, secrets):
+    # Long/structured credentials remain forbidden anywhere, including authority
+    # and encoded forms. Short symbols use URL syntax rather than raw substring.
+    if _contains_credential(endpoint, [key for key in secrets if not _short_symbol(key)]):
+        return True
+    parsed = urlsplit(endpoint)
+    short = [key for key in secrets if _short_symbol(key)]
+    # Preserve case: urlsplit.hostname lowercases DNS names while keys do not.
+    authority = parsed.netloc.rsplit(":", 1)[0] if parsed.port else parsed.netloc
+    return _contains_credential(authority, short, hostname=True) or _contains_credential(
+        parsed.path, short
+    )
 
 
 class ModelDiscoveryRequest(BaseModel):
@@ -132,10 +214,10 @@ def _model_ids(response, *, deadline, secrets):
             or len(model) > MAX_MODEL_ID_LENGTH
             or model != model.strip()
             or any(unicodedata.category(char).startswith("C") for char in model)
-            or any(secret in model for secret in secrets)
+            or _contains_credential(model, secrets)
         ):
             # Never offer a redacted/modified ID as a usable model. A provider
-            # echoing any saved or draft secret makes its catalog invalid.
+            # containing a screened saved/draft credential makes it invalid.
             raise DiscoveryResponseError()
         if model not in seen:
             models.append(model)
@@ -201,7 +283,7 @@ class ModelDiscoverer:
                 for profile in (snapshot.default, *snapshot.stages.values())
                 if profile.api_key.get_secret_value()
             )
-        if any(secret in endpoint for secret in secrets):
+        if _endpoint_contains_credential(endpoint, secrets):
             return finish("invalid_configuration", "API 根地址中不能包含 API Key")
         timeout = min(self.settings.llm_timeout, DISCOVERY_TIMEOUT_SECONDS)
         try:

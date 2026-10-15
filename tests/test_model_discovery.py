@@ -663,3 +663,95 @@ def test_catalog_trace_is_request_local_and_preserves_unrelated_debug_logs(
     assert SECRET not in caplog.text
     assert "unrelated-debug-preserved" in caplog.text
     assert "http_status=200" in caplog.text
+
+
+@pytest.mark.parametrize("draft", (False, True))
+def test_short_symbol_key_allows_public_hostname_and_embedded_model_word(settings, draft):
+    profile = {"base_url": "https://api.example/v1", "api_key": "api"}
+    if draft:
+        request = command(profile=profile)
+    else:
+        saved = ModelSettingsRepository(settings).update(
+            {"expected_revision": "0", "default": profile}
+        )
+        request = command(saved["revision"])
+    calls = []
+    result = ModelDiscoverer(
+        settings,
+        httpx.MockTransport(
+            lambda request: calls.append(request) or catalog("rapid-model", "capital-v2")
+        ),
+    ).discover(request)
+    assert result["ok"] and result["models"] == ["rapid-model", "capital-v2"]
+    assert len(calls) == 1
+    assert calls[0].headers["authorization"] == "Bearer api"
+    assert str(calls[0].url) == "https://api.example/v1/models"
+
+
+@pytest.mark.parametrize(
+    "model",
+    ["api", "echo-api", "api/model", "model_api", "%61pi", "%2561pi", "&#97;pi", "%26%2397%3Bpi"],
+)
+def test_short_symbol_exact_delimited_and_encoded_echoes_are_rejected(settings, model):
+    result = ModelDiscoverer(
+        settings, httpx.MockTransport(lambda request: catalog(model))
+    ).discover(command(profile={"base_url": "https://api.example/v1", "api_key": "api"}))
+    assert result["code"] == "invalid_response" and result["models"] == []
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "https://api.example/api",
+        "https://api.example/echo-api",
+        "https://api.example/%61pi",
+        "https://api.example/%2561pi",
+        "https://api.example/%25252561pi",
+        "https://echo-api.example/v1",
+        "https://%61pi.example/v1",
+        "https://%2561pi.example/v1",
+    ],
+)
+def test_short_symbol_path_or_decorated_hostname_echo_is_rejected(settings, endpoint):
+    calls = []
+    result = ModelDiscoverer(
+        settings, httpx.MockTransport(lambda request: calls.append(request))
+    ).discover(command(profile={"base_url": endpoint, "api_key": "api"}))
+    assert result["code"] == "invalid_configuration" and not calls
+
+
+@pytest.mark.parametrize("secret", ["A1b2C3d4E5f6G7h8", "sk-ab", SECRET, "key%61"])
+@pytest.mark.parametrize("encoding", ["raw", "percent", "double", "html"])
+@pytest.mark.parametrize("target", ["model", "path", "hostname"])
+def test_structured_or_long_credentials_remain_blocked_inside_larger_values(
+    settings, secret, encoding, target, caplog
+):
+    caplog.set_level(logging.DEBUG)
+
+    def encode(value):
+        return "".join(f"%{byte:02X}" for byte in value.encode())
+
+    encoded = {
+        "raw": secret,
+        "percent": encode(secret),
+        "double": encode(encode(secret)),
+        "html": "".join(f"&#{ord(char)};" for char in secret),
+    }[encoding]
+    endpoint = (
+        f"https://x{encoded}x.example/v1"
+        if target == "hostname"
+        else f"https://provider.example/x{encoded}x"
+        if target == "path"
+        else "https://provider.example/v1"
+    )
+    if target in {"path", "hostname"} and encoding == "html":
+        endpoint = endpoint.replace("#", "%23")
+    calls = []
+    result = ModelDiscoverer(
+        settings,
+        httpx.MockTransport(lambda request: calls.append(request) or catalog("x" + encoded + "x")),
+    ).discover(command(profile={"base_url": endpoint, "api_key": secret}))
+    assert result["models"] == []
+    assert result["code"] == ("invalid_response" if target == "model" else "invalid_configuration")
+    assert len(calls) == (1 if target == "model" else 0)
+    assert secret not in caplog.text + json.dumps(result)
