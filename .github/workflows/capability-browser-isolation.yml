@@ -2,8 +2,7 @@ name: Offline candidate browser isolation
 on:
   pull_request:
     paths:
-      - 'workbench/capability_browser_isolation.py'
-      - 'workbench/capability_verification.py'
+      - 'workbench/**'
       - 'scripts/capability_browser*'
       - 'scripts/ci_capability_browser_isolation.py'
       - 'tests/test_capability_browser_isolation.py'
@@ -12,8 +11,7 @@ on:
   push:
     branches: [feature/capability-nodes-transcript]
     paths:
-      - 'workbench/capability_browser_isolation.py'
-      - 'workbench/capability_verification.py'
+      - 'workbench/**'
       - 'scripts/capability_browser*'
       - 'scripts/ci_capability_browser_isolation.py'
       - 'tests/test_capability_browser_isolation.py'

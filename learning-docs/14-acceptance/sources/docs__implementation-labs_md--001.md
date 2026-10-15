@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/implementation-labs.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L310。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16658`。本段原文以LF换行结束。
+本段原始字节数：`16667`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/implementation-labs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c391d416d11540ab933a701a22440576622bc30ff4c71d46f82b03bb2d50329"} -->
+<!-- learning-source: {"path": "docs/implementation-labs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9c0aa631e89e37e871306d1635d556080c8f152856327cdf188fb7126f58944d"} -->
 ````markdown
 <!-- docs/implementation-labs.md -->
 # 动手写与跑：从第一行Python到完整调用链
@@ -224,7 +224,7 @@ source和index是并列目录。如果把index放进source，下一次扫描会�
 
 ## 第5课：业务表达式为何不能变成任意Python
 
-**先完成**`workbench/rules.py`。新建`learning/lesson_05.py`：
+**先完成**`workbench/planning/rules.py`。新建`learning/lesson_05.py`：
 
 ```python
 # lesson: 05

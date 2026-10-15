@@ -249,7 +249,7 @@ class Settings(BaseSettings):
             (self.data_dir / name).mkdir(exist_ok=True)
 
     def model_configuration(self):
-        from workbench.model_settings import ModelSettingsRepository
+        from workbench.models.settings import ModelSettingsRepository
 
         configuration = ModelSettingsRepository(self).snapshot()
         self._remember_model_keys(configuration)

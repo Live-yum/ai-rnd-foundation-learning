@@ -72,9 +72,9 @@
 
 **创建路径：** `tests/test_capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L933。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`37544`。本段原文以LF换行结束。
+本段原始字节数：`37566`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e07f513fad9f2bc021565bbd0f1efc048b95a9ef4a10249cee5d5ac9fccba572"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "efc8d923191424936868da028f5b8aceeb3db1fa18fa1ec9d78bcc1c2c0f2022"} -->
 ````python
 # tests/test_capability_startup_paths.py
 """Finite metadata from real owned launch fixtures, without candidate execution."""
@@ -485,7 +485,7 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     from workbench.capability_sandbox import startup_failure_diagnostic
     from workbench.capability_verification import CheckFailure
 
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     start = next(
         n
         for n in ast.walk(ast.parse(source.read_text(encoding="utf-8")))
@@ -784,7 +784,7 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
     from workbench.capability_sandbox import startup_command_exit_facts, startup_failure_diagnostic
     from workbench.capability_verification import BrowserFailure, CheckFailure
 
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     tree = ast.parse(source.read_text())
     outer = next(
         n

@@ -55,9 +55,9 @@
 
 **创建路径：** `tests/test_production_v2.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L544。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19565`。本段原文以LF换行结束。
+本段原始字节数：`19577`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4411a63bdc409530b3246462459933fb14a1e6ac15f038631b83efc0dce1dc1e"} -->
+<!-- learning-source: {"path": "tests/test_production_v2.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d18b6ae7084d4a75c3e9e06f8a47f8035788c8eb9ff7dcb0e1ed3678fe1ffc1b"} -->
 ````python
 # tests/test_production_v2.py
 """New-run contracts, untrusted artifact boundaries and real isolated worker protocol."""
@@ -194,7 +194,7 @@ def test_v1_dump_and_gate_identity_are_not_upgraded():
     "field,value",
     [
         ("task_id", "other"),
-        ("allowed_paths", ["workbench/flow.py"]),
+        ("allowed_paths", ["workbench/production/graph.py"]),
         ("requirement_ids", ["invented"]),
         ("acceptance_ids", ["fake"]),
         ("max_steps", 0),

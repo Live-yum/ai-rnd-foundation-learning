@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/template-platform.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L193。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15128`。本段原文以LF换行结束。
+本段原始字节数：`15129`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "13ee3197dff8a6e9ee89b5f82f9586e7d9851abb8ad94f9f984a978d4e5360c2"} -->
+<!-- learning-source: {"path": "docs/template-platform.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ecc7d06fa2d4a1c15899cf0899271602a83ac3e0cdd04aab03a35ed264bb3121"} -->
 ````markdown
 <!-- docs/template-platform.md -->
 # 从零实现可批量定制的模板研发平台
@@ -25,7 +25,7 @@
 
 | 对象 | 解决什么问题 | 对应位置 |
 |---|---|---|
-| 技术模板 | 选后端、前端、数据库、已有能力与代码规范 | `workbench/template_adapters.py`、`templates/standards/` |
+| 技术模板 | 选后端、前端、数据库、已有能力与代码规范 | `workbench/templates/adapters.py`、`templates/standards/` |
 | 业务需求 | 定义这个项目的角色、数据、操作、流程与验收 | `examples/acceptance/*/requirement.md` |
 | 一次运行 | 保存本次输入、批准版本、步骤、模型调用、产物与验证结果 | `Store`、`Runtime`、LangGraph checkpoint |
 

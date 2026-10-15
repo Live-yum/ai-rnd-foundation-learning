@@ -10,19 +10,18 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L64。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L62。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2718`。本段原文以LF换行结束。
+本段原始字节数：`2566`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f891099aaeb69e272f7535aa70793ab09c888451055f36eaffc42f00f94291e5"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b6d6e4af5864d380fed02fd23feaa97b6acb7b17b9915637fd78eb4744ec0832"} -->
 ````yaml
 # .github/workflows/capability-browser-isolation.yml
 name: Offline candidate browser isolation
 on:
   pull_request:
     paths:
-      - 'workbench/capability_browser_isolation.py'
-      - 'workbench/capability_verification.py'
+      - 'workbench/**'
       - 'scripts/capability_browser*'
       - 'scripts/ci_capability_browser_isolation.py'
       - 'tests/test_capability_browser_isolation.py'
@@ -31,8 +30,7 @@ on:
   push:
     branches: [feature/capability-nodes-transcript]
     paths:
-      - 'workbench/capability_browser_isolation.py'
-      - 'workbench/capability_verification.py'
+      - 'workbench/**'
       - 'scripts/capability_browser*'
       - 'scripts/ci_capability_browser_isolation.py'
       - 'tests/test_capability_browser_isolation.py'

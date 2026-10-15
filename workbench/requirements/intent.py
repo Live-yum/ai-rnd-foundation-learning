@@ -7,8 +7,8 @@ public entrant registration. Unknown prose remains for normal analysis.
 
 import re
 
-from workbench.domain import Requirement, digest
-from workbench.requirement_canonical import canonicalize_requirement
+from workbench.core.contracts import Requirement, digest
+from workbench.requirements.canonical import canonicalize_requirement
 
 PUBLIC_REGISTRATION = "entrant-registration-entrypoint"
 SCOPE_QUESTION = "参与者将通过哪种入口报名？"

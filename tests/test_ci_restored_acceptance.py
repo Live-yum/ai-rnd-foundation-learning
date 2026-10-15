@@ -152,7 +152,9 @@ def test_inside_browser_keeps_failed_evidence_and_never_runs_other_phases(monkey
     import workbench.store
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(workbench.store, "__file__", str(tmp_path / "workbench/store.py"))
+    monkeypatch.setattr(
+        workbench.store, "__file__", str(tmp_path / "workbench/infrastructure/persistence/store.py")
+    )
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
     monkeypatch.setenv("GITHUB_RUN_ID", "123")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
@@ -435,7 +437,9 @@ def test_inside_early_setup_failure_always_has_structured_bound_evidence(
     import workbench.store
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(workbench.store, "__file__", str(tmp_path / "workbench/store.py"))
+    monkeypatch.setattr(
+        workbench.store, "__file__", str(tmp_path / "workbench/infrastructure/persistence/store.py")
+    )
     monkeypatch.setattr(
         ci_restored, "run_binding", lambda: {"head": "a" * 40, "run": "123", "attempt": "2"}
     )
@@ -505,7 +509,9 @@ def test_inside_shard_retains_original_fresh_directory_contract_and_terminal_sta
     from scripts import ci_pytest
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(workbench.store, "__file__", str(tmp_path / "workbench/store.py"))
+    monkeypatch.setattr(
+        workbench.store, "__file__", str(tmp_path / "workbench/infrastructure/persistence/store.py")
+    )
     monkeypatch.setattr(
         ci_restored, "run_binding", lambda: {"head": "a" * 40, "run": "123", "attempt": "2"}
     )

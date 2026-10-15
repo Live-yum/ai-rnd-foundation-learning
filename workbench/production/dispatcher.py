@@ -11,29 +11,29 @@ from pathlib import Path
 
 from pydantic import Field
 
-from workbench.capability_contracts import (
+from workbench.acceptance.capability_verification import CheckFailure, require_evidence
+from workbench.coding.candidates import apply_candidate, task_path_errors
+from workbench.core.contracts import Contract, ModelReview, Plan, digest
+from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.extensions.obligations import review_contract, reviewed_coverage
+from workbench.extensions.policy import business_coverage, contract_errors, scope_policy
+from workbench.extensions.readiness import readiness_report
+from workbench.filesystem import files, inside, manifest, sha, unpack, write_json
+from workbench.generation.python_basic import PrerequisiteError, generate_basic
+from workbench.planning.contracts import (
     CapabilityEdits,
     CapabilityPlan,
     coverage_errors,
     custom_requested,
     scope_sources,
 )
-from workbench.capability_editing import apply_candidate, task_path_errors
-from workbench.capability_obligations import review_contract, reviewed_coverage
-from workbench.capability_policy import business_coverage, contract_errors, scope_policy
-from workbench.capability_readiness import readiness_report
-from workbench.capability_verification import CheckFailure, require_evidence
-from workbench.catalog import options_for_run
-from workbench.domain import Contract, ModelReview, Plan, digest
-from workbench.errors import PausedLimit, UnsupportedScope
-from workbench.feature_planning import (
+from workbench.planning.feature_planner import (
     FeatureDesign,
     feature_design_errors,
     planning_payload,
 )
-from workbench.filesystem import files, inside, manifest, sha, unpack, write_json
-from workbench.generator import PrerequisiteError, generate_basic
-from workbench.template_adapters import get_adapter
+from workbench.templates.adapters import get_adapter
+from workbench.templates.catalog import options_for_run
 
 
 class ExtensionDesign(Contract):
@@ -137,7 +137,7 @@ def design_errors(design, scope, selection):
     for task in plan.tasks:
         errors.extend(task_path_errors(task, selection))
     if selection["template"] == "fastapiadmin":
-        from workbench.native_modules import validate_plan
+        from workbench.generation.native.modules import validate_plan
 
         try:
             validate_plan(design.baseline)
@@ -259,7 +259,7 @@ class ExtensionWorkflow:
             )
         elif value.outline.version != 1:
             raise UnsupportedScope("旧运行只能使用V1合同，不能由模型隐式升级审批")
-        from workbench.native_plan_normalization import normalize_native_plan
+        from workbench.generation.native.plan_normalization import normalize_native_plan
 
         value.baseline, normalization = normalize_native_plan(
             value.baseline,
@@ -324,10 +324,10 @@ class ExtensionWorkflow:
         return update
 
     def _feature_requirement_errors(self, state, baseline):
-        from workbench.business_capabilities import business_gaps
-        from workbench.domain import Requirement
-        from workbench.native_plan_normalization import source_plan
-        from workbench.requirement_coverage import coverage_gaps
+        from workbench.business.capabilities import business_gaps
+        from workbench.core.contracts import Requirement
+        from workbench.generation.native.plan_normalization import source_plan
+        from workbench.requirements.coverage import coverage_gaps
 
         requirement = Requirement.model_validate(state["requirement"])
         source_view = source_plan(baseline, state.get("native_normalization", {}))
@@ -525,13 +525,13 @@ class ExtensionWorkflow:
             if selection["template"] == "python-basic":
                 generate_basic(design.baseline, baseline, selection=selection)
             else:
-                from workbench.native import generate_native
+                from workbench.generation.native.service import generate_native
 
                 generate_native(
                     self.settings, selection["template"], design.baseline, baseline, managed=True
                 )
             if selection["template"] == "python-basic":
-                from workbench.capability_consumer import prepare_consumer
+                from workbench.extensions.consumer import prepare_consumer
 
                 prepare_consumer(baseline, design.implementation)
             return {"files": manifest(baseline)}
@@ -604,13 +604,13 @@ class ExtensionWorkflow:
                     if path.is_file()
                     else {"sha256": None, "content": None}
                 )
-            from workbench.knowledge import build_index
-            from workbench.retrieval import compact_map, query
+            from workbench.knowledge_services.index import build_index
+            from workbench.knowledge_services.retrieval import compact_map, query
 
             index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
             build_index(product, index)
             if self.settings.repo_map_provider == "aider":
-                from workbench.aider_tool import repo_map
+                from workbench.coding.aider import repo_map
 
                 mapping = repo_map(product, index, self.settings)
             else:
@@ -680,7 +680,7 @@ class ExtensionWorkflow:
         }
 
     def extension_verify(self, state):
-        from workbench.capability_sandbox import verify_capabilities
+        from workbench.acceptance.capability_sandbox import verify_capabilities
 
         design = self.checked_extension(state)
         task = self.extension_task(state, design)
@@ -751,7 +751,7 @@ class ExtensionWorkflow:
         return {"extension_attempt": state.get("extension_attempt", 0) + 1}
 
     def extension_aggregate(self, state):
-        from workbench.capability_sandbox import verify_capabilities
+        from workbench.acceptance.capability_sandbox import verify_capabilities
 
         design = self.checked_extension(state)
         plan = design.implementation
@@ -930,7 +930,7 @@ class ExtensionWorkflow:
         return result
 
     def extension_package(self, state):
-        from workbench.capability_sandbox import verify_capabilities
+        from workbench.acceptance.capability_sandbox import verify_capabilities
 
         design = self.checked_extension(state)
         plan = design.implementation
@@ -988,7 +988,7 @@ class ExtensionWorkflow:
             )
             self.extension_coverage(state, design, proof)
             if plan.selection.template == "python-basic":
-                from workbench.capability_consumer import require_consumer_evidence
+                from workbench.extensions.consumer import require_consumer_evidence
 
                 require_consumer_evidence(clean, plan, proof)
         temporary.replace(archive)

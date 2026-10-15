@@ -311,7 +311,7 @@ def test_api_only_baseline_is_explicit_and_cannot_invent_frontend_capabilities(
 def test_portable_and_runtime_rebuild_use_same_current_registry_overlay():
     from workbench.portable import HELPERS
 
-    assert "yudao_navigation.py" in HELPERS
+    assert "generation/native/yudao_navigation.py" in HELPERS
     assert "mappings.getHandlerMethods()" in POLICY
     assert "findMergedAnnotation(handler.getMethod(), PreAuthorize.class)" in POLICY
     assert "menuMapper" not in POLICY

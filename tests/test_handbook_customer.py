@@ -7,7 +7,7 @@ import struct
 from pathlib import Path
 
 from scripts.build_handbook import GUIDES, OUTPUT, ROOT, sources
-from scripts.handbook_notes import BUSINESS_FILES, MODULES, PRODUCT, purpose
+from scripts.handbook_notes import BUSINESS_FILES, MODULES, PRODUCT, RELOCATED_MODULES, purpose
 
 
 def test_sourcebook_contains_every_customer_implementation_and_input():
@@ -31,7 +31,7 @@ def test_sourcebook_contains_every_customer_implementation_and_input():
         "tests/test_handbook_customer.py",
     }
     for pattern in (
-        "workbench/business*.py",
+        "workbench/business/**/*.py",
         "templates/business/**/*",
         "templates/product/business*.py",
         "templates/product/verify*business*",
@@ -49,8 +49,12 @@ def test_sourcebook_contains_every_customer_implementation_and_input():
 
 
 def test_business_files_have_specific_architecture_and_component_notes():
-    for path in (ROOT / "workbench").glob("business*.py"):
-        assert path.stem in MODULES, path
+    for path in (ROOT / "workbench/business").rglob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        relative = path.relative_to(ROOT / "workbench").with_suffix("").as_posix()
+        assert RELOCATED_MODULES[relative] in MODULES, path
+        assert purpose(path.relative_to(ROOT).as_posix()) == MODULES[RELOCATED_MODULES[relative]]
     for path in (ROOT / "templates/business").rglob("*"):
         if not path.is_file() or "__pycache__" in path.parts:
             continue

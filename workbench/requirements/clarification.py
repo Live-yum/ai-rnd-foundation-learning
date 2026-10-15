@@ -1,6 +1,6 @@
 """Validate current-gate choices and preserve the operator's explicit answer text."""
 
-from workbench.domain import ClarificationQuestion
+from workbench.core.contracts import ClarificationQuestion
 
 
 def render_answer(pending, data):
@@ -10,7 +10,7 @@ def render_answer(pending, data):
     called inside Store.submit's locked transaction, after the gate identity check.
     CLI/free-text answers remain unchanged, including when no choice UI is available.
     """
-    from workbench.store import Conflict
+    from workbench.infrastructure.persistence.store import Conflict
 
     answers = data.get("answers", [])
     if not answers:

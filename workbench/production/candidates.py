@@ -9,7 +9,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from workbench.capability_verification import require_evidence
+from workbench.acceptance.capability_verification import require_evidence
 from workbench.core.contracts import digest
 from workbench.filesystem import manifest, write_json
 

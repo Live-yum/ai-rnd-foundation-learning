@@ -15,20 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_sourcebook_contains_every_customer_implementation_and_input`（L13–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33遍历`( "workbench/business*.py", "templates/business/**/*", "templates…`；L45断言`required <= names`；L46断言`"docs/business-platform.md" in GUIDES`；L47断言`not any(Path(name).name in {".env", "user.env"} for name in names)`；L48断言`list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md")) == [OUTPUT]`。 调用`sources`、`required.update`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`ROOT.glob`、`path.is_file`、`sorted`、`any`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_business_files_have_specific_architecture_and_component_notes`（L51–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L52遍历`(ROOT / "workbench").glob("business*.py")`；L53断言`path.stem in MODULES`；L54遍历`(ROOT / "templates/business").rglob("*")`；L55按`not path.is_file() or "__pycache__" in path.parts`分支；L58断言`relative in BUSINESS_FILES`；L60断言`role == BUSINESS_FILES[relative]`；L61断言`all(role)`；L62断言`"Fa" in purpose("templates/business/fastapiadmin/index.vue")[0]`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / "workbench").glob`、`(ROOT / "templates/business").rglob`、`path.is_file`、`path.relative_to(ROOT / "templates/business").as_posix`、`path.relative_to`、`purpose`、`path.relative_to(ROOT).as_posix`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_learning_path_includes_real_initialization_and_all_three_templates`（L74–L95）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78遍历`(readme, guide, chapter)`；L79断言`"customer-service-decisions.md" in text`；L80断言`"customer-service-contract.md" in text`；L81断言`"bootstrap-admin --username manager" in text`；L82遍历`( "business_schema.build_metadata", "business_runtime.install_bus…`；L93断言`token in chapter`；L94断言`"原始需求逐项映射" in chapter`；L95断言`"亲手跑一遍完整客服操作" in chapter`。 调用`(ROOT / "README.md").read_text`、`(ROOT / "docs/guide.md").read_text`、`(ROOT / "docs/business-platform.md").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_model_lesson_has_exact_commit_gate_and_separate_template_evidence`（L98–L118）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`( "feat/customer-service-acceptance", "native-probe.yml", "real_m…`；L116断言`token in text`；L117断言`"不预先声称任何模板已经通过" in text`；L118断言`"新库" in text and "重启" in text`。 调用`(ROOT / "docs/real-model-acceptance.md").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_screenshots_are_authentic_hashed_and_in_the_source_snapshot`（L121–L150）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L125断言`provenance["template"] == summary["workflow"]["template"] == "fastapiadmin"`；L126断言`provenance["genuine_model"] is True`；L127断言`summary["passed"] is True and summary["workflow"]["real_model"] is True`；L128断言`provenance["acceptance_scope"] == summary["acceptance_scope"] == "full_workflow"`；L129断言`provenance["source_sha"] == "a15137ff1aca04d3091a9c4f7cfa99bb09436d07"`；L130断言`summary["run_identity"] == [ str(provenance["run_id"]), str(provenance["run_attempt"]…`；L135断言`provenance["upstream_template_sha"] == "1cd12c726ad9032c17ef85ce805ce991be60fbdf"`；L137断言`len(provenance["screenshots"]) == 6`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(folder / "provenance.json").read_text`、`(folder / provenance["workflow_summary"]).read_text`、`str`、`sources`、`len`、`folder.glob`、`path.read_bytes`、`data.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_images_follow_the_operation_they_explain`（L153–L183）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167遍历`locations.items()`；L169断言`chapter.rfind("\n## ", 0, position) == chapter.index("\n" + heading)`；L171遍历`("操作位置", "预期", "FastapiAdmin", "a15137ff", "真实模型运行36789925373")`；L172断言`token in caption`；L173断言`f"](docs/images/customer-service/{image_name})" in rendered`；L175断言`len(images) == 6`；L176遍历`images`；L177断言`len(alt) >= 20`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / name).read_text`、`guide_text`、`locations.items`、`chapter.index`、`chapter.rfind`、`chapter[position:].split`、`re.findall`、`len`、`(ROOT / "docs" / relative).is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sourcebook_contains_every_customer_implementation_and_input`（L13–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33遍历`( "workbench/business/**/*.py", "templates/business/**/*", "templ…`；L45断言`required <= names`；L46断言`"docs/business-platform.md" in GUIDES`；L47断言`not any(Path(name).name in {".env", "user.env"} for name in names)`；L48断言`list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md")) == [OUTPUT]`。 调用`sources`、`required.update`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`ROOT.glob`、`path.is_file`、`sorted`、`any`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_files_have_specific_architecture_and_component_notes`（L51–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L52遍历`(ROOT / "workbench/business").rglob("*.py")`；L53按`path.name == "__init__.py"`分支；L56断言`RELOCATED_MODULES[relative] in MODULES`；L57断言`purpose(path.relative_to(ROOT).as_posix()) == MODULES[RELOCATED_MODULES[relative]]`；L58遍历`(ROOT / "templates/business").rglob("*")`；L59按`not path.is_file() or "__pycache__" in path.parts`分支；L62断言`relative in BUSINESS_FILES`；L64断言`role == BUSINESS_FILES[relative]`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / "workbench/business").rglob`、`path.relative_to(ROOT / "workbench").with_suffix("").as_posix`、`path.relative_to(ROOT / "workbench").with_suffix`、`path.relative_to`、`purpose`、`path.relative_to(ROOT).as_posix`、`(ROOT / "templates/business").rglob`、`path.is_file`、`path.relative_to(ROOT / "templates/business").as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_learning_path_includes_real_initialization_and_all_three_templates`（L78–L99）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L82遍历`(readme, guide, chapter)`；L83断言`"customer-service-decisions.md" in text`；L84断言`"customer-service-contract.md" in text`；L85断言`"bootstrap-admin --username manager" in text`；L86遍历`( "business_schema.build_metadata", "business_runtime.install_bus…`；L97断言`token in chapter`；L98断言`"原始需求逐项映射" in chapter`；L99断言`"亲手跑一遍完整客服操作" in chapter`。 调用`(ROOT / "README.md").read_text`、`(ROOT / "docs/guide.md").read_text`、`(ROOT / "docs/business-platform.md").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_model_lesson_has_exact_commit_gate_and_separate_template_evidence`（L102–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L104遍历`( "feat/customer-service-acceptance", "native-probe.yml", "real_m…`；L120断言`token in text`；L121断言`"不预先声称任何模板已经通过" in text`；L122断言`"新库" in text and "重启" in text`。 调用`(ROOT / "docs/real-model-acceptance.md").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_screenshots_are_authentic_hashed_and_in_the_source_snapshot`（L125–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L129断言`provenance["template"] == summary["workflow"]["template"] == "fastapiadmin"`；L130断言`provenance["genuine_model"] is True`；L131断言`summary["passed"] is True and summary["workflow"]["real_model"] is True`；L132断言`provenance["acceptance_scope"] == summary["acceptance_scope"] == "full_workflow"`；L133断言`provenance["source_sha"] == "a15137ff1aca04d3091a9c4f7cfa99bb09436d07"`；L134断言`summary["run_identity"] == [ str(provenance["run_id"]), str(provenance["run_attempt"]…`；L139断言`provenance["upstream_template_sha"] == "1cd12c726ad9032c17ef85ce805ce991be60fbdf"`；L141断言`len(provenance["screenshots"]) == 6`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(folder / "provenance.json").read_text`、`(folder / provenance["workflow_summary"]).read_text`、`str`、`sources`、`len`、`folder.glob`、`path.read_bytes`、`data.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_images_follow_the_operation_they_explain`（L157–L187）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L171遍历`locations.items()`；L173断言`chapter.rfind("\n## ", 0, position) == chapter.index("\n" + heading)`；L175遍历`("操作位置", "预期", "FastapiAdmin", "a15137ff", "真实模型运行36789925373")`；L176断言`token in caption`；L177断言`f"](docs/images/customer-service/{image_name})" in rendered`；L179断言`len(images) == 6`；L180遍历`images`；L181断言`len(alt) >= 20`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / name).read_text`、`guide_text`、`locations.items`、`chapter.index`、`chapter.rfind`、`chapter[position:].split`、`re.findall`、`len`、`(ROOT / "docs" / relative).is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_handbook_customer.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L183。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_handbook_customer.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L187。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8034`。本段原文以LF换行结束。
+本段原始字节数：`8318`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_handbook_customer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eca42e2f96cb5186d99fe32c26b1dfe1c1f786c3c03252f039ef77d8f5a417ab"} -->
+<!-- learning-source: {"path": "tests/test_handbook_customer.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fd6172d685e10679d31e8dfa974a0e540aef45dc966827ca144224dcac03fa00"} -->
 ````python
 # tests/test_handbook_customer.py
 """The single from-zero sourcebook teaches and reconstructs the complete customer path."""
@@ -40,7 +40,7 @@ import struct
 from pathlib import Path
 
 from scripts.build_handbook import GUIDES, OUTPUT, ROOT, sources
-from scripts.handbook_notes import BUSINESS_FILES, MODULES, PRODUCT, purpose
+from scripts.handbook_notes import BUSINESS_FILES, MODULES, PRODUCT, RELOCATED_MODULES, purpose
 
 
 def test_sourcebook_contains_every_customer_implementation_and_input():
@@ -64,7 +64,7 @@ def test_sourcebook_contains_every_customer_implementation_and_input():
         "tests/test_handbook_customer.py",
     }
     for pattern in (
-        "workbench/business*.py",
+        "workbench/business/**/*.py",
         "templates/business/**/*",
         "templates/product/business*.py",
         "templates/product/verify*business*",
@@ -82,8 +82,12 @@ def test_sourcebook_contains_every_customer_implementation_and_input():
 
 
 def test_business_files_have_specific_architecture_and_component_notes():
-    for path in (ROOT / "workbench").glob("business*.py"):
-        assert path.stem in MODULES, path
+    for path in (ROOT / "workbench/business").rglob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        relative = path.relative_to(ROOT / "workbench").with_suffix("").as_posix()
+        assert RELOCATED_MODULES[relative] in MODULES, path
+        assert purpose(path.relative_to(ROOT).as_posix()) == MODULES[RELOCATED_MODULES[relative]]
     for path in (ROOT / "templates/business").rglob("*"):
         if not path.is_file() or "__pycache__" in path.parts:
             continue

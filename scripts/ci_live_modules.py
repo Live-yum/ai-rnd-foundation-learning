@@ -116,13 +116,13 @@ def failure_diagnostic(exc):
         "scripts/ci_live_modules.py": "acceptance_controller",
         "workbench/coding/mini_swe.py": "agent_controller",
         "workbench/infrastructure/sandbox/coding.py": "coding_sandbox",
-        "workbench/capability_execution.py": "isolation_admission",
+        "workbench/infrastructure/sandbox/execution.py": "isolation_admission",
         "scripts/daytona_capability_profile.py": "container_inspection",
-        "workbench/capability_isolation.py": "container_evidence",
+        "workbench/infrastructure/sandbox/isolation.py": "container_evidence",
         "workbench/infrastructure/llm/gateway.py": "model_gateway",
         "workbench/coding/candidates.py": "candidate_application",
         "workbench/production/candidates.py": "product_ledger",
-        "workbench/capability_sandbox.py": "independent_verification",
+        "workbench/acceptance/capability_sandbox.py": "independent_verification",
     }
     # Membership produces a fixed value; unknown/provider-defined names are suppressed.
     names = {

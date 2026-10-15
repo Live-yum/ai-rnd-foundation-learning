@@ -8,7 +8,7 @@ import time
 
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import write_json
-from workbench.tools import clean_env, process_options
+from workbench.infrastructure.processes.tools import clean_env, process_options
 
 NAME = re.compile(r"rnd-source-(?:native-)?agent-[a-f0-9]{32}")
 
@@ -124,8 +124,8 @@ def delete_owned(settings, name, identifier, binding, path, deadline):
 
 
 def perform(payload):
+    from workbench.infrastructure.sandbox.daytona.verification import client_for, close_client
     from workbench.local_only import install_loopback_guard
-    from workbench.sandbox import client_for, close_client
     from workbench.settings import Settings
 
     install_loopback_guard()
@@ -229,9 +229,9 @@ def public_receipt(path, task, plan):
 
 def checkpoint_receipts(workspace, task, plan):
     """Project at most eight owned checkpoint receipts before ephemeral source removal."""
-    from workbench.capability_diagnostics import node_diagnostic
     from workbench.core.contracts import digest
     from workbench.filesystem import manifest
+    from workbench.infrastructure.sandbox.diagnostics import node_diagnostic
 
     result = []
     for step in range(1, 9):

@@ -218,7 +218,7 @@ def detailed_fixture(tmp_path):
 
 def test_model_projection_preserves_executed_detail_and_all_bindings(detailed_fixture):
     report, plan = detailed_fixture
-    files = {"start.py": "c" * 64, "deployment/workbench/business_probe.py": "b" * 64}
+    files = {"start.py": "c" * 64, "deployment/workbench/business/probe.py": "b" * 64}
     result = native_review_evidence(report, plan, files, "a" * 64)
     assert result["source_digest"] == digest(files)
     assert result["spec_digest"] == digest(plan.model_dump())
@@ -681,7 +681,7 @@ def test_exact_approved_fastapi_plan_protocol_projection_fits_unchanged_budget(d
         browser["pages"] = [page for page in browser["pages"] if "entity" in page]
         browser["pages"].extend(login_shell_observation(actor) for actor in actors)
         browser["checks"].extend(f"{actor}:real_native_login_menu_shell" for actor in actors)
-    files = {"start.py": "b" * 64, "deployment/workbench/business_probe.py": "c" * 64}
+    files = {"start.py": "b" * 64, "deployment/workbench/business/probe.py": "c" * 64}
     projected = native_review_evidence(report, plan, files, "a" * 64)
     assert projected["version"] == 2
     assert MAX_EVIDENCE_BYTES == 64_000

@@ -21,7 +21,7 @@ from pydantic import (
 )
 from pydantic_core import SchemaError
 
-from workbench.business_contracts import BusinessSpec
+from workbench.business.contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
 UserText = Annotated[str, StringConstraints(strip_whitespace=False)]
@@ -56,7 +56,7 @@ class RunInput(Contract):
 
     @model_validator(mode="after")
     def validate_selection(self):
-        from workbench.catalog import Selection
+        from workbench.templates.catalog import Selection
 
         chosen = Selection.model_validate(self.selection or {"template": self.template})
         if chosen.template != self.template:
@@ -115,7 +115,7 @@ class ResumeInput(Contract):
         if self.action in {"answer", "revise"} and not self.text.strip() and not self.answers:
             raise ValueError("回答或修改意见不能为空")
         if self.action in {"answer", "revise"}:
-            from workbench.conversation import command_word
+            from workbench.requirements.conversation import command_word
 
             if command_word(self.text) in {
                 "批准",

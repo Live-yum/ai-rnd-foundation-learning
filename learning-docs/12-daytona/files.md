@@ -45,12 +45,12 @@
 - [tools/daytona/runner.Dockerfile](sources/tools__daytona__runner_Dockerfile--001.md)：本机Runner服务镜像；1 段
 - [tools/daytona/warm.py](sources/tools__daytona__warm_py--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/yarn-observer.cjs](sources/tools__daytona__yarn-observer_cjs--001.md)：本机Daytona的预热镜像；1 段
-- [workbench/daytona_diagnostics.py](sources/workbench__daytona_diagnostics_py--001.md)：本次自有沙箱的有界启动诊断；1 段
-- [workbench/daytona_sessions.py](sources/workbench__daytona_sessions_py--001.md)：长时间沙箱检查的单次异步提交；1 段
 - [workbench/daytona_worker.py](sources/workbench__daytona_worker_py--001.md)：SDK专用的本机网络子进程；1 段
-- [workbench/infrastructure/sandbox/__init__.py](sources/workbench__infrastructure__sandbox____init___py--001.md)：项目根配置或说明；1 段
 - [workbench/infrastructure/sandbox/cleanup.py](sources/workbench__infrastructure__sandbox__cleanup_py--001.md)：项目根配置或说明；1 段
 - [workbench/infrastructure/sandbox/coding.py](sources/workbench__infrastructure__sandbox__coding_py--001.md)：不依赖Aider的受限规则编辑；1 段
+- [workbench/infrastructure/sandbox/daytona/diagnostics.py](sources/workbench__infrastructure__sandbox__daytona__diagnostics_py--001.md)：本次自有沙箱的有界启动诊断；1 段
+- [workbench/infrastructure/sandbox/daytona/sessions.py](sources/workbench__infrastructure__sandbox__daytona__sessions_py--001.md)：长时间沙箱检查的单次异步提交；1 段
+- [workbench/infrastructure/sandbox/daytona/worker.py](sources/workbench__infrastructure__sandbox__daytona__worker_py--001.md)：SDK专用的本机网络子进程；1 段
 - [workbench/infrastructure/sandbox/deadline.py](sources/workbench__infrastructure__sandbox__deadline_py--001.md)：项目根配置或说明；1 段
 - [workbench/infrastructure/sandbox/file_session.py](sources/workbench__infrastructure__sandbox__file_session_py--001.md)：项目根配置或说明；1 段
 - [workbench/infrastructure/sandbox/windows_job.py](sources/workbench__infrastructure__sandbox__windows_job_py--001.md)：项目根配置或说明；1 段

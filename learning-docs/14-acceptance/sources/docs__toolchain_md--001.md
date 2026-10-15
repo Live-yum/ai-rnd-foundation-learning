@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L379。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35078`。本段原文以LF换行结束。
+本段原始字节数：`35097`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "316a4fdc38e87a0a9913e7f53eb06c16c2b3480c9a291965b2618fa94c3d6603"} -->
+<!-- learning-source: {"path": "docs/toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b520c9d5193540d78a40043cd4aa51869eef93df74d35c7acad4d9da1a5b985"} -->
 ````markdown
 <!-- docs/toolchain.md -->
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
@@ -172,7 +172,7 @@ uv run python -m scripts.ci_toolchain
 
 #### 20.5.1 先建立能独立运行的真实索引组件
 
-先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
+先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/knowledge_services/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
 
 本模块需要Node22，至少22.13。没有Node时从Node.js官方历史发布页选择22.x的本机安装包；Windows安装器完成后重新打开终端，WSL使用Linux版本而非Windows可执行文件。先用`node --version`确认版本，再按顺序执行：
 

@@ -38,8 +38,8 @@ def test_complete_lesson_runs_from_the_printed_code(source, number, tmp_path):
 def test_teaching_notes_do_not_confuse_same_named_functions():
     from scripts.handbook_notes import notes
 
-    auth = notes("workbench/api.py", "def auth():\n    return None\n")
-    sql = notes("workbench/product_sql.py", "def render():\n    return None\n")
+    auth = notes("workbench/interfaces/http.py", "def auth():\n    return None\n")
+    sql = notes("workbench/generation/product_sql.py", "def render():\n    return None\n")
     assert "不联系Dex" in auth
     assert "真实签发" not in auth
     assert "可读DDL" in sql

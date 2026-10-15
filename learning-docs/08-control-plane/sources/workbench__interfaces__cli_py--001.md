@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.catalog`、`workbench.conversation`、`workbench.settings`、`workbench.store`、`workbench.toolchain`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.infrastructure.persistence.store`、`workbench.interfaces.toolchain`、`workbench.requirements.conversation`、`workbench.settings`、`workbench.templates.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 先在终端A保持rnd start运行，终端B的chat/show等才是HTTP客户端。client用contextmanager管理连接，按Settings.port取得地址，在进入模板或项目问题前先请求/health；初次或后续ConnectError都转成中文启动/PORT提示并以退出码1结束，连接仍会关闭。健康请求只能证明服务可连，不能代替/ready、批准关卡或产品验收。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -41,9 +43,9 @@
 
 **创建路径：** `workbench/interfaces/cli.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L425。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16875`。本段原文以LF换行结束。
+本段原始字节数：`17040`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/interfaces/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "180134e0e953260f19122a073d3fea047b0958980091693e0ae986acd426ebc1"} -->
+<!-- learning-source: {"path": "workbench/interfaces/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fe3d868df483b3289baed5ffd8deb502432fceedbf58b9d11d2efbfc34736eb8"} -->
 ````python
 # workbench/interfaces/cli.py
 """Operator commands: init/start/chat/show/download/index/native. No custom UI needed."""
@@ -58,11 +60,11 @@ from urllib.parse import urlsplit
 import httpx
 import typer
 
-from workbench.catalog import Selection, selections
-from workbench.conversation import command_word
+from workbench.infrastructure.persistence.store import Store
+from workbench.interfaces.toolchain import app as tools_app
+from workbench.requirements.conversation import command_word
 from workbench.settings import ROOT, STAGES, Settings
-from workbench.store import Store
-from workbench.toolchain import app as tools_app
+from workbench.templates.catalog import Selection, selections
 
 app = typer.Typer(no_args_is_help=True, help="本地 AI 研发平台（Python 3.14）")
 native_app = typer.Typer(no_args_is_help=True)
@@ -123,7 +125,7 @@ def init():
         store.token()
     finally:
         store.engine.dispose()
-    from workbench.vendor import prepare
+    from workbench.templates.vendor import prepare
 
     for template in ("fastapiadmin", "yudao-vben"):
         prepare(Settings(), template)
@@ -137,7 +139,7 @@ def start(no_worker: bool = False):
     """迁移数据库并启动 API，默认内置一个持久 Worker。"""
     import uvicorn
 
-    from workbench.api import create_app
+    from workbench.interfaces.http import create_app
 
     settings = Settings()
     if not settings.models_ready():
@@ -158,7 +160,7 @@ def start(no_worker: bool = False):
 @app.command()
 def worker():
     """API 使用 --no-worker 时，单独运行 Worker；不能重复启动。"""
-    from workbench.runtime import Runtime
+    from workbench.production.worker import Runtime
 
     settings = Settings()
     settings.require_model()
@@ -212,7 +214,7 @@ def doctor():
 @app.command()
 def templates():
     """查看模板能力和本机原生生成器配置状态。"""
-    from workbench.native import catalog
+    from workbench.generation.native.service import catalog
 
     echo(catalog(Settings()))
 
@@ -429,7 +431,7 @@ def download(run: str, output: Path = Path("deliveries")):
 @app.command()
 def index(source: Path, output: Path):
     """在源码目录外创建增量 AST/文件哈希知识包。"""
-    from workbench.knowledge import build_index
+    from workbench.knowledge_services.index import build_index
 
     echo(build_index(source, output))
 
@@ -437,7 +439,7 @@ def index(source: Path, output: Path):
 @native_app.command("prepare")
 def native_prepare(template: str):
     """校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。"""
-    from workbench.native import prepare_sources
+    from workbench.generation.native.service import prepare_sources
 
     echo(prepare_sources(Settings(), template))
 
@@ -445,7 +447,7 @@ def native_prepare(template: str):
 @native_app.command("config-example")
 def config_example(template: str):
     """创建本机原生服务配置示例，不覆盖已有配置。"""
-    from workbench.native import write_config_example
+    from workbench.generation.native.service import write_config_example
 
     typer.echo(str(write_config_example(Settings(), template)))
 
@@ -453,7 +455,7 @@ def config_example(template: str):
 @native_app.command("runtime-config")
 def native_runtime_config(template: str):
     """创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。"""
-    from workbench.native_delivery import write_runtime_example
+    from workbench.delivery.native import write_runtime_example
 
     typer.echo(str(write_runtime_example(Settings(), template)))
 
@@ -461,7 +463,7 @@ def native_runtime_config(template: str):
 @native_app.command("serve")
 def native_serve(run: str):
     """重新打开已验收原生产品；复用开发库，不删库、不重新生成。"""
-    from workbench.native_delivery import serve_managed
+    from workbench.delivery.native import serve_managed
 
     try:
         serve_managed(Settings(), run)

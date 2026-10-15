@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/native-probe.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L165。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6393`。本段原文以LF换行结束。
+本段原始字节数：`6403`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-probe.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a59aeef94576ea42c819aa4752d89c763776ecb532bc40a3e82f6f6a74752574"} -->
+<!-- learning-source: {"path": ".github/workflows/native-probe.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c80760170488041d8d8bc7a39ad0232afa34863e77b35eaa7066ad8c8a94c7b1"} -->
 ````yaml
 # .github/workflows/native-probe.yml
 name: Bundled template integrity
@@ -32,7 +32,7 @@ on:
         required: false
         default: ''
   pull_request:
-    paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
+    paths: ['templates/vendor/**', 'workbench/templates/vendor.py', '.github/workflows/native-probe.yml']
 permissions:
   contents: read
 jobs:

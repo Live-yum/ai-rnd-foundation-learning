@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
 GUIDES = [
     "docs/modular-production-v2.md",
+    "docs/workbench-layout.md",
     "docs/template-platform.md",
     "docs/guide.md",
     "docs/implementation.md",

@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.knowledge`、`workbench.rules`、`workbench.template_standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.filesystem`、`workbench.knowledge_services.index`、`workbench.planning.rules`、`workbench.templates.standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -23,9 +23,9 @@
 
 **创建路径：** `workbench/coding/bounded.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L81。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3432`。本段原文以LF换行结束。
+本段原始字节数：`3465`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/bounded.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0532d922ad67e46221718c07b9358c8d3c7e12f7bb81baf1327c33d70368b98f"} -->
+<!-- learning-source: {"path": "workbench/coding/bounded.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a30c858dfc4c88597d738082cfb86360570c88e7d5a9cfca24ad02b05e561266"} -->
 ````python
 # workbench/coding/bounded.py
 """Bounded coding: one SHA-guarded rule file, parsed/interpreted instead of exec."""
@@ -34,11 +34,11 @@ import difflib
 import hashlib
 from pathlib import Path
 
-from workbench.domain import Patches
+from workbench.core.contracts import Patches
 from workbench.filesystem import atomic_text, sha, write_json
-from workbench.knowledge import build_index, context_for
-from workbench.rules import Rules
-from workbench.template_standards import coding_standard
+from workbench.knowledge_services.index import build_index, context_for
+from workbench.planning.rules import Rules
+from workbench.templates.standards import coding_standard
 
 INSTRUCTION = """你只实现已批准的逐实体字段验证规则，不生成 CRUD 或测试代码。
 遵循 coding_standard 中当前模板的编码规范；规范不扩大本任务允许编辑的文件和语法。

@@ -6,7 +6,7 @@
 
 ## 框架接线
 
-`workbench/model_protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
+`workbench/models/protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
 
 ```python
 structured = model.with_structured_output(

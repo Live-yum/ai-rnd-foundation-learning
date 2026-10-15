@@ -57,7 +57,7 @@ def native_plan():
 
 def startup_submission(*, remote, product_argv=isolation.product_argv):
     """Execute only the actual session-construction statements, never start()."""
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     start = next(
         node

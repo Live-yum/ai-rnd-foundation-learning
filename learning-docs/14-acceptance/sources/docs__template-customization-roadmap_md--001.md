@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/template-customization-roadmap.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L101。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11541`。本段原文以LF换行结束。
+本段原始字节数：`11561`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/template-customization-roadmap.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3890bce42c933fc681cd6dffc87113ac6ef237f4f77f012e5fa3b03735616e37"} -->
+<!-- learning-source: {"path": "docs/template-customization-roadmap.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "661aee99a32ea5612c031868316071ba33176093b64ed53c75c6a2a9fd067a46"} -->
 ````markdown
 <!-- docs/template-customization-roadmap.md -->
 # 模板定制流程审查与实施路线
@@ -41,7 +41,7 @@
 
 值得保留的基础：
 
-- `workbench/catalog.py` 从 `template_adapters.py` 派生兼容组合，选型、规划和生成共用能力来源；原生模板固定上游源码与依赖。
+- `workbench/templates/catalog.py` 从 `template_adapters.py` 派生兼容组合，选型、规划和生成共用能力来源；原生模板固定上游源码与依赖。
 - `business_contracts.py`、`business_capabilities.py` 已提供角色行权限、关联、状态流转、追加审计、站内提醒和统计。`requirement_intent.py` 明确保护登录学生自行报名及本人记录权限，避免缩减为管理员代录。
 - `store.py`、`runtime.py` 保存关卡、版本和断点；`generator.py` 支持匹配原规格的幂等恢复。重试无需另建项目或删除 `.data`。
 - `verification.py` 检查实际 HTTP、浏览器、数据库和重启证据，打包后还在干净目录验证 ZIP；模型自述不能替代测试。
@@ -99,7 +99,7 @@
 
 ## 7. 工具集成与后续升级
 
-已有 Aider 负责受限编辑，Plop 负责确定性挂载，Continue 提供本地检索，Daytona 提供可选本地隔离执行环境，职责可见 `README.md` 与 `workbench/scaffolding.py`。当前优先利用这些接入，不新增依赖或第二套主流程。
+已有 Aider 负责受限编辑，Plop 负责确定性挂载，Continue 提供本地检索，Daytona 提供可选本地隔离执行环境，职责可见 `README.md` 与 `workbench/templates/scaffolding.py`。当前优先利用这些接入，不新增依赖或第二套主流程。
 
 [OpenSpec 官方 CLI](https://github.com/Fission-AI/OpenSpec/blob/main/docs/cli.md) 提供规格、变更及校验入口。建议仅作为可选的开发规格导出层，导出已批准需求、差异和验收说明；导出的文档不能成为另一份审批或运行状态真相。
 

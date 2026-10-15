@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.requirements.canonical`、`workbench.requirements.entities`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -45,9 +47,9 @@
 
 **创建路径：** `workbench/requirements/coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1801–L2698。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`39310`。本段原文以LF换行结束。
+本段原始字节数：`39321`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirements/coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "d11e3a9cfdc9e2474af171c6d24a69cc9129565f18370bf988d2462c19e0706c"} -->
+<!-- learning-source: {"path": "workbench/requirements/coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "ccfaa1c31f91469b7b950776107b774ce22815eaf77e0e2042ae85a89db35d2e"} -->
 ````python
 # workbench/requirements/coverage.py
 def _legacy_query_parts(text, fields):
@@ -931,7 +933,7 @@ def coverage_gaps(
     verdict. Consumers exporting diagnostics must allowlist values separately.
     """
     if native_normalization:
-        from workbench.native_plan_normalization import source_plan
+        from workbench.generation.native.plan_normalization import source_plan
 
         plan = source_plan(plan, native_normalization)
     gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)

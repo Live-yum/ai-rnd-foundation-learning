@@ -8,6 +8,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "module_imports": (
+        "已批准业务产品的确定性批量导入模块",
+        "验证实体、重复处理策略与有界行数，仅在调用方审批后向新生成的FastapiAdmin产品添加导入能力；不升级运行中产品、不迁移用户数据。",
+        "批准的Plan及ImportModuleSpec → install_import_module → 原生业务后端与前端资源。",
+    ),
     "template_standards": (
         "所有模型与生成产物共用的版本化编码规范",
         "只读取固定的公共规则和所选模板规则，计算来源与合并内容哈希。目录及需求规划编码上下文使用同一份内容；写入产物时保留上游AGENTS并带上VIBECODING和版本回执。读规范不依赖后续生成或文件工具模块，执行边界仍由代码与独立验收落实。",
@@ -699,11 +704,11 @@ FUNCTIONS = {
 
 FUNCTION_OVERRIDES = {
     (
-        "workbench/api.py",
+        "workbench/interfaces/http.py",
         "auth",
     ): "核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。",
     (
-        "workbench/product_sql.py",
+        "workbench/generation/product_sql.py",
         "render",
     ): "根据同一Plan建立SQLAlchemy元数据，再分别编译SQLite/PostgreSQL的可读DDL；写出SQL用于审查，不在此函数中连接或修改数据库。",
 }
@@ -769,31 +774,116 @@ def body_nodes(node):
         yield from body_nodes(child)
 
 
+RELOCATED_MODULES = {
+    "acceptance/capability_sandbox": "capability_sandbox",
+    "acceptance/capability_verification": "capability_verification",
+    "acceptance/native_acceptance": "native_acceptance",
+    "acceptance/native_business_checks": "native_business_checks",
+    "acceptance/native_business_probe": "native_business_probe",
+    "acceptance/native_checks": "native_checks",
+    "acceptance/native_evidence": "native_evidence",
+    "acceptance/native_lab": "native_lab",
+    "acceptance/portable_checks": "portable_checks",
+    "acceptance/postgres_lab": "postgres_lab",
+    "acceptance/verification": "verification",
+    "acceptance/yudao_navigation": "yudao_navigation_checks",
+    "business/browser": "business_browser",
+    "business/capabilities": "business_capabilities",
+    "business/contracts": "business_contracts",
+    "business/fastapi": "business_fastapi",
+    "business/modules/imports": "module_imports",
+    "business/native": "business_native",
+    "business/probe": "business_probe",
+    "business/python": "business_python",
+    "business/schema_receipt": "business_schema_receipt",
+    "business/yudao": "business_yudao",
+    "coding/aider": "aider_tool",
+    "coding/bounded": "coding",
+    "coding/candidates": "capability_editing",
+    "core/contracts": "domain",
+    "delivery/native": "native_delivery",
+    "delivery/portable": "portable",
+    "delivery/recovery": "native_recovery",
+    "extensions/consumer": "capability_consumer",
+    "extensions/contest_oracle": "capability_contest_oracle",
+    "extensions/obligations": "capability_obligations",
+    "extensions/policy": "capability_policy",
+    "extensions/readiness": "capability_readiness",
+    "extensions/services": "capability_services",
+    "extensions/stack": "capability_stack",
+    "generation/native/coding": "native_coding",
+    "generation/native/compatibility": "native_compatibility",
+    "generation/native/frontend": "native_frontend",
+    "generation/native/modules": "native_modules",
+    "generation/native/plan_normalization": "native_plan_normalization",
+    "generation/native/schema": "native_schema",
+    "generation/native/service": "native",
+    "generation/native/style": "native_style",
+    "generation/native/vben": "native_vben",
+    "generation/native/yudao_navigation": "yudao_navigation",
+    "generation/product_sql": "product_sql",
+    "generation/python_basic": "generator",
+    "infrastructure/llm/gateway": "llm",
+    "infrastructure/native/environment": "native_environment",
+    "infrastructure/native/ports": "native_ports",
+    "infrastructure/native/resources": "native_resources",
+    "infrastructure/persistence/store": "store",
+    "infrastructure/processes/owned_lifecycle": "owned_lifecycle",
+    "infrastructure/processes/tools": "tools",
+    "infrastructure/sandbox/browser/isolation": "capability_browser_isolation",
+    "infrastructure/sandbox/browser/policy": "capability_browser_policy",
+    "infrastructure/sandbox/daytona/diagnostics": "daytona_diagnostics",
+    "infrastructure/sandbox/daytona/profiles": "daytona_profiles",
+    "infrastructure/sandbox/daytona/sessions": "daytona_sessions",
+    "infrastructure/sandbox/daytona/verification": "sandbox",
+    "infrastructure/sandbox/daytona/worker": "daytona_worker",
+    "infrastructure/sandbox/dependencies": "capability_dependencies",
+    "infrastructure/sandbox/diagnostics": "capability_diagnostics",
+    "infrastructure/sandbox/execution": "capability_execution",
+    "infrastructure/sandbox/isolation": "capability_isolation",
+    "infrastructure/sandbox/native_runtime": "capability_native_runtime",
+    "infrastructure/sandbox/startup_paths": "capability_startup_paths",
+    "interfaces/cli": "cli",
+    "interfaces/http": "api",
+    "interfaces/streaming": "streaming",
+    "interfaces/toolchain": "toolchain",
+    "knowledge_services/continue_index": "continue_index",
+    "knowledge_services/index": "knowledge",
+    "knowledge_services/mcp": "context_mcp",
+    "knowledge_services/retrieval": "retrieval",
+    "knowledge_services/symbols": "symbols",
+    "models/connection": "model_connection",
+    "models/diagnostics": "model_diagnostics",
+    "models/discovery": "model_discovery",
+    "models/protocol": "model_protocol",
+    "models/settings": "model_settings",
+    "planning/contracts": "capability_contracts",
+    "planning/feature_planner": "feature_planning",
+    "planning/recommendation": "recommendation",
+    "planning/rules": "rules",
+    "production/dispatcher": "orchestration",
+    "production/graph": "flow",
+    "production/worker": "runtime",
+    "requirements/canonical": "requirement_canonical",
+    "requirements/clarification": "clarification",
+    "requirements/conversation": "conversation",
+    "requirements/coverage": "requirement_coverage",
+    "requirements/entities": "entity_requirements",
+    "requirements/intent": "requirement_intent",
+    "requirements/source_ledger": "requirement_sources",
+    "templates/adapters": "template_adapters",
+    "templates/catalog": "catalog",
+    "templates/scaffolding": "scaffolding",
+    "templates/standards": "template_standards",
+    "templates/vendor": "vendor",
+}
+
+
 def purpose(name):
     path = Path(name)
-    relocated = {
-        "core/contracts": "domain",
-        "planning/feature_planner": "feature_planning",
-        "planning/contracts": "capability_contracts",
-        "production/graph": "flow",
-        "production/dispatcher": "orchestration",
-        "production/worker": "runtime",
-        "infrastructure/persistence/store": "store",
-        "infrastructure/llm/gateway": "llm",
-        "generation/python_basic": "generator",
-        "interfaces/http": "api",
-        "interfaces/cli": "cli",
-        "requirements/source_ledger": "requirement_sources",
-        "requirements/coverage": "requirement_coverage",
-        "requirements/clarification": "clarification",
-        "requirements/intent": "requirement_intent",
-        "coding/bounded": "coding",
-        "coding/aider": "aider_tool",
-        "coding/candidates": "capability_editing",
-    }
     relative = name.removeprefix("workbench/").removesuffix(".py")
-    if name.startswith("workbench/") and relative in relocated:
-        return purpose("workbench/" + relocated[relative] + ".py")
+    if name.startswith("workbench/") and relative in RELOCATED_MODULES:
+        return purpose("workbench/" + RELOCATED_MODULES[relative] + ".py")
     if name.startswith("ui/src/features/") and path.suffix == ".vue":
         return purpose("ui/src/components/" + path.name)
     if name.startswith("ui/"):
@@ -828,8 +918,22 @@ def purpose(name):
     if name == "workbench/__init__.py":
         return (
             "包入口",
-            "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。",
+            "导入workbench时关闭继承的托管遥测并注册惰性旧名映射，不加载映射目标，不立即启动HTTP服务、创建数据库或调用模型。",
             "所有workbench子模块首先经过此入口；数据库初学步骤因此不依赖未来API骨架。",
+        )
+    if name.startswith("workbench/_compat/"):
+        return (
+            "旧导入名的惰性兼容注册",
+            "维护精确旧名到功能目录的映射；只有请求旧模块时才加载唯一实现，并共享模块对象及monkeypatch。注册本身不加载未来教材阶段。",
+            "workbench包入口 → _compat注册 → 按需导入功能目录实现。",
+        )
+    if name == "workbench/coding/__init__.py":
+        return MODULES["coding"]
+    if name.startswith("workbench/") and path.name == "__init__.py":
+        return (
+            "功能目录包入口",
+            "让分阶段恢复的源码具备可导入的父包；轻量初始化不提前加载后续实现或启动服务。",
+            "父包初始化 → 当前阶段显式导入的实现。",
         )
     if name.startswith("workbench/") and path.stem in MODULES:
         return MODULES[path.stem]
@@ -988,7 +1092,7 @@ def purpose(name):
         return (
             "第三方源码来源与许可证",
             "模板属于第三方依赖。manifest记录固定提交、归档哈希、逐文件内容摘要及排除项；LICENSE原样保留。只从教材也可以用vendor_templates --fetch重建源码归档，不需要复制本仓库已有ZIP。",
-            "scripts/vendor_templates.py → manifest/ZIP → workbench/vendor.py → 原生生成器。",
+            "scripts/vendor_templates.py → manifest/ZIP → workbench/templates/vendor.py → 原生生成器。",
         )
     if name.startswith("docs/images/"):
         return (

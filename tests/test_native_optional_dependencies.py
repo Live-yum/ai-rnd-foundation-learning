@@ -46,7 +46,9 @@ def test_native_config_inspection_does_not_import_postgres_runtime(tmp_path):
             assert not runtime_enabled(settings, template)
             assert runtime_path(settings, template).name == template + ".runtime.json"
         assert "workbench.native_lab" not in sys.modules
+        assert "workbench.acceptance.native_lab" not in sys.modules
         assert "workbench.portable" not in sys.modules
+        assert "workbench.delivery.portable" not in sys.modules
         assert "psycopg" not in sys.modules
         assert not settings.data_dir.exists()
         """,
@@ -88,7 +90,9 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
         else:
             raise AssertionError("Missing native prerequisites must fail closed")
         assert "workbench.native_lab" not in sys.modules
+        assert "workbench.acceptance.native_lab" not in sys.modules
         assert "workbench.portable" not in sys.modules
+        assert "workbench.delivery.portable" not in sys.modules
         assert not settings.data_dir.exists()
         """,
         tmp_path / "untouched",
@@ -180,6 +184,7 @@ def test_legacy_failed_native_design_resumes_same_persisted_run(tmp_path):
             assert store.messages(run) == saved_messages
             assert not (settings.data_dir / "runs" / run / "product").exists()
             assert "workbench.native_lab" not in sys.modules
+            assert "workbench.acceptance.native_lab" not in sys.modules
             assert "psycopg" not in sys.modules
         finally:
             store.engine.dispose()

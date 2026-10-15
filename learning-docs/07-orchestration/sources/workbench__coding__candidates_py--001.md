@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.domain`、`workbench.feature_planning`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.filesystem`、`workbench.planning.contracts`、`workbench.planning.feature_planner`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -26,9 +26,9 @@
 
 **创建路径：** `workbench/coding/candidates.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L167。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7342`。本段原文以LF换行结束。
+本段原始字节数：`7358`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/coding/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1985a970cea897b393cc3ab367ed07438472b69fdb89d530efa75809c72c0b6e"} -->
+<!-- learning-source: {"path": "workbench/coding/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f1d440aacfa989b45c806f83e10686d0989df87f4b7b406bda7792a5b479cd4"} -->
 ````python
 # workbench/coding/candidates.py
 """Transactional, reviewed business-file edits. Never execute product code on the host."""
@@ -37,10 +37,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from workbench.capability_contracts import source_path
-from workbench.domain import digest
-from workbench.feature_planning import PlannedModule, module_path_errors
+from workbench.core.contracts import digest
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, write_json
+from workbench.planning.contracts import source_path
+from workbench.planning.feature_planner import PlannedModule, module_path_errors
 
 
 class CandidateFileSetError(ValueError):
@@ -137,7 +137,7 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
         candidate = root / "candidate"
         copy_source(product, candidate)
         if settings is not None and settings.coding_engine == "aider":
-            from workbench.aider_tool import command, git
+            from workbench.coding.aider import command, git
 
             work, home = root / "work", root / "home"
             work.mkdir()

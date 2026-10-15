@@ -14,17 +14,17 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `without_postgres`（L24–L34）：接收`source`、`*args`。 控制顺序：L34断言`result.returncode == 0`。 调用`subprocess.run`、`textwrap.dedent`、`map`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_config_inspection_does_not_import_postgres_runtime`（L37–L54）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_execution_checks_platform_and_driver_before_side_effects`（L58–L96）：接收`tmp_path`、`platform`。 调用`without_postgres`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_legacy_failed_native_design_resumes_same_persisted_run`（L99–L188）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_config_inspection_does_not_import_postgres_runtime`（L37–L56）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_execution_checks_platform_and_driver_before_side_effects`（L60–L100）：接收`tmp_path`、`platform`。 调用`without_postgres`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_legacy_failed_native_design_resumes_same_persisted_run`（L103–L193）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_optional_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L188。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_optional_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L193。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8135`。本段原文以LF换行结束。
+本段原始字节数：`8471`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_optional_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "aa641db46683f20705ec09b0b41c1fb09303ea309d9bfca72aa68e5ac3934073"} -->
+<!-- learning-source: {"path": "tests/test_native_optional_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "594a137bada2dfbe52bca77c80b397d4b61c170f2acb0f885d7e54077ef40446"} -->
 ````python
 # tests/test_native_optional_dependencies.py
 """Base installs can inspect native plans; execution still requires its real tools."""
@@ -75,7 +75,9 @@ def test_native_config_inspection_does_not_import_postgres_runtime(tmp_path):
             assert not runtime_enabled(settings, template)
             assert runtime_path(settings, template).name == template + ".runtime.json"
         assert "workbench.native_lab" not in sys.modules
+        assert "workbench.acceptance.native_lab" not in sys.modules
         assert "workbench.portable" not in sys.modules
+        assert "workbench.delivery.portable" not in sys.modules
         assert "psycopg" not in sys.modules
         assert not settings.data_dir.exists()
         """,
@@ -117,7 +119,9 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
         else:
             raise AssertionError("Missing native prerequisites must fail closed")
         assert "workbench.native_lab" not in sys.modules
+        assert "workbench.acceptance.native_lab" not in sys.modules
         assert "workbench.portable" not in sys.modules
+        assert "workbench.delivery.portable" not in sys.modules
         assert not settings.data_dir.exists()
         """,
         tmp_path / "untouched",
@@ -209,6 +213,7 @@ def test_legacy_failed_native_design_resumes_same_persisted_run(tmp_path):
             assert store.messages(run) == saved_messages
             assert not (settings.data_dir / "runs" / run / "product").exists()
             assert "workbench.native_lab" not in sys.modules
+            assert "workbench.acceptance.native_lab" not in sys.modules
             assert "psycopg" not in sys.modules
         finally:
             store.engine.dispose()

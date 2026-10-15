@@ -406,7 +406,7 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     from workbench.capability_sandbox import startup_failure_diagnostic
     from workbench.capability_verification import CheckFailure
 
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     start = next(
         n
         for n in ast.walk(ast.parse(source.read_text(encoding="utf-8")))
@@ -705,7 +705,7 @@ def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
     from workbench.capability_sandbox import startup_command_exit_facts, startup_failure_diagnostic
     from workbench.capability_verification import BrowserFailure, CheckFailure
 
-    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    source = Path(__file__).parents[1] / "workbench/acceptance/capability_sandbox.py"
     tree = ast.parse(source.read_text())
     outer = next(
         n

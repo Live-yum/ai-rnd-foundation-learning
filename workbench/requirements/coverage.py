@@ -9,9 +9,9 @@ import re
 from copy import deepcopy
 from types import SimpleNamespace
 
-from workbench.domain import Plan, Requirement
-from workbench.entity_requirements import entity_gaps
-from workbench.requirement_canonical import canonicalize_requirement
+from workbench.core.contracts import Plan, Requirement
+from workbench.requirements.canonical import canonicalize_requirement
+from workbench.requirements.entities import entity_gaps
 
 ALIASES = {
     "title": ("title", "标题"),
@@ -92,7 +92,7 @@ def _authorized(change, corrections):
     # administrative-only scope. This recognizes the whole original goal only;
     # compound features and an unrelated cancellation still cannot be erased.
     if change.section in {"features", "acceptance"} and change.replacement is None:
-        from workbench.requirement_intent import cancellable_registration_goal
+        from workbench.requirements.intent import cancellable_registration_goal
 
         if cancellable_registration_goal(change.key, quote):
             return True
@@ -2679,7 +2679,7 @@ def coverage_gaps(
     verdict. Consumers exporting diagnostics must allowlist values separately.
     """
     if native_normalization:
-        from workbench.native_plan_normalization import source_plan
+        from workbench.generation.native.plan_normalization import source_plan
 
         plan = source_plan(plan, native_normalization)
     gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)

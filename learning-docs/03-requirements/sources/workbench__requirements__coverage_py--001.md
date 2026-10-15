@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.requirements.canonical`、`workbench.requirements.entities`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -40,9 +42,9 @@
 
 **创建路径：** `workbench/requirements/coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1–L900。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`36800`。本段原文以LF换行结束。
+本段原始字节数：`36812`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirements/coverage.py", "part": 1, "parts": 4, "encoding": "utf-8", "sha256": "639ca73737485e90a2e1de478d9a43a5d02507da4ac44bc08b02df23852b3c01"} -->
+<!-- learning-source: {"path": "workbench/requirements/coverage.py", "part": 1, "parts": 4, "encoding": "utf-8", "sha256": "9d0a4c86b1c3af29d8ddbe43232689dfe478efefadb8740ffb8808f6db6fa01e"} -->
 ````python
 # workbench/requirements/coverage.py
 """Persist approved intent and check executable obligations without a model verdict.
@@ -56,9 +58,9 @@ import re
 from copy import deepcopy
 from types import SimpleNamespace
 
-from workbench.domain import Plan, Requirement
-from workbench.entity_requirements import entity_gaps
-from workbench.requirement_canonical import canonicalize_requirement
+from workbench.core.contracts import Plan, Requirement
+from workbench.requirements.canonical import canonicalize_requirement
+from workbench.requirements.entities import entity_gaps
 
 ALIASES = {
     "title": ("title", "标题"),
@@ -139,7 +141,7 @@ def _authorized(change, corrections):
     # administrative-only scope. This recognizes the whole original goal only;
     # compound features and an unrelated cancellation still cannot be erased.
     if change.section in {"features", "acceptance"} and change.replacement is None:
-        from workbench.requirement_intent import cancellable_registration_goal
+        from workbench.requirements.intent import cancellable_registration_goal
 
         if cancellable_registration_goal(change.key, quote):
             return True

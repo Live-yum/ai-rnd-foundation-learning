@@ -23,7 +23,7 @@
 - `test_overlay_is_idempotent_refreshes_generated_pages_and_preserves_seed_archives`（L225–L276）：接收`native_sources`、`tmp_path`。 控制顺序：L237断言`first["modules"] == ["infra", "system"]`；L238断言`first["after_sha256"] == second["after_sha256"]`；L239断言`first["database_mutated"] is False and first["role_grants_expanded"] is False`；L244断言`"infra/wbcustomer/index" not in first["components"]`；L245断言`"infra/wbcustomer/index" in third["components"]`；L246断言`first["after_sha256"]["RndInstalledMenuFilter.java"] != third["after_sha256"]["RndIns…`；L250断言`before == {str(path): sha(path) for path in inputs}`；L253断言`menu.count("rndInstalledMenus(") == 6`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`sha`、`prepare_yudao_navigation`、`path.parent.mkdir`、`path.write_text`、`(backend / JAVA_ROOT / "MenuServiceImpl.java").read_text`、`(backend / JAVA_ROOT / "PermissionServiceImpl.java").read_text`、`menu.count`、`role.count`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_original_changed_overlay_context_fails_before_writing`（L279–L293）：接收`native_sources`、`tmp_path`。 控制顺序：L292断言`sha(menu) == before`；L293断言`not (backend / JAVA_ROOT / "RndInstalledMenuFilter.java").exists()`。 调用`path.write_text`、`path.read_text(encoding="utf-8").replace`、`path.read_text`、`sha`、`pytest.raises`、`prepare_yudao_navigation`、`(backend / JAVA_ROOT / "RndInstalledMenuFilter.java").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_api_only_baseline_is_explicit_and_cannot_invent_frontend_capabilities`（L296–L308）：接收`native_sources`、`tmp_path`。 控制顺序：L304断言`receipt["mode"] == "api-only-baseline"`；L305断言`receipt["components"] == {}`；L307断言`"API_ONLY = true" in source`；L308断言`"normalized(root).equals(normalized(component))" in source`。 调用`shutil.rmtree`、`pytest.raises`、`prepare_yudao_navigation`、`(backend / JAVA_ROOT / "RndInstalledMenuFilter.java").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_portable_and_runtime_rebuild_use_same_current_registry_overlay`（L311–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L314断言`"yudao_navigation.py" in HELPERS`；L315断言`"mappings.getHandlerMethods()" in POLICY`；L316断言`"findMergedAnnotation(handler.getMethod(), PreAuthorize.class)" in POLICY`；L317断言`"menuMapper" not in POLICY`；L319断言`runtime.index("copy_source(args.frontend_source, frontend)") < runtime.index( "instal…`；L322断言`"navigation_api_only=not args.frontend" in runtime`。 调用`(ROOT / "scripts/ci_native_runtime.py").read_text`、`runtime.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_and_runtime_rebuild_use_same_current_registry_overlay`（L311–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L314断言`"generation/native/yudao_navigation.py" in HELPERS`；L315断言`"mappings.getHandlerMethods()" in POLICY`；L316断言`"findMergedAnnotation(handler.getMethod(), PreAuthorize.class)" in POLICY`；L317断言`"menuMapper" not in POLICY`；L319断言`runtime.index("copy_source(args.frontend_source, frontend)") < runtime.index( "instal…`；L322断言`"navigation_api_only=not args.frontend" in runtime`。 调用`(ROOT / "scripts/ci_native_runtime.py").read_text`、`runtime.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_actual_compiled_module_manifest_ignores_commented_business_dependencies`（L325–L331）：接收`native_sources`。 控制顺序：L327断言`installed_modules(backend) == ["infra", "system"]`；L329遍历`manifest["sources"]`；L330按`item["template"] == "yudao-vben"`分支；L331断言`sha(ROOT / "templates/vendor" / item["archive"]) == item["archive_sha256"]`。 调用`installed_modules`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`sha`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_registered_handler_policy_ignores_unregistered_classes_and_refreshes_without_cache`（L334–L472）：接收`tmp_path`。 控制顺序：L340按`not java`分支；L435遍历`sources.items()`；L459断言`result.returncode == 0`；L471断言`result.returncode == 0`；L472断言`"live registered navigation PASS" in result.stdout`。 调用`shutil.which`、`pytest.skip`、`render_filter`、`sources.items`、`path.parent.mkdir`、`path.write_text`、`paths.append`、`str`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
@@ -31,9 +31,9 @@
 
 **创建路径：** `tests/test_yudao_installed_navigation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L472。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26301`。本段原文以LF换行结束。
+本段原始字节数：`26319`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_yudao_installed_navigation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ca3835e6921c43561903c5cfb1e81b7fa9406e6155fe819f1a59d3de6eca3251"} -->
+<!-- learning-source: {"path": "tests/test_yudao_installed_navigation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e6741257a8078c2ed5200d040a9d597c613dd60e7996b344cc2ced5a1b14d1a"} -->
 ````python
 # tests/test_yudao_installed_navigation.py
 """Execute the real generated menu intersection against the unchanged pinned seed."""
@@ -349,7 +349,7 @@ def test_api_only_baseline_is_explicit_and_cannot_invent_frontend_capabilities(
 def test_portable_and_runtime_rebuild_use_same_current_registry_overlay():
     from workbench.portable import HELPERS
 
-    assert "yudao_navigation.py" in HELPERS
+    assert "generation/native/yudao_navigation.py" in HELPERS
     assert "mappings.getHandlerMethods()" in POLICY
     assert "findMergedAnnotation(handler.getMethod(), PreAuthorize.class)" in POLICY
     assert "menuMapper" not in POLICY

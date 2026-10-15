@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `pyproject.toml`；**本文件共有 1 段**。本段覆盖源文件 L1–L57。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `pyproject.toml`；**本文件共有 1 段**。本段覆盖源文件 L1–L61。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1769`。本段原文以LF换行结束。
+本段原始字节数：`1913`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "pyproject.toml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "685c9e44b6d10726bc87cfceb8ebd86257976918e79dfbafea39a48a6ca79d5d"} -->
+<!-- learning-source: {"path": "pyproject.toml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2bbf5ea68cd7d2f8e10007f37189f7d1acb6ef385377b477879179b651a818b3"} -->
 ````toml
 # pyproject.toml
 [project]
@@ -74,4 +74,8 @@ select = ["E4", "E7", "E9", "F", "I"]
 # Source excerpts preserve exact bytes, including chunk-boundary blank lines.
 # The complete underlying Python files are still formatted and linted normally.
 exclude = ["learning-docs/**/sources/**"]
+
+[tool.ruff.lint.isort]
+# Legacy modules are provided by the explicit lazy compatibility registry.
+known-first-party = ["workbench", "scripts"]
 ````

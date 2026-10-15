@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_verification`、`workbench.core.contracts`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.acceptance.capability_verification`、`workbench.core.contracts`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -26,9 +26,9 @@
 
 **创建路径：** `workbench/production/candidates.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L126。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5197`。本段原文以LF换行结束。
+本段原始字节数：`5208`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "90dd782bd490439d0e822b80b422c24efeba31d400550cd564506d46b551b086"} -->
+<!-- learning-source: {"path": "workbench/production/candidates.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e54ae3b70f657d882ae38bdf446a72707bad2be7d176ffcdcfb9ddbc4e38497d"} -->
 ````python
 # workbench/production/candidates.py
 """Immutable version manifests and atomic promotion, bound to independent proof.
@@ -42,7 +42,7 @@ from pathlib import Path
 
 from filelock import FileLock
 
-from workbench.capability_verification import require_evidence
+from workbench.acceptance.capability_verification import require_evidence
 from workbench.core.contracts import digest
 from workbench.filesystem import manifest, write_json
 

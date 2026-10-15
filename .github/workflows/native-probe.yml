@@ -13,7 +13,7 @@ on:
         required: false
         default: ''
   pull_request:
-    paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
+    paths: ['templates/vendor/**', 'workbench/templates/vendor.py', '.github/workflows/native-probe.yml']
 permissions:
   contents: read
 jobs:

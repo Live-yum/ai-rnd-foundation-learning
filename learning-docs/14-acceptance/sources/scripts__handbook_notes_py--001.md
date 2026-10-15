@@ -13,20 +13,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `parse`（L712–L718）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L718的`ast.parse(normalized)`。
-- `source_lines`（L722–L726）：接收`content`。 调用`content.encode("utf-8").splitlines`、`content.encode`、`lru_cache`。 返回路径：L726的`(*content.encode("utf-8").splitlines(keepends=True), b"")`。
-- `source_segment`（L729–L745）：接收`content`、`node`。 源码说明：Extract the same unpadded span as ast.get_source_segment without rescanning.。 控制顺序：L732按`node.end_lineno is None or node.end_col_offset is None`分支；L739按`first == last`分支。 调用`source_lines`、`lines[first][start:end].decode`、`lines[first][start:].decode`、`b"".join(lines[first + 1 : last]).decode`、`b"".join`、`lines[last][:end].decode`。 返回路径：L733的`None`；L737的`None`；L740的`lines[first][start:end].decode("utf-8")`。
-- `segment`（L748–L751）：接收`content`、`node`、`limit`。 调用`source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L751的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L754–L761）：接收`node`、`prefix`。 控制顺序：L755遍历`ast.iter_child_nodes(node)`；L756按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L764–L769）：接收`node`。 控制顺序：L765遍历`ast.iter_child_nodes(node)`；L766按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `parse`（L717–L723）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L723的`ast.parse(normalized)`。
+- `source_lines`（L727–L731）：接收`content`。 调用`content.encode("utf-8").splitlines`、`content.encode`、`lru_cache`。 返回路径：L731的`(*content.encode("utf-8").splitlines(keepends=True), b"")`。
+- `source_segment`（L734–L750）：接收`content`、`node`。 源码说明：Extract the same unpadded span as ast.get_source_segment without rescanning.。 控制顺序：L737按`node.end_lineno is None or node.end_col_offset is None`分支；L744按`first == last`分支。 调用`source_lines`、`lines[first][start:end].decode`、`lines[first][start:].decode`、`b"".join(lines[first + 1 : last]).decode`、`b"".join`、`lines[last][:end].decode`。 返回路径：L738的`None`；L742的`None`；L745的`lines[first][start:end].decode("utf-8")`。
+- `segment`（L753–L756）：接收`content`、`node`、`limit`。 调用`source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L756的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L759–L766）：接收`node`、`prefix`。 控制顺序：L760遍历`ast.iter_child_nodes(node)`；L761按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L769–L774）：接收`node`。 控制顺序：L770遍历`ast.iter_child_nodes(node)`；L771按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L771。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L881。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`67297`。本段原文以LF换行结束。
+本段原始字节数：`72876`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f1e6564f5b54453af86ea4b36e730c1c20f64b7a890f8b1a44f0c31ce9dbdf0b"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "65d95ed69c31a14259108371b5fd55e6bb3ca75c6074359657d24c8464089604"} -->
 ````python
 # scripts/handbook_notes.py
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
@@ -39,6 +39,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "module_imports": (
+        "已批准业务产品的确定性批量导入模块",
+        "验证实体、重复处理策略与有界行数，仅在调用方审批后向新生成的FastapiAdmin产品添加导入能力；不升级运行中产品、不迁移用户数据。",
+        "批准的Plan及ImportModuleSpec → install_import_module → 原生业务后端与前端资源。",
+    ),
     "template_standards": (
         "所有模型与生成产物共用的版本化编码规范",
         "只读取固定的公共规则和所选模板规则，计算来源与合并内容哈希。目录及需求规划编码上下文使用同一份内容；写入产物时保留上游AGENTS并带上VIBECODING和版本回执。读规范不依赖后续生成或文件工具模块，执行边界仍由代码与独立验收落实。",
@@ -730,11 +735,11 @@ FUNCTIONS = {
 
 FUNCTION_OVERRIDES = {
     (
-        "workbench/api.py",
+        "workbench/interfaces/http.py",
         "auth",
     ): "核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。",
     (
-        "workbench/product_sql.py",
+        "workbench/generation/product_sql.py",
         "render",
     ): "根据同一Plan建立SQLAlchemy元数据，再分别编译SQLite/PostgreSQL的可读DDL；写出SQL用于审查，不在此函数中连接或修改数据库。",
 }
@@ -798,6 +803,111 @@ def body_nodes(node):
             continue
         yield child
         yield from body_nodes(child)
+
+
+RELOCATED_MODULES = {
+    "acceptance/capability_sandbox": "capability_sandbox",
+    "acceptance/capability_verification": "capability_verification",
+    "acceptance/native_acceptance": "native_acceptance",
+    "acceptance/native_business_checks": "native_business_checks",
+    "acceptance/native_business_probe": "native_business_probe",
+    "acceptance/native_checks": "native_checks",
+    "acceptance/native_evidence": "native_evidence",
+    "acceptance/native_lab": "native_lab",
+    "acceptance/portable_checks": "portable_checks",
+    "acceptance/postgres_lab": "postgres_lab",
+    "acceptance/verification": "verification",
+    "acceptance/yudao_navigation": "yudao_navigation_checks",
+    "business/browser": "business_browser",
+    "business/capabilities": "business_capabilities",
+    "business/contracts": "business_contracts",
+    "business/fastapi": "business_fastapi",
+    "business/modules/imports": "module_imports",
+    "business/native": "business_native",
+    "business/probe": "business_probe",
+    "business/python": "business_python",
+    "business/schema_receipt": "business_schema_receipt",
+    "business/yudao": "business_yudao",
+    "coding/aider": "aider_tool",
+    "coding/bounded": "coding",
+    "coding/candidates": "capability_editing",
+    "core/contracts": "domain",
+    "delivery/native": "native_delivery",
+    "delivery/portable": "portable",
+    "delivery/recovery": "native_recovery",
+    "extensions/consumer": "capability_consumer",
+    "extensions/contest_oracle": "capability_contest_oracle",
+    "extensions/obligations": "capability_obligations",
+    "extensions/policy": "capability_policy",
+    "extensions/readiness": "capability_readiness",
+    "extensions/services": "capability_services",
+    "extensions/stack": "capability_stack",
+    "generation/native/coding": "native_coding",
+    "generation/native/compatibility": "native_compatibility",
+    "generation/native/frontend": "native_frontend",
+    "generation/native/modules": "native_modules",
+    "generation/native/plan_normalization": "native_plan_normalization",
+    "generation/native/schema": "native_schema",
+    "generation/native/service": "native",
+    "generation/native/style": "native_style",
+    "generation/native/vben": "native_vben",
+    "generation/native/yudao_navigation": "yudao_navigation",
+    "generation/product_sql": "product_sql",
+    "generation/python_basic": "generator",
+    "infrastructure/llm/gateway": "llm",
+    "infrastructure/native/environment": "native_environment",
+    "infrastructure/native/ports": "native_ports",
+    "infrastructure/native/resources": "native_resources",
+    "infrastructure/persistence/store": "store",
+    "infrastructure/processes/owned_lifecycle": "owned_lifecycle",
+    "infrastructure/processes/tools": "tools",
+    "infrastructure/sandbox/browser/isolation": "capability_browser_isolation",
+    "infrastructure/sandbox/browser/policy": "capability_browser_policy",
+    "infrastructure/sandbox/daytona/diagnostics": "daytona_diagnostics",
+    "infrastructure/sandbox/daytona/profiles": "daytona_profiles",
+    "infrastructure/sandbox/daytona/sessions": "daytona_sessions",
+    "infrastructure/sandbox/daytona/verification": "sandbox",
+    "infrastructure/sandbox/daytona/worker": "daytona_worker",
+    "infrastructure/sandbox/dependencies": "capability_dependencies",
+    "infrastructure/sandbox/diagnostics": "capability_diagnostics",
+    "infrastructure/sandbox/execution": "capability_execution",
+    "infrastructure/sandbox/isolation": "capability_isolation",
+    "infrastructure/sandbox/native_runtime": "capability_native_runtime",
+    "infrastructure/sandbox/startup_paths": "capability_startup_paths",
+    "interfaces/cli": "cli",
+    "interfaces/http": "api",
+    "interfaces/streaming": "streaming",
+    "interfaces/toolchain": "toolchain",
+    "knowledge_services/continue_index": "continue_index",
+    "knowledge_services/index": "knowledge",
+    "knowledge_services/mcp": "context_mcp",
+    "knowledge_services/retrieval": "retrieval",
+    "knowledge_services/symbols": "symbols",
+    "models/connection": "model_connection",
+    "models/diagnostics": "model_diagnostics",
+    "models/discovery": "model_discovery",
+    "models/protocol": "model_protocol",
+    "models/settings": "model_settings",
+    "planning/contracts": "capability_contracts",
+    "planning/feature_planner": "feature_planning",
+    "planning/recommendation": "recommendation",
+    "planning/rules": "rules",
+    "production/dispatcher": "orchestration",
+    "production/graph": "flow",
+    "production/worker": "runtime",
+    "requirements/canonical": "requirement_canonical",
+    "requirements/clarification": "clarification",
+    "requirements/conversation": "conversation",
+    "requirements/coverage": "requirement_coverage",
+    "requirements/entities": "entity_requirements",
+    "requirements/intent": "requirement_intent",
+    "requirements/source_ledger": "requirement_sources",
+    "templates/adapters": "template_adapters",
+    "templates/catalog": "catalog",
+    "templates/scaffolding": "scaffolding",
+    "templates/standards": "template_standards",
+    "templates/vendor": "vendor",
+}
 
 
 ````

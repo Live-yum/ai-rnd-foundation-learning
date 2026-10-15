@@ -10,27 +10,29 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.model_diagnostics`、`workbench.model_protocol`、`workbench.store`、`workbench.streaming`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.infrastructure.persistence.store`、`workbench.interfaces.streaming`、`workbench.models.diagnostics`、`workbench.models.protocol`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** complete先选阶段模型并检查预算，构造受约束请求，再通过协议层解析、验证响应并保存使用回执。HTTP成功却返回不符合schema的JSON仍应失败；传输错误的有限重试也不能变成无上限重复收费。测试显式注入MockTransport，生产缺少模型配置时不会静默换成样例答案。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `ModelFailure`（L35–L36）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `_json_repair_reference`（L39–L61）：接收`exc`、`content`、`schema`。 源码说明：Return only an unapproved model input, never a successful completion. A schema-valid object followed only by redundant closing delimiters contains no trailing business data. Re-encode that object for 。 控制顺序：L46按`not ( isinstance(exc, json.JSONDecodeError) and isinstance(content, str) and exc.doc …`分支；L55按`not isinstance(value, dict)`分支。 调用`isinstance`、`json_syntax_category`、`load_json`、`json.dumps`、`schema.model_validate`、`len`、`reference.encode`。 返回路径：L52的`None`；L56的`None`；L59的`reference if len(reference.encode("utf-8")) <= MAX_MODEL_CONTENT_BYTES else None`。
-- `ModelGateway`（L64–L448）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway`（L64–L452）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `ModelGateway.__init__`（L65–L68）：接收`settings`、`store`、`transport`、`streaming`、`native_strict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L70–L448）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L81按`self.native_strict`分支；L114抛异常，停止当前正常路径；L116抛异常，停止当前正常路径；L138按`self.native_strict`分支；L433抛异常，停止当前正常路径；L435按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`replace`、`NativeSchema`、`self.store.record_event`、`contract.receipt`等。 返回路径：L448的`value`。
-- `ModelGateway.complete.call`（L153–L428）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L195按`len(body) > self.settings.max_context_chars`分支；L196抛异常，停止当前正常路径；L208遍历`range(2)`；L212按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L213抛异常，停止当前正常路径；L226按`self.native_strict`分支；L257按`audited.error is not None`分支；L258抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`NativeSchema`、`AuditedTransport`等。 返回路径：L271的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
-- `ModelGateway.complete.call.native_facts`（L158–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L159按`not self.native_strict`分支。 调用`native_receipt`、`getattr`。 返回路径：L160的`{}`；L163的`native_receipt(native, status=getattr(audited, "http_status", None))`。
-- `ModelGateway.complete.call.failed`（L165–L192）：接收`attempt`、`code`、`details`、`transport_kind`、`response_facts`。 控制顺序：L166按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`response_failure_facts`、`failure_diagnostic`、`contract.receipt`、`native_facts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L70–L452）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L81按`self.native_strict`分支；L118抛异常，停止当前正常路径；L120抛异常，停止当前正常路径；L142按`self.native_strict`分支；L437抛异常，停止当前正常路径；L439按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`replace`、`NativeSchema`、`self.store.record_event`、`contract.receipt`等。 返回路径：L452的`value`。
+- `ModelGateway.complete.call`（L157–L432）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L199按`len(body) > self.settings.max_context_chars`分支；L200抛异常，停止当前正常路径；L212遍历`range(2)`；L216按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L217抛异常，停止当前正常路径；L230按`self.native_strict`分支；L261按`audited.error is not None`分支；L262抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`NativeSchema`、`AuditedTransport`等。 返回路径：L275的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.native_facts`（L162–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L163按`not self.native_strict`分支。 调用`native_receipt`、`getattr`。 返回路径：L164的`{}`；L167的`native_receipt(native, status=getattr(audited, "http_status", None))`。
+- `ModelGateway.complete.call.failed`（L169–L196）：接收`attempt`、`code`、`details`、`transport_kind`、`response_facts`。 控制顺序：L170按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`response_failure_facts`、`failure_diagnostic`、`contract.receipt`、`native_facts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/llm/gateway.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L448。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/llm/gateway.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L452。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21512`。本段原文以LF换行结束。
+本段原始字节数：`21674`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/llm/gateway.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "633f82c2c335918b9046cdac7aa6dec2c49f1eecf5201ea68cd7201094107893"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/llm/gateway.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8534c52f968660a377c47b917893d7097cdce94a351dabad6c03ec24f98ec406"} -->
 ````python
 # workbench/infrastructure/llm/gateway.py
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
@@ -43,8 +45,10 @@ import httpx
 from openai import APIError
 from pydantic import ValidationError
 
-from workbench.domain import digest
-from workbench.model_diagnostics import (
+from workbench.core.contracts import digest
+from workbench.infrastructure.persistence.store import Conflict
+from workbench.interfaces.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
+from workbench.models.diagnostics import (
     failure_diagnostic,
     json_diagnostics,
     json_syntax_category,
@@ -53,7 +57,7 @@ from workbench.model_diagnostics import (
     transport_category,
     transport_failure,
 )
-from workbench.model_protocol import (
+from workbench.models.protocol import (
     MAX_MODEL_CONTENT_BYTES,
     AuditedTransport,
     JSONGuardFailure,
@@ -63,8 +67,6 @@ from workbench.model_protocol import (
     structured_model,
     validate_content,
 )
-from workbench.store import Conflict
-from workbench.streaming import MAX_PUBLIC_TEXT, AssistantStream, public_text
 
 
 class ModelFailure(RuntimeError):
@@ -114,7 +116,11 @@ class ModelGateway:
             profile = self.settings.model_for(stage).validate_endpoint()
             contract = output_contract(profile, schema)
             if self.native_strict:
-                from workbench.native_schema import SDK_VERSIONS, NativeSchema, native_receipt
+                from workbench.generation.native.schema import (
+                    SDK_VERSIONS,
+                    NativeSchema,
+                    native_receipt,
+                )
 
                 contract = replace(contract, mode="json_schema", reason="mini_swe_native_strict")
                 prepared = NativeSchema(
@@ -193,7 +199,7 @@ class ModelGateway:
             def native_facts():
                 if not self.native_strict:
                     return {}
-                from workbench.native_schema import native_receipt
+                from workbench.generation.native.schema import native_receipt
 
                 return native_receipt(native, status=getattr(audited, "http_status", None))
 
@@ -259,7 +265,7 @@ class ModelGateway:
                 )
                 try:
                     if self.native_strict:
-                        from workbench.native_schema import NativeSchema
+                        from workbench.generation.native.schema import NativeSchema
 
                         native = NativeSchema(
                             profile,

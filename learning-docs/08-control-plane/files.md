@@ -53,12 +53,10 @@
 - [ui/tests/workflow.test.ts](sources/ui__tests__workflow_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tsconfig.json](sources/ui__tsconfig_json--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/vite.config.ts](sources/ui__vite_config_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
-- [workbench/api.py](sources/workbench__api_py--001.md)：网页及CLI调用的HTTP接口；1 段
 - [workbench/cli.py](sources/workbench__cli_py--001.md)：终端入口和运维命令；1 段
-- [workbench/interfaces/__init__.py](sources/workbench__interfaces____init___py--001.md)：项目根配置或说明；1 段
+- [workbench/generation/native/service.py](sources/workbench__generation__native__service_py--001.md)：原生代码生成接口的公共适配；1 段
 - [workbench/interfaces/cli.py](sources/workbench__interfaces__cli_py--001.md)：终端入口和运维命令；1 段
 - [workbench/interfaces/http.py](sources/workbench__interfaces__http_py--001.md)：网页及CLI调用的HTTP接口；1 段
-- [workbench/native.py](sources/workbench__native_py--001.md)：原生代码生成接口的公共适配；1 段
 - [workbench/web/app.js](sources/assets/workbench__web__app_js--001.md)：Vue操作台的精确构建资产；1 段
 - [workbench/web/index.html](sources/assets/workbench__web__index_html--001.md)：Vue操作台的精确构建资产；1 段
 - [workbench/web/style.css](sources/assets/workbench__web__style_css--001.md)：Vue操作台的精确构建资产；1 段

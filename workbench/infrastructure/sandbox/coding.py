@@ -8,15 +8,19 @@ import time
 import uuid
 from contextlib import contextmanager
 
-from workbench.capability_execution import (
-    capability_execution_prerequisites,
-    require_profile_container_binding,
-)
-from workbench.capability_isolation import require_container_evidence
 from workbench.coding.candidates import task_path_errors
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import inside, write_json
-from workbench.sandbox import client_for, close_client, params_for
+from workbench.infrastructure.sandbox.daytona.verification import (
+    client_for,
+    close_client,
+    params_for,
+)
+from workbench.infrastructure.sandbox.execution import (
+    capability_execution_prerequisites,
+    require_profile_container_binding,
+)
+from workbench.infrastructure.sandbox.isolation import require_container_evidence
 
 REMOTE = "/tmp/rnd-agent-business"
 
@@ -89,7 +93,7 @@ def _local_environment(
     on_phase=None,
 ):
     from scripts.daytona_capability_profile import inspect_created_sandbox
-    from workbench.daytona_sessions import _DEADLINE
+    from workbench.infrastructure.sandbox.daytona.sessions import _DEADLINE
     from workbench.planning.contracts import CapabilityEdits, SourceEdit
 
     phase = on_phase or (lambda value: None)

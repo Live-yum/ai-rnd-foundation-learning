@@ -484,7 +484,7 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
     for ui in (report["business_browser"], report["portable_restored"]["browser"]):
         ui["spec_digest"] = report["spec_digest"]
         ui["installed_navigation"] = deepcopy(browser)
-    files = {"start.py": "b" * 64, "deployment/workbench/business_probe.py": "c" * 64}
+    files = {"start.py": "b" * 64, "deployment/workbench/business/probe.py": "c" * 64}
     projected = native_review_evidence(report, plan, files, "d" * 64)
     assert MAX_EVIDENCE_BYTES == 64_000
     assert len(json.dumps(projected, separators=(",", ":")).encode()) <= MAX_EVIDENCE_BYTES

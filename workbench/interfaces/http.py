@@ -14,12 +14,18 @@ from filelock import FileLock
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from workbench.catalog import selections
-from workbench.domain import AutomationInput, BatchInput, ProjectInput, ResumeInput, RunInput
+from workbench.core.contracts import (
+    AutomationInput,
+    BatchInput,
+    ProjectInput,
+    ResumeInput,
+    RunInput,
+)
 from workbench.filesystem import inside
-from workbench.runtime import Runtime
+from workbench.infrastructure.persistence.store import Conflict, Missing, Store
+from workbench.production.worker import Runtime
 from workbench.settings import ROOT, STAGES, Settings
-from workbench.store import Conflict, Missing, Store
+from workbench.templates.catalog import selections
 
 
 def create_app(settings=None, gateway_factory=None, start_worker=True):
@@ -286,12 +292,12 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
 
     @app.get("/templates")
     def templates(store=Depends(auth)):
-        from workbench.native import catalog
+        from workbench.generation.native.service import catalog
 
         return catalog(settings)
 
-    from workbench.model_settings import register_model_settings_routes
-    from workbench.streaming import register_streaming_routes
+    from workbench.interfaces.streaming import register_streaming_routes
+    from workbench.models.settings import register_model_settings_routes
 
     register_model_settings_routes(app, settings, auth)
     register_streaming_routes(app, auth)

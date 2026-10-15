@@ -30,9 +30,9 @@
 
 **创建路径：** `tests/test_capability_editing.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L264。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8870`。本段原文以LF换行结束。
+本段原始字节数：`8882`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7ec6774aa5cb733253d12483b157e04c709a8cee761b6072ded054b6b87ad648"} -->
+<!-- learning-source: {"path": "tests/test_capability_editing.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6411215c7c7481246220f2fda003bf917203663863324d8a978739cdcac23930"} -->
 ````python
 # tests/test_capability_editing.py
 """Candidate editing must not mutate baselines or execute product code."""
@@ -89,7 +89,7 @@ def test_candidate_is_separate_and_replay_is_hash_bound(tmp_path):
     [
         "pyproject.toml",
         "verify.py",
-        "workbench/flow.py",
+        "workbench/production/graph.py",
         "deployment/run.py",
         "start.py",
         "package.json",

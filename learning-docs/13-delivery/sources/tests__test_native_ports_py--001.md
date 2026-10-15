@@ -26,7 +26,7 @@
 - `test_unknown_or_malformed_dynamic_range_is_not_guessed`（L116–L123）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`ports.dynamic_tcp_range`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_port_receipt_symlink_rejected`（L126–L134）：接收`tmp_path`。 控制顺序：L134断言`target.read_text() == "{}"`。 调用`target.write_text`、`link.symlink_to`、`pytest.raises`、`ports.backend_port_lease`、`target.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_frontend_skip_build_rejects_changed_target`（L137–L147）：接收`tmp_path`。 调用`dist.mkdir`、`pytest.raises`、`require_frontend_backend`、`(dist / "native-backend.json").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_portable_export_includes_allocator_and_no_runtime_receipt`（L150–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L154断言`"native_ports.py" in HELPERS`；L155断言`".deployment" in EXCLUDED_DIRS`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_export_includes_allocator_and_no_runtime_receipt`（L150–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L154断言`"infrastructure/native/ports.py" in HELPERS`；L155断言`".deployment" in EXCLUDED_DIRS`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy`（L159–L267）：接收`tmp_path`、`monkeypatch`、`template`。 控制顺序：L242断言`backend_ports == [selected, selected]`；L243断言`frontend_urls == [f"http://127.0.0.1:{selected}"]`；L245断言`outcome["backend_port"] == selected and outcome["backend_url"] == frontend_urls[0]`；L248断言`backend_ports == [selected] * 4 and len(service_calls) == 2`；L256断言`len(service_calls) == 2`；L257断言`ports.saved_backend_port(product / ".deployment/backend-port.json") == selected`；L267断言`len(service_calls) == 2`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`deployment.mkdir`、`write_json`、`monkeypatch.setattr`、`launcher.main`、`ports.saved_backend_port`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.services`（L183–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`service_calls.append`。 返回路径：L185的`"postgresql+psycopg://native:unused@127.0.0.1:5432/test_codegen", 6379`。
 - `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.backend`（L199–L222）：接收`template`、`root`、`env`、`reports`。 控制顺序：L200按`template == "fastapiadmin"`分支；L213断言`f"spring.cloud.openfeign.client.config.yudao-system.url=http://127.0.0.1:{port}" in p…`；L217断言`f"spring.cloud.openfeign.client.config.yudao-infra.url=http://127.0.0.1:{port}" in pr…`。 调用`int`、`( root / "yudao-server/src/main/resources/application-native.prop…`、`next`、`row.split`、`properties.splitlines`、`row.startswith`、`backend_ports.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
@@ -42,9 +42,9 @@
 
 **创建路径：** `tests/test_native_ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L387。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16068`。本段原文以LF换行结束。
+本段原始字节数：`16083`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f7d372df331df880ce535016aea4be179d818b5676191605fdb494a2341865c2"} -->
+<!-- learning-source: {"path": "tests/test_native_ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e9f60abc373768295de33f99c5eac68eab6f2578690b02ec1c1b1aba3853085"} -->
 ````python
 # tests/test_native_ports.py
 """Non-ephemeral backend leases and real source-socket collision regressions."""
@@ -200,7 +200,7 @@ def test_portable_export_includes_allocator_and_no_runtime_receipt():
     from workbench.filesystem import EXCLUDED_DIRS
     from workbench.portable import HELPERS
 
-    assert "native_ports.py" in HELPERS
+    assert "infrastructure/native/ports.py" in HELPERS
     assert ".deployment" in EXCLUDED_DIRS
 
 

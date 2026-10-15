@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.catalog`、`workbench.domain`、`workbench.module_imports`、`workbench.settings`、`workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.business.modules.imports`、`workbench.core.contracts`、`workbench.planning.contracts`、`workbench.settings`、`workbench.templates.adapters`、`workbench.templates.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -37,9 +37,9 @@
 
 **创建路径：** `workbench/planning/feature_planner.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L293。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13822`。本段原文以LF换行结束。
+本段原始字节数：`13849`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/planning/feature_planner.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "186fb3335390e4e7ef8991056ca57fd7ab40229fbfcd83fdd926a371ec033a50"} -->
+<!-- learning-source: {"path": "workbench/planning/feature_planner.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "95367242fa03e17990c73882bc795ae865dce7140946973ce8e9b611b334e447"} -->
 ````python
 # workbench/planning/feature_planner.py
 """Per-feature routing over the selected adapter, separate from graph orchestration.
@@ -52,17 +52,17 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from workbench.capability_contracts import (
+from workbench.business.modules.imports import ImportModuleSpec
+from workbench.core.contracts import ClarificationQuestion, Contract, Plan, digest
+from workbench.planning.contracts import (
     CapabilityPlan,
     CapabilityTask,
     CapabilityTaskV2,
     Identifier,
 )
-from workbench.catalog import Selection
-from workbench.domain import ClarificationQuestion, Contract, Plan, digest
-from workbench.module_imports import ImportModuleSpec
 from workbench.settings import ROOT
-from workbench.template_adapters import get_adapter
+from workbench.templates.adapters import get_adapter
+from workbench.templates.catalog import Selection
 
 
 class RoutedFeature(Contract):

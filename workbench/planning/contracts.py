@@ -7,9 +7,9 @@ from typing import Annotated, Literal
 
 from pydantic import Field, JsonValue, field_validator, model_validator
 
-from workbench.catalog import Selection
-from workbench.domain import Contract, UserText, digest
+from workbench.core.contracts import Contract, UserText, digest
 from workbench.filesystem import EXCLUDED_DIRS, secret_name
+from workbench.templates.catalog import Selection
 
 Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
 CUSTOM_CHOICE = "保留全部已提出功能，规划并自定义实现模板未覆盖的能力"

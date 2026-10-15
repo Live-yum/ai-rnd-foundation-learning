@@ -29,13 +29,13 @@
 
 | 顺序 | 要完整创建的文件 | 输入、职责和输出 |
 |---|---|---|
-| 1 | `workbench/business_contracts.py`，再把`domain.py`中的可选business字段连接好 | 校验角色、资源、关联、状态、通知和指标；拒绝未知实体、未知角色、矛盾字段与任意脚本 |
+| 1 | `workbench/business/contracts.py`，再把`domain.py`中的可选business字段连接好 | 校验角色、资源、关联、状态、通知和指标；拒绝未知实体、未知角色、矛盾字段与任意脚本 |
 | 2 | `examples/requirements/customer-service.md`、同目录decisions/contract补充文本、`examples/plans/customer-service.json` | 把自然语言目标与机器可验收合同并排保存；明白每条要求映射到哪里 |
-| 3 | `templates/business/common/policy.py`及`workbench/business_capabilities.py` | 解释已登记动作与行范围；不允许模型自称支持未经适配的能力 |
-| 4 | `workbench/business_python.py`、`templates/product/business_schema.py`、`business_runtime.py`、`manage.py`及`templates/frontends/simple-admin/` | 先让Python产品拥有真实外键、角色策略、独立初始化和轻量原生界面 |
-| 5 | `workbench/business_fastapi.py`及`templates/business/fastapiadmin/`，`workbench/business_yudao.py`及`templates/business/yudao/` | 在两套真实原生生成结果上挂载同一合同，不另造假原生管理页面 |
-| 6 | `workbench/business_native.py`、`business_schema_receipt.py`，及native_lab/portable中的调用 | 在专用库事务中安装明确DDL，记录表结构签名，连接新库恢复验证 |
-| 7 | `workbench/business_probe.py`、`business_browser.py`、`templates/product/verify_business.py`、三个模板的business浏览器脚本及测试 | 用实际原生账号、API、页面和数据库验证全部环节；将结果保存为证据 |
+| 3 | `templates/business/common/policy.py`及`workbench/business/capabilities.py` | 解释已登记动作与行范围；不允许模型自称支持未经适配的能力 |
+| 4 | `workbench/business/python.py`、`templates/product/business_schema.py`、`business_runtime.py`、`manage.py`及`templates/frontends/simple-admin/` | 先让Python产品拥有真实外键、角色策略、独立初始化和轻量原生界面 |
+| 5 | `workbench/business/fastapi.py`及`templates/business/fastapiadmin/`，`workbench/business/yudao.py`及`templates/business/yudao/` | 在两套真实原生生成结果上挂载同一合同，不另造假原生管理页面 |
+| 6 | `workbench/business/native.py`、`business_schema_receipt.py`，及native_lab/portable中的调用 | 在专用库事务中安装明确DDL，记录表结构签名，连接新库恢复验证 |
+| 7 | `workbench/business/probe.py`、`business_browser.py`、`templates/product/verify_business.py`、三个模板的business浏览器脚本及测试 | 用实际原生账号、API、页面和数据库验证全部环节；将结果保存为证据 |
 
 客户服务案例有三个资源：customers保存客户资料；requests以customer_id引用客户；tasks以request_id引用请求。`assignee_id`引用本机原生用户，不是自由填写的名字。API上的引用ID使用字符串，原生数据库中仍采用相应数值主键与外键；字符串`"12"`不能被解释成另一个实体的编号，更不能通过字符串拼接进入SQL。
 

@@ -367,7 +367,7 @@ uv run pytest tests/test_contracts.py tests/test_store.py -q
 
 ## 8. 第二组：消息、长期会话、审批与智能委托
 
-创建 `workbench/conversation.py`，继续阅读store的 `request/create_run/submit/set_automation/auto_approve`。
+创建 `workbench/requirements/conversation.py`，继续阅读store的 `request/create_run/submit/set_automation/auto_approve`。
 
 一个请求在同一事务保存原始消息、运行和待处理job，不出现“成功保存了需求却没有任务”。Idempotency-Key绑定请求指纹：同一个请求重试返回同一结果，不同内容重用同键返回409。并发控制由文件锁/PG事务锁保证，而不是让模型决定。
 
@@ -383,7 +383,7 @@ uv run pytest tests/test_guided_workflow.py tests/test_guided_completion.py -q
 
 ## 9. 第三组：多模型边界和运行回执
 
-创建 `workbench/llm.py`、`model_protocol.py`、`streaming.py`，阅读settings.ModelProfile与 `tests/test_guided_models.py`。
+创建 `workbench/infrastructure/llm/gateway.py`、`model_protocol.py`、`streaming.py`，阅读settings.ModelProfile与 `tests/test_guided_models.py`。
 
 调用key将任务映射到requirements/planning/coding/review，解析有效地址、密钥、模型名；缓存身份包括阶段/地址/模型，不包含明文密钥。更改模型不会错误复用另一模型的响应。响应必须经过Pydantic严格验证；未知字段、错误JSON、超长响应、鉴权失败或超时明确报错。调用前记录预算尝试，外部服务失败也不免费假装成功。
 
@@ -435,7 +435,7 @@ uv run pytest tests/test_business_contracts.py tests/test_business_python.py tes
 
 ## 12. 第六组：独立验证、修复、模型审阅与打包
 
-创建verification.py并阅读templates/product/verify.py、workbench/postgres_lab.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
+创建verification.py并阅读templates/product/verify.py、workbench/acceptance/postgres_lab.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
 
 平台默认给产品创建自己的uv环境；集成测试可显式用已有依赖减少下载，但另有ci_clean_install真实安装验证。PG产品验证用独立数据库，不能替换成SQLite后仍声称PG已测。
 

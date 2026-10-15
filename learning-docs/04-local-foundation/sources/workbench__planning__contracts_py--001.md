@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.filesystem`、`workbench.templates.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -58,9 +58,9 @@
 
 **创建路径：** `workbench/planning/contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L552。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23252`。本段原文以LF换行结束。
+本段原始字节数：`23270`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/planning/contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "155814a553ae7c2364c9eb51936125795adf7d94e47fbdeb01d0ac0a184eb244"} -->
+<!-- learning-source: {"path": "workbench/planning/contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "90249be7499a8ad77939c0cbfa7c6d7ecffd286c0c41aafe5cfdacc572df90db"} -->
 ````python
 # workbench/planning/contracts.py
 """Reviewed source tasks and executable checks, separate from template CRUD schemas."""
@@ -72,9 +72,9 @@ from typing import Annotated, Literal
 
 from pydantic import Field, JsonValue, field_validator, model_validator
 
-from workbench.catalog import Selection
-from workbench.domain import Contract, UserText, digest
+from workbench.core.contracts import Contract, UserText, digest
 from workbench.filesystem import EXCLUDED_DIRS, secret_name
+from workbench.templates.catalog import Selection
 
 Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
 CUSTOM_CHOICE = "保留全部已提出功能，规划并自定义实现模板未覆盖的能力"

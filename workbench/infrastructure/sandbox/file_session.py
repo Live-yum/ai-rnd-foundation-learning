@@ -14,8 +14,8 @@ from pathlib import Path
 
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import write_json
+from workbench.infrastructure.processes.tools import clean_env, process_options
 from workbench.infrastructure.sandbox.cleanup import delete_owned, receipt
-from workbench.tools import clean_env, process_options
 
 LIMIT = 1_200_000
 SUPERVISION_PHASES = {"terminate", "wait", "reader", "pipes", "job_close", "delete", "journal"}
@@ -99,7 +99,7 @@ class Session:
     def __init__(self, settings, task, selection, product, deadline, path, binding):
         if not 15 < deadline - time.monotonic() <= 180:
             raise UnsupportedScope("File session requires the original bounded module deadline")
-        from workbench.capability_sandbox import verifier_policy_environment
+        from workbench.acceptance.capability_sandbox import verifier_policy_environment
 
         policy_environment = verifier_policy_environment()
         self.deadline, self.work_end = deadline, deadline - 15

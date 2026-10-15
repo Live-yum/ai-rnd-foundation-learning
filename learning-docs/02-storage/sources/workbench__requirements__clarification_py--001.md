@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 当前问题Q的选项O1标签是‘内部团队’，浏览器提交的是Q/O1。render_answer从当前pending取标签，不以客户端伪造标签为准；Q已被下一版替换或单选提交两个选项时，在同一事务里拒绝且不排队。合法回答成为用户原文，仍不等于需求/计划批准。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -21,14 +23,14 @@
 
 **创建路径：** `workbench/requirements/clarification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L59。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2822`。本段原文以LF换行结束。
+本段原始字节数：`2857`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirements/clarification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ea794fb1e2ee487a4159f338009f7da4c8154813b091a35e17ac0a4d085ee760"} -->
+<!-- learning-source: {"path": "workbench/requirements/clarification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "027b1354514cfcc280ced063950b57c20fc3135344ed23f94f05f082a69db89a"} -->
 ````python
 # workbench/requirements/clarification.py
 """Validate current-gate choices and preserve the operator's explicit answer text."""
 
-from workbench.domain import ClarificationQuestion
+from workbench.core.contracts import ClarificationQuestion
 
 
 def render_answer(pending, data):
@@ -38,7 +40,7 @@ def render_answer(pending, data):
     called inside Store.submit's locked transaction, after the gate identity check.
     CLI/free-text answers remain unchanged, including when no choice UI is available.
     """
-    from workbench.store import Conflict
+    from workbench.infrastructure.persistence.store import Conflict
 
     answers = data.get("answers", [])
     if not answers:

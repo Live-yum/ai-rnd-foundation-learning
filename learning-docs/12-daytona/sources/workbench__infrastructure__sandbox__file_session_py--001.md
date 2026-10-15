@@ -10,7 +10,7 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.infrastructure.sandbox.cleanup`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.errors`、`workbench.filesystem`、`workbench.infrastructure.processes.tools`、`workbench.infrastructure.sandbox.cleanup`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -39,9 +39,9 @@
 
 **创建路径：** `workbench/infrastructure/sandbox/file_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L390。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14997`。本段原文以LF换行结束。
+本段原始字节数：`15033`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "58c2da988334cd6b337d06144aac44fe6dcfa070975bc8b4cf65f5c18508c331"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/sandbox/file_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0a04f65046118772970377a6cd3c00646536101336276c8b4c674c70e27cd312"} -->
 ````python
 # workbench/infrastructure/sandbox/file_session.py
 """Parent-owned bounded file RPC; no SDK call can hold the controller past its deadline."""
@@ -60,8 +60,8 @@ from pathlib import Path
 
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import write_json
+from workbench.infrastructure.processes.tools import clean_env, process_options
 from workbench.infrastructure.sandbox.cleanup import delete_owned, receipt
-from workbench.tools import clean_env, process_options
 
 LIMIT = 1_200_000
 SUPERVISION_PHASES = {"terminate", "wait", "reader", "pipes", "job_close", "delete", "journal"}
@@ -145,7 +145,7 @@ class Session:
     def __init__(self, settings, task, selection, product, deadline, path, binding):
         if not 15 < deadline - time.monotonic() <= 180:
             raise UnsupportedScope("File session requires the original bounded module deadline")
-        from workbench.capability_sandbox import verifier_policy_environment
+        from workbench.acceptance.capability_sandbox import verifier_policy_environment
 
         policy_environment = verifier_policy_environment()
         self.deadline, self.work_end = deadline, deadline - 15

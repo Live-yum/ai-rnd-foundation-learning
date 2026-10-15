@@ -11,14 +11,14 @@
 | `tools/node/package.json`、`package-lock.json` | 锁定真实 `node-plop==0.32.3`。它是 Plop 的生成引擎，而不是本平台重新实现的模板工具。 | `npm ci --prefix tools/node --no-audit --no-fund`。安装应成功且不得改锁文件。 |
 | `tools/node/templates/rule.py.hbs`、`rule.java.hbs`、`rule.vue.hbs` | Plop 的受信任模板。Python/Java 模板提供布尔规则入口，Vue 模板同时导出校验函数和显示业务说明的组件。 | `tests/test_native_tools.py` 检查模板、实际 Plop 执行及禁止覆盖。 |
 | `tools/node/plop-runner.mjs` | Node 调用实际 Plop `runActions` 执行新增和精确修改；不接受用户 plopfile 或 shell。 | Python 适配器使用禁网入口调用，输出实际安装版本与动作数。 |
-| `workbench/scaffolding.py` | 从批准后的实体名和真实原生生成文件计算路径和锚点；在临时目录完整执行 Plop，再核对源文件身份和输出集合后写回。失败恢复已写入文件，不覆盖旧业务文件。 | 原生 `schema.py`/SaveReqVO 和表单导入新的业务规则入口，`plop.json` 保存来源和哈希。 |
-| `workbench/native_coding.py` | 把注册文件及 SHA 发给平台模型网关，接受完整 SEARCH/REPLACE。Aider 在独立 Git 工作区实际应用；前像、唯一匹配、输出、表达式范围和文件集合必须全部一致。 | `coding-N.json`、Git journal 和原生正反例验收；失败候选回滚。 |
-| `workbench/native_business_checks.py` | 实际创建、读取、修改、删除批准的正反例。负例必须是业务校验拒绝，不能是服务器崩溃、权限失败或字段格式错误。 | 检查拒绝的新增没有记录，拒绝的修改不改变原记录，合法修改仍成功。 |
+| `workbench/templates/scaffolding.py` | 从批准后的实体名和真实原生生成文件计算路径和锚点；在临时目录完整执行 Plop，再核对源文件身份和输出集合后写回。失败恢复已写入文件，不覆盖旧业务文件。 | 原生 `schema.py`/SaveReqVO 和表单导入新的业务规则入口，`plop.json` 保存来源和哈希。 |
+| `workbench/generation/native/coding.py` | 把注册文件及 SHA 发给平台模型网关，接受完整 SEARCH/REPLACE。Aider 在独立 Git 工作区实际应用；前像、唯一匹配、输出、表达式范围和文件集合必须全部一致。 | `coding-N.json`、Git journal 和原生正反例验收；失败候选回滚。 |
+| `workbench/acceptance/native_business_checks.py` | 实际创建、读取、修改、删除批准的正反例。负例必须是业务校验拒绝，不能是服务器崩溃、权限失败或字段格式错误。 | 检查拒绝的新增没有记录，拒绝的修改不改变原记录，合法修改仍成功。 |
 | `scripts/native_browser.cjs` | 真正打开原生登录页和业务表单；验证 Plop 组件可见、负例在前端拦截且没有发送写请求、正例提交成功。 | Chromium 报告、截图、实际网络响应。没有注入登录令牌或模拟路由。 |
-| `workbench/daytona_profiles.py` | 登记模板/数据库矩阵、快照依赖身份及严格运行报告。 | 不匹配快照、缺失字段、整数/字符串冒充布尔通过均拒绝。 |
+| `workbench/infrastructure/sandbox/daytona/profiles.py` | 登记模板/数据库矩阵、快照依赖身份及严格运行报告。 | 不匹配快照、缺失字段、整数/字符串冒充布尔通过均拒绝。 |
 | `tools/daytona/matrix.Dockerfile`、`warm.py` | 显式安装公开工具依赖，预热 uv/pnpm/Maven/Chromium；运行时不下载，不依赖云端账户。 | 使用锁文件构建，镜像 ID、输入哈希和 profile 写入本机。 |
 | `scripts/daytona_matrix_image.py` | 从已生成项目制作受限构建上下文，排除凭据、数据库、缓存和用户环境，然后推送至本机 registry。 | `snapshot-image.json`，其名称、资源、镜像身份均须符合登记规则。 |
-| `scripts/daytona_matrix_probe.py`、`workbench/owned_lifecycle.py` | 在无外网沙箱内创建独立 PostgreSQL/Redis，执行独立项目启动器、编译、类型检查、权限/CRUD/规则/浏览器/重启。先正常结束启动器并确认全部应用端口关闭，再启动第二次。 | 数据库凭据随机生成且只在沙箱内使用；旧服务残留、退出超时都阻止通过，不能用旧进程冒充重启。 |
+| `scripts/daytona_matrix_probe.py`、`workbench/infrastructure/processes/owned_lifecycle.py` | 在无外网沙箱内创建独立 PostgreSQL/Redis，执行独立项目启动器、编译、类型检查、权限/CRUD/规则/浏览器/重启。先正常结束启动器并确认全部应用端口关闭，再启动第二次。 | 数据库凭据随机生成且只在沙箱内使用；旧服务残留、退出超时都阻止通过，不能用旧进程冒充重启。 |
 | `scripts/ci_native_tools.py`、`ci_daytona_matrix.py`、对应 Actions | 用明确测试模型响应，故意提供错误规则，再验证自动修复、回滚和真实完整运行。测试夹具不是生产模型的后备答案。 | 各阶段执行命令成功，最后才允许 `passed=true`。 |
 
 ## 业务规则是如何从需求进入原生代码的
@@ -100,7 +100,7 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 ## 原生生成中断后如何恢复
 
-原生初始化包含建表、菜单挂载和源码写入，不能把整个过程无条件重跑。`workbench/native_recovery.py`把批准Plan、模板来源、专用数据库身份以及生成文件清单绑定到检查点。实际生成完成后保存可恢复阶段；后续规则编辑、构建或验收失败，再次重试先核对这份检查点，复用同一生成目录和数据库，不重新初始化种子或创建第二套菜单。
+原生初始化包含建表、菜单挂载和源码写入，不能把整个过程无条件重跑。`workbench/delivery/recovery.py`把批准Plan、模板来源、专用数据库身份以及生成文件清单绑定到检查点。实际生成完成后保存可恢复阶段；后续规则编辑、构建或验收失败，再次重试先核对这份检查点，复用同一生成目录和数据库，不重新初始化种子或创建第二套菜单。
 
 已有失败候选的日志和Git记录保留，继续尝试使用新的编号。只允许恢复程序明确标记可恢复的阶段。若进程在不可重放的生成步骤中被强制终止、检查点缺失、源码被手工改过或数据库/Plan已改变，就保留现场并明确阻塞，先检查该阶段；不能自动清库，也不要求靠新建任务掩盖旧现场。
 
@@ -112,6 +112,6 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 ## 长时间矩阵命令只提交一次
 
-`workbench/daytona_sessions.py`为非SQLite的长时间矩阵验收建立独立会话，再用一次异步命令提交启动检查；随后在原总运行期限内用短GET请求轮询状态，结束后读取日志一次。会话创建、命令提交、状态与日志请求均有最多30秒的单请求期限；SDK传输层关闭透明重试，尤其不自动重发可能已经执行的POST。回执保存mode、session_id及取得的command_id，便于定位本次操作。
+`workbench/infrastructure/sandbox/daytona/sessions.py`为非SQLite的长时间矩阵验收建立独立会话，再用一次异步命令提交启动检查；随后在原总运行期限内用短GET请求轮询状态，结束后读取日志一次。会话创建、命令提交、状态与日志请求均有最多30秒的单请求期限；SDK传输层关闭透明重试，尤其不自动重发可能已经执行的POST。回执保存mode、session_id及取得的command_id，便于定位本次操作。
 
 响应丢失不证明命令没执行，因此提交结果不确定、超时或缺少命令ID时直接失败并进入自有沙箱清理，不改用同步exec重新运行。输出目录的重复保护仍保持严格，不因发现目录已存在就跳过验收或宣布通过。这个处理改变请求组织方式，不延长网关空闲超时，不放开网络，也不减少矩阵检查。

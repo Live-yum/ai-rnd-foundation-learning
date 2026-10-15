@@ -25,4 +25,4 @@
 - [templates/product/verify-business-browser.cjs](sources/templates__product__verify-business-browser_cjs--001.md)：独立基础产品的组成文件；1 段
 - [templates/product/verify.py](sources/templates__product__verify_py--001.md)：独立基础产品的组成文件；1 段
 - [templates/product/verify_business.py](sources/templates__product__verify_business_py--001.md)：独立基础产品的组成文件；2 段
-- [workbench/business_python.py](sources/workbench__business_python_py--001.md)：基础Python产品的业务合同挂载；1 段
+- [workbench/business/python.py](sources/workbench__business__python_py--001.md)：基础Python产品的业务合同挂载；1 段

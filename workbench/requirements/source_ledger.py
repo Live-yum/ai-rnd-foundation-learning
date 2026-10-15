@@ -16,8 +16,8 @@ Unknown prose remains untouched.
 import json
 from collections import defaultdict
 
-from workbench.domain import Requirement, RequirementChange, digest
-from workbench.requirement_coverage import _authorized, explicit_legacy_field_constraints
+from workbench.core.contracts import Requirement, RequirementChange, digest
+from workbench.requirements.coverage import _authorized, explicit_legacy_field_constraints
 
 
 def _records(requirement):

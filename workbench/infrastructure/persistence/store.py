@@ -20,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import sessionmaker
 
-from workbench.domain import BatchInput, ResumeInput, RunInput, digest
+from workbench.core.contracts import BatchInput, ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.projects.models import (
     Approval,
@@ -258,7 +258,7 @@ class Store:
                     )
                 )
             if data["action"] in {"answer", "revise"}:
-                from workbench.clarification import render_answer
+                from workbench.requirements.clarification import render_answer
 
                 answer_text = render_answer(pending, data)
                 session.add(Message(run_id=run_id, role="user", content=answer_text))

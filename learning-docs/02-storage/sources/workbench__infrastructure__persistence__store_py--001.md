@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.errors`、`workbench.projects.models`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.errors`、`workbench.projects.models`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** create_project第一次使用请求键K时创建项目并保存回执；同键同内容返回原结果，同键不同标题抛Conflict。关键是状态变化与回执在同一短事务里完成；若事务中抛异常，新增记录整体回滚。审批还把gate_id绑定到确定版本，而不是只保存一个永远有效的approved标志。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -71,9 +73,9 @@
 
 **创建路径：** `workbench/infrastructure/persistence/store.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L998。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`43149`。本段原文以LF换行结束。
+本段原始字节数：`43170`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/persistence/store.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ca5fd38c9784e83b28899bcee0e73a389a83e30ebd89508ffed1a8e69a99add0"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/persistence/store.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0ee98f03d9e5d7edd66c4de2b83c3f6cdf99851a7fab95cc936cd1c1f6689331"} -->
 ````python
 # workbench/infrastructure/persistence/store.py
 """Short SQLAlchemy transactions; no model/tool calls inside a database transaction."""
@@ -98,7 +100,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import sessionmaker
 
-from workbench.domain import BatchInput, ResumeInput, RunInput, digest
+from workbench.core.contracts import BatchInput, ResumeInput, RunInput, digest
 from workbench.errors import PausedLimit
 from workbench.projects.models import (
     Approval,
@@ -336,7 +338,7 @@ class Store:
                     )
                 )
             if data["action"] in {"answer", "revise"}:
-                from workbench.clarification import render_answer
+                from workbench.requirements.clarification import render_answer
 
                 answer_text = render_answer(pending, data)
                 session.add(Message(run_id=run_id, role="user", content=answer_text))

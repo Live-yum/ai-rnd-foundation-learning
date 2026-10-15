@@ -10,7 +10,9 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.business_capabilities`、`workbench.business_contracts`、`workbench.catalog`、`workbench.coding`、`workbench.conversation`、`workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.generator`、`workbench.knowledge`、`workbench.production.dispatcher`、`workbench.production.state`、`workbench.requirement_coverage`、`workbench.requirement_intent`、`workbench.requirement_sources`、`workbench.verification`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.acceptance.verification`、`workbench.business.capabilities`、`workbench.business.contracts`、`workbench.coding`、`workbench.core.contracts`、`workbench.errors`、`workbench.filesystem`、`workbench.generation.python_basic`、`workbench.knowledge_services.index`、`workbench.production.dispatcher`、`workbench.production.state`、`workbench.requirements.conversation`、`workbench.requirements.coverage`、`workbench.requirements.intent`、`workbench.requirements.source_ledger`、`workbench.templates.catalog`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** Workflow把需求确认、设计、生成、验证和交付排成有条件的图。gate先保存本版审批内容，再interrupt等待；恢复必须提交当前gate_id。智能推荐可以替用户补普通未知项并留下委托记录，但代码验证失败时仍不得进入READY。请沿第07阶段的三次等待状态走一次，而非假设所有节点每次都会执行。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
@@ -48,9 +50,9 @@
 
 **创建路径：** `workbench/production/graph.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L927。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`51870`。本段原文以LF换行结束。
+本段原始字节数：`52147`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/graph.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "35aa5ed66afb705579c0267733e80b93d51758ff267c38d9d3fe33baee878084"} -->
+<!-- learning-source: {"path": "workbench/production/graph.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fa093e735beb3d796e94172af4f217a9e39ed48d39ed3290f154436dee10a7e9"} -->
 ````python
 # workbench/production/graph.py
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
@@ -61,20 +63,20 @@ from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from workbench.business_capabilities import business_analysis_conflicts, business_gaps
-from workbench.business_contracts import BusinessSpec
-from workbench.catalog import options_for_run
+from workbench.acceptance.verification import package_basic, verify_basic
+from workbench.business.capabilities import business_analysis_conflicts, business_gaps
+from workbench.business.contracts import BusinessSpec
 from workbench.coding import code_rules
-from workbench.conversation import context
-from workbench.domain import ModelReview, Plan, Requirement, digest
+from workbench.core.contracts import ModelReview, Plan, Requirement, digest
 from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.filesystem import sha, write_json
-from workbench.generator import PrerequisiteError, generate_basic
-from workbench.knowledge import design_pack
+from workbench.generation.python_basic import PrerequisiteError, generate_basic
+from workbench.knowledge_services.index import design_pack
 from workbench.production.dispatcher import ExtensionWorkflow
 from workbench.production.state import State
-from workbench.requirement_coverage import coverage_gaps, reconcile
-from workbench.requirement_intent import (
+from workbench.requirements.conversation import context
+from workbench.requirements.coverage import coverage_gaps, reconcile
+from workbench.requirements.intent import (
     analysis_intent_conflicts,
     blocked_requirement,
     reconcile_entrypoint,
@@ -82,8 +84,8 @@ from workbench.requirement_intent import (
     registration_scope,
     scope_conflicts,
 )
-from workbench.requirement_sources import analysis_feedback, analysis_source_conflicts
-from workbench.verification import package_basic, verify_basic
+from workbench.requirements.source_ledger import analysis_feedback, analysis_source_conflicts
+from workbench.templates.catalog import options_for_run
 
 ANALYSE = """你是需求分析员。先阅读结构化的当前需求、用户原始目标、最近修正和真实模板能力。
 禁止重新询问已确认的信息，禁止在后续轮次丢掉已明确的功能、字段、搜索条件和分类选项。
@@ -411,7 +413,7 @@ class Workflow(ExtensionWorkflow):
         return outcome
 
     def source_context(self, state):
-        from workbench.toolchain import prepare_context
+        from workbench.interfaces.toolchain import prepare_context
 
         value = prepare_context(
             self.settings,
@@ -476,7 +478,7 @@ class Workflow(ExtensionWorkflow):
         value.acceptance = list(
             dict.fromkeys([*state["requirement"]["acceptance"], *value.acceptance])
         )
-        from workbench.native_plan_normalization import normalize_native_plan
+        from workbench.generation.native.plan_normalization import normalize_native_plan
 
         value, normalization = normalize_native_plan(
             value,
@@ -488,7 +490,7 @@ class Workflow(ExtensionWorkflow):
 
     def design(self, state):
         plan = Plan.model_validate(state["plan"])
-        from workbench.native_plan_normalization import source_plan
+        from workbench.generation.native.plan_normalization import source_plan
 
         source_view = source_plan(plan, state.get("native_normalization", {}))
         reasons = list(plan.unsupported)
@@ -557,8 +559,8 @@ class Workflow(ExtensionWorkflow):
             reasons.append("原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成")
             reason_sources.append("native_coding_engine")
         if state["template"] != "python-basic":
-            from workbench.native_delivery import runtime_config, runtime_enabled
-            from workbench.native_modules import validate_plan
+            from workbench.delivery.native import runtime_config, runtime_enabled
+            from workbench.generation.native.modules import validate_plan
 
             try:
                 validate_plan(plan)
@@ -567,7 +569,7 @@ class Workflow(ExtensionWorkflow):
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
                 reason_sources.append("native_validation_or_runtime")
-        from workbench.sandbox import validate_configuration
+        from workbench.infrastructure.sandbox.daytona.verification import validate_configuration
 
         try:
             validate_configuration(self.settings, state["template"], selection.model_dump())
@@ -625,7 +627,7 @@ class Workflow(ExtensionWorkflow):
                     selection=options_for_run(self.store.get_run(state["run_id"])).model_dump(),
                 )
         else:
-            from workbench.native import generate_native
+            from workbench.generation.native.service import generate_native
 
             def fn():
                 return generate_native(
@@ -643,13 +645,13 @@ class Workflow(ExtensionWorkflow):
     def native_customization(self, state, plan):
         if not plan.custom_rules:
             return None
-        from workbench.native_coding import native_rule_customizer
+        from workbench.generation.native.coding import native_rule_customizer
 
         return native_rule_customizer(self.settings, self.gateway, state["run_id"])
 
     def run_coder(self, state, plan):
         if self.settings.coding_engine == "aider":
-            from workbench.aider_tool import code_rules_with_aider
+            from workbench.coding.aider import code_rules_with_aider
 
             return code_rules_with_aider(
                 state["run_id"],
@@ -685,7 +687,7 @@ class Workflow(ExtensionWorkflow):
 
     def verify(self, state):
         if state["template"] != "python-basic":
-            from workbench.native import verify_native
+            from workbench.generation.native.service import verify_native
 
             result = verify_native(self.product(state))
         else:
@@ -713,7 +715,7 @@ class Workflow(ExtensionWorkflow):
     def sandbox(self, state):
         if self.settings.sandbox_provider == "local":
             return {"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}
-        from workbench.sandbox import verify_in_daytona
+        from workbench.infrastructure.sandbox.daytona.verification import verify_in_daytona
 
         result = verify_in_daytona(self.product(state), state["template"], self.settings)
         return {"sandbox": {"enabled": True, **result}}
@@ -791,7 +793,7 @@ class Workflow(ExtensionWorkflow):
         # Also protects a checkpoint created before the review gate was enforced.
         self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state.get("requirement"):
-            from workbench.native_plan_normalization import source_plan
+            from workbench.generation.native.plan_normalization import source_plan
 
             gaps = coverage_gaps(
                 Requirement.model_validate(state["requirement"]),
@@ -816,7 +818,7 @@ class Workflow(ExtensionWorkflow):
                 state["verification"],
             )
         else:
-            from workbench.native import package_native
+            from workbench.generation.native.service import package_native
 
             result = package_native(self.product(state), state["verification"])
         result["model_review"] = state.get("model_review", {"enabled": False})
