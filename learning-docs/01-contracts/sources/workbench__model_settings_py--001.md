@@ -25,40 +25,41 @@
 - `ProfileConfig.key`（L77–L83）：接收`value`。 控制顺序：L79按`len(secret) > 8192 or any(ord(char) < 33 or ord(char) == 127 for char in secret)`分支；L80抛异常，停止当前正常路径；L81按`secret in {"configured", "missing", "**********", "[redacted]"}`分支；L82抛异常，停止当前正常路径。 调用`value.get_secret_value`、`len`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L83的`value`。
 - `ProfileConfig.public`（L85–L89）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`self.api_key.get_secret_value`。 返回路径：L86的`{ **self.model_dump(exclude={"api_key"}), "api_key": "configured" if self.api_key.get_secr…`。
 - `ProfileConfig.private`（L91–L92）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`self.api_key.get_secret_value`。 返回路径：L92的`{**self.model_dump(), "api_key": self.api_key.get_secret_value()}`。
-- `ModelConfiguration`（L95–L200）：继承`BaseModel`。声明的数据项为`_allow_insecure_model_http`、`version`、`revision`、`default`、`stages`、`model_review`；类型约束/数据库列参数以完整定义为准。
-- `ModelConfiguration.model_post_init`（L104–L105）：接收`context`。 调用`bool`、`context.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelConfiguration.known_version`（L109–L112）：接收`value`。 控制顺序：L110按`value != 1`分支；L111抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L112的`value`。
-- `ModelConfiguration.known_stages`（L116–L119）：接收`value`。 控制顺序：L117按`set(value) != set(STAGES)`分支；L118抛异常，停止当前正常路径。 调用`set`、`ValueError`、`field_validator`。 返回路径：L119的`value`。
-- `ModelConfiguration.review_enabled`（L122–L129）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`review.api_key.get_secret_value`。 返回路径：L124的`bool( self.model_review or review.model or review.base_url or review.api_key.get_secret_va…`。
-- `ModelConfiguration.profile`（L131–L157）：接收`stage`。 控制顺序：L132按`stage not in STAGES`分支；L133抛异常，停止当前正常路径；L139按`not key.get_secret_value()`分支；L140按`not same_endpoint`分支；L141抛异常，停止当前正常路径。 调用`ModelSettingsError`、`endpoint.rstrip`、`base.base_url.rstrip`、`key.get_secret_value`、`stage.upper`、`ModelProfile`。 返回路径：L145的`ModelProfile( stage=stage, base_url=endpoint, model=override.model or base.model, api_key=…`。
-- `ModelConfiguration.require_model`（L159–L162）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160遍历`STAGES`；L161按`stage != "review" or self.review_enabled`分支。 调用`self.profile(stage).validate_endpoint`、`self.profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelConfiguration.private`（L164–L171）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.default.private`、`config.private`、`self.stages.items`。 返回路径：L165的`{ "version": self.version, "revision": self.revision, "default": self.default.private(), "…`。
-- `ModelConfiguration.public`（L173–L200）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L175遍历`STAGES`；L182按`profile.api_key.get_secret_value()`分支。 调用`override.public`、`self.profile`、`profile.public`、`profile.api_key.get_secret_value`、`override.api_key.get_secret_value`、`profile.validate_endpoint`、`row.update`、`str`、`validation.append`等。 返回路径：L191的`{ "revision": self.revision, "default": self.default.public(), "stages": stages, "model_re…`。
-- `environment_configuration`（L203–L216）：接收`settings`。 源码说明：Copy current settings, including explicit test/local mutations, without I/O.。 控制顺序：L216抛异常，停止当前正常路径。 调用`getattr`、`ModelConfiguration.model_validate`、`ModelSettingsError`。 返回路径：L211的`ModelConfiguration.model_validate( {"default": values, "stages": stages, "model_review": s…`。
-- `ModelSettingsRepository`（L219–L392）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelSettingsRepository.__init__`（L220–L222）：接收`settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelSettingsRepository.snapshot`（L224–L247）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`self.path.is_symlink()`分支；L229抛异常，停止当前正常路径；L232抛异常，停止当前正常路径；L236按`not stat.S_ISREG(info.st_mode) or self.path.is_symlink()`分支；L237抛异常，停止当前正常路径；L238按`os.name == "posix" and stat.S_IMODE(info.st_mode) & 0o077`分支；L239抛异常，停止当前正常路径；L241按`len(data) > MAX_CONFIG_BYTES`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.open`、`getattr`、`self.path.is_symlink`、`ModelSettingsError`、`environment_configuration`、`os.fdopen`、`os.fstat`、`handle.fileno`、`stat.S_ISREG`等。 返回路径：L230的`environment_configuration(self.settings)`；L243的`ModelConfiguration.model_validate_json(data, context=self._validation_context())`。
-- `ModelSettingsRepository.public`（L249–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.snapshot().public`、`self.snapshot`。 返回路径：L250的`self.snapshot().public()`。
-- `ModelSettingsRepository._validation_context`（L252–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L253的`{"allow_insecure_model_http": self.settings.allow_insecure_model_http}`。
-- `ModelSettingsRepository.update`（L255–L279）：接收`patch`。 控制顺序：L256按`not isinstance(patch, dict) or set(patch) - { "expected_revision", "default", "stages…`分支；L262抛异常，停止当前正常路径；L263按`not isinstance(patch.get("expected_revision"), str)`分支；L264抛异常，停止当前正常路径；L269按`patch["expected_revision"] != before.revision`分支；L270抛异常，停止当前正常路径；L277抛异常，停止当前正常路径；L279抛异常，停止当前正常路径。 调用`isinstance`、`set`、`ModelSettingsError`、`patch.get`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.path.with_suffix`、`self.snapshot`等。 返回路径：L275的`after.public()`。
-- `ModelSettingsRepository._merge`（L281–L318）：接收`before`、`patch`。 控制顺序：L285按`not isinstance(stage_patch, dict) or set(stage_patch) - set(STAGES)`分支；L286抛异常，停止当前正常路径；L288遍历`changes.items()`；L289按`not isinstance(change, dict) or set(change) - PROFILE_FIELDS`分支；L290抛异常，停止当前正常路径；L294按`isinstance(changed_url, str)`分支；L296按`"base_url" in change and changed_url != (before.default if name == "default" else bef…`分支；L301遍历`( ("provider", "auto" if name == "default" else None), ("output_m…`。后续分支沿下方源码相同行号继续阅读。 调用`before.private`、`patch.get`、`isinstance`、`set`、`ModelSettingsError`、`changes.update`、`changes.items`、`target.update`、`change.get`等。 返回路径：L318的`after`。
-- `ModelSettingsRepository._check_key_destinations`（L321–L368）：接收`before`、`after`、`changes`。 控制顺序：L325遍历`("default", *STAGES)`；L329按`secret and endpoint`分支；L332遍历`("default", *STAGES)`；L344按`name != "default" and not new_key and new_url == after.default.base_url`分支；L346按`new_key in bindings and new_url and new_url not in bindings[new_key]`分支；L347抛异常，停止当前正常路径；L348按`old_url == new_url`分支；L350按`not new_url`分支。后续分支沿下方源码相同行号继续阅读。 调用`config.api_key.get_secret_value`、`bindings.setdefault(secret, set()).add`、`bindings.setdefault`、`set`、`old.api_key.get_secret_value`、`before.default.api_key.get_secret_value`、`new.api_key.get_secret_value`、`after.default.api_key.get_secret_value`、`ModelSettingsError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelSettingsRepository._atomic_write`（L370–L392）：接收`configuration`。 控制顺序：L371按`self.path.is_symlink()`分支；L372抛异常，停止当前正常路径；L374按`len(payload) > MAX_CONFIG_BYTES`分支；L375抛异常，停止当前正常路径；L379按`os.name == "posix"`分支；L385按`os.name == "posix"`分支。 调用`self.path.is_symlink`、`ModelSettingsError`、`json.dumps(configuration.private(), ensure_ascii=False, indent=2)…`、`json.dumps`、`configuration.private`、`len`、`tempfile.mkstemp`、`os.fdopen`、`os.fchmod`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_same_origin`（L395–L421）：接收`request`。 控制顺序：L397按`request.headers.get("sec-fetch-site") == "cross-site"`分支；L398抛异常，停止当前正常路径；L399按`not origin`分支；L420按`not matches`分支；L421抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`、`urlsplit`、`str`、`default_port`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_same_origin.default_port`（L405–L406）：接收`value`。 返回路径：L406的`value.port or (443 if value.scheme == "https" else 80)`。
-- `register_model_settings_routes`（L424–L471）：接收`app`、`settings`、`auth`。 调用`ModelSettingsRepository`、`ModelConnectionTester`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_model_settings_routes.read_models`（L435–L440）：接收`request`、`store`。 控制顺序：L440抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`JSONResponse`、`repository.public`、`HTTPException`、`app.get`。 返回路径：L438的`JSONResponse(repository.public(), headers={"Cache-Control": "no-store"})`。
-- `register_model_settings_routes.update_models`（L444–L453）：接收`request`、`store`。 控制顺序：L451抛异常，停止当前正常路径；L453抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`_model_request_body`、`repository.update`、`JSONResponse`、`HTTPException`、`str`、`app.patch`、`app.put`。 返回路径：L449的`JSONResponse(value, headers={"Cache-Control": "no-store"})`。
-- `register_model_settings_routes.test_models`（L456–L471）：接收`request`、`store`。 控制顺序：L462抛异常，停止当前正常路径；L469抛异常，停止当前正常路径；L471抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`_model_request_body`、`ConnectionTestRequest.model_validate`、`HTTPException`、`run_in_threadpool`、`JSONResponse`、`str`、`app.post`。 返回路径：L467的`JSONResponse(result, headers={"Cache-Control": "no-store"})`。
-- `_model_request_body`（L474–L489）：接收`request`。 控制顺序：L475按`request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "applicat…`分支；L479抛异常，停止当前正常路径；L483按`size > MAX_CONFIG_BYTES`分支；L484抛异常，停止当前正常路径；L489抛异常，停止当前正常路径。 调用`request.headers.get("content-type", "").split(";", 1)[0].strip().…`、`request.headers.get("content-type", "").split(";", 1)[0].strip`、`request.headers.get("content-type", "").split`、`request.headers.get`、`HTTPException`、`request.stream`、`len`、`chunks.append`、`json.loads`等。 返回路径：L487的`json.loads(b"".join(chunks))`。
+- `ModelConfiguration`（L95–L203）：继承`BaseModel`。声明的数据项为`_allow_insecure_model_http`、`_source`、`version`、`revision`、`default`、`stages`、`model_review`；类型约束/数据库列参数以完整定义为准。
+- `ModelConfiguration.model_post_init`（L105–L107）：接收`context`。 调用`bool`、`context.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelConfiguration.known_version`（L111–L114）：接收`value`。 控制顺序：L112按`value != 1`分支；L113抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L114的`value`。
+- `ModelConfiguration.known_stages`（L118–L121）：接收`value`。 控制顺序：L119按`set(value) != set(STAGES)`分支；L120抛异常，停止当前正常路径。 调用`set`、`ValueError`、`field_validator`。 返回路径：L121的`value`。
+- `ModelConfiguration.review_enabled`（L124–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`review.api_key.get_secret_value`。 返回路径：L126的`bool( self.model_review or review.model or review.base_url or review.api_key.get_secret_va…`。
+- `ModelConfiguration.profile`（L133–L159）：接收`stage`。 控制顺序：L134按`stage not in STAGES`分支；L135抛异常，停止当前正常路径；L141按`not key.get_secret_value()`分支；L142按`not same_endpoint`分支；L143抛异常，停止当前正常路径。 调用`ModelSettingsError`、`endpoint.rstrip`、`base.base_url.rstrip`、`key.get_secret_value`、`stage.upper`、`ModelProfile`。 返回路径：L147的`ModelProfile( stage=stage, base_url=endpoint, model=override.model or base.model, api_key=…`。
+- `ModelConfiguration.require_model`（L161–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162遍历`STAGES`；L163按`stage != "review" or self.review_enabled`分支。 调用`self.profile(stage).validate_endpoint`、`self.profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelConfiguration.private`（L166–L173）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.default.private`、`config.private`、`self.stages.items`。 返回路径：L167的`{ "version": self.version, "revision": self.revision, "default": self.default.private(), "…`。
+- `ModelConfiguration.public`（L175–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L177遍历`STAGES`；L184按`profile.api_key.get_secret_value()`分支。 调用`override.public`、`self.profile`、`profile.public`、`profile.api_key.get_secret_value`、`override.api_key.get_secret_value`、`profile.validate_endpoint`、`row.update`、`str`、`validation.append`等。 返回路径：L193的`{ "revision": self.revision, "source": self._source, "default": self.default.public(), "st…`。
+- `environment_configuration`（L206–L219）：接收`settings`。 源码说明：Copy current settings, including explicit test/local mutations, without I/O.。 控制顺序：L219抛异常，停止当前正常路径。 调用`getattr`、`ModelConfiguration.model_validate`、`ModelSettingsError`。 返回路径：L214的`ModelConfiguration.model_validate( {"default": values, "stages": stages, "model_review": s…`。
+- `ModelSettingsRepository`（L222–L398）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelSettingsRepository.__init__`（L223–L225）：接收`settings`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelSettingsRepository.snapshot`（L227–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L231按`self.path.is_symlink()`分支；L232抛异常，停止当前正常路径；L235抛异常，停止当前正常路径；L239按`not stat.S_ISREG(info.st_mode) or self.path.is_symlink()`分支；L240抛异常，停止当前正常路径；L241按`os.name == "posix" and stat.S_IMODE(info.st_mode) & 0o077`分支；L242抛异常，停止当前正常路径；L244按`len(data) > MAX_CONFIG_BYTES`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.open`、`getattr`、`self.path.is_symlink`、`ModelSettingsError`、`environment_configuration`、`os.fdopen`、`os.fstat`、`handle.fileno`、`stat.S_ISREG`等。 返回路径：L233的`environment_configuration(self.settings)`；L246的`ModelConfiguration.model_validate_json(data, context=self._validation_context())`。
+- `ModelSettingsRepository.public`（L252–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.snapshot().public`、`self.snapshot`。 返回路径：L253的`self.snapshot().public()`。
+- `ModelSettingsRepository._validation_context`（L255–L259）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L256的`{ "allow_insecure_model_http": self.settings.allow_insecure_model_http, "source": "saved",…`。
+- `ModelSettingsRepository.update`（L261–L285）：接收`patch`。 控制顺序：L262按`not isinstance(patch, dict) or set(patch) - { "expected_revision", "default", "stages…`分支；L268抛异常，停止当前正常路径；L269按`not isinstance(patch.get("expected_revision"), str)`分支；L270抛异常，停止当前正常路径；L275按`patch["expected_revision"] != before.revision`分支；L276抛异常，停止当前正常路径；L283抛异常，停止当前正常路径；L285抛异常，停止当前正常路径。 调用`isinstance`、`set`、`ModelSettingsError`、`patch.get`、`self.settings.data_dir.mkdir`、`FileLock`、`str`、`self.path.with_suffix`、`self.snapshot`等。 返回路径：L281的`after.public()`。
+- `ModelSettingsRepository._merge`（L287–L324）：接收`before`、`patch`。 控制顺序：L291按`not isinstance(stage_patch, dict) or set(stage_patch) - set(STAGES)`分支；L292抛异常，停止当前正常路径；L294遍历`changes.items()`；L295按`not isinstance(change, dict) or set(change) - PROFILE_FIELDS`分支；L296抛异常，停止当前正常路径；L300按`isinstance(changed_url, str)`分支；L302按`"base_url" in change and changed_url != (before.default if name == "default" else bef…`分支；L307遍历`( ("provider", "auto" if name == "default" else None), ("output_m…`。后续分支沿下方源码相同行号继续阅读。 调用`before.private`、`patch.get`、`isinstance`、`set`、`ModelSettingsError`、`changes.update`、`changes.items`、`target.update`、`change.get`等。 返回路径：L324的`after`。
+- `ModelSettingsRepository._check_key_destinations`（L327–L374）：接收`before`、`after`、`changes`。 控制顺序：L331遍历`("default", *STAGES)`；L335按`secret and endpoint`分支；L338遍历`("default", *STAGES)`；L350按`name != "default" and not new_key and new_url == after.default.base_url`分支；L352按`new_key in bindings and new_url and new_url not in bindings[new_key]`分支；L353抛异常，停止当前正常路径；L354按`old_url == new_url`分支；L356按`not new_url`分支。后续分支沿下方源码相同行号继续阅读。 调用`config.api_key.get_secret_value`、`bindings.setdefault(secret, set()).add`、`bindings.setdefault`、`set`、`old.api_key.get_secret_value`、`before.default.api_key.get_secret_value`、`new.api_key.get_secret_value`、`after.default.api_key.get_secret_value`、`ModelSettingsError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelSettingsRepository._atomic_write`（L376–L398）：接收`configuration`。 控制顺序：L377按`self.path.is_symlink()`分支；L378抛异常，停止当前正常路径；L380按`len(payload) > MAX_CONFIG_BYTES`分支；L381抛异常，停止当前正常路径；L385按`os.name == "posix"`分支；L391按`os.name == "posix"`分支。 调用`self.path.is_symlink`、`ModelSettingsError`、`json.dumps(configuration.private(), ensure_ascii=False, indent=2)…`、`json.dumps`、`configuration.private`、`len`、`tempfile.mkstemp`、`os.fdopen`、`os.fchmod`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_same_origin`（L401–L427）：接收`request`。 控制顺序：L403按`request.headers.get("sec-fetch-site") == "cross-site"`分支；L404抛异常，停止当前正常路径；L405按`not origin`分支；L426按`not matches`分支；L427抛异常，停止当前正常路径。 调用`request.headers.get`、`HTTPException`、`urlsplit`、`str`、`default_port`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_same_origin.default_port`（L411–L412）：接收`value`。 返回路径：L412的`value.port or (443 if value.scheme == "https" else 80)`。
+- `register_model_settings_routes`（L430–L501）：接收`app`、`settings`、`auth`。 调用`ModelSettingsRepository`、`ModelConnectionTester`、`ModelDiscoverer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_model_settings_routes.read_models`（L447–L452）：接收`request`、`store`。 控制顺序：L452抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`JSONResponse`、`repository.public`、`HTTPException`、`app.get`。 返回路径：L450的`JSONResponse(repository.public(), headers={"Cache-Control": "no-store"})`。
+- `register_model_settings_routes.update_models`（L456–L465）：接收`request`、`store`。 控制顺序：L463抛异常，停止当前正常路径；L465抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`_model_request_body`、`repository.update`、`JSONResponse`、`HTTPException`、`str`、`app.patch`、`app.put`。 返回路径：L461的`JSONResponse(value, headers={"Cache-Control": "no-store"})`。
+- `register_model_settings_routes.discover_models`（L468–L483）：接收`request`、`store`。 控制顺序：L474抛异常，停止当前正常路径；L479抛异常，停止当前正常路径；L481抛异常，停止当前正常路径；L483抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`_model_request_body`、`ModelDiscoveryRequest.model_validate`、`HTTPException`、`run_in_threadpool`、`JSONResponse`、`str`、`app.post`。 返回路径：L477的`JSONResponse(result, headers={"Cache-Control": "no-store"})`。
+- `register_model_settings_routes.test_models`（L486–L501）：接收`request`、`store`。 控制顺序：L492抛异常，停止当前正常路径；L499抛异常，停止当前正常路径；L501抛异常，停止当前正常路径。 调用`Depends`、`_same_origin`、`_model_request_body`、`ConnectionTestRequest.model_validate`、`HTTPException`、`run_in_threadpool`、`JSONResponse`、`str`、`app.post`。 返回路径：L497的`JSONResponse(result, headers={"Cache-Control": "no-store"})`。
+- `_model_request_body`（L504–L519）：接收`request`。 控制顺序：L505按`request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "applicat…`分支；L509抛异常，停止当前正常路径；L513按`size > MAX_CONFIG_BYTES`分支；L514抛异常，停止当前正常路径；L519抛异常，停止当前正常路径。 调用`request.headers.get("content-type", "").split(";", 1)[0].strip().…`、`request.headers.get("content-type", "").split(";", 1)[0].strip`、`request.headers.get("content-type", "").split`、`request.headers.get`、`HTTPException`、`request.stream`、`len`、`chunks.append`、`json.loads`等。 返回路径：L517的`json.loads(b"".join(chunks))`。
 
 </details>
 
-**创建路径：** `workbench/model_settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L489。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/model_settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L519。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20571`。本段原文以LF换行结束。
+本段原始字节数：`21946`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/model_settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3dbe04fd3a8c8ea282b4dad2549c387b44b99d46d097fb62ff7a8df347e185f7"} -->
+<!-- learning-source: {"path": "workbench/model_settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f212dd59c1475b69c1683ecc58d14bd7f59746843c4263bfc423570725815790"} -->
 ````python
 # workbench/model_settings.py
 """Authenticated local model configuration, atomic persistence and secret-safe views.
@@ -158,6 +159,7 @@ class ProfileConfig(BaseModel):
 class ModelConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True, hide_input_in_errors=True)
     _allow_insecure_model_http: bool = PrivateAttr(default=False)
+    _source: str = PrivateAttr(default="environment")
     version: int = 1
     revision: str = Field(default="0", max_length=64)
     default: ProfileConfig
@@ -166,6 +168,7 @@ class ModelConfiguration(BaseModel):
 
     def model_post_init(self, context):
         self._allow_insecure_model_http = bool(context and context.get("allow_insecure_model_http"))
+        self._source = "saved" if context and context.get("source") == "saved" else "environment"
 
     @field_validator("version")
     @classmethod
@@ -253,6 +256,7 @@ class ModelConfiguration(BaseModel):
             validation.append(row)
         return {
             "revision": self.revision,
+            "source": self._source,
             "default": self.default.public(),
             "stages": stages,
             "model_review": self.model_review,
@@ -313,7 +317,10 @@ class ModelSettingsRepository:
         return self.snapshot().public()
 
     def _validation_context(self):
-        return {"allow_insecure_model_http": self.settings.allow_insecure_model_http}
+        return {
+            "allow_insecure_model_http": self.settings.allow_insecure_model_http,
+            "source": "saved",
+        }
 
     def update(self, patch):
         if not isinstance(patch, dict) or set(patch) - {
@@ -490,9 +497,15 @@ def register_model_settings_routes(app, settings, auth):
         ConnectionTestRequest,
         ModelConnectionTester,
     )
+    from workbench.model_discovery import (
+        DiscoveryInputError,
+        ModelDiscoverer,
+        ModelDiscoveryRequest,
+    )
 
     repository = ModelSettingsRepository(settings)
     tester = ModelConnectionTester(settings)
+    discoverer = ModelDiscoverer(settings)
 
     @app.get("/settings/models")
     def read_models(request: Request, store=Depends(auth)):
@@ -514,6 +527,24 @@ def register_model_settings_routes(app, settings, auth):
             raise HTTPException(409, str(exc)) from None
         except ModelSettingsError as exc:
             raise HTTPException(422, str(exc)) from None
+
+    @app.post("/settings/models/discover")
+    async def discover_models(request: Request, store=Depends(auth)):
+        _same_origin(request)
+        body = await _model_request_body(request)
+        try:
+            command = ModelDiscoveryRequest.model_validate(body)
+        except ValidationError:
+            raise HTTPException(422, "请提供当前配置版本、有效阶段和可选的连接草稿") from None
+        try:
+            result = await run_in_threadpool(discoverer.discover, command)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except RevisionConflict as exc:
+            raise HTTPException(409, str(exc)) from None
+        except DiscoveryInputError as exc:
+            raise HTTPException(422, str(exc)) from None
+        except ModelSettingsError, OSError:
+            raise HTTPException(503, "本机模型配置无法安全读取；请检查配置文件权限和格式") from None
 
     @app.post("/settings/models/test")
     async def test_models(request: Request, store=Depends(auth)):

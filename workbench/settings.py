@@ -203,6 +203,24 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
 
+    @classmethod
+    def settings_customise_sources(
+        cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings
+    ):
+        # The example .env contains MODE=. A supplied MODEL alias in the same
+        # source must still work. Keep source precedence and explicit empty keys
+        # intact; globally ignoring empty environment values would be unsafe.
+        for source in (env_settings, dotenv_settings):
+            values = dict(source.env_vars)
+            for prefix in ("", *(stage.upper() + "_" for stage in STAGES)):
+                mode, model = prefix + "MODE", prefix + "MODEL"
+                if not source.case_sensitive:
+                    mode, model = mode.lower(), model.lower()
+                if values.get(mode) == "" and values.get(model):
+                    values[mode] = values[model]
+            source.env_vars = values
+        return init_settings, env_settings, dotenv_settings, file_secret_settings
+
     @field_validator("daytona_api_url", "embedding_base_url")
     @classmethod
     def only_local_tools(cls, value: str) -> str:

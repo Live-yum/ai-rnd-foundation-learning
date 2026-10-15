@@ -15,29 +15,42 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `free_port`（L31–L34）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L34的`sock.getsockname()[1]`。
-- `stream_packets`（L41–L56）：接收`value`、`model`。 源码说明：Real OpenAI wire protocol, including a JSON surrogate split between deltas.。 控制顺序：L51遍历`fragments`。 调用`json.dumps(value, ensure_ascii=False).replace`、`json.dumps`、`content.index`、`prefix.find`、`sorted`、`len`、`zip`、`_stream_packet`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_stream_packet`（L59–L73）：接收`model`、`delta`、`finish`。 调用`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "c…`、`json.dumps`。 返回路径：L60的`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "chat.completion.chunk", "c…`。
-- `ui_build_snapshot`（L76–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`str`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`sorted`、`(ROOT / "workbench/web").rglob`、`path.is_file`。 返回路径：L77的`{ str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in s…`。
-- `main`（L84–L560）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L272遍历`range(100)`；L273按`server.started`分支；L277抛异常，停止当前正常路径；L311断言`first.returncode == 0`；L312断言`not failures`；L313断言`first_draft.is_set() and completed.is_set()`；L314断言`all(call["stream"] for call in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider`（L94–L236）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `main.Provider.log_message`（L95–L96）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.do_GET`（L98–L109）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99按`self.path != "/fixture/status"`分支。 调用`self.send_error`、`self.json_response`、`first_draft.is_set`、`completed.is_set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.json_response`（L111–L117）：接收`value`、`status`。 调用`json.dumps(value).encode`、`json.dumps`、`self.send_response`、`self.send_header`、`str`、`len`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.do_POST`（L119–L132）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L120按`self.path == "/fixture/start"`分支；L124按`self.path == "/fixture/release"`分支；L132抛异常，停止当前正常路径。 调用`start_stream.set`、`self.json_response`、`release.set`、`self.model_response`、`failures.append`、`type`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.model_response`（L134–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L136断言`self.headers["Authorization"] == "Bearer " + FIXTURE_KEY`；L141按`model == "denied-fixture"`分支；L147按`model == "requirements-fixture"`分支；L148按`payload.get("autonomous")`分支；L155按`payload.get("original_request") == "交互选项验收"`分支；L181按`model == "planning-fixture"`分支；L184按`model == "review-fixture"`分支；L191抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`body.get`、`len`、`self.json_response`、`payload.get`、`assert_resolution`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `free_port`（L33–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L36的`sock.getsockname()[1]`。
+- `CatalogFixture`（L46–L79）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CatalogFixture.__init__`（L49–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`threading.Event`、`self.release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CatalogFixture.arm`（L56–L61）：接收`mode`、`hold`。 控制顺序：L57按`mode not in {"success", "unsupported", "denied"}`分支；L58抛异常，停止当前正常路径。 调用`ValueError`、`self.started.clear`、`self.release.clear`、`self.release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CatalogFixture.response`（L63–L76）：接收`path`、`authorization`。 控制顺序：L66断言`path == "/catalog-v1/models"`；L67断言`authorization == "Bearer " + CATALOG_KEY`；L70按`not self.release.wait(15)`分支；L71抛异常，停止当前正常路径；L72按`mode == "unsupported"`分支；L74按`mode == "denied"`分支。 调用`self.calls.append`、`self.started.set`、`self.release.wait`、`TimeoutError`。 返回路径：L73的`404, {"error": {"message": "Explicit catalog unsupported fixture"}}`；L75的`401, {"error": {"message": "Explicit catalog denied fixture"}}`；L76的`200, {"object": "list", "data": [{"id": model} for model in CATALOG_MODELS]}`。
+- `CatalogFixture.status`（L78–L79）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.started.is_set`。 返回路径：L79的`{"calls": self.calls, "started": self.started.is_set()}`。
+- `SettingsReadControl`（L82–L100）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SettingsReadControl.__init__`（L85–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`threading.Event`、`self.release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SettingsReadControl.arm`（L92–L97）：接收`mode`。 控制顺序：L93按`mode not in {"pass", "hold", "fail"}`分支；L94抛异常，停止当前正常路径。 调用`ValueError`、`self.started.clear`、`self.release.clear`、`self.release.set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SettingsReadControl.status`（L99–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.started.is_set`。 返回路径：L100的`{"requests": self.requests, "started": self.started.is_set()}`。
+- `SettingsReadFixture`（L103–L137）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SettingsReadFixture.__init__`（L110–L111）：接收`app`、`control`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SettingsReadFixture.__call__`（L113–L137）：接收`scope`、`receive`、`send`。 控制顺序：L114按`scope["type"] == "http" and scope["path"].startswith("/settings/models")`分支；L117按`method == "GET" and path == "/settings/models"`分支；L120按`mode == "hold"`分支；L122在`not self.control.release.is_set()`成立时循环；L123按`time.monotonic() > deadline`分支；L124抛异常，停止当前正常路径；L126按`mode == "fail"`分支。 调用`scope["path"].startswith`、`self.control.requests.append`、`self.control.started.set`、`time.monotonic`、`self.control.release.is_set`、`TimeoutError`、`asyncio.sleep`、`json.dumps({"detail": SETTINGS_READ_FAILURE}).encode`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stream_packets`（L140–L155）：接收`value`、`model`。 源码说明：Real OpenAI wire protocol, including a JSON surrogate split between deltas.。 控制顺序：L150遍历`fragments`。 调用`json.dumps(value, ensure_ascii=False).replace`、`json.dumps`、`content.index`、`prefix.find`、`sorted`、`len`、`zip`、`_stream_packet`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_stream_packet`（L158–L172）：接收`model`、`delta`、`finish`。 调用`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "c…`、`json.dumps`。 返回路径：L159的`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "chat.completion.chunk", "c…`。
+- `ui_build_snapshot`（L175–L180）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`str`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`sorted`、`(ROOT / "workbench/web").rglob`、`path.is_file`。 返回路径：L176的`{ str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in s…`。
+- `main`（L183–L789）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L185断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L401遍历`range(100)`；L402按`server.started`分支；L406抛异常，停止当前正常路径；L452遍历`range(100)`；L453按`empty_server.started`分支；L457抛异常，停止当前正常路径；L487断言`settings_result.returncode == 0`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`CatalogFixture`、`SettingsReadControl`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider`（L195–L365）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `main.Provider.log_message`（L196–L197）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.do_GET`（L199–L220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L200按`self.path.endswith("/models")`分支；L206抛异常，停止当前正常路径；L208按`self.path != "/fixture/status"`分支。 调用`self.path.endswith`、`catalog.response`、`self.headers.get`、`self.json_response`、`failures.append`、`type`、`str`、`self.send_error`、`first_draft.is_set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.json_response`（L222–L228）：接收`value`、`status`。 调用`json.dumps(value).encode`、`json.dumps`、`self.send_response`、`self.send_header`、`str`、`len`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.do_POST`（L230–L261）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L231按`self.path == "/fixture/catalog"`分支；L236按`self.path == "/fixture/catalog/release"`分支；L240按`self.path == "/fixture/settings-read"`分支；L245按`self.path == "/fixture/settings-read/release"`分支；L249按`self.path == "/fixture/start"`分支；L253按`self.path == "/fixture/release"`分支；L261抛异常，停止当前正常路径。 调用`json.loads`、`self.rfile.read`、`int`、`catalog.arm`、`body.get`、`self.json_response`、`catalog.release.set`、`settings_reads.arm`、`settings_reads.release.set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.model_response`（L263–L365）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L265断言`self.headers["Authorization"] == "Bearer " + FIXTURE_KEY`；L270按`model == "denied-fixture"`分支；L276按`model == "requirements-fixture"`分支；L277按`payload.get("autonomous")`分支；L284按`payload.get("original_request") == "交互选项验收"`分支；L310按`model == "planning-fixture"`分支；L313按`model == "review-fixture"`分支；L320抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`body.get`、`len`、`self.json_response`、`payload.get`、`assert_resolution`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_guided_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L564。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_guided_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L793。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`22777`。本段原文以LF换行结束。
+本段原始字节数：`32933`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_guided_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4a67bc56509d0d52cdc13bf73530d1db851e8b4029ef99924bab9642d153b0e3"} -->
+<!-- learning-source: {"path": "scripts/ci_guided_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d40034bd11931cb1c70b408a87181da7047d7e7d478e16e4059e3e796b9b8da0"} -->
 ````python
 # scripts/ci_guided_browser.py
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -52,6 +65,7 @@ from pathlib import Path
 
 import httpx
 import uvicorn
+from pydantic import SecretStr
 
 from scripts.news_fixture import (
     ORIGINAL_REQUEST,
@@ -74,6 +88,103 @@ def free_port():
 
 STREAM_SUMMARY = "泰拉瑞瑞亚游戏资讯的登录后个人管理页面 🧪流式验收"
 FIXTURE_KEY = "explicit-ci-only"
+CATALOG_KEY = "explicit-catalog-ci-only"
+CATALOG_MODELS = ["catalog-model-alpha", "catalog-model-beta"]
+SETTINGS_READ_FAILURE = "Explicit local settings read failure"
+
+
+class CatalogFixture:
+    """A deterministic HTTP catalog, held until the browser proves its pending state."""
+
+    def __init__(self):
+        self.calls = []
+        self.mode = "success"
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.release.set()
+
+    def arm(self, mode, hold=False):
+        if mode not in {"success", "unsupported", "denied"}:
+            raise ValueError("Unknown catalog fixture mode")
+        self.mode = mode
+        self.started.clear()
+        self.release.clear() if hold else self.release.set()
+
+    def response(self, path, authorization):
+        # Count even rejected destinations so a leaked old key cannot pass unnoticed.
+        self.calls.append({"method": "GET", "path": path})
+        assert path == "/catalog-v1/models", "Unexpected model catalog destination"
+        assert authorization == "Bearer " + CATALOG_KEY, "Unexpected catalog credential"
+        mode = self.mode
+        self.started.set()
+        if not self.release.wait(15):
+            raise TimeoutError("Browser never released the pending catalog request")
+        if mode == "unsupported":
+            return 404, {"error": {"message": "Explicit catalog unsupported fixture"}}
+        if mode == "denied":
+            return 401, {"error": {"message": "Explicit catalog denied fixture"}}
+        return 200, {"object": "list", "data": [{"id": model} for model in CATALOG_MODELS]}
+
+    def status(self):
+        return {"calls": self.calls, "started": self.started.is_set()}
+
+
+class SettingsReadControl:
+    """Fault controls used only around the separate, empty-config browser test app."""
+
+    def __init__(self):
+        self.mode = "pass"
+        self.requests = []
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.release.set()
+
+    def arm(self, mode):
+        if mode not in {"pass", "hold", "fail"}:
+            raise ValueError("Unknown settings read fixture mode")
+        self.mode = mode
+        self.started.clear()
+        self.release.clear() if mode == "hold" else self.release.set()
+
+    def status(self):
+        return {"requests": self.requests, "started": self.started.is_set()}
+
+
+class SettingsReadFixture:
+    """Deliver real app responses unchanged, except one explicitly armed read fault.
+
+    Saves and discovery always reach the actual FastAPI handlers. This wrapper is
+    never installed by the production application and cannot mutate its state.
+    """
+
+    def __init__(self, app, control):
+        self.app, self.control = app, control
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/settings/models"):
+            method, path = scope["method"], scope["path"]
+            self.control.requests.append({"method": method, "path": path})
+            if method == "GET" and path == "/settings/models":
+                mode, self.control.mode = self.control.mode, "pass"
+                self.control.started.set()
+                if mode == "hold":
+                    deadline = time.monotonic() + 15
+                    while not self.control.release.is_set():
+                        if time.monotonic() > deadline:
+                            raise TimeoutError("Browser never released the initial settings read")
+                        await asyncio.sleep(0.01)
+                if mode == "fail":
+                    body = json.dumps({"detail": SETTINGS_READ_FAILURE}).encode()
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 503,
+                            "headers": [(b"content-type", b"application/json")],
+                        }
+                    )
+                    await send({"type": "http.response.body", "body": body})
+                    return
+        await self.app(scope, receive, send)
 
 
 def stream_packets(value, model):
@@ -123,6 +234,8 @@ def main():
     build_before = ui_build_snapshot()
     assert "workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before
     calls = []
+    catalog = CatalogFixture()
+    settings_reads = SettingsReadControl()
     release = threading.Event()
     start_stream = threading.Event()
     first_draft = threading.Event()
@@ -134,6 +247,14 @@ def main():
             return
 
         def do_GET(self):
+            if self.path.endswith("/models"):
+                try:
+                    status, payload = catalog.response(self.path, self.headers.get("Authorization"))
+                    self.json_response(payload, status=status)
+                except Exception as exc:
+                    failures.append(type(exc).__name__ + ": " + str(exc))
+                    raise
+                return
             if self.path != "/fixture/status":
                 self.send_error(404)
                 return
@@ -143,6 +264,8 @@ def main():
                     "completed": completed.is_set(),
                     "calls": calls,
                     "failures": failures,
+                    "catalog": catalog.status(),
+                    "settings_reads": settings_reads.status(),
                 }
             )
 
@@ -155,6 +278,24 @@ def main():
             self.wfile.write(encoded)
 
         def do_POST(self):
+            if self.path == "/fixture/catalog":
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                catalog.arm(body["mode"], body.get("hold", False))
+                self.json_response({"armed": True})
+                return
+            if self.path == "/fixture/catalog/release":
+                catalog.release.set()
+                self.json_response({"released": True})
+                return
+            if self.path == "/fixture/settings-read":
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                settings_reads.arm(body["mode"])
+                self.json_response({"armed": True})
+                return
+            if self.path == "/fixture/settings-read/release":
+                settings_reads.release.set()
+                self.json_response({"released": True})
+                return
             if self.path == "/fixture/start":
                 start_stream.set()
                 self.json_response({"started": True})
@@ -331,6 +472,101 @@ def main():
         }
         write_json(evidence, config)
         try:
+            # A second real app starts with no model configuration. Its only injected
+            # faults are network read timing/status, never fabricated saves or state.
+            empty_settings = settings.model_copy(
+                update={
+                    "data_dir": directory / "empty-platform",
+                    "base_url": "",
+                    "api_key": SecretStr(""),
+                    "model": "",
+                    **{
+                        stage + "_model": ""
+                        for stage in ("requirements", "planning", "coding", "review")
+                    },
+                }
+            )
+            empty_application = create_app(empty_settings)
+            empty_port = free_port()
+            empty_server = uvicorn.Server(
+                uvicorn.Config(
+                    SettingsReadFixture(empty_application, settings_reads),
+                    host="127.0.0.1",
+                    port=empty_port,
+                    log_level="error",
+                )
+            )
+            empty_thread = threading.Thread(target=empty_server.run, daemon=True)
+            empty_thread.start()
+            try:
+                for _ in range(100):
+                    if empty_server.started:
+                        break
+                    time.sleep(0.1)
+                else:
+                    raise RuntimeError("Empty-settings platform did not start")
+                settings_evidence = directory / "settings-input.json"
+                write_json(
+                    settings_evidence,
+                    {
+                        **config,
+                        "platform": f"http://127.0.0.1:{empty_port}",
+                        "token": empty_application.state.token,
+                        "catalog_key": CATALOG_KEY,
+                        "catalog_models": CATALOG_MODELS,
+                        "settings_read_failure": SETTINGS_READ_FAILURE,
+                    },
+                )
+                settings_result = subprocess.run(
+                    [
+                        "node",
+                        str(ROOT / "scripts/guided_browser.cjs"),
+                        "settings",
+                        str(settings_evidence),
+                        str(browser),
+                    ],
+                    cwd=ROOT,
+                    env=browser_env,
+                    text=True,
+                    capture_output=True,
+                    timeout=120,
+                )
+                (reports / "settings.log").write_text(
+                    settings_result.stdout + settings_result.stderr, encoding="utf-8"
+                )
+                assert settings_result.returncode == 0, (
+                    settings_result.stdout + settings_result.stderr
+                )
+                assert not failures, failures
+                assert not calls, "Settings acceptance must never call an inference endpoint"
+                settings_outcome = json.loads((reports / "settings.json").read_text())
+                assert all(
+                    settings_outcome.get(field) is True
+                    for field in (
+                        "passed",
+                        "empty_configuration",
+                        "slow_first_read_locked",
+                        "unsaved_catalog",
+                        "pending_query_locked",
+                        "catalog_selection_saved",
+                        "manual_fallback_saved",
+                        "unsupported_and_failed_catalog",
+                        "catalog_manual_retry",
+                        "changed_url_key_binding",
+                        "dirty_refresh_cancel",
+                        "failed_refresh_preserves_draft",
+                        "refresh_manual_retry",
+                        "no_inference",
+                        "no_secret_echo",
+                    )
+                ), settings_outcome
+                assert len(catalog.calls) == 4, catalog.calls
+                assert sum(request["method"] == "PATCH" for request in settings_reads.requests) == 2
+            finally:
+                settings_reads.release.set()
+                catalog.release.set()
+                empty_server.should_exit = True
+                empty_thread.join(timeout=30)
             first = subprocess.run(
                 [
                     "node",
@@ -561,6 +797,7 @@ def main():
                         "stale 409 re-review",
                         "keyboard and IME",
                         "secret-safe model settings",
+                        "empty configuration and real read-only model catalog with retry",
                         "generated CRUD search and dates",
                     ],
                 },
@@ -583,6 +820,8 @@ def main():
                     "failed_provider_same_run_retry": True,
                     "desktop_and_mobile_screenshots": True,
                     "secret_safe_settings": True,
+                    "real_model_catalog_settings": settings_outcome,
+                    "catalog_calls": catalog.calls,
                     "smart_without_further_questions": True,
                     "generated_news_search_filter": True,
                     "reported_boundary_list_regression": True,
@@ -592,6 +831,8 @@ def main():
         finally:
             start_stream.set()
             release.set()
+            catalog.release.set()
+            settings_reads.release.set()
             server.should_exit = True
             thread.join(timeout=30)
             provider.shutdown()

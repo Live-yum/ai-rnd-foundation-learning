@@ -1,51 +1,9 @@
 import { createApp } from 'vue'
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Collapse,
-  ConfigProvider,
-  Descriptions,
-  Drawer,
-  Empty,
-  Input,
-  InputNumber,
-  Modal,
-  Radio,
-  Select,
-  Segmented,
-  Skeleton,
-  Switch,
-  Tabs,
-  Tag,
-  Tooltip,
-} from 'ant-design-vue'
+import { installUiComponents } from './ui-components'
 import 'ant-design-vue/dist/reset.css'
 import './style.css'
 import App from './App.vue'
 
 const app = createApp(App)
-for (const component of [
-  Alert,
-  Button,
-  Checkbox,
-  Collapse,
-  ConfigProvider,
-  Descriptions,
-  Drawer,
-  Empty,
-  Input,
-  InputNumber,
-  Modal,
-  Radio,
-  Select,
-  Segmented,
-  Skeleton,
-  Switch,
-  Tabs,
-  Tag,
-  Tooltip,
-]) {
-  app.use(component)
-}
+installUiComponents(app)
 app.mount('#app')

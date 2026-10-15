@@ -95,6 +95,7 @@ class ProfileConfig(BaseModel):
 class ModelConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True, hide_input_in_errors=True)
     _allow_insecure_model_http: bool = PrivateAttr(default=False)
+    _source: str = PrivateAttr(default="environment")
     version: int = 1
     revision: str = Field(default="0", max_length=64)
     default: ProfileConfig
@@ -103,6 +104,7 @@ class ModelConfiguration(BaseModel):
 
     def model_post_init(self, context):
         self._allow_insecure_model_http = bool(context and context.get("allow_insecure_model_http"))
+        self._source = "saved" if context and context.get("source") == "saved" else "environment"
 
     @field_validator("version")
     @classmethod
@@ -190,6 +192,7 @@ class ModelConfiguration(BaseModel):
             validation.append(row)
         return {
             "revision": self.revision,
+            "source": self._source,
             "default": self.default.public(),
             "stages": stages,
             "model_review": self.model_review,
@@ -250,7 +253,10 @@ class ModelSettingsRepository:
         return self.snapshot().public()
 
     def _validation_context(self):
-        return {"allow_insecure_model_http": self.settings.allow_insecure_model_http}
+        return {
+            "allow_insecure_model_http": self.settings.allow_insecure_model_http,
+            "source": "saved",
+        }
 
     def update(self, patch):
         if not isinstance(patch, dict) or set(patch) - {
@@ -427,9 +433,15 @@ def register_model_settings_routes(app, settings, auth):
         ConnectionTestRequest,
         ModelConnectionTester,
     )
+    from workbench.model_discovery import (
+        DiscoveryInputError,
+        ModelDiscoverer,
+        ModelDiscoveryRequest,
+    )
 
     repository = ModelSettingsRepository(settings)
     tester = ModelConnectionTester(settings)
+    discoverer = ModelDiscoverer(settings)
 
     @app.get("/settings/models")
     def read_models(request: Request, store=Depends(auth)):
@@ -451,6 +463,24 @@ def register_model_settings_routes(app, settings, auth):
             raise HTTPException(409, str(exc)) from None
         except ModelSettingsError as exc:
             raise HTTPException(422, str(exc)) from None
+
+    @app.post("/settings/models/discover")
+    async def discover_models(request: Request, store=Depends(auth)):
+        _same_origin(request)
+        body = await _model_request_body(request)
+        try:
+            command = ModelDiscoveryRequest.model_validate(body)
+        except ValidationError:
+            raise HTTPException(422, "请提供当前配置版本、有效阶段和可选的连接草稿") from None
+        try:
+            result = await run_in_threadpool(discoverer.discover, command)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except RevisionConflict as exc:
+            raise HTTPException(409, str(exc)) from None
+        except DiscoveryInputError as exc:
+            raise HTTPException(422, str(exc)) from None
+        except ModelSettingsError, OSError:
+            raise HTTPException(503, "本机模型配置无法安全读取；请检查配置文件权限和格式") from None
 
     @app.post("/settings/models/test")
     async def test_models(request: Request, store=Depends(auth)):

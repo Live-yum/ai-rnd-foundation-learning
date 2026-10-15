@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L790。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L899。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26347`。本段原文以LF换行结束。
+本段原始字节数：`36149`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "d8e14aba2b9677d141f63346db4a046fc21e21921a5a5c04c401859d5a32af6e"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f932bc5f927ea303a35441033c9ed4d65933e036d0215bd66018f05fa547332c"} -->
 ````javascript
 // scripts/guided_browser.cjs
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
@@ -228,6 +228,231 @@ async function createRun(page, cfg, title, { ime = false } = {}) {
   );
   return id;
 }
+async function fixtureControl(page, cfg, endpoint, data) {
+  const response = await page.request.post(cfg.fixture + "/fixture/" + endpoint, {
+    ...(data ? { data } : {}),
+  });
+  assert(response.ok(), "Local fixture control must succeed: " + endpoint);
+}
+async function waitFixture(page, cfg, predicate, message) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const status = await fixture(page, cfg);
+    assert.deepEqual(status.failures, [], "Local provider fixture must remain valid");
+    if (predicate(status)) return status;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(message);
+}
+async function clickDisabled(page, button) {
+  assert(await button.isDisabled(), "Repeated action is disabled while pending");
+  await button.scrollIntoViewIfNeeded();
+  const box = await button.boundingBox();
+  assert(box, "Disabled button must still be visible");
+  // Real pointer events exercise the disabled element, with no forced handler calls.
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+    clickCount: 2,
+  });
+}
+async function modelSettings(page, cfg, errors) {
+  const before = await fixture(page, cfg);
+  const requests = [], responseBodies = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/settings/models"))
+      requests.push({ method: request.method(), path: new URL(request.url()).pathname });
+  });
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname.startsWith("/settings/models"))
+      responseBodies.push(response.text());
+  });
+  await fixtureControl(page, cfg, "settings-read", { mode: "hold" });
+  const connecting = connect(page, { ...cfg, platform: cfg.platform + "/#/settings" });
+  await waitFixture(page, cfg, (status) => status.settings_reads.started,
+    "Initial settings GET never reached the real local application");
+  await page.locator("h1").filter({ hasText: "模型与服务，一处配置" }).waitFor();
+  for (const id of ["#model-url", "#model-name", "#model-provider", "#key-action"]) {
+    assert(await page.locator(id).isDisabled(), "First read locks " + id);
+  }
+  const discover = page.getByRole("button", { name: "查询模型列表", exact: true, includeHidden: true });
+  const save = page.getByRole("button", { name: "保存配置", exact: true, includeHidden: true });
+  const refresh = page.getByRole("button", { name: "读取最新配置", exact: true });
+  const probe = page.getByRole("button", { name: "测试连接", exact: true });
+  assert(await discover.isDisabled());
+  assert(await save.isDisabled());
+  await fixtureControl(page, cfg, "settings-read/release");
+  await connecting;
+  const original = await api(page, cfg, "/settings/models");
+  assert.equal(original.ready, false);
+  assert.equal(original.default.base_url, "");
+  assert.equal(original.default.model, "");
+  assert.equal(original.default.api_key, "missing");
+  assert.equal(await page.locator("#model-name").inputValue(), "");
+  assert(await discover.isDisabled());
+  assert(await probe.isDisabled());
+  assert(await refresh.isEnabled(), "First-time configuration always offers an explicit reload");
+
+  await page.locator("#model-url").fill(cfg.fixture + "/catalog-v1");
+  await antSelect(page, "#key-action", "替换为新密钥");
+  await page.locator("#model-key").fill(cfg.catalog_key);
+  assert(await discover.isEnabled(), "An unsaved endpoint/key can query before choosing a model");
+  assert.equal((await fixture(page, cfg)).catalog.calls.length, before.catalog.calls.length,
+    "Editing never automatically queries a provider");
+  await fixtureControl(page, cfg, "catalog", { mode: "success", hold: true });
+  const initialCatalogResponse = page.waitForResponse((response) =>
+    response.url().endsWith("/settings/models/discover"));
+  await discover.click();
+  await waitFixture(page, cfg, (status) => status.catalog.started,
+    "The real GET /models was not observed by the local provider");
+  for (const id of ["#model-url", "#model-name", "#model-key"]) {
+    assert(await page.locator(id).isDisabled(), "Pending discovery locks " + id);
+  }
+  assert(await save.isDisabled());
+  assert(await refresh.isDisabled());
+  await clickDisabled(page, discover);
+  assert.equal((await fixture(page, cfg)).catalog.calls.length, before.catalog.calls.length + 1);
+  assert.equal(requests.filter((request) => request.path.endsWith("/discover")).length, 1,
+    "Repeated pending clicks send exactly one discovery POST");
+  await fixtureControl(page, cfg, "catalog/release");
+  const initialCatalog = await (await initialCatalogResponse).json();
+  assert.equal(initialCatalog.ok, true);
+  assert.deepEqual(initialCatalog.models, cfg.catalog_models);
+  await page.getByText(/已获取模型 ID；列表不代表模型权限或推理兼容性已验证/).waitFor();
+  await page.locator("#model-name").fill("catalog");
+  await page.locator(".ant-select-dropdown:visible .ant-select-item-option")
+    .filter({ hasText: cfg.catalog_models[1] }).click();
+  assert.equal(await page.locator("#model-name").inputValue(), cfg.catalog_models[1]);
+  assert.deepEqual(await api(page, cfg, "/settings/models"), original,
+    "Discovery and choosing an offered ID cannot persist the draft");
+  assert.equal(requests.filter((request) => request.method === "PATCH").length, 0);
+  assert.equal((await fixture(page, cfg)).calls.length, before.calls.length,
+    "Catalog lookup must never call an inference endpoint");
+
+  async function saveModel(expected) {
+    const saved = page.waitForResponse((response) =>
+      response.url().endsWith("/settings/models") && response.request().method() === "PATCH");
+    await save.click();
+    const response = await saved;
+    assert.equal(response.status(), 200);
+    assert.equal((await response.json()).default.model, expected);
+    await page.getByText("配置已保存 · 仅完成格式校验 · 未测试连接", { exact: true }).waitFor();
+    await page.waitForFunction(() => !document.querySelector("#model-name").disabled);
+    assert.equal(await page.locator("#model-key").count(), 0, "Save clears draft credentials");
+  }
+  await saveModel(cfg.catalog_models[1]);
+  assert.equal((await api(page, cfg, "/settings/models")).default.api_key, "configured");
+
+  async function query(mode, code) {
+    const count = (await fixture(page, cfg)).catalog.calls.length;
+    await fixtureControl(page, cfg, "catalog", { mode });
+    const pending = page.waitForResponse((response) =>
+      response.url().endsWith("/settings/models/discover"));
+    await discover.click();
+    const response = await pending;
+    assert.equal(response.status(), 200);
+    const result = await response.json();
+    assert.equal(result.code, code);
+    assert.equal(result.ok, mode === "success");
+    await page.getByText(result.message + "；仍可手动填写模型 ID。", { exact: true }).waitFor();
+    assert.equal((await fixture(page, cfg)).catalog.calls.length, count + 1,
+      "Catalog errors must not automatically retry");
+    return result;
+  }
+  await query("unsupported", "discovery_unsupported");
+  const manualId = "manual-fixture-not-in-catalog";
+  await page.locator("#model-name").fill(manualId);
+  assert(await save.isEnabled(), "Unsupported catalog still permits a manual model ID");
+  await saveModel(manualId);
+  const savedConfig = await api(page, cfg, "/settings/models");
+  assert.equal(savedConfig.default.model, manualId);
+  await query("denied", "authentication_failed");
+  assert(await page.locator("#model-name").isEnabled(), "Failed query keeps manual input usable");
+  await query("success", "models_discovered");
+  assert.equal(await page.locator("#model-name").inputValue(), manualId,
+    "A successful retry must not replace the manually configured ID");
+
+  const catalogCount = (await fixture(page, cfg)).catalog.calls.length;
+  await page.locator("#model-url").fill(cfg.fixture + "/changed-catalog-v1");
+  assert(await discover.isDisabled(), "A new URL cannot discover using a stored old key");
+  assert(await save.isDisabled());
+  await clickDisabled(page, discover);
+  await antSelect(page, "#key-action", "替换为新密钥");
+  await page.locator("#model-key").fill(cfg.catalog_key);
+  const rejectedKey = page.waitForResponse((response) =>
+    response.url().endsWith("/settings/models/discover") && response.status() === 422);
+  await discover.click();
+  await rejectedKey;
+  await page.getByText(/该 API Key 已用于其他地址；新地址必须使用独立密钥/).waitFor();
+  assert.equal((await fixture(page, cfg)).catalog.calls.length, catalogCount,
+    "Re-entering the old key is rejected before any request reaches the new destination");
+  assert.deepEqual(await api(page, cfg, "/settings/models"), savedConfig);
+
+  const draftModel = "draft-kept-after-failed-refresh";
+  const draftKey = "explicit-unsaved-reload-ci-only";
+  await page.locator("#model-name").fill(draftModel);
+  await page.locator("#model-key").fill(draftKey);
+  const readsBefore = (await fixture(page, cfg)).settings_reads.requests.length;
+  await refresh.click();
+  const confirmation = page.getByRole("dialog");
+  await confirmation.getByText("读取最新配置并放弃未保存的修改？", { exact: true }).waitFor();
+  await confirmation.getByRole("button", { name: "继续编辑", exact: true }).click();
+  await confirmation.waitFor({ state: "hidden" });
+  assert.equal((await fixture(page, cfg)).settings_reads.requests.length, readsBefore,
+    "Cancelling dirty reload sends no settings request");
+  assert.equal(await page.locator("#model-name").inputValue(), draftModel);
+  assert.equal(await page.locator("#model-key").inputValue(), draftKey);
+  assert.equal(await page.locator("#model-url").inputValue(), cfg.fixture + "/changed-catalog-v1");
+
+  async function confirmRefresh(status) {
+    await refresh.click();
+    await confirmation.getByText("读取最新配置并放弃未保存的修改？", { exact: true }).waitFor();
+    const response = page.waitForResponse((response) =>
+      response.url().endsWith("/settings/models") && response.request().method() === "GET");
+    await confirmation.getByRole("button", { name: "读取最新配置", exact: true }).click();
+    assert.equal((await response).status(), status);
+    await confirmation.waitFor({ state: "hidden" });
+  }
+  await fixtureControl(page, cfg, "settings-read", { mode: "fail" });
+  await confirmRefresh(503);
+  await page.getByText(cfg.settings_read_failure, { exact: true }).waitFor();
+  assert.equal(await page.locator("#model-name").inputValue(), draftModel);
+  assert.equal(await page.locator("#model-key").inputValue(), draftKey,
+    "Failed reload cannot silently discard the user's unsaved key");
+  assert(await refresh.isEnabled(), "Read failure retains the explicit retry button");
+  await confirmRefresh(200);
+  await page.getByText("已读取最新配置，请重新核对后保存", { exact: true }).waitFor();
+  assert.equal(await page.locator("#model-name").inputValue(), manualId);
+  assert.equal(await page.locator("#model-url").inputValue(), cfg.fixture + "/catalog-v1");
+  assert.equal(await page.locator("#model-key").count(), 0);
+  assert.deepEqual(await api(page, cfg, "/settings/models"), savedConfig,
+    "Reload retries never mutate persisted configuration");
+  assert.equal(requests.filter((request) => request.method === "PATCH").length, 2,
+    "Only the two explicit Save clicks may persist configuration");
+  const after = await fixture(page, cfg);
+  assert.equal(after.calls.length, before.calls.length, "Entire settings scenario makes zero inference calls");
+  assert.equal(after.catalog.calls.length, before.catalog.calls.length + 4);
+  const exposed = await page.evaluate(() => JSON.stringify({
+    html: document.documentElement.outerHTML,
+    local: { ...localStorage }, session: { ...sessionStorage }, url: location.href,
+  }));
+  const bodies = await Promise.all(responseBodies);
+  for (const secret of [cfg.catalog_key, draftKey, cfg.token]) {
+    assert(!exposed.includes(secret), "No key or token remains in browser-rendered state");
+    assert(!bodies.some((body) => body.includes(secret)), "Real settings responses never echo credentials");
+    assert(!errors.some((error) => error.includes(secret)), "Browser diagnostics never echo credentials");
+  }
+  await capture(page, {
+    animations: "disabled", path: path.join(cfg.reports, "workbench-model-discovery.png"), fullPage: true,
+  });
+  fs.writeFileSync(path.join(cfg.reports, "settings.json"), JSON.stringify({
+    passed: true, empty_configuration: true, slow_first_read_locked: true,
+    unsaved_catalog: true, pending_query_locked: true, catalog_selection_saved: true,
+    manual_fallback_saved: true, unsupported_and_failed_catalog: true, catalog_manual_retry: true,
+    changed_url_key_binding: true, dirty_refresh_cancel: true, failed_refresh_preserves_draft: true,
+    refresh_manual_retry: true, no_inference: true, no_secret_echo: true,
+    catalog_calls: after.catalog.calls, errors,
+  }, null, 2));
+}
+
 async function checkSettings(page, cfg, errors) {
   const callsBefore = (await fixture(page, cfg)).calls.length;
   const responses = [];
@@ -689,122 +914,6 @@ function requireDeliveryFacts(facts) {
       value !== null && value !== false,
       "Missing delivery prerequisite: " + name,
     );
-}
-
-function reviewTimeout(deadline) {
-  const remaining = deadline - Date.now();
-  assert(
-    remaining > 0,
-    "Delivery rereview exceeded the existing browser deadline",
-  );
-  return remaining;
-}
-
-async function currentDeliveryFacts(
-  page,
-  cfg,
-  runId,
-  deadline = Date.now() + 3000,
-) {
-  const [run, report] = await Promise.all([
-    api(page, cfg, `/runs/${runId}`, {
-      timeout: Math.min(3000, reviewTimeout(deadline)),
-    }),
-    api(page, cfg, `/runs/${runId}/report`, {
-      timeout: Math.min(3000, reviewTimeout(deadline)),
-    }),
-  ]);
-  return deliveryFacts(run, report);
-}
-
-async function rereviewDelivery(page, runId, deadline = Date.now() + 60000) {
-  reviewTimeout(deadline);
-  const latest = page.getByRole("button", {
-    name: "查看最新版本",
-    exact: true,
-  });
-  const stale = await latest.isVisible();
-  if (stale) {
-    const checkbox = page.getByRole("checkbox", {
-      name: "我已阅读本次验收证据与交付等级",
-      exact: true,
-    });
-    assert(
-      await checkbox.isDisabled(),
-      "A stale delivery cannot be acknowledged",
-    );
-    await latest.click({ timeout: reviewTimeout(deadline) });
-    await latest.waitFor({ state: "hidden", timeout: reviewTimeout(deadline) });
-    // The existing reread action opens the generic current-version view.
-    // Return to its dedicated delivery evidence before making a fresh decision.
-    await route(page, `run/${runId}/delivery`);
-  }
-  return stale;
-}
-
-function observeRunRefreshes(page, runId) {
-  const pending = new Map();
-  const paths = new Set([
-    `/runs/${runId}`,
-    `/runs/${runId}/report`,
-    `/runs/${runId}/models`,
-  ]);
-  const started = (request) => {
-    if (
-      request.method() !== "GET" ||
-      !paths.has(new URL(request.url()).pathname)
-    )
-      return;
-    let done;
-    const promise = new Promise((resolve) => {
-      done = resolve;
-    });
-    pending.set(request, { promise, done });
-  };
-  const finished = (request) => {
-    pending.get(request)?.done();
-    pending.delete(request);
-  };
-  page.on("request", started);
-  page.on("requestfinished", finished);
-  page.on("requestfailed", finished);
-  return {
-    async drain(deadline) {
-      let timer;
-      try {
-        await Promise.race([
-          (async () => {
-            while (pending.size)
-              await Promise.all(
-                [...pending.values()].map((entry) => entry.promise),
-              );
-          })(),
-          new Promise((_, reject) => {
-            timer = setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    "UI refresh reads did not settle within the existing browser deadline",
-                  ),
-                ),
-              reviewTimeout(deadline),
-            );
-          }),
-        ]);
-        // Cross a browser task boundary after response bodies finish so Vue can apply them.
-        await page.evaluate(
-          () => new Promise((resolve) => requestAnimationFrame(resolve)),
-        );
-      } finally {
-        clearTimeout(timer);
-      }
-    },
-    close() {
-      page.off("request", started);
-      page.off("requestfinished", finished);
-      page.off("requestfailed", finished);
-    },
-  };
 }
 
 ````
