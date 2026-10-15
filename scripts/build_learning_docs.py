@@ -48,6 +48,7 @@ MODULE_STAGE = {
     "model_protocol": 3,
     "native_schema": 3,
     "model_connection": 3,
+    "model_discovery": 3,
     "model_diagnostics": 3,
     "streaming": 3,
     "entity_requirements": 3,

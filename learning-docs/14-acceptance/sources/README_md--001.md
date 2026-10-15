@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L298。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L304。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26088`。本段原文以LF换行结束。
+本段原始字节数：`27533`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "367b1106c191c33018cb44a76f5be0f5f91f0316ee8119a75ab2bb0bb9c5bfc4"} -->
+<!-- learning-source: {"path": "README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "850540ba4871d0ca87c327aecdc13053f98dbed4eb673a3e51fc716927ed70c1"} -->
 ````markdown
 <!-- README.md -->
 # AI 研发工作台 · Python 3.14
@@ -80,7 +80,13 @@ API_KEY=你的密钥
 MODE=你的模型名称
 ```
 
-`MODE` 是模型 ID，也兼容 `MODEL` 别名；不是运行模式。`BASE_URL` 是 Chat Completions API 根地址，不包含 `/chat/completions` 后缀。只支持兼容该协议的服务。远端默认必须 HTTPS，本机模型服务可以使用回环 HTTP。明确使用可信 HTTP 网关时，可在进程配置中设 `ALLOW_INSECURE_MODEL_HTTP=true`；HTTP 会明文传输凭据，应优先使用 HTTPS。不要上传 `.env` 或分享密钥。
+`MODE` 是模型 ID，也兼容 `MODEL` 别名；不是运行模式。同一配置来源中 `MODE` 留空而 `MODEL` 非空时使用 `MODEL`，四阶段的对应别名也遵循此规则。进程环境仍优先于 `.env`，不会据此忽略显式清空的 API Key。`BASE_URL` 是 Chat Completions API 根地址，不包含 `/chat/completions` 后缀。只支持兼容该协议的服务。远端默认必须 HTTPS，本机模型服务可以使用回环 HTTP。明确使用可信 HTTP 网关时，可在进程配置中设 `ALLOW_INSECURE_MODEL_HTTP=true`；HTTP 会明文传输凭据，应优先使用 HTTPS。不要上传 `.env` 或分享密钥。
+
+在配置页填写地址和专用 API Key 后，可以点击「查询模型列表」读取 OpenAI 兼容的 `GET /models`，再选择模型；也始终支持手填 ID。查询仅经过本机后端，不发起推理、不保存草稿、不自动重试。服务未提供列表、返回空列表或查询失败时，按服务商说明手填即可。查询成功仅说明列表接口可用，不代表推理可用。「测试连接」仍须单独确认。
+
+「保存配置」不可用时，页面会显示具体原因。首次读取配置完成前暂不允许编辑；读取失败可点击「读取最新配置」重试，有未保存修改会先要求确认。最大输出 Token 可留空。更换地址仍必须填写新地址的独立密钥，不能把旧地址密钥自动发到新地址。
+
+配置页会显示当前来源是“启动环境”还是“已保存配置”。读取的是当前运行服务的本机配置：存在 `data_dir/model-settings.json` 时以该文件为准，否则读取服务启动环境。GitHub Actions 的 `BASE_URL` 变量和 `API_KEY` secret 只影响使用它们的工作流，不会自动同步到已运行服务或覆盖其已保存配置。不要将 API Key 写入仓库、页面脚本或普通 Actions 变量。
 
 ## 3. 可选：不同阶段使用不同模型
 

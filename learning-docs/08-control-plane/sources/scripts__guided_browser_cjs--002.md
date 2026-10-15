@@ -10,13 +10,129 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L791–L1521。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L900–L1747。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25302`。本段原文以LF换行结束。
+本段原始字节数：`28599`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "934e2b91e998a99ad81d80fe188a6b2f2775560f4bdef13ebf473bee6b3d1831"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "14e965e75f7e826bb69b7fc009d50a63688587dcd923a920eddcd0ada90ed1a7"} -->
 ````javascript
 // scripts/guided_browser.cjs
+function reviewTimeout(deadline) {
+  const remaining = deadline - Date.now();
+  assert(
+    remaining > 0,
+    "Delivery rereview exceeded the existing browser deadline",
+  );
+  return remaining;
+}
+
+async function currentDeliveryFacts(
+  page,
+  cfg,
+  runId,
+  deadline = Date.now() + 3000,
+) {
+  const [run, report] = await Promise.all([
+    api(page, cfg, `/runs/${runId}`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+    api(page, cfg, `/runs/${runId}/report`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+  ]);
+  return deliveryFacts(run, report);
+}
+
+async function rereviewDelivery(page, runId, deadline = Date.now() + 60000) {
+  reviewTimeout(deadline);
+  const latest = page.getByRole("button", {
+    name: "查看最新版本",
+    exact: true,
+  });
+  const stale = await latest.isVisible();
+  if (stale) {
+    const checkbox = page.getByRole("checkbox", {
+      name: "我已阅读本次验收证据与交付等级",
+      exact: true,
+    });
+    assert(
+      await checkbox.isDisabled(),
+      "A stale delivery cannot be acknowledged",
+    );
+    await latest.click({ timeout: reviewTimeout(deadline) });
+    await latest.waitFor({ state: "hidden", timeout: reviewTimeout(deadline) });
+    // The existing reread action opens the generic current-version view.
+    // Return to its dedicated delivery evidence before making a fresh decision.
+    await route(page, `run/${runId}/delivery`);
+  }
+  return stale;
+}
+
+function observeRunRefreshes(page, runId) {
+  const pending = new Map();
+  const paths = new Set([
+    `/runs/${runId}`,
+    `/runs/${runId}/report`,
+    `/runs/${runId}/models`,
+  ]);
+  const started = (request) => {
+    if (
+      request.method() !== "GET" ||
+      !paths.has(new URL(request.url()).pathname)
+    )
+      return;
+    let done;
+    const promise = new Promise((resolve) => {
+      done = resolve;
+    });
+    pending.set(request, { promise, done });
+  };
+  const finished = (request) => {
+    pending.get(request)?.done();
+    pending.delete(request);
+  };
+  page.on("request", started);
+  page.on("requestfinished", finished);
+  page.on("requestfailed", finished);
+  return {
+    async drain(deadline) {
+      let timer;
+      try {
+        await Promise.race([
+          (async () => {
+            while (pending.size)
+              await Promise.all(
+                [...pending.values()].map((entry) => entry.promise),
+              );
+          })(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "UI refresh reads did not settle within the existing browser deadline",
+                  ),
+                ),
+              reviewTimeout(deadline),
+            );
+          }),
+        ]);
+        // Cross a browser task boundary after response bodies finish so Vue can apply them.
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(resolve)),
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    close() {
+      page.off("request", started);
+      page.off("requestfinished", finished);
+      page.off("requestfailed", finished);
+    },
+  };
+}
+
 async function manual(page, cfg, delayedRefresh = false) {
   await connect(page, cfg);
   const runId = await createRun(
@@ -602,6 +718,7 @@ async function main() {
     else if (mode === "manual") await manual(page, cfg);
     else if (mode === "manual-stale") await manual(page, cfg, true);
     else if (mode === "interaction") await interaction(page, cfg, errors);
+    else if (mode === "settings") await modelSettings(page, cfg, errors);
     else {
       await page.goto(cfg.product);
       await page.locator("#auth input[name=username]").fill("browser-user");

@@ -1,5 +1,6 @@
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import httpx
 import uvicorn
+from pydantic import SecretStr
 
 from scripts.news_fixture import (
     ORIGINAL_REQUEST,
@@ -36,6 +38,103 @@ def free_port():
 
 STREAM_SUMMARY = "泰拉瑞瑞亚游戏资讯的登录后个人管理页面 🧪流式验收"
 FIXTURE_KEY = "explicit-ci-only"
+CATALOG_KEY = "explicit-catalog-ci-only"
+CATALOG_MODELS = ["catalog-model-alpha", "catalog-model-beta"]
+SETTINGS_READ_FAILURE = "Explicit local settings read failure"
+
+
+class CatalogFixture:
+    """A deterministic HTTP catalog, held until the browser proves its pending state."""
+
+    def __init__(self):
+        self.calls = []
+        self.mode = "success"
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.release.set()
+
+    def arm(self, mode, hold=False):
+        if mode not in {"success", "unsupported", "denied"}:
+            raise ValueError("Unknown catalog fixture mode")
+        self.mode = mode
+        self.started.clear()
+        self.release.clear() if hold else self.release.set()
+
+    def response(self, path, authorization):
+        # Count even rejected destinations so a leaked old key cannot pass unnoticed.
+        self.calls.append({"method": "GET", "path": path})
+        assert path == "/catalog-v1/models", "Unexpected model catalog destination"
+        assert authorization == "Bearer " + CATALOG_KEY, "Unexpected catalog credential"
+        mode = self.mode
+        self.started.set()
+        if not self.release.wait(15):
+            raise TimeoutError("Browser never released the pending catalog request")
+        if mode == "unsupported":
+            return 404, {"error": {"message": "Explicit catalog unsupported fixture"}}
+        if mode == "denied":
+            return 401, {"error": {"message": "Explicit catalog denied fixture"}}
+        return 200, {"object": "list", "data": [{"id": model} for model in CATALOG_MODELS]}
+
+    def status(self):
+        return {"calls": self.calls, "started": self.started.is_set()}
+
+
+class SettingsReadControl:
+    """Fault controls used only around the separate, empty-config browser test app."""
+
+    def __init__(self):
+        self.mode = "pass"
+        self.requests = []
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.release.set()
+
+    def arm(self, mode):
+        if mode not in {"pass", "hold", "fail"}:
+            raise ValueError("Unknown settings read fixture mode")
+        self.mode = mode
+        self.started.clear()
+        self.release.clear() if mode == "hold" else self.release.set()
+
+    def status(self):
+        return {"requests": self.requests, "started": self.started.is_set()}
+
+
+class SettingsReadFixture:
+    """Deliver real app responses unchanged, except one explicitly armed read fault.
+
+    Saves and discovery always reach the actual FastAPI handlers. This wrapper is
+    never installed by the production application and cannot mutate its state.
+    """
+
+    def __init__(self, app, control):
+        self.app, self.control = app, control
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope["path"].startswith("/settings/models"):
+            method, path = scope["method"], scope["path"]
+            self.control.requests.append({"method": method, "path": path})
+            if method == "GET" and path == "/settings/models":
+                mode, self.control.mode = self.control.mode, "pass"
+                self.control.started.set()
+                if mode == "hold":
+                    deadline = time.monotonic() + 15
+                    while not self.control.release.is_set():
+                        if time.monotonic() > deadline:
+                            raise TimeoutError("Browser never released the initial settings read")
+                        await asyncio.sleep(0.01)
+                if mode == "fail":
+                    body = json.dumps({"detail": SETTINGS_READ_FAILURE}).encode()
+                    await send(
+                        {
+                            "type": "http.response.start",
+                            "status": 503,
+                            "headers": [(b"content-type", b"application/json")],
+                        }
+                    )
+                    await send({"type": "http.response.body", "body": body})
+                    return
+        await self.app(scope, receive, send)
 
 
 def stream_packets(value, model):
@@ -85,6 +184,8 @@ def main():
     build_before = ui_build_snapshot()
     assert "workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before
     calls = []
+    catalog = CatalogFixture()
+    settings_reads = SettingsReadControl()
     release = threading.Event()
     start_stream = threading.Event()
     first_draft = threading.Event()
@@ -96,6 +197,14 @@ def main():
             return
 
         def do_GET(self):
+            if self.path.endswith("/models"):
+                try:
+                    status, payload = catalog.response(self.path, self.headers.get("Authorization"))
+                    self.json_response(payload, status=status)
+                except Exception as exc:
+                    failures.append(type(exc).__name__ + ": " + str(exc))
+                    raise
+                return
             if self.path != "/fixture/status":
                 self.send_error(404)
                 return
@@ -105,6 +214,8 @@ def main():
                     "completed": completed.is_set(),
                     "calls": calls,
                     "failures": failures,
+                    "catalog": catalog.status(),
+                    "settings_reads": settings_reads.status(),
                 }
             )
 
@@ -117,6 +228,24 @@ def main():
             self.wfile.write(encoded)
 
         def do_POST(self):
+            if self.path == "/fixture/catalog":
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                catalog.arm(body["mode"], body.get("hold", False))
+                self.json_response({"armed": True})
+                return
+            if self.path == "/fixture/catalog/release":
+                catalog.release.set()
+                self.json_response({"released": True})
+                return
+            if self.path == "/fixture/settings-read":
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                settings_reads.arm(body["mode"])
+                self.json_response({"armed": True})
+                return
+            if self.path == "/fixture/settings-read/release":
+                settings_reads.release.set()
+                self.json_response({"released": True})
+                return
             if self.path == "/fixture/start":
                 start_stream.set()
                 self.json_response({"started": True})
@@ -293,6 +422,101 @@ def main():
         }
         write_json(evidence, config)
         try:
+            # A second real app starts with no model configuration. Its only injected
+            # faults are network read timing/status, never fabricated saves or state.
+            empty_settings = settings.model_copy(
+                update={
+                    "data_dir": directory / "empty-platform",
+                    "base_url": "",
+                    "api_key": SecretStr(""),
+                    "model": "",
+                    **{
+                        stage + "_model": ""
+                        for stage in ("requirements", "planning", "coding", "review")
+                    },
+                }
+            )
+            empty_application = create_app(empty_settings)
+            empty_port = free_port()
+            empty_server = uvicorn.Server(
+                uvicorn.Config(
+                    SettingsReadFixture(empty_application, settings_reads),
+                    host="127.0.0.1",
+                    port=empty_port,
+                    log_level="error",
+                )
+            )
+            empty_thread = threading.Thread(target=empty_server.run, daemon=True)
+            empty_thread.start()
+            try:
+                for _ in range(100):
+                    if empty_server.started:
+                        break
+                    time.sleep(0.1)
+                else:
+                    raise RuntimeError("Empty-settings platform did not start")
+                settings_evidence = directory / "settings-input.json"
+                write_json(
+                    settings_evidence,
+                    {
+                        **config,
+                        "platform": f"http://127.0.0.1:{empty_port}",
+                        "token": empty_application.state.token,
+                        "catalog_key": CATALOG_KEY,
+                        "catalog_models": CATALOG_MODELS,
+                        "settings_read_failure": SETTINGS_READ_FAILURE,
+                    },
+                )
+                settings_result = subprocess.run(
+                    [
+                        "node",
+                        str(ROOT / "scripts/guided_browser.cjs"),
+                        "settings",
+                        str(settings_evidence),
+                        str(browser),
+                    ],
+                    cwd=ROOT,
+                    env=browser_env,
+                    text=True,
+                    capture_output=True,
+                    timeout=120,
+                )
+                (reports / "settings.log").write_text(
+                    settings_result.stdout + settings_result.stderr, encoding="utf-8"
+                )
+                assert settings_result.returncode == 0, (
+                    settings_result.stdout + settings_result.stderr
+                )
+                assert not failures, failures
+                assert not calls, "Settings acceptance must never call an inference endpoint"
+                settings_outcome = json.loads((reports / "settings.json").read_text())
+                assert all(
+                    settings_outcome.get(field) is True
+                    for field in (
+                        "passed",
+                        "empty_configuration",
+                        "slow_first_read_locked",
+                        "unsaved_catalog",
+                        "pending_query_locked",
+                        "catalog_selection_saved",
+                        "manual_fallback_saved",
+                        "unsupported_and_failed_catalog",
+                        "catalog_manual_retry",
+                        "changed_url_key_binding",
+                        "dirty_refresh_cancel",
+                        "failed_refresh_preserves_draft",
+                        "refresh_manual_retry",
+                        "no_inference",
+                        "no_secret_echo",
+                    )
+                ), settings_outcome
+                assert len(catalog.calls) == 4, catalog.calls
+                assert sum(request["method"] == "PATCH" for request in settings_reads.requests) == 2
+            finally:
+                settings_reads.release.set()
+                catalog.release.set()
+                empty_server.should_exit = True
+                empty_thread.join(timeout=30)
             first = subprocess.run(
                 [
                     "node",
@@ -523,6 +747,7 @@ def main():
                         "stale 409 re-review",
                         "keyboard and IME",
                         "secret-safe model settings",
+                        "empty configuration and real read-only model catalog with retry",
                         "generated CRUD search and dates",
                     ],
                 },
@@ -545,6 +770,8 @@ def main():
                     "failed_provider_same_run_retry": True,
                     "desktop_and_mobile_screenshots": True,
                     "secret_safe_settings": True,
+                    "real_model_catalog_settings": settings_outcome,
+                    "catalog_calls": catalog.calls,
                     "smart_without_further_questions": True,
                     "generated_news_search_filter": True,
                     "reported_boundary_list_regression": True,
@@ -554,6 +781,8 @@ def main():
         finally:
             start_stream.set()
             release.set()
+            catalog.release.set()
+            settings_reads.release.set()
             server.should_exit = True
             thread.join(timeout=30)
             provider.shutdown()

@@ -10,16 +10,17 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L234。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L475。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8618`。本段原文以LF换行结束。
+本段原始字节数：`19675`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "62e12664d538735e3bf33ee2ca1a5b659d52a70ae35979e9a8354a78b84bf960"} -->
+<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f6a891b722627e036912086383577efe2848037c1b78d56134875820ce7cf754"} -->
 ````typescript
 // ui/tests/settings.test.ts
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest'
-import Antd, { Modal } from 'ant-design-vue'
+import { Modal } from 'ant-design-vue'
+import { installUiComponents } from '../src/ui-components'
 import SettingsView from '../src/components/SettingsView.vue'
 import { state, lock } from '../src/state'
 import * as apiModule from '../src/api'
@@ -82,7 +83,7 @@ describe('explicit saved-profile connection tests', () => {
     const confirm = vi
       .spyOn(Modal, 'confirm')
       .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
-    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
     expect(testButton(wrapper).attributes('title')).toContain('可能产生费用')
     expect(wrapper.findComponent({ name: 'ATooltip' }).exists()).toBe(false)
     await testButton(wrapper).trigger('click')
@@ -108,7 +109,7 @@ describe('explicit saved-profile connection tests', () => {
     const confirm = vi
       .spyOn(Modal, 'confirm')
       .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
-    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
     await wrapper.findAll('[role="tab"]')[3]!.trigger('click')
     await testButton(wrapper).trigger('click')
     expect(confirm.mock.calls[0]![0].content).toContain('saved-coder')
@@ -163,7 +164,7 @@ describe('explicit saved-profile connection tests', () => {
     const confirm = vi
       .spyOn(Modal, 'confirm')
       .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
-    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
     await wrapper.find('#model-name').setValue('unsaved-model')
     expect(testButton(wrapper).attributes('disabled')).toBeDefined()
     await wrapper.find('#model-name').setValue('saved-model')
@@ -189,7 +190,7 @@ describe('explicit saved-profile connection tests', () => {
     )
     const destroy = vi.fn()
     const confirm = vi.spyOn(Modal, 'confirm').mockReturnValue({ destroy, update: vi.fn() })
-    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
     await testButton(wrapper).trigger('click')
     const pending = confirm.mock.calls[0]![0].onOk?.()
     wrapper.unmount()
@@ -225,7 +226,7 @@ describe('model settings save baseline', () => {
       if (path === '/settings/models') return saved as any
       return [] as any
     })
-    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
     expect((wrapper.vm as any).dirty).toBe(false)
     await wrapper.find('#model-name').setValue('after')
     expect((wrapper.vm as any).dirty).toBe(true)
@@ -240,7 +241,7 @@ describe('model settings save baseline', () => {
 
 it('initializes settings arriving after the view mounts and preserves unsaved edits', async () => {
   state.settings = null
-  const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
   connectionSettings()
   await flushPromises()
   expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('saved-model')
@@ -249,6 +250,246 @@ it('initializes settings arriving after the view mounts and preserves unsaved ed
   state.settings = { ...state.settings!, revision: 'newer-revision' }
   await flushPromises()
   expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('unsaved-model')
+  wrapper.unmount()
+})
+
+function saveButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button').find((button) => button.text().includes('保存配置'))!
+}
+function discoverButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button').find((button) => button.text().includes('查询模型列表'))!
+}
+async function replaceKey(wrapper: ReturnType<typeof mount>, key = 'fixture-new-key') {
+  wrapper
+    .findAllComponents({ name: 'ASelect' })
+    .find((c) => c.props('id') === 'key-action')!
+    .vm.$emit('update:value', 'replace')
+  await flushPromises()
+  await wrapper.find('#model-key').setValue(key)
+}
+
+it('blocks editing until initial settings arrive and then enables a complete first-time save', async () => {
+  state.authenticated = true
+  state.online = true
+  state.settings = null
+  apiModule.setToken('fixture-only-token')
+  const request = vi.spyOn(apiModule, 'api').mockResolvedValue([])
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  expect(wrapper.find('#model-url').attributes('disabled')).toBeDefined()
+  expect(wrapper.text()).toContain('尚未读取配置')
+  state.settings = {
+    revision: '0',
+    default: { base_url: '', model: '', api_key: 'missing' },
+    stages: {},
+    ready: false,
+    validation: [],
+    model_review: false,
+  }
+  await flushPromises()
+  await wrapper.find('#model-url').setValue('https://fixture.example/v1')
+  await wrapper.find('#model-name').setValue('gpt-6-luna')
+  expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+  await replaceKey(wrapper)
+  await wrapper.find('#model-max-tokens').setValue('25400')
+  expect(wrapper.text()).toContain('新密钥待保存')
+  expect(wrapper.text()).not.toContain('服务地址已改变，请选择替换并填写新地址专用的 API Key')
+  expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+  request.mockImplementation(async (path: string, options: any = {}) => {
+    if (path === '/settings/models' && options.method === 'PATCH')
+      return {
+        ...state.settings,
+        revision: 'saved',
+        default: { ...options.body.default, api_key: 'configured' },
+      }
+    if (path === '/settings/models') return state.settings
+    return []
+  })
+  await wrapper.find('form').trigger('submit')
+  await flushPromises()
+  expect(request.mock.calls[0]![1]?.body).toMatchObject({
+    expected_revision: '0',
+    default: { model: 'gpt-6-luna', max_output_tokens: 25400, api_key: 'fixture-new-key' },
+  })
+  expect(wrapper.text()).toContain('配置已保存')
+  expect((wrapper.vm as any).dirty).toBe(false)
+  expect(testButton(wrapper).attributes('disabled')).toBeUndefined()
+  expect((wrapper.find('#model-max-tokens').element as HTMLInputElement).value).toBe('25400')
+  wrapper.unmount()
+})
+
+it('queries an unsaved profile without inference or saving and keeps manual model entry', async () => {
+  connectionSettings()
+  let resolve!: (value: unknown) => void
+  const request = vi.spyOn(apiModule, 'api').mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  await wrapper.find('#model-url').setValue('https://new.example/v1')
+  expect(discoverButton(wrapper).attributes('disabled')).toBeDefined()
+  await replaceKey(wrapper)
+  await wrapper.find('#model-name').setValue('')
+  await discoverButton(wrapper).trigger('click')
+  await discoverButton(wrapper).trigger('click')
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request.mock.calls[0]![0]).toBe('/settings/models/discover')
+  expect(request.mock.calls[0]![1]?.body).toMatchObject({
+    stage: 'default',
+    expected_revision: 'saved-revision',
+    profile: { base_url: 'https://new.example/v1', model: '', api_key: 'fixture-new-key' },
+  })
+  expect(wrapper.find('#model-url').attributes('disabled')).toBeDefined()
+  expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
+  resolve({ ok: true, models: ['fixture-a', 'fixture-b'], message: '已读取 2 个模型' })
+  await flushPromises()
+  expect(wrapper.text()).toContain('已读取 2 个模型')
+  expect(wrapper.findComponent({ name: 'AAutoComplete' }).props('options')).toEqual([
+    { value: 'fixture-a' },
+    { value: 'fixture-b' },
+  ])
+  await wrapper.find('#model-name').setValue('manual-model')
+  expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  expect(request).toHaveBeenCalledTimes(1)
+  await wrapper.find('#model-url').setValue('https://another.example/v1')
+  expect(wrapper.findComponent({ name: 'AAutoComplete' }).props('options')).toEqual([])
+  wrapper.unmount()
+})
+
+it('requires confirmation before refreshing a dirty draft and explains stale/offline blockers', async () => {
+  connectionSettings()
+  const request = vi.spyOn(apiModule, 'api')
+  const confirm = vi.spyOn(Modal, 'confirm').mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  await wrapper.find('#model-name').setValue('manual-edit')
+  state.settings = { ...state.settings, revision: 'changed-elsewhere' }
+  await flushPromises()
+  expect(saveButton(wrapper).attributes('title')).toContain('配置版本已变化')
+  const refresh = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('读取最新配置'))!
+  await refresh.trigger('click')
+  await refresh.trigger('click')
+  expect(confirm).toHaveBeenCalledTimes(1)
+  expect(request).not.toHaveBeenCalled()
+  expect((wrapper.find('#model-name').element as HTMLInputElement).value).toBe('manual-edit')
+  state.online = false
+  await flushPromises()
+  expect(saveButton(wrapper).attributes('title')).toContain('网络离线')
+  wrapper.unmount()
+})
+
+it('aborts discovery on unmount and ignores the late model list', async () => {
+  connectionSettings()
+  let resolve!: (value: unknown) => void
+  const request = vi.spyOn(apiModule, 'api').mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  await discoverButton(wrapper).trigger('click')
+  expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+  wrapper.unmount()
+  expect(request.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+  resolve({ ok: true, models: ['late'], message: 'late' })
+  await flushPromises()
+  expect(request).toHaveBeenCalledTimes(1)
+})
+
+it('recovers a failed initial read through the visible reload action', async () => {
+  state.authenticated = true
+  state.online = true
+  state.settings = null
+  apiModule.setToken('fixture-only-token')
+  const request = vi.spyOn(apiModule, 'api').mockRejectedValueOnce(new Error('fixture read failed'))
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  const refresh = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('读取最新配置'))!
+  await refresh.trigger('click')
+  await flushPromises()
+  expect(wrapper.find('#model-url').attributes('disabled')).toBeDefined()
+  request.mockResolvedValue({
+    revision: '0',
+    default: { base_url: '', model: '', api_key: 'missing' },
+    stages: {},
+    validation: [],
+  })
+  await refresh.trigger('click')
+  await flushPromises()
+  expect(wrapper.find('#model-url').attributes('disabled')).toBeUndefined()
+  expect(wrapper.text()).toContain('已读取最新配置')
+  expect(wrapper.text()).not.toContain('fixture read failed')
+  wrapper.unmount()
+})
+
+it('keeps manual entry available after discovery failure and does not auto-retry', async () => {
+  connectionSettings()
+  const request = vi
+    .spyOn(apiModule, 'api')
+    .mockResolvedValue({ ok: false, models: [], message: '服务不支持模型列表' })
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  await discoverButton(wrapper).trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('服务不支持模型列表；仍可手动填写模型 ID')
+  await wrapper.find('#model-name').setValue('manual-fallback')
+  expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  expect(request).toHaveBeenCalledTimes(1)
+  wrapper.unmount()
+})
+
+it('restores the address-specific warning when a replacement key is cleared', async () => {
+  connectionSettings()
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  await wrapper.find('#model-url').setValue('https://new.example/v1')
+  const warning = '服务地址已改变，请选择替换并填写新地址专用的 API Key'
+  expect(wrapper.text()).toContain(warning)
+  await replaceKey(wrapper)
+  expect(wrapper.text()).not.toContain(warning)
+  expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+  await wrapper.find('#model-key').setValue('   ')
+  expect(wrapper.text()).toContain(warning)
+  expect(saveButton(wrapper).attributes('disabled')).toBeDefined()
+  expect(discoverButton(wrapper).attributes('disabled')).toBeDefined()
+  wrapper.unmount()
+})
+
+it('explains environment versus saved source without exposing a configuration path', async () => {
+  connectionSettings()
+  state.settings!.source = 'environment'
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  expect(wrapper.text()).toContain('配置来源：服务启动环境（含 .env）')
+  state.settings = { ...state.settings, source: 'saved' }
+  await flushPromises()
+  expect(wrapper.text()).toContain('它优先于 .env；修改 .env 不会自动覆盖')
+  expect(wrapper.text()).not.toContain('model-settings.json')
+  await wrapper.find('#model-name').setValue('new-model')
+  expect(wrapper.text()).toContain('请先保存修改，再测试已保存的有效连接')
+  wrapper.unmount()
+})
+
+it('keeps settings action names stable while authentication hides the settings form', () => {
+  state.settings = null
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  const save = saveButton(wrapper)
+  // Playwright includeHidden also includes the icon's aria-label="check".
+  // A button-level name stays exact while the connection dialog hides its background.
+  expect(save.attributes('aria-label')).toBe('保存配置')
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
+  expect(testButton(wrapper).attributes('aria-label')).toBe('测试连接')
+  expect(
+    wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('读取最新配置'))!
+      .attributes('aria-label'),
+  ).toBe('读取最新配置')
+  expect(save.find('[aria-label="check"]').attributes('aria-hidden')).toBe('true')
+  expect(save.attributes('disabled')).toBeDefined()
   wrapper.unmount()
 })
 ````

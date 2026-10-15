@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/settings/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L527。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/settings/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L682。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19773`。本段原文以LF换行结束。
+本段原始字节数：`26010`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/settings/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fe29859cb07bf62838712f24d08ca45c09a27402806bad9af1b5c3d1087169a7"} -->
+<!-- learning-source: {"path": "ui/src/features/settings/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "248b5ca234706012018ebcdd27c6bc275b321cddbe659ecad20580305449df54"} -->
 ````vue
 <!-- ui/src/features/settings/SettingsView.vue -->
 <script setup lang="ts">
@@ -33,6 +33,7 @@ const sections = [
 const active = ref('default'),
   loading = ref(false),
   testing = ref(false),
+  discovering = ref(false),
   confirmingTest = ref(false),
   notice = ref(''),
   error = ref(''),
@@ -62,10 +63,17 @@ interface ConnectionResult {
   elapsed_ms: number
 }
 const connectionResult = ref<ConnectionResult | null>(null)
-const busy = computed(() => loading.value || testing.value || confirmingTest.value)
+const busy = computed(
+  () => loading.value || testing.value || confirmingTest.value || discovering.value,
+)
+const editable = computed(() => !!state.settings && !!revision.value && !busy.value)
+const modelOptions = ref<{ value: string }[]>([])
+const discoveryNotice = ref('')
+let discoveryController: AbortController | null = null
 let mounted = true
 let testController: AbortController | null = null
 let testConfirmation: ReturnType<typeof Modal.confirm> | null = null
+let refreshConfirmation: ReturnType<typeof Modal.confirm> | null = null
 function load() {
   const config = state.settings
   if (!config) return
@@ -90,6 +98,10 @@ watch(
   () => state.settings,
   () => {
     if (!dirty.value) load()
+    else if (!revision.value) {
+      conflict.value = true
+      error.value = '配置读取较晚，已保留你的输入。请读取最新配置后重新核对，避免覆盖已有配置。'
+    }
   },
   { immediate: true },
 )
@@ -101,6 +113,9 @@ const changedUrl = computed(
     form.base_url.trim().replace(/\/$/, '') !== (original.value?.base_url || '').replace(/\/$/, ''),
 )
 const newUrlNeedsKey = computed(() => changedUrl.value && !!form.base_url.trim())
+const missingNewUrlKey = computed(
+  () => newUrlNeedsKey.value && (keyAction.value !== 'replace' || !form.api_key.trim()),
+)
 const validation = computed(() =>
   state.settings?.validation?.find((row: any) => row.stage === active.value),
 )
@@ -116,11 +131,26 @@ const canTest = computed(
     !conflict.value &&
     !loading.value &&
     !testing.value &&
+    !discovering.value &&
     state.online &&
     !!effective.value?.base_url &&
     !!effective.value?.model &&
     effective.value?.api_key === 'configured',
 )
+const testBlockReason = computed(() => {
+  if (!state.settings || !revision.value) return '尚未读取配置，请读取最新配置后再测试'
+  if (!state.online) return '网络离线，请恢复连接后再测试'
+  if (conflict.value || revision.value !== state.settings.revision)
+    return '配置版本已变化，请读取最新配置后再测试'
+  if (dirty.value) return '请先保存修改，再测试已保存的有效连接'
+  if (
+    !effective.value?.base_url ||
+    !effective.value?.model ||
+    effective.value?.api_key !== 'configured'
+  )
+    return '请先填写并保存服务地址、模型和 API Key，再测试连接'
+  return ''
+})
 const currentResult = computed(() =>
   !dirty.value &&
   connectionResult.value?.revision === revision.value &&
@@ -129,15 +159,110 @@ const currentResult = computed(() =>
     ? connectionResult.value
     : null,
 )
-const canSave = computed(
+const saveBlockReason = computed(() => {
+  if (!state.settings || !revision.value) return '尚未读取配置，请点击读取最新配置后再编辑'
+  if (!state.online) return '网络离线，请恢复连接后保存'
+  if (conflict.value || revision.value !== state.settings.revision)
+    return '配置版本已变化，请读取最新配置后重新核对'
+  if (missingNewUrlKey.value) return '服务地址已改变，请选择替换并填写新地址专用的 API Key'
+  if (keyAction.value === 'replace' && !form.api_key.trim()) return '请填写新的 API Key'
+  if (!dirty.value) return '没有需要保存的修改'
+  return ''
+})
+const canSave = computed(() => !saveBlockReason.value)
+const canDiscover = computed(
   () =>
-    !!state.settings &&
-    !!revision.value &&
-    dirty.value &&
+    editable.value &&
+    state.online &&
     !conflict.value &&
+    revision.value === state.settings?.revision &&
+    !!(form.base_url.trim() || (active.value !== 'default' && state.settings?.default?.base_url)) &&
     (!newUrlNeedsKey.value || (keyAction.value === 'replace' && !!form.api_key.trim())) &&
-    (keyAction.value !== 'replace' || !!form.api_key.trim()),
+    keyAction.value !== 'clear' &&
+    (keyAction.value === 'replace'
+      ? !!form.api_key.trim()
+      : effective.value?.api_key === 'configured'),
 )
+function profilePatch() {
+  const profile: any = {
+    base_url: form.base_url.trim(),
+    model: form.model.trim(),
+    provider: form.provider,
+    output_mode: form.output_mode,
+    max_output_tokens: form.max_output_tokens,
+  }
+  if (keyAction.value === 'replace') profile.api_key = form.api_key.trim()
+  if (keyAction.value === 'clear') profile.api_key = ''
+  return profile
+}
+watch(
+  [
+    active,
+    () => form.base_url,
+    () => form.api_key,
+    keyAction,
+    revision,
+    () => state.settings?.revision,
+  ],
+  () => {
+    modelOptions.value = []
+    discoveryNotice.value = ''
+  },
+)
+async function discoverModels() {
+  if (!canDiscover.value) return
+  const generation = sessionIdentity(),
+    targetRevision = revision.value
+  discovering.value = true
+  error.value = ''
+  discoveryNotice.value = ''
+  modelOptions.value = []
+  discoveryController = new AbortController()
+  try {
+    const result = await api<{ ok: boolean; models: string[]; message: string }>(
+      '/settings/models/discover',
+      {
+        method: 'POST',
+        body: { stage: active.value, expected_revision: revision.value, profile: profilePatch() },
+        signal: discoveryController.signal,
+      },
+    )
+    if (!mounted || !isSessionActive(generation)) return
+    if (targetRevision !== state.settings?.revision) {
+      conflict.value = true
+      return
+    }
+    modelOptions.value = result.ok ? result.models.map((value) => ({ value })) : []
+    discoveryNotice.value = result.message + '；仍可手动填写模型 ID。'
+  } catch (e) {
+    if (!mounted || !isSessionActive(generation)) return
+    error.value = errorText(e) + '；仍可手动填写模型 ID。'
+    if (e instanceof ApiError && e.status === 409) conflict.value = true
+  } finally {
+    discovering.value = false
+    discoveryController = null
+  }
+}
+function requestRefresh() {
+  if (busy.value || refreshConfirmation) return
+  const generation = sessionIdentity()
+  if (dirty.value)
+    refreshConfirmation = Modal.confirm({
+      title: '读取最新配置并放弃未保存的修改？',
+      content: '新输入的 API Key 也会从页面内存中清除。',
+      okText: '读取最新配置',
+      cancelText: '继续编辑',
+      onCancel: () => {
+        refreshConfirmation = null
+      },
+      onOk: () => {
+        refreshConfirmation = null
+        if (mounted && isSessionActive(generation)) return refresh()
+      },
+    })
+  else void refresh()
+}
+
 function select(id: string) {
   if (busy.value || id === active.value) return
   const go = () => {
@@ -158,6 +283,8 @@ function select(id: string) {
 }
 async function refresh() {
   if (busy.value) return
+  error.value = ''
+  notice.value = ''
   const generation = sessionIdentity()
   loading.value = true
   try {
@@ -179,15 +306,7 @@ async function save() {
   loading.value = true
   error.value = ''
   notice.value = ''
-  const profile: any = {
-    base_url: form.base_url.trim(),
-    model: form.model.trim(),
-    provider: form.provider,
-    output_mode: form.output_mode,
-    max_output_tokens: form.max_output_tokens,
-  }
-  if (keyAction.value === 'replace') profile.api_key = form.api_key.trim()
-  if (keyAction.value === 'clear') profile.api_key = ''
+  const profile = profilePatch()
   const body: any = {
     expected_revision: revision.value,
     ...(active.value === 'default'
@@ -279,7 +398,9 @@ window.addEventListener('beforeunload', beforeUnload)
 onBeforeUnmount(() => {
   mounted = false
   testController?.abort()
+  discoveryController?.abort()
   testConfirmation?.destroy()
+  refreshConfirmation?.destroy()
   window.removeEventListener('beforeunload', beforeUnload)
   form.api_key = ''
 })
@@ -310,7 +431,7 @@ defineExpose({ dirty })
             role="tab"
             :aria-selected="active === section.id"
             :class="{ active: active === section.id }"
-            :disabled="busy"
+            :disabled="!editable"
             @click="select(section.id)"
           >
             <strong>{{ section.name }}</strong
@@ -339,6 +460,16 @@ defineExpose({ dirty })
             }}</a-tag>
           </div>
           <a-alert
+            v-if="state.settings?.source"
+            type="info"
+            show-icon
+            :message="
+              state.settings.source === 'saved'
+                ? '配置来源：本机已保存配置。它优先于 .env；修改 .env 不会自动覆盖，请在此页编辑并保存。'
+                : '配置来源：服务启动环境（含 .env）。修改 .env 后需重启服务；在此页保存后将优先使用本机已保存配置。'
+            "
+          />
+          <a-alert
             v-if="active !== 'default'"
             type="info"
             show-icon
@@ -350,7 +481,7 @@ defineExpose({ dirty })
               ><a-select
                 id="model-provider"
                 v-model:value="form.provider"
-                :disabled="busy"
+                :disabled="!editable"
                 :options="[
                   ...(active !== 'default' ? [{ value: null, label: '继承默认' }] : []),
                   { value: 'auto', label: '自动识别' },
@@ -365,7 +496,7 @@ defineExpose({ dirty })
               ><a-select
                 id="model-output"
                 v-model:value="form.output_mode"
-                :disabled="busy"
+                :disabled="!editable"
                 :options="[
                   ...(active !== 'default' ? [{ value: null, label: '继承默认' }] : []),
                   { value: 'auto', label: '自动' },
@@ -379,7 +510,7 @@ defineExpose({ dirty })
               ><a-input
                 id="model-url"
                 v-model:value="form.base_url"
-                :disabled="busy"
+                :disabled="!editable"
                 placeholder="https://api.example.com/v1"
                 autocomplete="off"
                 :maxlength="2048"
@@ -388,7 +519,7 @@ defineExpose({ dirty })
                 仅填 API 根地址；不包含 /chat/completions、账号密码、查询参数或片段。
               </p>
               <a-alert
-                v-if="newUrlNeedsKey"
+                v-if="missingNewUrlKey"
                 class="compact-alert"
                 type="warning"
                 show-icon
@@ -398,27 +529,46 @@ defineExpose({ dirty })
             <div>
               <label class="form-label" for="model-name"
                 >模型名称 {{ active === 'default' ? '*' : '' }}</label
-              ><a-input
+              ><a-auto-complete
                 id="model-name"
                 v-model:value="form.model"
-                :disabled="busy"
-                placeholder="提供商的实际模型 ID"
+                :disabled="!editable"
+                :options="modelOptions"
+                :filter-option="
+                  (input: string, option: any) =>
+                    option.value.toLowerCase().includes(input.toLowerCase())
+                "
+                placeholder="查询选择或手动填写模型 ID"
                 autocomplete="off"
                 :maxlength="256"
               />
-              <p class="field-hint">请按提供商的实际模型 ID 填写。</p>
+              <a-button
+                aria-label="查询模型列表"
+                :loading="discovering"
+                :disabled="!canDiscover"
+                @click="discoverModels"
+                >查询模型列表</a-button
+              >
+              <p class="field-hint">
+                查询通过后端读取该地址的 /models，不发起推理，也不会保存配置。可直接手填模型 ID。
+              </p>
+              <p v-if="discoveryNotice" role="status" class="field-hint">{{ discoveryNotice }}</p>
             </div>
             <div>
               <div class="label-row">
                 <label class="form-label" for="key-action">API Key</label
                 ><a-tag :color="keyConfigured ? 'green' : 'default'">{{
-                  keyConfigured ? '已配置' : '未配置'
+                  keyAction === 'replace' && form.api_key
+                    ? '新密钥待保存'
+                    : keyConfigured
+                      ? '已配置'
+                      : '未配置'
                 }}</a-tag>
               </div>
               <a-select
                 id="key-action"
                 v-model:value="keyAction"
-                :disabled="busy"
+                :disabled="!editable"
                 :options="[
                   { value: 'keep', label: '保留现有密钥 / 继承默认' },
                   { value: 'replace', label: '替换为新密钥' },
@@ -429,7 +579,7 @@ defineExpose({ dirty })
                 id="model-key"
                 v-model:value="form.api_key"
                 aria-label="新 API Key"
-                :disabled="busy"
+                :disabled="!editable"
                 placeholder="输入此服务的专用 API Key"
                 autocomplete="new-password"
                 :visibility-toggle="false"
@@ -442,7 +592,7 @@ defineExpose({ dirty })
               ><a-input-number
                 id="model-max-tokens"
                 v-model:value="form.max_output_tokens"
-                :disabled="busy"
+                :disabled="!editable"
                 :min="1"
                 :max="393216"
                 :precision="0"
@@ -450,7 +600,7 @@ defineExpose({ dirty })
               />
             </div>
             <div v-if="active === 'review'" class="review-toggle">
-              <a-switch v-model:checked="form.model_review" :disabled="busy" /><span
+              <a-switch v-model:checked="form.model_review" :disabled="!editable" /><span
                 >启用模型复核</span
               >
               <p class="field-hint">复核覆盖项存在时也会启用。关闭需同时清除覆盖配置。</p>
@@ -504,18 +654,20 @@ defineExpose({ dirty })
             class="compact-alert"
             :message="validation.error"
           />
+          <p v-if="saveBlockReason" role="status" class="field-hint">{{ saveBlockReason }}</p>
           <div class="form-actions">
             <span class="muted">{{
               dirty ? '未保存' : '当前配置版本 ' + revision.slice(0, 8)
             }}</span
-            ><a-button v-if="conflict" :loading="loading" @click="refresh"
+            ><a-button
+              aria-label="读取最新配置"
+              :loading="loading"
+              :disabled="busy || !state.online"
+              @click="requestRefresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
             ><a-button
-              :title="
-                dirty
-                  ? '请先保存修改，再测试已保存的有效连接'
-                  : '发起一次真实模型调用，可能产生费用；确认后才开始'
-              "
+              :title="testBlockReason || '发起一次真实模型调用，可能产生费用；确认后才开始'"
+              aria-label="测试连接"
               :loading="testing"
               :disabled="!canTest || confirmingTest"
               @click="confirmConnectionTest"
@@ -523,12 +675,15 @@ defineExpose({ dirty })
             ><a-button
               type="primary"
               html-type="submit"
+              aria-label="保存配置"
               size="large"
               :loading="loading"
-              :disabled="!canSave || !state.online || busy"
+              :disabled="!canSave || busy"
+              :title="saveBlockReason || '保存当前配置'"
               ><CheckOutlined aria-hidden="true" />保存配置</a-button
             >
           </div>
+          <p v-if="testBlockReason" role="status" class="field-hint">{{ testBlockReason }}</p>
           <p class="field-hint">
             保存仅校验格式，不产生模型费用。测试连接须单独确认，只测试当前页已保存的有效连接。保存后下一次调用使用新配置，进行中的调用保持原配置。
           </p>

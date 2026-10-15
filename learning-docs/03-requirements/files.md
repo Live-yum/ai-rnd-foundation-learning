@@ -27,6 +27,7 @@
 - [workbench/llm.py](sources/workbench__llm_py--001.md)：唯一的对话模型调用网关；1 段
 - [workbench/model_connection.py](sources/workbench__model_connection_py--001.md)：项目根配置或说明；1 段
 - [workbench/model_diagnostics.py](sources/workbench__model_diagnostics_py--001.md)：项目根配置或说明；1 段
+- [workbench/model_discovery.py](sources/workbench__model_discovery_py--001.md)：项目根配置或说明；1 段
 - [workbench/model_protocol.py](sources/workbench__model_protocol_py--001.md)：项目根配置或说明；1 段
 - [workbench/native_schema.py](sources/workbench__native_schema_py--001.md)：项目根配置或说明；1 段
 - [workbench/requirement_canonical.py](sources/workbench__requirement_canonical_py--001.md)：对已确认等价的需求表述进行保守去重；1 段

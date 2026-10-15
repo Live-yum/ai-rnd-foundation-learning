@@ -174,8 +174,8 @@
     },
     {
       "path": "workbench/model_settings.py",
-      "bytes": 20571,
-      "sha256": "3dbe04fd3a8c8ea282b4dad2549c387b44b99d46d097fb62ff7a8df347e185f7",
+      "bytes": 21946,
+      "sha256": "f212dd59c1475b69c1683ecc58d14bd7f59746843c4263bfc423570725815790",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__model_settings_py--001.md"
@@ -183,8 +183,8 @@
     },
     {
       "path": "workbench/settings.py",
-      "bytes": 13130,
-      "sha256": "f7899c02df202a6b880c9bdb9c8a2d7ca817cb57936a404624ae570da294c7da",
+      "bytes": 14101,
+      "sha256": "b0cf503deeb8ec569c67f3da350c4b7656eab5139933367b483ff2b499287373",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__settings_py--001.md"
@@ -567,6 +567,15 @@
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/model_discovery.py",
+      "bytes": 15524,
+      "sha256": "42dc4d658945245563e18ac0dbaf52908165982a7ae33438b9d8c26bfd8c7b41",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__model_discovery_py--001.md"
       ]
     },
     {
@@ -1558,8 +1567,8 @@
     },
     {
       "path": "scripts/guided_browser.cjs",
-      "bytes": 51649,
-      "sha256": "6f3ece740992cb6ff16ef3fd83cbd1b931da412480e35ab24965b5862eab31b0",
+      "bytes": 64748,
+      "sha256": "0d39237de61472445902a809b7d024f314e5355ea0f73df4e09fe11062b08c81",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/scripts__guided_browser_cjs--001.md",
@@ -1848,8 +1857,8 @@
     },
     {
       "path": "ui/src/features/settings/SettingsView.vue",
-      "bytes": 19773,
-      "sha256": "fe29859cb07bf62838712f24d08ca45c09a27402806bad9af1b5c3d1087169a7",
+      "bytes": 26010,
+      "sha256": "248b5ca234706012018ebcdd27c6bc275b321cddbe659ecad20580305449df54",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__features__settings__SettingsView_vue--001.md"
@@ -1857,8 +1866,8 @@
     },
     {
       "path": "ui/src/main.ts",
-      "bytes": 671,
-      "sha256": "05d5d6fec008f2eb2884d100ce084bfe74c13d14481d61ba233cbacdad7f51b6",
+      "bytes": 245,
+      "sha256": "26572a8c0139610a1684890f1843dd06a6dad7ce8dda54b4524c9b4784d20bac",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__main_ts--001.md"
@@ -1901,6 +1910,15 @@
       ]
     },
     {
+      "path": "ui/src/ui-components.ts",
+      "bytes": 763,
+      "sha256": "8b7b26a6535bf2b90db551cbf04783b5895c37eae05cae461bafda6c8d25a9ec",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__ui-components_ts--001.md"
+      ]
+    },
+    {
       "path": "ui/tests/capability.test.ts",
       "bytes": 17313,
       "sha256": "c63cc2f841c655225899b4fa1aa445eccb35231de12741d8915b64dd95bf87ca",
@@ -1938,8 +1956,8 @@
     },
     {
       "path": "ui/tests/settings.test.ts",
-      "bytes": 8618,
-      "sha256": "62e12664d538735e3bf33ee2ca1a5b659d52a70ae35979e9a8354a78b84bf960",
+      "bytes": 19675,
+      "sha256": "f6a891b722627e036912086383577efe2848037c1b78d56134875820ce7cf754",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__settings_test_ts--001.md"
@@ -2046,8 +2064,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 791798,
-      "sha256": "a18c65f04d67b1809abfccf3ccad7b723f3d71d7223038eab4c12a85f3160fa1",
+      "bytes": 798241,
+      "sha256": "cb0b9eeb154bb0a1a6de4c74a36ef942884b3f18a1226b76cd42d2080d24a998",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"
@@ -4624,6 +4642,15 @@
       ]
     },
     {
+      "path": ".github/workflows/model-settings-connection.yml",
+      "bytes": 4297,
+      "sha256": "cd4972918d38bfc91f9f16bc5858939c0fc039882241d379508f8debdd281a95",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/_github__workflows__model-settings-connection_yml--001.md"
+      ]
+    },
+    {
       "path": ".github/workflows/native-capability-profile.yml",
       "bytes": 11360,
       "sha256": "a846c8d0e32712d4ccd2adff881326b2ff6bf5cfb895ef22605544640e906482",
@@ -4697,8 +4724,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 26088,
-      "sha256": "367b1106c191c33018cb44a76f5be0f5f91f0316ee8119a75ab2bb0bb9c5bfc4",
+      "bytes": 27533,
+      "sha256": "850540ba4871d0ca87c327aecdc13053f98dbed4eb673a3e51fc716927ed70c1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -4994,8 +5021,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 37023,
-      "sha256": "948796fc62877f0b373a7bec43df1fd474619c4c800efec69dcef34f6523d632",
+      "bytes": 37049,
+      "sha256": "8a9de12961bffb7d9384862469642840a140b9ceda3fd99fca282bffbf2a8f4b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -5174,8 +5201,8 @@
     },
     {
       "path": "scripts/ci_guided_browser.py",
-      "bytes": 22777,
-      "sha256": "4a67bc56509d0d52cdc13bf73530d1db851e8b4029ef99924bab9642d153b0e3",
+      "bytes": 32933,
+      "sha256": "d40034bd11931cb1c70b408a87181da7047d7e7d478e16e4059e3e796b9b8da0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_guided_browser_py--001.md"
@@ -5215,6 +5242,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_model_feedback_py--001.md"
+      ]
+    },
+    {
+      "path": "scripts/ci_model_settings_connection.py",
+      "bytes": 7471,
+      "sha256": "9becc004e5067cd2a2937f85cd6357332012dd2726b063483c8dc4c7970b84f1",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__ci_model_settings_connection_py--001.md"
       ]
     },
     {
@@ -5898,6 +5934,15 @@
       ]
     },
     {
+      "path": "tests/test_ci_model_settings_connection.py",
+      "bytes": 9123,
+      "sha256": "723c74fccad23aede32735d411e80cd064ff77dd4ac32a057d9a48d1f25a9012",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_ci_model_settings_connection_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_ci_native_capability_full_source.py",
       "bytes": 20192,
       "sha256": "7f9ffc1b2ba4d04b2b0bb32c6b92ff614e44e673b3b73b39ddad4710a3922d26",
@@ -6250,6 +6295,24 @@
       ]
     },
     {
+      "path": "tests/test_model_discovery.py",
+      "bytes": 28322,
+      "sha256": "fae075340548e70e02c6b844b77c84e1884d76caa46a9ffbb36d6d3d76f736fe",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_discovery_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_env_bootstrap.py",
+      "bytes": 6153,
+      "sha256": "30686d0cb6529692e277d6b6740a125e60f9ef03b5916b0d4c0bf38276d791a0",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_env_bootstrap_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_model_feedback_ci.py",
       "bytes": 18420,
       "sha256": "ed6ac08c23c7c1e7ddbdeb0441c2cfb310ccffb58b8393b7b26e17184298597b",
@@ -6586,8 +6649,8 @@
     },
     {
       "path": "tests/test_workbench_browser_fixture.py",
-      "bytes": 3949,
-      "sha256": "64953ee2b8082cbbcbf01f3dcde6fdbd3957108a775b73ab9c122a8939ef28df",
+      "bytes": 9192,
+      "sha256": "acb27f337176669b66fbd219e743564b6d686cd76995823740208ecbe7277432",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_workbench_browser_fixture_py--001.md"

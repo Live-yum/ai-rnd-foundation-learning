@@ -73,6 +73,7 @@
 - [workbench/llm.py](03-requirements/sources/workbench__llm_py--001.md)（1 段）
 - [workbench/model_connection.py](03-requirements/sources/workbench__model_connection_py--001.md)（1 段）
 - [workbench/model_diagnostics.py](03-requirements/sources/workbench__model_diagnostics_py--001.md)（1 段）
+- [workbench/model_discovery.py](03-requirements/sources/workbench__model_discovery_py--001.md)（1 段）
 - [workbench/model_protocol.py](03-requirements/sources/workbench__model_protocol_py--001.md)（1 段）
 - [workbench/native_schema.py](03-requirements/sources/workbench__native_schema_py--001.md)（1 段）
 - [workbench/requirement_canonical.py](03-requirements/sources/workbench__requirement_canonical_py--001.md)（1 段）
@@ -230,6 +231,7 @@
 - [ui/src/state.ts](08-control-plane/sources/ui__src__state_ts--001.md)（1 段）
 - [ui/src/style.css](08-control-plane/sources/ui__src__style_css--001.md)（1 段）
 - [ui/src/types.ts](08-control-plane/sources/ui__src__types_ts--001.md)（1 段）
+- [ui/src/ui-components.ts](08-control-plane/sources/ui__src__ui-components_ts--001.md)（1 段）
 - [ui/tests/capability.test.ts](08-control-plane/sources/ui__tests__capability_test_ts--001.md)（1 段）
 - [ui/tests/documents.test.ts](08-control-plane/sources/ui__tests__documents_test_ts--001.md)（1 段）
 - [ui/tests/protocol.test.ts](08-control-plane/sources/ui__tests__protocol_test_ts--001.md)（1 段）
@@ -544,6 +546,7 @@
 - [.github/workflows/customer-runtime.yml](14-acceptance/sources/_github__workflows__customer-runtime_yml--001.md)（1 段）
 - [.github/workflows/daytona-local.yml](14-acceptance/sources/_github__workflows__daytona-local_yml--001.md)（1 段）
 - [.github/workflows/local-embeddings.yml](14-acceptance/sources/_github__workflows__local-embeddings_yml--001.md)（1 段）
+- [.github/workflows/model-settings-connection.yml](14-acceptance/sources/_github__workflows__model-settings-connection_yml--001.md)（1 段）
 - [.github/workflows/native-capability-profile.yml](14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md)（1 段）
 - [.github/workflows/native-probe.yml](14-acceptance/sources/_github__workflows__native-probe_yml--001.md)（1 段）
 - [.github/workflows/native-runtime.yml](14-acceptance/sources/_github__workflows__native-runtime_yml--001.md)（1 段）
@@ -610,6 +613,7 @@
 - [scripts/ci_learning_docs.py](14-acceptance/sources/scripts__ci_learning_docs_py--001.md)（1 段）
 - [scripts/ci_live_modules.py](14-acceptance/sources/scripts__ci_live_modules_py--001.md)（1 段）
 - [scripts/ci_model_feedback.py](14-acceptance/sources/scripts__ci_model_feedback_py--001.md)（1 段）
+- [scripts/ci_model_settings_connection.py](14-acceptance/sources/scripts__ci_model_settings_connection_py--001.md)（1 段）
 - [scripts/ci_native_capability_security.py](14-acceptance/sources/scripts__ci_native_capability_security_py--001.md)（1 段）
 - [scripts/ci_native_capability_source.py](14-acceptance/sources/scripts__ci_native_capability_source_py--001.md)（1 段）
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
@@ -685,6 +689,7 @@
 - [tests/test_capability_startup_session.py](14-acceptance/sources/tests__test_capability_startup_session_py--001.md)（1 段）
 - [tests/test_ci_acceptance_gate.py](14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md)（1 段）
 - [tests/test_ci_live_modules.py](14-acceptance/sources/tests__test_ci_live_modules_py--001.md)（1 段）
+- [tests/test_ci_model_settings_connection.py](14-acceptance/sources/tests__test_ci_model_settings_connection_py--001.md)（1 段）
 - [tests/test_ci_native_capability_full_source.py](14-acceptance/sources/tests__test_ci_native_capability_full_source_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
 - [tests/test_ci_native_capability_source.py](14-acceptance/sources/tests__test_ci_native_capability_source_py--001.md)（1 段）
@@ -724,6 +729,8 @@
 - [tests/test_live_test_client.py](14-acceptance/sources/tests__test_live_test_client_py--001.md)（1 段）
 - [tests/test_mini_swe_checkpoints.py](14-acceptance/sources/tests__test_mini_swe_checkpoints_py--001.md)（2 段）
 - [tests/test_model_connection.py](14-acceptance/sources/tests__test_model_connection_py--001.md)（1 段）
+- [tests/test_model_discovery.py](14-acceptance/sources/tests__test_model_discovery_py--001.md)（1 段）
+- [tests/test_model_env_bootstrap.py](14-acceptance/sources/tests__test_model_env_bootstrap_py--001.md)（1 段）
 - [tests/test_model_feedback_ci.py](14-acceptance/sources/tests__test_model_feedback_ci_py--001.md)（1 段）
 - [tests/test_model_feedback_history.py](14-acceptance/sources/tests__test_model_feedback_history_py--001.md)（1 段）
 - [tests/test_model_http_opt_in.py](14-acceptance/sources/tests__test_model_http_opt_in_py--001.md)（1 段）

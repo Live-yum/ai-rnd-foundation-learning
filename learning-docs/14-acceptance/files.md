@@ -9,6 +9,7 @@
 - [.github/workflows/customer-runtime.yml](sources/_github__workflows__customer-runtime_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/daytona-local.yml](sources/_github__workflows__daytona-local_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/local-embeddings.yml](sources/_github__workflows__local-embeddings_yml--001.md)：可复现的自动化验收配置；1 段
+- [.github/workflows/model-settings-connection.yml](sources/_github__workflows__model-settings-connection_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/native-capability-profile.yml](sources/_github__workflows__native-capability-profile_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/native-probe.yml](sources/_github__workflows__native-probe_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/native-runtime.yml](sources/_github__workflows__native-runtime_yml--001.md)：可复现的自动化验收配置；1 段
@@ -75,6 +76,7 @@
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_live_modules.py](sources/scripts__ci_live_modules_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_model_feedback.py](sources/scripts__ci_model_feedback_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_model_settings_connection.py](sources/scripts__ci_model_settings_connection_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_security.py](sources/scripts__ci_native_capability_security_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_source.py](sources/scripts__ci_native_capability_source_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_runtime.py](sources/scripts__ci_native_runtime_py--001.md)：原框架本身的运行基线验收；1 段
@@ -150,6 +152,7 @@
 - [tests/test_capability_startup_session.py](sources/tests__test_capability_startup_session_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_live_modules.py](sources/tests__test_ci_live_modules_py--001.md)：可重复的验收用例；1 段
+- [tests/test_ci_model_settings_connection.py](sources/tests__test_ci_model_settings_connection_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_full_source.py](sources/tests__test_ci_native_capability_full_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_source.py](sources/tests__test_ci_native_capability_source_py--001.md)：可重复的验收用例；1 段
@@ -189,6 +192,8 @@
 - [tests/test_live_test_client.py](sources/tests__test_live_test_client_py--001.md)：可重复的验收用例；1 段
 - [tests/test_mini_swe_checkpoints.py](sources/tests__test_mini_swe_checkpoints_py--001.md)：可重复的验收用例；2 段
 - [tests/test_model_connection.py](sources/tests__test_model_connection_py--001.md)：可重复的验收用例；1 段
+- [tests/test_model_discovery.py](sources/tests__test_model_discovery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_model_env_bootstrap.py](sources/tests__test_model_env_bootstrap_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_feedback_ci.py](sources/tests__test_model_feedback_ci_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_feedback_history.py](sources/tests__test_model_feedback_history_py--001.md)：可重复的验收用例；1 段
 - [tests/test_model_http_opt_in.py](sources/tests__test_model_http_opt_in_py--001.md)：可重复的验收用例；1 段
