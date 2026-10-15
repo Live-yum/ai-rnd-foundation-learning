@@ -324,6 +324,7 @@ it('queries an unsaved profile without inference or saving and keeps manual mode
   })
   expect(wrapper.find('#model-url').attributes('disabled')).toBeDefined()
   expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
   resolve({ ok: true, models: ['fixture-a', 'fixture-b'], message: '已读取 2 个模型' })
   await flushPromises()
   expect(wrapper.text()).toContain('已读取 2 个模型')
@@ -450,5 +451,25 @@ it('explains environment versus saved source without exposing a configuration pa
   expect(wrapper.text()).not.toContain('model-settings.json')
   await wrapper.find('#model-name').setValue('new-model')
   expect(wrapper.text()).toContain('请先保存修改，再测试已保存的有效连接')
+  wrapper.unmount()
+})
+
+it('keeps settings action names stable while authentication hides the settings form', () => {
+  state.settings = null
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  const save = saveButton(wrapper)
+  // Playwright includeHidden also includes the icon's aria-label="check".
+  // A button-level name stays exact while the connection dialog hides its background.
+  expect(save.attributes('aria-label')).toBe('保存配置')
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
+  expect(testButton(wrapper).attributes('aria-label')).toBe('测试连接')
+  expect(
+    wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('读取最新配置'))!
+      .attributes('aria-label'),
+  ).toBe('读取最新配置')
+  expect(save.find('[aria-label="check"]').attributes('aria-hidden')).toBe('true')
+  expect(save.attributes('disabled')).toBeDefined()
   wrapper.unmount()
 })

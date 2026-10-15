@@ -523,7 +523,11 @@ defineExpose({ dirty })
                 autocomplete="off"
                 :maxlength="256"
               />
-              <a-button :loading="discovering" :disabled="!canDiscover" @click="discoverModels"
+              <a-button
+                aria-label="查询模型列表"
+                :loading="discovering"
+                :disabled="!canDiscover"
+                @click="discoverModels"
                 >查询模型列表</a-button
               >
               <p class="field-hint">
@@ -636,10 +640,15 @@ defineExpose({ dirty })
             <span class="muted">{{
               dirty ? '未保存' : '当前配置版本 ' + revision.slice(0, 8)
             }}</span
-            ><a-button :loading="loading" :disabled="busy || !state.online" @click="requestRefresh"
+            ><a-button
+              aria-label="读取最新配置"
+              :loading="loading"
+              :disabled="busy || !state.online"
+              @click="requestRefresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
             ><a-button
               :title="testBlockReason || '发起一次真实模型调用，可能产生费用；确认后才开始'"
+              aria-label="测试连接"
               :loading="testing"
               :disabled="!canTest || confirmingTest"
               @click="confirmConnectionTest"
@@ -647,6 +656,7 @@ defineExpose({ dirty })
             ><a-button
               type="primary"
               html-type="submit"
+              aria-label="保存配置"
               size="large"
               :loading="loading"
               :disabled="!canSave || busy"

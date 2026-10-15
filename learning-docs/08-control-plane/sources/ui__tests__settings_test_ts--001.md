@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L454。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L475。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18634`。本段原文以LF换行结束。
+本段原始字节数：`19675`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "63dcb676223ab448784e34ddb96904bf7cdad8f34b56e78cc8d8dde29850b407"} -->
+<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f6a891b722627e036912086383577efe2848037c1b78d56134875820ce7cf754"} -->
 ````typescript
 // ui/tests/settings.test.ts
 import { mount, flushPromises } from '@vue/test-utils'
@@ -343,6 +343,7 @@ it('queries an unsaved profile without inference or saving and keeps manual mode
   })
   expect(wrapper.find('#model-url').attributes('disabled')).toBeDefined()
   expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
   resolve({ ok: true, models: ['fixture-a', 'fixture-b'], message: '已读取 2 个模型' })
   await flushPromises()
   expect(wrapper.text()).toContain('已读取 2 个模型')
@@ -469,6 +470,26 @@ it('explains environment versus saved source without exposing a configuration pa
   expect(wrapper.text()).not.toContain('model-settings.json')
   await wrapper.find('#model-name').setValue('new-model')
   expect(wrapper.text()).toContain('请先保存修改，再测试已保存的有效连接')
+  wrapper.unmount()
+})
+
+it('keeps settings action names stable while authentication hides the settings form', () => {
+  state.settings = null
+  const wrapper = mount(SettingsView, { global: { plugins: [installUiComponents] } })
+  const save = saveButton(wrapper)
+  // Playwright includeHidden also includes the icon's aria-label="check".
+  // A button-level name stays exact while the connection dialog hides its background.
+  expect(save.attributes('aria-label')).toBe('保存配置')
+  expect(discoverButton(wrapper).attributes('aria-label')).toBe('查询模型列表')
+  expect(testButton(wrapper).attributes('aria-label')).toBe('测试连接')
+  expect(
+    wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('读取最新配置'))!
+      .attributes('aria-label'),
+  ).toBe('读取最新配置')
+  expect(save.find('[aria-label="check"]').attributes('aria-hidden')).toBe('true')
+  expect(save.attributes('disabled')).toBeDefined()
   wrapper.unmount()
 })
 ````

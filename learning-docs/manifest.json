@@ -1857,8 +1857,8 @@
     },
     {
       "path": "ui/src/features/settings/SettingsView.vue",
-      "bytes": 25746,
-      "sha256": "09ceb35ddcceb2470a6d931390499c9853afcb4e9ab25c0911bb8a38f6f4c96c",
+      "bytes": 26010,
+      "sha256": "248b5ca234706012018ebcdd27c6bc275b321cddbe659ecad20580305449df54",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__features__settings__SettingsView_vue--001.md"
@@ -1956,8 +1956,8 @@
     },
     {
       "path": "ui/tests/settings.test.ts",
-      "bytes": 18634,
-      "sha256": "63dcb676223ab448784e34ddb96904bf7cdad8f34b56e78cc8d8dde29850b407",
+      "bytes": 19675,
+      "sha256": "f6a891b722627e036912086383577efe2848037c1b78d56134875820ce7cf754",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__settings_test_ts--001.md"
@@ -2064,8 +2064,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 798117,
-      "sha256": "acfecd1f4446f59821c0144eb84327b709fbabe6c55907bafacb40068ffa6841",
+      "bytes": 798241,
+      "sha256": "cb0b9eeb154bb0a1a6de4c74a36ef942884b3f18a1226b76cd42d2080d24a998",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"

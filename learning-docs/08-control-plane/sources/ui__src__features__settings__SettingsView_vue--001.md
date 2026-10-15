@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/settings/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L672。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/settings/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L682。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25746`。本段原文以LF换行结束。
+本段原始字节数：`26010`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/settings/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "09ceb35ddcceb2470a6d931390499c9853afcb4e9ab25c0911bb8a38f6f4c96c"} -->
+<!-- learning-source: {"path": "ui/src/features/settings/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "248b5ca234706012018ebcdd27c6bc275b321cddbe659ecad20580305449df54"} -->
 ````vue
 <!-- ui/src/features/settings/SettingsView.vue -->
 <script setup lang="ts">
@@ -542,7 +542,11 @@ defineExpose({ dirty })
                 autocomplete="off"
                 :maxlength="256"
               />
-              <a-button :loading="discovering" :disabled="!canDiscover" @click="discoverModels"
+              <a-button
+                aria-label="查询模型列表"
+                :loading="discovering"
+                :disabled="!canDiscover"
+                @click="discoverModels"
                 >查询模型列表</a-button
               >
               <p class="field-hint">
@@ -655,10 +659,15 @@ defineExpose({ dirty })
             <span class="muted">{{
               dirty ? '未保存' : '当前配置版本 ' + revision.slice(0, 8)
             }}</span
-            ><a-button :loading="loading" :disabled="busy || !state.online" @click="requestRefresh"
+            ><a-button
+              aria-label="读取最新配置"
+              :loading="loading"
+              :disabled="busy || !state.online"
+              @click="requestRefresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
             ><a-button
               :title="testBlockReason || '发起一次真实模型调用，可能产生费用；确认后才开始'"
+              aria-label="测试连接"
               :loading="testing"
               :disabled="!canTest || confirmingTest"
               @click="confirmConnectionTest"
@@ -666,6 +675,7 @@ defineExpose({ dirty })
             ><a-button
               type="primary"
               html-type="submit"
+              aria-label="保存配置"
               size="large"
               :loading="loading"
               :disabled="!canSave || busy"
