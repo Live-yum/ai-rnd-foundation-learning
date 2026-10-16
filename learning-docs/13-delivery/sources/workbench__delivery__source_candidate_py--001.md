@@ -27,16 +27,16 @@
 - `write_status`（L306–L320）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `retain_failed_candidate`（L323–L358）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L327按`not listing`分支；L328抛异常，停止当前正常路径；L331按`recovery and recovery.get("files") != listing`分支；L332抛异常，停止当前正常路径；L335遍历`sources`；L336按`digest(manifest(source["path"])) != source["source_digest"]`分支；L337抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L358的`refresh_candidate(destination, receipt)`。
 - `generate_candidate`（L361–L389）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L368按`destination.exists()`分支；L369抛异常，停止当前正常路径；L372按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L389的`refresh_candidate(destination, receipt)`。
-- `verify_candidate`（L392–L429）：接收`destination`、`receipt`。 控制顺序：L395按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L399抛异常，停止当前正常路径；L400按`not current or current != receipt.get("files")`分支；L401抛异常，停止当前正常路径；L402按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L406抛异常，停止当前正常路径。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`result.update`、`digest`、`write_json`。 返回路径：L429的`result`。
-- `package_candidate`（L432–L464）：接收`destination`、`report`。 控制顺序：L438按`report != verified`分支；L439抛异常，停止当前正常路径；L442按`receipt.get("preserve_runtime_files")`分支；L445遍历`files(destination)`；L454按`manifest(destination) != receipt["files"]`分支；L455抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L464的`result`。
+- `verify_candidate`（L392–L454）：接收`destination`、`receipt`。 控制顺序：L395按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L399抛异常，停止当前正常路径；L400按`not current or current != receipt.get("files")`分支；L401抛异常，停止当前正常路径；L402按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L406抛异常，停止当前正常路径；L408按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L413抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`isinstance`、`claim.get`、`inside`、`digest`、`journal.is_dir`等。 返回路径：L454的`result`。
+- `package_candidate`（L457–L489）：接收`destination`、`report`。 控制顺序：L463按`report != verified`分支；L464抛异常，停止当前正常路径；L467按`receipt.get("preserve_runtime_files")`分支；L470遍历`files(destination)`；L479按`manifest(destination) != receipt["files"]`分支；L480抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L489的`result`。
 
 </details>
 
-**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L464。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L489。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20165`。本段原文以LF换行结束。
+本段原始字节数：`21517`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c5fe75f0538a681554501ba04f027995135c722357b07e5e9f8f36fda9b2d54"} -->
+<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d10cb0e582cc38667dc58a20dbe3665ae3c30999b2b8b27d694a02f2fa3b33ee"} -->
 ````python
 # workbench/delivery/source_candidate.py
 """Retain source without claiming execution, acceptance, or deployment.
@@ -445,6 +445,30 @@ def verify_candidate(destination, receipt):
         "failed",
     }:
         raise PrerequisiteError("候选源码的运行状态无效")
+    claim = receipt.get("source_commit")
+    if not isinstance(claim, dict) or claim.get("status") not in {
+        "committed",
+        "unavailable",
+        "failed",
+    }:
+        raise PrerequisiteError("候选源码提交声明无效")
+    if claim["status"] == "committed":
+        # Verification must never repair or recreate a missing journal. Its path
+        # comes from current source identity, never from the mutable receipt.
+        journal = inside(destination.parent, "source-revisions/" + digest(current))
+        if not journal.is_dir():
+            raise PrerequisiteError("候选源码提交记录缺失，拒绝宣称已提交")
+        checked_commit = source_snapshot(destination)
+        if checked_commit["status"] == "committed" and checked_commit != claim:
+            raise PrerequisiteError("候选源码提交声明与实际 Git 证据不一致")
+    else:
+        # Non-commit receipts cannot smuggle arbitrary commit IDs/journal paths
+        # into delivery reports. Do not create a new Git history during verification.
+        checked_commit = {
+            "status": claim["status"],
+            "source_digest": digest(current),
+            "note": "没有已验证的 Git 提交；仅保留源码及摘要",
+        }
     result = {
         key: receipt[key]
         for key in (
@@ -453,10 +477,10 @@ def verify_candidate(destination, receipt):
             "verification_status",
             "pending_steps",
             "runtime_unavailable_reason",
-            "source_commit",
         )
     }
     result.update(
+        source_commit=checked_commit,
         passed=False,
         source_checks_passed=True,
         validation_level="source",
@@ -464,7 +488,8 @@ def verify_candidate(destination, receipt):
         production_ready=False,
         acceptance_passed=False,
         source_digest=digest(current),
-        checks=["source-manifest"],
+        checks=["source-manifest"]
+        + (["source-git-journal"] if checked_commit["status"] == "committed" else []),
     )
     write_json(destination.parent / "verification.json", result)
     return result

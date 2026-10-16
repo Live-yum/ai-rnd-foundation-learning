@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L553。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L567。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21113`。本段原文以LF换行结束。
+本段原始字节数：`21885`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e2e36dfe8d75d0a7fa01c07a714207dc6ee5ed85b9f2591c93217b0fd0ffac6d"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "196fe789df6949a13cd35eee415c84ec9f5a7706acf713e8e235f20bdb3b0438"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -509,6 +509,19 @@ describe('cross-platform source candidates', () => {
     })
   }
 
+  it.each([
+    ['complete', 'unverified', '代码已保留，未经运行验证'],
+    ['partial', 'unverified', '生成未完成，部分源码已保留'],
+    ['complete', 'failed', '验证失败，代码已保留'],
+    ['partial', 'failed', '验证失败，代码已保留'],
+  ])('shows the primary delivery warning for %s / %s', (generation, verification, title) => {
+    const wrapper = candidate(generation, verification)
+    expect(wrapper.find('.ant-alert-message').text()).toBe(title)
+    expect(wrapper.find('.ant-alert-error').exists()).toBe(verification === 'failed')
+    expect(wrapper.find('.ant-alert-success').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('retains downloads and commit evidence without treating source checks as runtime success', () => {
     const wrapper = candidate()
     expect(wrapper.text()).toContain('代码已保留，未经运行验证')
@@ -529,7 +542,8 @@ describe('cross-platform source candidates', () => {
 
   it('labels partial generation and failed verification independently', () => {
     const wrapper = candidate('partial', 'failed')
-    expect(wrapper.text()).toContain('生成未完成，部分源码已保留')
+    expect(wrapper.find('.ant-alert-message').text()).toBe('验证失败，代码已保留')
+    expect(wrapper.text()).toContain('生成未完成 / 部分源码已保留')
     expect(wrapper.text()).toContain('验证失败，失败项不计入验收通过')
     expect(wrapper.text()).toContain('下载已保留的部分源码')
     expect(wrapper.text()).not.toContain('生成完成')

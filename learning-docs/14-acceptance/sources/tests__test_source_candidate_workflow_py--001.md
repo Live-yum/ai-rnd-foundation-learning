@@ -34,14 +34,20 @@
 - `test_resumed_source_code_node_never_runs_mini_swe_without_isolation`（L318–L333）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L329断言`flow.extension_code(state) == { "extension_candidate": "", "extension_candidate_passe…`；L333断言`flow.extension_after_code(state) == "extension_package"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_code`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_rule_runtime_factory_runs_only_when_callback_invoked`（L336–L357）：接收`settings`、`rule_plan`、`monkeypatch`。 控制顺序：L352断言`calls == []`；L354断言`calls == [ ("factory", "runtime-rule-test"), ("customize", ("template",), {"plan": ru…`。 调用`monkeypatch.setattr`、`Workflow`、`flow.native_customization`、`callback`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_rule_runtime_factory_runs_only_when_callback_invoked.factory`（L345–L347）：接收`settings`、`gateway`、`run_id`。 调用`calls.append`。 返回路径：L347的`lambda *args, **kwargs: calls.append(("customize", args, kwargs))`。
+- `test_source_task_selection_skips_isolated_task_but_preserves_dependencies`（L360–L385）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L375断言`flow.extension_task(state, design).id == "independent"`；L376断言`flow.extension_after_generate(state) == "extension_code"`；L378断言`flow.extension_task(state, design).id == "followup"`；L379断言`flow.extension_after_code(state) == "extension_code"`；L381断言`flow.extension_task(state, design) is None`；L382断言`flow.extension_after_code(state) == "extension_package"`；L383断言`state["extension_completed"] == []`；L385断言`flow.extension_task({"extension_completed": []}, design).id == "isolated"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_task`、`flow.extension_after_generate`、`state["extension_drafted"].append`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings`（L388–L458）：接收`settings`、`tmp_path`、`monkeypatch`。 控制顺序：L453遍历`range(2)`；L456断言`captured[0]["retrieval"] == captured[1]["retrieval"]`；L457断言`captured[0]["retrieval"]["mode"] == "ast+fts5"`；L458断言`captured[0]["retrieval"]["matches"]`。 调用`product.mkdir`、`(product / "example.py").write_text`、`monkeypatch.setattr`、`SimpleNamespace`、`Workflow`、`NoModelGateway`、`str`、`range`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.forbidden`（L404–L405）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.CapturedContext`（L435–L436）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway`（L438–L441）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway.complete`（L439–L441）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L441抛异常，停止当前正常路径。 调用`captured.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L357。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L458。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13863`。本段原文以LF换行结束。
+本段原始字节数：`17821`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d82eb9593db03f6ad3311ab17d9d15612bdb950b5d31295a41c1ed4d18310e1f"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "58b429b3aee79461ef6e3df7c8daa6b54771724b86dc39f5b97a508bc5c2aabf"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 """Source drafts never become runtime acceptance or verified module progress."""
@@ -401,4 +407,105 @@ def test_native_rule_runtime_factory_runs_only_when_callback_invoked(
         ("factory", "runtime-rule-test"),
         ("customize", ("template",), {"plan": rule_plan}),
     ]
+
+
+def test_source_task_selection_skips_isolated_task_but_preserves_dependencies():
+    flow = workflow()
+    tasks = [
+        SimpleNamespace(id="isolated", depends_on=[], executor="mini_swe"),
+        SimpleNamespace(id="blocked", depends_on=["isolated"], executor="bounded_edit"),
+        SimpleNamespace(id="independent", depends_on=[], executor="bounded_edit"),
+        SimpleNamespace(id="followup", depends_on=["independent"], executor="bounded_edit"),
+    ]
+    design = SimpleNamespace(implementation=SimpleNamespace(tasks=tasks))
+    flow.checked_extension = lambda state: design
+    state = {
+        "native_generation": {"execution": "source-candidate"},
+        "extension_completed": [],
+        "extension_drafted": [],
+    }
+    assert flow.extension_task(state, design).id == "independent"
+    assert flow.extension_after_generate(state) == "extension_code"
+    state["extension_drafted"].append("independent")
+    assert flow.extension_task(state, design).id == "followup"
+    assert flow.extension_after_code(state) == "extension_code"
+    state["extension_drafted"].append("followup")
+    assert flow.extension_task(state, design) is None
+    assert flow.extension_after_code(state) == "extension_package"
+    assert state["extension_completed"] == []
+    # Runtime task order and dependency semantics are unchanged.
+    assert flow.extension_task({"extension_completed": []}, design).id == "isolated"
+
+
+def test_source_code_retrieval_is_local_despite_optional_provider_settings(
+    settings, tmp_path, monkeypatch
+):
+    from workbench.knowledge_services import continue_index, retrieval
+    from workbench.production import dispatcher
+
+    settings.repo_map_provider = "aider"
+    settings.retrieval_engine = "continue"
+    settings.embedding_enabled = True
+    settings.embedding_model = "offline-must-not-call"
+    product = tmp_path / "source"
+    product.mkdir()
+    (product / "example.py").write_text(
+        "def example():\n    return 'deterministic source'\n", encoding="utf-8"
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Source-only retrieval invoked an optional tool or embedding service")
+
+    monkeypatch.setattr(continue_index, "rank", forbidden)
+    monkeypatch.setattr(retrieval, "embedding_profile", forbidden)
+    monkeypatch.setattr(retrieval, "embed", forbidden)
+    from workbench.coding import aider
+
+    monkeypatch.setattr(aider, "repo_map", forbidden)
+    monkeypatch.setattr(
+        dispatcher,
+        "get_adapter",
+        lambda template: SimpleNamespace(coding_standard=lambda: {"source_only": True}),
+    )
+    task_data = {
+        "id": "draft",
+        "title": "example",
+        "contract": "Update example",
+        "files": ["example.py"],
+        "depends_on": [],
+        "executor": "bounded_edit",
+    }
+    task = SimpleNamespace(**task_data, model_dump=lambda: task_data)
+    design = SimpleNamespace(
+        implementation=SimpleNamespace(
+            tasks=[task], selection=SimpleNamespace(template="fastapiadmin")
+        ),
+        model_dump=lambda: {"tasks": [task_data]},
+    )
+    captured = []
+
+    class CapturedContext(Exception):
+        pass
+
+    class NoModelGateway:
+        def complete(self, run_id, key, instruction, payload, schema):
+            captured.append(payload)
+            raise CapturedContext
+
+    flow = Workflow(settings, None, NoModelGateway())
+    flow.checked_extension = lambda state: design
+    state = {
+        "native_generation": {"execution": "source-candidate"},
+        "extension_product": str(product),
+        "run_id": "local-retrieval",
+        "round": 1,
+        "extension_policy": {},
+        "extension_scope": {"sources": []},
+    }
+    for _ in range(2):
+        with pytest.raises(CapturedContext):
+            flow.extension_code(state)
+    assert captured[0]["retrieval"] == captured[1]["retrieval"]
+    assert captured[0]["retrieval"]["mode"] == "ast+fts5"
+    assert captured[0]["retrieval"]["matches"]
 ````

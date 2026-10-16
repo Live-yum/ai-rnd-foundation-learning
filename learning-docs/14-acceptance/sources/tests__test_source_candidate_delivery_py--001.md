@@ -35,14 +35,18 @@
 - `test_missing_runtime_generates_actual_sources_without_processes`（L231–L259）：接收`settings`、`monkeypatch`、`platform`。 控制顺序：L254断言`receipt["execution"] == "source-candidate"`；L255断言`receipt["verification_status"] == "unverified"`；L256断言`receipt["generation_status"] == "partial"`；L257断言`(product / "backend/app/plugin/module_rnd/task/controller.py").is_file()`；L258断言`len(receipt["generated_files"]) >= 8`；L259断言`native.managed_generate(settings, "fastapiadmin", native_plan(), product) == receipt`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`native.managed_generate`、`native_plan`、`(product / "backend/app/plugin/module_rnd/task/controller.py").is…`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_runtime_generates_actual_sources_without_processes.unavailable`（L241–L242）：接收`name`。 控制顺序：L242抛异常，停止当前正常路径。 调用`ImportError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_missing_runtime_generates_actual_sources_without_processes.no_execution`（L248–L249）：接收`*args`、`**kwargs`。 控制顺序：L249抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `committed_candidate`（L263–L281）：接收`tmp_path`。 控制顺序：L264按`not source_candidate.shutil.which("git")`分支；L280断言`receipt["source_commit"]["status"] == "committed"`。 调用`source_candidate.shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.py").write_text`、`source_candidate.refresh_candidate`。 返回路径：L281的`product, receipt`。
+- `test_verify_and_package_revalidate_committed_candidate`（L287–L306）：接收`committed_candidate`、`tamper`。 控制顺序：L291按`tamper == "commit"`分支；L293按`tamper == "digest"`分支；L295按`tamper == "journal"`分支；L297按`tamper == "missing-journal"`分支；L306断言`not (product.parent / "native-source.zip").exists()`。 调用`verify_native`、`journal.parent.rename`、`journal.parent.with_name`、`(journal / ".git").rename`、`write_json`、`pytest.raises`、`package_native`、`(product.parent / "native-source.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verification_without_git_removes_previously_committed_claim`（L309–L319）：接收`committed_candidate`、`monkeypatch`。 控制顺序：L315断言`report["source_commit"]["status"] == "unavailable"`；L316断言`"commit" not in report["source_commit"]`；L318断言`"commit" not in result["source_commit"]`；L319断言`result["runtime_verified"] is False`。 调用`monkeypatch.setattr`、`verify_native`、`package_native`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_uncommitted_receipt_cannot_smuggle_commit_into_delivery`（L322–L328）：接收`tmp_path`、`monkeypatch`。 控制顺序：L327断言`"commit" not in report["source_commit"]`；L328断言`"journal" not in package_native(product, report)["source_commit"]`。 调用`minimal_candidate`、`receipt["source_commit"].update`、`write_json`、`verify_native`、`package_native`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L328。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10750`。本段原文以LF换行结束。
+本段原始字节数：`13575`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8ba0a839e7ca8c88c554d165b46ee65b29f53b00eff04a0326835477a30fbbf"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "004dc52629698849d14e9f2d0b0d7fbd8b6afcd6e878766cdb283a6fc06a26a9"} -->
 ````python
 # tests/test_source_candidate_delivery.py
 """Source preservation is portable; no runtime acceptance is inferred from a ZIP/commit."""
@@ -304,4 +308,73 @@ def test_missing_runtime_generates_actual_sources_without_processes(
     assert (product / "backend/app/plugin/module_rnd/task/controller.py").is_file()
     assert len(receipt["generated_files"]) >= 8
     assert native.managed_generate(settings, "fastapiadmin", native_plan(), product) == receipt
+
+
+@pytest.fixture
+def committed_candidate(tmp_path):
+    if not source_candidate.shutil.which("git"):
+        pytest.skip("Git is required for candidate journal verification")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.py").write_text("value = 3\n", encoding="utf-8")
+    receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "template": "fastapiadmin",
+            "execution": "source-candidate",
+            "generation_status": "partial",
+            "verification_status": "unverified",
+            "pending_steps": ["运行验证"],
+            "runtime_unavailable_reason": "unavailable",
+        },
+    )
+    assert receipt["source_commit"]["status"] == "committed"
+    return product, receipt
+
+
+@pytest.mark.parametrize(
+    "tamper", ["commit", "digest", "journal", "missing-journal", "missing-git"]
+)
+def test_verify_and_package_revalidate_committed_candidate(committed_candidate, tamper):
+    product, receipt = committed_candidate
+    report = verify_native(product)
+    journal = product.parent / receipt["source_commit"]["journal"]
+    if tamper == "commit":
+        receipt["source_commit"]["commit"] = "f" * 40
+    elif tamper == "digest":
+        receipt["source_commit"]["source_digest"] = "f" * 64
+    elif tamper == "journal":
+        receipt["source_commit"]["journal"] = "../../forged"
+    elif tamper == "missing-journal":
+        journal.parent.rename(journal.parent.with_name("removed-journal"))
+    else:
+        (journal / ".git").rename(journal / "removed-git")
+    write_json(product.parent / "native-generation.json", receipt)
+    with pytest.raises(PrerequisiteError):
+        verify_native(product)
+    with pytest.raises(PrerequisiteError):
+        package_native(product, report)
+    assert not (product.parent / "native-source.zip").exists()
+
+
+def test_verification_without_git_removes_previously_committed_claim(
+    committed_candidate, monkeypatch
+):
+    product, _ = committed_candidate
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda name: None)
+    report = verify_native(product)
+    assert report["source_commit"]["status"] == "unavailable"
+    assert "commit" not in report["source_commit"]
+    result = package_native(product, report)
+    assert "commit" not in result["source_commit"]
+    assert result["runtime_verified"] is False
+
+
+def test_uncommitted_receipt_cannot_smuggle_commit_into_delivery(tmp_path, monkeypatch):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch)
+    receipt["source_commit"].update(commit="f" * 40, journal="../../forged")
+    write_json(product.parent / "native-generation.json", receipt)
+    report = verify_native(product)
+    assert "commit" not in report["source_commit"]
+    assert "journal" not in package_native(product, report)["source_commit"]
 ````

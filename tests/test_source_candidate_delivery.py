@@ -257,3 +257,72 @@ def test_missing_runtime_generates_actual_sources_without_processes(
     assert (product / "backend/app/plugin/module_rnd/task/controller.py").is_file()
     assert len(receipt["generated_files"]) >= 8
     assert native.managed_generate(settings, "fastapiadmin", native_plan(), product) == receipt
+
+
+@pytest.fixture
+def committed_candidate(tmp_path):
+    if not source_candidate.shutil.which("git"):
+        pytest.skip("Git is required for candidate journal verification")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.py").write_text("value = 3\n", encoding="utf-8")
+    receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "template": "fastapiadmin",
+            "execution": "source-candidate",
+            "generation_status": "partial",
+            "verification_status": "unverified",
+            "pending_steps": ["运行验证"],
+            "runtime_unavailable_reason": "unavailable",
+        },
+    )
+    assert receipt["source_commit"]["status"] == "committed"
+    return product, receipt
+
+
+@pytest.mark.parametrize(
+    "tamper", ["commit", "digest", "journal", "missing-journal", "missing-git"]
+)
+def test_verify_and_package_revalidate_committed_candidate(committed_candidate, tamper):
+    product, receipt = committed_candidate
+    report = verify_native(product)
+    journal = product.parent / receipt["source_commit"]["journal"]
+    if tamper == "commit":
+        receipt["source_commit"]["commit"] = "f" * 40
+    elif tamper == "digest":
+        receipt["source_commit"]["source_digest"] = "f" * 64
+    elif tamper == "journal":
+        receipt["source_commit"]["journal"] = "../../forged"
+    elif tamper == "missing-journal":
+        journal.parent.rename(journal.parent.with_name("removed-journal"))
+    else:
+        (journal / ".git").rename(journal / "removed-git")
+    write_json(product.parent / "native-generation.json", receipt)
+    with pytest.raises(PrerequisiteError):
+        verify_native(product)
+    with pytest.raises(PrerequisiteError):
+        package_native(product, report)
+    assert not (product.parent / "native-source.zip").exists()
+
+
+def test_verification_without_git_removes_previously_committed_claim(
+    committed_candidate, monkeypatch
+):
+    product, _ = committed_candidate
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda name: None)
+    report = verify_native(product)
+    assert report["source_commit"]["status"] == "unavailable"
+    assert "commit" not in report["source_commit"]
+    result = package_native(product, report)
+    assert "commit" not in result["source_commit"]
+    assert result["runtime_verified"] is False
+
+
+def test_uncommitted_receipt_cannot_smuggle_commit_into_delivery(tmp_path, monkeypatch):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch)
+    receipt["source_commit"].update(commit="f" * 40, journal="../../forged")
+    write_json(product.parent / "native-generation.json", receipt)
+    report = verify_native(product)
+    assert "commit" not in report["source_commit"]
+    assert "journal" not in package_native(product, report)["source_commit"]

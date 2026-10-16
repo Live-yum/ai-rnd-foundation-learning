@@ -14,7 +14,7 @@
 
 本段原始字节数：`14003`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b4f36ed498a1678bba1c912d5b89c6edbe97936fac95f082130bbae9b3d42334"} -->
+<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2b252784dd8c9d796d888be69f3713d42dabec4f6cd41c60639409b865ffee26"} -->
 ````typescript
 // ui/src/presentation.ts
 import type { Gate, Run, RunEvent, ChatMessage, SourceDeliveryEvidence } from './types'
@@ -110,10 +110,10 @@ export function sourceDeliveryState(
     candidate,
     partial,
     failed,
-    title: partial
-      ? '生成未完成，部分源码已保留'
-      : failed
-        ? '验证失败，代码已保留'
+    title: failed
+      ? '验证失败，代码已保留'
+      : partial
+        ? '生成未完成，部分源码已保留'
         : '代码已保留，未经运行验证',
     pendingSteps: [...new Set(records.flatMap((record) => record.pending_steps || []))],
     reasons: [

@@ -13,7 +13,7 @@
 <details>
 <summary>展开构建资产还原数据（无需手写）</summary>
 
-<!-- learning-source: {"path": "workbench/web/app.js", "part": 1, "parts": 1, "encoding": "base64", "sha256": "20460cd3d2489ac396f17f8386f33b9c5bcb577e769e34f4ebb266c011d791e3"} -->
+<!-- learning-source: {"path": "workbench/web/app.js", "part": 1, "parts": 1, "encoding": "base64", "sha256": "cf71a920d1294cd66eac96352d682db5a54128094af58080de0938e59f6426f7"} -->
 ````base64
 # workbench/web/app.js
 dmFyIHRTPU9iamVjdC5kZWZpbmVQcm9wZXJ0eTt2YXIgblM9KGUsdCxuKT0+dCBpbiBlP3RTKGUs
@@ -11903,8 +11903,8 @@ dGEsLi4udF0uZmlsdGVyKEJvb2xlYW4pLG89bi5zb21lKHM9PnMuZXhlY3V0aW9uPT09InNvdXJj
 ZS1jYW5kaWRhdGUiKSxyPW98fChlPT1udWxsP3ZvaWQgMDplLnN0YXR1cyk9PT0iU09VUkNFX1JF
 QURZIixpPW4uc29tZShzPT5zLmdlbmVyYXRpb25fc3RhdHVzPT09InBhcnRpYWwiKSxhPW4uc29t
 ZShzPT5zLnZlcmlmaWNhdGlvbl9zdGF0dXM9PT0iZmFpbGVkIik7cmV0dXJue3NvdXJjZU9ubHk6
-cixjYW5kaWRhdGU6byxwYXJ0aWFsOmksZmFpbGVkOmEsdGl0bGU6aT8i55Sf5oiQ5pyq5a6M5oiQ
-77yM6YOo5YiG5rqQ56CB5bey5L+d55WZIjphPyLpqozor4HlpLHotKXvvIzku6PnoIHlt7Lkv53n
+cixjYW5kaWRhdGU6byxwYXJ0aWFsOmksZmFpbGVkOmEsdGl0bGU6YT8i6aqM6K+B5aSx6LSl77yM
+5Luj56CB5bey5L+d55WZIjppPyLnlJ/miJDmnKrlrozmiJDvvIzpg6jliIbmupDnoIHlt7Lkv53n
 lZkiOiLku6PnoIHlt7Lkv53nlZnvvIzmnKrnu4/ov5DooYzpqozor4EiLHBlbmRpbmdTdGVwczpb
 Li4ubmV3IFNldChuLmZsYXRNYXAocz0+cy5wZW5kaW5nX3N0ZXBzfHxbXSkpXSxyZWFzb25zOlsu
 Li5uZXcgU2V0KG4ubWFwKHM9PnMucnVudGltZV91bmF2YWlsYWJsZV9yZWFzb24pLmZpbHRlcihC

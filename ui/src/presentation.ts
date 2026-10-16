@@ -91,10 +91,10 @@ export function sourceDeliveryState(
     candidate,
     partial,
     failed,
-    title: partial
-      ? '生成未完成，部分源码已保留'
-      : failed
-        ? '验证失败，代码已保留'
+    title: failed
+      ? '验证失败，代码已保留'
+      : partial
+        ? '生成未完成，部分源码已保留'
         : '代码已保留，未经运行验证',
     pendingSteps: [...new Set(records.flatMap((record) => record.pending_steps || []))],
     reasons: [

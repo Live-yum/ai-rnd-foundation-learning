@@ -404,6 +404,30 @@ def verify_candidate(destination, receipt):
         "failed",
     }:
         raise PrerequisiteError("候选源码的运行状态无效")
+    claim = receipt.get("source_commit")
+    if not isinstance(claim, dict) or claim.get("status") not in {
+        "committed",
+        "unavailable",
+        "failed",
+    }:
+        raise PrerequisiteError("候选源码提交声明无效")
+    if claim["status"] == "committed":
+        # Verification must never repair or recreate a missing journal. Its path
+        # comes from current source identity, never from the mutable receipt.
+        journal = inside(destination.parent, "source-revisions/" + digest(current))
+        if not journal.is_dir():
+            raise PrerequisiteError("候选源码提交记录缺失，拒绝宣称已提交")
+        checked_commit = source_snapshot(destination)
+        if checked_commit["status"] == "committed" and checked_commit != claim:
+            raise PrerequisiteError("候选源码提交声明与实际 Git 证据不一致")
+    else:
+        # Non-commit receipts cannot smuggle arbitrary commit IDs/journal paths
+        # into delivery reports. Do not create a new Git history during verification.
+        checked_commit = {
+            "status": claim["status"],
+            "source_digest": digest(current),
+            "note": "没有已验证的 Git 提交；仅保留源码及摘要",
+        }
     result = {
         key: receipt[key]
         for key in (
@@ -412,10 +436,10 @@ def verify_candidate(destination, receipt):
             "verification_status",
             "pending_steps",
             "runtime_unavailable_reason",
-            "source_commit",
         )
     }
     result.update(
+        source_commit=checked_commit,
         passed=False,
         source_checks_passed=True,
         validation_level="source",
@@ -423,7 +447,8 @@ def verify_candidate(destination, receipt):
         production_ready=False,
         acceptance_passed=False,
         source_digest=digest(current),
-        checks=["source-manifest"],
+        checks=["source-manifest"]
+        + (["source-git-journal"] if checked_commit["status"] == "committed" else []),
     )
     write_json(destination.parent / "verification.json", result)
     return result

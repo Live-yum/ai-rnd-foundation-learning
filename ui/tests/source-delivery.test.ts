@@ -18,6 +18,23 @@ describe('source candidate presentation', () => {
     expect(runNextAction(run)).toContain('源码可下载')
   })
 
+  it.each([
+    ['complete', 'unverified', '代码已保留，未经运行验证'],
+    ['partial', 'unverified', '生成未完成，部分源码已保留'],
+    ['complete', 'failed', '验证失败，代码已保留'],
+    ['partial', 'failed', '验证失败，代码已保留'],
+  ])(
+    'prioritizes verification failure for %s generation / %s verification',
+    (generation_status, verification_status, title) => {
+      const candidate = {
+        ...run,
+        result: { execution: 'source-candidate', generation_status, verification_status },
+      }
+      expect(sourceDeliveryState(candidate).title).toBe(title)
+      expect(runNextAction(candidate)).toBe(title + '；源码可下载')
+    },
+  )
+
   it('keeps negative evidence and deduplicates pending steps across reports', () => {
     const source = sourceDeliveryState(
       run,
@@ -31,6 +48,7 @@ describe('source candidate presentation', () => {
     )
     expect(source.partial).toBe(true)
     expect(source.failed).toBe(true)
+    expect(source.title).toBe('验证失败，代码已保留')
     expect(source.pendingSteps).toEqual(['test', 'build'])
   })
 

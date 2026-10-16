@@ -355,3 +355,104 @@ def test_native_rule_runtime_factory_runs_only_when_callback_invoked(
         ("factory", "runtime-rule-test"),
         ("customize", ("template",), {"plan": rule_plan}),
     ]
+
+
+def test_source_task_selection_skips_isolated_task_but_preserves_dependencies():
+    flow = workflow()
+    tasks = [
+        SimpleNamespace(id="isolated", depends_on=[], executor="mini_swe"),
+        SimpleNamespace(id="blocked", depends_on=["isolated"], executor="bounded_edit"),
+        SimpleNamespace(id="independent", depends_on=[], executor="bounded_edit"),
+        SimpleNamespace(id="followup", depends_on=["independent"], executor="bounded_edit"),
+    ]
+    design = SimpleNamespace(implementation=SimpleNamespace(tasks=tasks))
+    flow.checked_extension = lambda state: design
+    state = {
+        "native_generation": {"execution": "source-candidate"},
+        "extension_completed": [],
+        "extension_drafted": [],
+    }
+    assert flow.extension_task(state, design).id == "independent"
+    assert flow.extension_after_generate(state) == "extension_code"
+    state["extension_drafted"].append("independent")
+    assert flow.extension_task(state, design).id == "followup"
+    assert flow.extension_after_code(state) == "extension_code"
+    state["extension_drafted"].append("followup")
+    assert flow.extension_task(state, design) is None
+    assert flow.extension_after_code(state) == "extension_package"
+    assert state["extension_completed"] == []
+    # Runtime task order and dependency semantics are unchanged.
+    assert flow.extension_task({"extension_completed": []}, design).id == "isolated"
+
+
+def test_source_code_retrieval_is_local_despite_optional_provider_settings(
+    settings, tmp_path, monkeypatch
+):
+    from workbench.knowledge_services import continue_index, retrieval
+    from workbench.production import dispatcher
+
+    settings.repo_map_provider = "aider"
+    settings.retrieval_engine = "continue"
+    settings.embedding_enabled = True
+    settings.embedding_model = "offline-must-not-call"
+    product = tmp_path / "source"
+    product.mkdir()
+    (product / "example.py").write_text(
+        "def example():\n    return 'deterministic source'\n", encoding="utf-8"
+    )
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Source-only retrieval invoked an optional tool or embedding service")
+
+    monkeypatch.setattr(continue_index, "rank", forbidden)
+    monkeypatch.setattr(retrieval, "embedding_profile", forbidden)
+    monkeypatch.setattr(retrieval, "embed", forbidden)
+    from workbench.coding import aider
+
+    monkeypatch.setattr(aider, "repo_map", forbidden)
+    monkeypatch.setattr(
+        dispatcher,
+        "get_adapter",
+        lambda template: SimpleNamespace(coding_standard=lambda: {"source_only": True}),
+    )
+    task_data = {
+        "id": "draft",
+        "title": "example",
+        "contract": "Update example",
+        "files": ["example.py"],
+        "depends_on": [],
+        "executor": "bounded_edit",
+    }
+    task = SimpleNamespace(**task_data, model_dump=lambda: task_data)
+    design = SimpleNamespace(
+        implementation=SimpleNamespace(
+            tasks=[task], selection=SimpleNamespace(template="fastapiadmin")
+        ),
+        model_dump=lambda: {"tasks": [task_data]},
+    )
+    captured = []
+
+    class CapturedContext(Exception):
+        pass
+
+    class NoModelGateway:
+        def complete(self, run_id, key, instruction, payload, schema):
+            captured.append(payload)
+            raise CapturedContext
+
+    flow = Workflow(settings, None, NoModelGateway())
+    flow.checked_extension = lambda state: design
+    state = {
+        "native_generation": {"execution": "source-candidate"},
+        "extension_product": str(product),
+        "run_id": "local-retrieval",
+        "round": 1,
+        "extension_policy": {},
+        "extension_scope": {"sources": []},
+    }
+    for _ in range(2):
+        with pytest.raises(CapturedContext):
+            flow.extension_code(state)
+    assert captured[0]["retrieval"] == captured[1]["retrieval"]
+    assert captured[0]["retrieval"]["mode"] == "ast+fts5"
+    assert captured[0]["retrieval"]["matches"]

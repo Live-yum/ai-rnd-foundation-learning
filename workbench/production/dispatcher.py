@@ -555,13 +555,16 @@ class ExtensionWorkflow:
 
     def extension_task(self, state, design):
         completed = {row["task"] for row in state.get("extension_completed", [])}
-        if state.get("native_generation", {}).get("execution") == "source-candidate":
+        source_only = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if source_only:
             completed |= set(state.get("extension_drafted", []))
         return next(
             (
                 task
                 for task in design.implementation.tasks
-                if task.id not in completed and set(task.depends_on) <= completed
+                if task.id not in completed
+                and set(task.depends_on) <= completed
+                and (not source_only or getattr(task, "executor", "bounded_edit") == "bounded_edit")
             ),
             None,
         )
@@ -588,6 +591,10 @@ class ExtensionWorkflow:
         design = self.checked_extension(state)
         task = self.extension_task(state, design)
         if task is None:
+            if state.get("native_generation", {}).get("execution") == "source-candidate":
+                # A resumed source checkpoint may only have isolated tasks left.
+                # Leave them pending rather than executing or marking them complete.
+                return {"extension_candidate": "", "extension_candidate_passed": False}
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
         if (
             state.get("native_generation", {}).get("execution") == "source-candidate"
@@ -659,7 +666,11 @@ class ExtensionWorkflow:
                 task.title + " " + task.contract,
                 limit=4,
                 max_chars=6000,
-                settings=self.settings,
+                # Source drafting must not invoke Continue, embeddings, or other
+                # optional retrieval services. None selects deterministic AST/FTS5.
+                settings=None
+                if state.get("native_generation", {}).get("execution") == "source-candidate"
+                else self.settings,
             )
             value = self.gateway.complete(
                 state["run_id"],

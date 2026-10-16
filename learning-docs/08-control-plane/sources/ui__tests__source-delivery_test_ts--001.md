@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/source-delivery.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L48。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/source-delivery.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L66。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1873`。本段原文以LF换行结束。
+本段原始字节数：`2647`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/source-delivery.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6a130cc70e2ac986afb89f5b4e0ea2579e8dbac73cfe58914722d8a30974349d"} -->
+<!-- learning-source: {"path": "ui/tests/source-delivery.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3597f2b7c3ec69f64a623fe77f244a4ee909aaaadc669a86ac0de79a95937686"} -->
 ````typescript
 // ui/tests/source-delivery.test.ts
 import { describe, expect, it } from 'vitest'
@@ -37,6 +37,23 @@ describe('source candidate presentation', () => {
     expect(runNextAction(run)).toContain('源码可下载')
   })
 
+  it.each([
+    ['complete', 'unverified', '代码已保留，未经运行验证'],
+    ['partial', 'unverified', '生成未完成，部分源码已保留'],
+    ['complete', 'failed', '验证失败，代码已保留'],
+    ['partial', 'failed', '验证失败，代码已保留'],
+  ])(
+    'prioritizes verification failure for %s generation / %s verification',
+    (generation_status, verification_status, title) => {
+      const candidate = {
+        ...run,
+        result: { execution: 'source-candidate', generation_status, verification_status },
+      }
+      expect(sourceDeliveryState(candidate).title).toBe(title)
+      expect(runNextAction(candidate)).toBe(title + '；源码可下载')
+    },
+  )
+
   it('keeps negative evidence and deduplicates pending steps across reports', () => {
     const source = sourceDeliveryState(
       run,
@@ -50,6 +67,7 @@ describe('source candidate presentation', () => {
     )
     expect(source.partial).toBe(true)
     expect(source.failed).toBe(true)
+    expect(source.title).toBe('验证失败，代码已保留')
     expect(source.pendingSteps).toEqual(['test', 'build'])
   })
 
