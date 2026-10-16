@@ -35,6 +35,38 @@ describe('source candidate presentation', () => {
     },
   )
 
+  it('distinguishes approved runtime partial scope from partial source generation', () => {
+    const partial = {
+      ...run,
+      result: { validation_level: 'runtime', delivery_kind: 'partial', production_ready: false },
+    }
+    expect(sourceDeliveryState(partial)).toMatchObject({
+      sourceOnly: false,
+      runtimePartial: true,
+      partial: false,
+    })
+    expect(runNextAction(partial)).toBe(
+      '部分成果已通过运行验收，完整需求仍未完成；查看验收证据与交付包',
+    )
+    expect(
+      milestoneStatus(4, partial, [
+        { id: 1, kind: 'stage', data: { name: 'extension_verify', phase: 'completed' } },
+      ]),
+    ).toBe('done')
+    expect(sourceDeliveryState(run, partial.result).runtimePartial).toBe(true)
+  })
+
+  it.each([
+    { execution: 'source-candidate' },
+    { validation_level: 'source' },
+    { runtime_verified: false },
+    { verification_status: 'failed' as const },
+  ])('preserves explicit source evidence over a conflicting runtime receipt: %j', (source) => {
+    expect(
+      sourceDeliveryState(run, { validation_level: 'runtime', delivery_kind: 'partial' }, source),
+    ).toMatchObject({ sourceOnly: true, runtimePartial: false })
+  })
+
   it('keeps negative evidence and deduplicates pending steps across reports', () => {
     const source = sourceDeliveryState(
       run,

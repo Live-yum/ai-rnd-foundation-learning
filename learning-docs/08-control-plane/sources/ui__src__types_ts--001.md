@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/types.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L85。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/types.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L87。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1942`。本段原文以LF换行结束。
+本段原始字节数：`1995`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/types.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d0f8bc672b8e6aa6a0eedfd60a366abae5829510b5e7b471f25249d068d7a133"} -->
+<!-- learning-source: {"path": "ui/src/types.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "867573e9632fa4c11f7ea07f815bd4059e1fea0f676df0a6f3dd3596be674757"} -->
 ````typescript
 // ui/src/types.ts
 export type RecordData = Record<string, any>
@@ -35,6 +35,8 @@ export interface Gate {
 }
 export interface SourceDeliveryEvidence {
   execution?: string
+  validation_level?: string
+  delivery_kind?: string
   generation_status?: 'complete' | 'partial'
   verification_status?: 'unverified' | 'failed' | 'passed'
   pending_steps?: string[]

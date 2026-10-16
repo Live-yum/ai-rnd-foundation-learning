@@ -677,13 +677,17 @@ function reread() {
           <CheckOutlined v-else aria-hidden="true" />
           <div>
             <strong>{{
-              sourceDelivery.sourceOnly ? sourceDelivery.title : statusLabel(run.status)
+              sourceDelivery.sourceOnly || run.status === 'SOURCE_READY'
+                ? sourceDelivery.title
+                : statusLabel(run.status)
             }}</strong>
             <p>
               {{
                 sourceDelivery.sourceOnly
                   ? '已保留的源码可下载；运行验收未通过，不代表生产就绪，也不会自动部署。'
-                  : '已通过运行级验收及交付确认，可查看报告与下载产物。'
+                  : sourceDelivery.runtimePartial
+                    ? '已批准范围内的部分成果通过运行验收；完整需求仍未完成，请查看覆盖报告。'
+                    : '已通过运行级验收及交付确认，可查看报告与下载产物。'
               }}
             </p>
             <a-button type="primary" @click="route('delivery')">查看交付结果</a-button>
@@ -1097,11 +1101,13 @@ function reread() {
         :message="
           sourceDelivery.sourceOnly
             ? sourceDelivery.title
-            : run.status === 'READY'
-              ? '运行级验收与交付确认已完成'
-              : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
-                ? '验证结果已保存，等待你的交付确认'
-                : '本轮尚未进入交付确认'
+            : run.status === 'SOURCE_READY'
+              ? sourceDelivery.title
+              : run.status === 'READY'
+                ? '运行级验收与交付确认已完成'
+                : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
+                  ? '验证结果已保存，等待你的交付确认'
+                  : '本轮尚未进入交付确认'
         "
         :description="
           downloadable
@@ -1187,7 +1193,7 @@ function reread() {
             <p>运行验收通过，批准交付后可下载</p>
           </div>
           <div class="definition">
-            <h3>SOURCE_READY · 源码级交付</h3>
+            <h3>SOURCE_READY · 源码或部分成果交付</h3>
             <p>源码级或明确批准的部分成果；查看覆盖报告，不代表完整需求完成或任意环境可运行</p>
           </div>
         </div>

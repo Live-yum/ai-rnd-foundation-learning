@@ -9,6 +9,7 @@ from workbench.acceptance.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
+from workbench.business.browser import BusinessBrowserValidationFailure
 from workbench.core.contracts import digest
 from workbench.delivery import recovery as native_recovery
 from workbench.delivery.portable import (
@@ -56,7 +57,17 @@ def _runtime_check(check, *args, check_id, **kwargs):
         raise ValueError("Unknown native acceptance check identifier")
     try:
         return check(*args, **kwargs)
-    except AssertionError as exc:
+    except (AssertionError, BusinessBrowserValidationFailure) as exc:
+        if (
+            isinstance(exc, BusinessBrowserValidationFailure)
+            and check_id != "customer-service-browser"
+        ):
+            raise
+        reason = (
+            "browser_evidence_failed"
+            if isinstance(exc, BusinessBrowserValidationFailure)
+            else "assertion_failed"
+        )
         location = ""
         for frame in reversed(traceback.extract_tb(exc.__traceback__)):
             try:
@@ -69,7 +80,7 @@ def _runtime_check(check, *args, check_id, **kwargs):
         # Only a controller-owned identifier is serialized. Assertion text can
         # contain credentials or entire HTTP responses and is deliberately omitted.
         raise native_recovery.NativeValidationFailure(
-            f"原生可执行验收未通过 [check_id={check_id}; reason=assertion_failed{location}]"
+            f"原生可执行验收未通过 [check_id={check_id}; reason={reason}{location}]"
         ) from exc
 
 

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L150。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L152。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19801`。本段原文以LF换行结束。
+本段原始字节数：`20321`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d07183e1fcba165223828357a508fe56332c99d81c0ce057872f097d8f9846bb"} -->
+<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0bd1d11f0d6c7c09e4fb0b5d4ca6056a864a2989da89ab4cca9db9d046ec7815"} -->
 ````markdown
 <!-- docs/native-toolchain.md -->
 # 原生业务规则、Plop 与本机 Daytona 的完整实现
@@ -148,9 +148,9 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 源码提交复用、验证和打包前会重新核对独立 Git 仓库、HEAD、提交对象和过滤源码原始字节对应的树；删除或篡改 `.git`/回执不能继续宣称已提交。验证不会重建被删除的 journal 来掩盖损坏，也不会直接信任生成回执中的提交 SHA。Git 当前不可用时在验证和交付报告中移除已提交声明，明确标记无法验证提交。缓存 Git 配置、外部对象依赖和路径也属于完整性边界。
 
-含 `custom_rules` 的已批准规格在未启用 Aider、选择 bounded 或缺少独立 Aider 工具环境时，保留为 partial 源码和规则待办，不提前启动数据库或调用编码器；规则及正反例不会被删除。可执行原生定制仍严格要求 Aider 和原有验收。Docker 报告权限拒绝或无法分类的失败不会被当成普通运行能力不足；仅明确缺失 Docker 或 daemon 不可用可进入源码路径。
+含 `custom_rules` 的已批准规格在未启用 Aider、选择 bounded 或缺少独立 Aider 工具环境时，保留为 partial 源码和规则待办，不提前启动数据库或调用编码器；规则及正反例不会被删除。可执行原生定制仍严格要求 Aider 和原有验收。Docker 报告权限拒绝或无法分类的失败不会被当成普通运行能力不足；仅明确缺失 Docker、Compose 子命令或 daemon 不可用可进入源码路径。
 
-原生断言验收失败记录固定 `check_id`、`assertion_failed` 和可信仓库源码帧位置，便于定位具体检查；不复制断言中的原始 HTTP 响应、凭据或局部变量到失败诊断。
+原生断言验收失败记录固定 `check_id`、`assertion_failed` 和可信仓库源码帧位置，便于定位具体检查。可信业务浏览器报告明确失败或缺少旅程证据记录 `browser_evidence_failed`，未知 `ValueError`、模板身份不匹配和权限错误仍拒绝降级；不复制断言中的原始 HTTP 响应、凭据或局部变量到失败诊断。
 
 正常 Linux 原生生成、数据库隔离、浏览器验收、新库恢复和人工交付审批均保留。新增轻量 `Portable source candidate validation` 在 Windows/Linux/macOS 的真实 runner 上验证纯源码路径；不调用真实模型，不创建数据库，也不能代替原生全栈运行验收。只有该平台实际执行的检查才算该平台通过，本地模拟 OS 分支仅是单元覆盖。
 
@@ -167,4 +167,6 @@ uv run rnd chat --template yudao-vben --frontend vben-antd --database postgresql
 ```
 
 这是显式新运行，会重新确认需求，可能产生模型调用；不会自动导入、覆盖或删除原候选。将保留包的真实源码改动与新生成结果人工对照集成后，再走完整运行验证。已有失败运行的原始数据库与 `native-evidence/recovery.json` 只供具备授权的维护者按原生恢复流程核查，不能把候选压缩包当作恢复已通过的证明。
+
+源码候选编辑预先保留控制端 `SOURCE-STATUS.json`、`SOURCE-STATUS.md` 和 `RND-SOURCE-SCOPE.json` 路径，模块不得覆盖后再声明已起草。扩展交付包追加范围声明后重新执行完整 ZIP 消费策略检查，更新最终归档统计；大小写冲突或超出归档限额的候选不会发布。
 ````

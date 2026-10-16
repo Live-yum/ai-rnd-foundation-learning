@@ -20,7 +20,7 @@ from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.extensions.obligations import review_contract, reviewed_coverage
 from workbench.extensions.policy import business_coverage, contract_errors, scope_policy
 from workbench.extensions.readiness import readiness_report
-from workbench.filesystem import files, inside, manifest, sha, unpack, write_json
+from workbench.filesystem import files, inside, inspect_archive, manifest, sha, unpack, write_json
 from workbench.generation.python_basic import PrerequisiteError, generate_basic
 from workbench.planning.contracts import (
     CapabilityEdits,
@@ -604,6 +604,20 @@ class ExtensionWorkflow:
             # source path never substitutes host execution for an isolated agent.
             return {"extension_candidate": "", "extension_candidate_passed": False}
         product = Path(state["extension_product"])
+        if state.get("native_generation", {}).get("execution") == "source-candidate":
+            reserved = {"source-status.json", "source-status.md", "rnd-source-scope.json"}
+            if any(
+                inside(product, name).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for name in task.files
+            ):
+                # Status/scope records belong to the controller. Reject before
+                # model calls or edits instead of silently overwriting a drafted task.
+                return {
+                    "extension_candidate": "",
+                    "extension_candidate_passed": False,
+                    "extension_error": "模块不能修改控制端源码状态或范围声明",
+                }
         identity = digest(
             {
                 "design": design.model_dump(),
@@ -704,6 +718,12 @@ class ExtensionWorkflow:
             / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}"
         )
         try:
+            if state.get("native_generation", {}).get("execution") == "source-candidate" and any(
+                inside(product, edit.path).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for edit in value.files
+            ):
+                raise ValueError("模块不能修改控制端源码状态或范围声明")
             receipt = apply_candidate(
                 product,
                 value,
@@ -1063,10 +1083,10 @@ class ExtensionWorkflow:
             result = package_native(product, report)
             root = self.settings.data_dir / "runs" / state["run_id"]
             archive = root / "extension-source.zip"
-            shutil.copyfile(product.parent / result["package"], archive)
+            temporary = root / "extension-source.zip.tmp"
+            shutil.copyfile(product.parent / result["package"], temporary)
             result.update(
                 package=archive.name,
-                sha256=sha(archive),
                 generation_status=(
                     "partial"
                     if result.get("generation_status") == "partial"
@@ -1089,15 +1109,24 @@ class ExtensionWorkflow:
                 {
                     key: value
                     for key, value in result.items()
-                    if key not in {"files", "sha256", "package"}
+                    if key not in {"files", "sha256", "package", "archive"}
                 },
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")
-            with zipfile.ZipFile(archive, "a", zipfile.ZIP_DEFLATED) as handle:
-                if scope_name in handle.namelist():
-                    raise PrerequisiteError("候选不能提供控制端源码范围声明")
-                handle.writestr(scope_name, scope_data)
+            try:
+                with zipfile.ZipFile(temporary, "a", zipfile.ZIP_DEFLATED) as handle:
+                    if scope_name.casefold() in {name.casefold() for name in handle.namelist()}:
+                        raise PrerequisiteError("候选不能提供控制端源码范围声明")
+                    handle.writestr(scope_name, scope_data)
+                # The final artifact, including the controller declaration, must
+                # satisfy the same entry/byte/path/compression policy as consumers.
+                result["archive"] = inspect_archive(
+                    temporary, product, template=native_receipt["template"]
+                )
+                temporary.replace(archive)
+            finally:
+                temporary.unlink(missing_ok=True)
             result["files"] = {
                 **result["files"],
                 scope_name: hashlib.sha256(scope_data).hexdigest(),

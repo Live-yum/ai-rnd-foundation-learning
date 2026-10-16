@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L385–L1252。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L385–L1258。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`36995`。本段原文以LF换行结束。
+本段原始字节数：`37345`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "55a92926a0c61eb00fe38f94a73abb4b951d754e317de9e04043db5f8643b3a5"} -->
+<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "ad9fb9cd6565e02fbd8d3b0edc6d6160c30e45b8e59f5f487e25d75d790435b5"} -->
 ````vue
 <!-- ui/src/features/runs/RunView.vue -->
 function reread() {
@@ -312,13 +312,17 @@ function reread() {
           <CheckOutlined v-else aria-hidden="true" />
           <div>
             <strong>{{
-              sourceDelivery.sourceOnly ? sourceDelivery.title : statusLabel(run.status)
+              sourceDelivery.sourceOnly || run.status === 'SOURCE_READY'
+                ? sourceDelivery.title
+                : statusLabel(run.status)
             }}</strong>
             <p>
               {{
                 sourceDelivery.sourceOnly
                   ? '已保留的源码可下载；运行验收未通过，不代表生产就绪，也不会自动部署。'
-                  : '已通过运行级验收及交付确认，可查看报告与下载产物。'
+                  : sourceDelivery.runtimePartial
+                    ? '已批准范围内的部分成果通过运行验收；完整需求仍未完成，请查看覆盖报告。'
+                    : '已通过运行级验收及交付确认，可查看报告与下载产物。'
               }}
             </p>
             <a-button type="primary" @click="route('delivery')">查看交付结果</a-button>
@@ -732,11 +736,13 @@ function reread() {
         :message="
           sourceDelivery.sourceOnly
             ? sourceDelivery.title
-            : run.status === 'READY'
-              ? '运行级验收与交付确认已完成'
-              : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
-                ? '验证结果已保存，等待你的交付确认'
-                : '本轮尚未进入交付确认'
+            : run.status === 'SOURCE_READY'
+              ? sourceDelivery.title
+              : run.status === 'READY'
+                ? '运行级验收与交付确认已完成'
+                : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
+                  ? '验证结果已保存，等待你的交付确认'
+                  : '本轮尚未进入交付确认'
         "
         :description="
           downloadable
@@ -822,7 +828,7 @@ function reread() {
             <p>运行验收通过，批准交付后可下载</p>
           </div>
           <div class="definition">
-            <h3>SOURCE_READY · 源码级交付</h3>
+            <h3>SOURCE_READY · 源码或部分成果交付</h3>
             <p>源码级或明确批准的部分成果；查看覆盖报告，不代表完整需求完成或任意环境可运行</p>
           </div>
         </div>

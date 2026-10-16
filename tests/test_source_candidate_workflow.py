@@ -141,13 +141,14 @@ def test_workflow_source_generation_reaches_download_without_runtime(settings, p
     assert (flow.product(result).parent / result["delivery"]["package"]).is_file()
 
 
-@pytest.mark.parametrize("tampered", [False, True])
+@pytest.mark.parametrize("attack", [None, "tampered", "casefold", "entry-limit", "scope-size"])
 def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
-    settings, plan, monkeypatch, tampered
+    settings, plan, monkeypatch, attack
 ):
     import json
     import zipfile
 
+    from workbench import filesystem
     from workbench.delivery import source_candidate
 
     monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
@@ -155,6 +156,8 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
     product = root / "baseline" / "product"
     product.mkdir(parents=True)
     (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
+    if attack == "casefold":
+        (product / "rnd-source-scope.json").write_text("{}", encoding="utf-8")
     receipt = source_candidate.refresh_candidate(
         product,
         {
@@ -182,10 +185,23 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
         "extension_completed": [],
         "extension_scope": {"sources": []},
     }
-    if tampered:
+    if attack == "tampered":
         (product / "example.py").write_text("VALUE = 2\n", encoding="utf-8")
-        with pytest.raises(PrerequisiteError):
+    elif attack == "entry-limit":
+        monkeypatch.setattr(
+            filesystem, "archive_entry_limit", lambda template: len(receipt["files"])
+        )
+    elif attack == "scope-size":
+        monkeypatch.setattr(filesystem, "ARCHIVE_MAX_FILE_BYTES", 2000)
+        state["extension_scope"]["sources"] = ["oversized-scope" * 1000]
+    if attack:
+        # Keep a previous delivery intact if a new final archive is unsafe.
+        prior = root / "extension-source.zip"
+        prior.write_bytes(b"previous verified artifact")
+        with pytest.raises((PrerequisiteError, ValueError)):
             flow.extension_package(state)
+        assert prior.read_bytes() == b"previous verified artifact"
+        assert not (root / "extension-source.zip.tmp").exists()
         return
     result = flow.extension_package(state)["delivery"]
     assert result["generation_status"] == "partial"
@@ -196,6 +212,12 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
         scope = json.loads(archive.read("RND-SOURCE-SCOPE.json"))
         assert scope["pending_steps"] == result["pending_steps"]
         assert scope["full_request_complete"] is False
+        assert "archive" not in scope  # No stale or self-referential ZIP metadata.
+        assert result["archive"]["entry_count"] == len(archive.infolist())
+        assert result["archive"]["uncompressed_bytes"] == sum(
+            item.file_size for item in archive.infolist()
+        )
+    assert result["archive"]["compressed_bytes"] == (root / result["package"]).stat().st_size
     # Metadata refresh is replay-safe and does not promote tasks.
     assert flow.extension_package(state)["delivery"]["verification_status"] == "unverified"
     assert state["extension_completed"] == []
@@ -385,8 +407,9 @@ def test_source_task_selection_skips_isolated_task_but_preserves_dependencies():
     assert flow.extension_task({"extension_completed": []}, design).id == "isolated"
 
 
+@pytest.mark.parametrize("reserved_edit", [None, "SOURCE-STATUS.json", "source-status.md"])
 def test_source_code_retrieval_is_local_despite_optional_provider_settings(
-    settings, tmp_path, monkeypatch
+    settings, tmp_path, monkeypatch, reserved_edit
 ):
     from workbench.knowledge_services import continue_index, retrieval
     from workbench.production import dispatcher
@@ -438,6 +461,8 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
     class NoModelGateway:
         def complete(self, run_id, key, instruction, payload, schema):
             captured.append(payload)
+            if reserved_edit:
+                return SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])
             raise CapturedContext
 
     flow = Workflow(settings, None, NoModelGateway())
@@ -450,9 +475,56 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
         "extension_policy": {},
         "extension_scope": {"sources": []},
     }
+    if reserved_edit:
+        monkeypatch.setattr(dispatcher, "apply_candidate", forbidden)
+        result = flow.extension_code(state)
+        assert "控制端" in result["extension_error"]
+        assert "extension_drafted" not in result
+        assert result["extension_candidate_passed"] is False
+        assert not (product / reserved_edit).exists()
+        return
     for _ in range(2):
         with pytest.raises(CapturedContext):
             flow.extension_code(state)
     assert captured[0]["retrieval"] == captured[1]["retrieval"]
     assert captured[0]["retrieval"]["mode"] == "ast+fts5"
     assert captured[0]["retrieval"]["matches"]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "SOURCE-STATUS.json",
+        "SOURCE-STATUS.md",
+        "source-status.JSON",
+        "./source-status.md",
+        "RND-SOURCE-SCOPE.json",
+    ],
+)
+def test_source_code_rejects_controller_paths_before_model_or_draft(settings, tmp_path, name):
+    product = tmp_path / "source"
+    product.mkdir()
+    original = product / "SOURCE-STATUS.json"
+    original.write_text('{"runtime_verified": false}', encoding="utf-8")
+    task = SimpleNamespace(id="bad-edit", depends_on=[], executor="bounded_edit", files=[name])
+    design = SimpleNamespace(implementation=SimpleNamespace(tasks=[task]))
+
+    class NoModel:
+        def complete(self, *args, **kwargs):
+            pytest.fail("Controller-owned edit reached the model")
+
+    flow = Workflow(settings, None, NoModel())
+    flow.checked_extension = lambda state: design
+    state = {
+        "native_generation": {"execution": "source-candidate"},
+        "extension_product": str(product),
+        "extension_drafted": [],
+        "extension_completed": [],
+    }
+    result = flow.extension_code(state)
+    assert result["extension_candidate_passed"] is False
+    assert result["extension_error"]
+    assert "extension_drafted" not in result
+    assert state["extension_drafted"] == []
+    assert original.read_text(encoding="utf-8") == '{"runtime_verified": false}'
+    assert not list(settings.data_dir.glob("runs/*/candidates"))

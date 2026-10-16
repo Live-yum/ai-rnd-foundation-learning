@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L567。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L603。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21885`。本段原文以LF换行结束。
+本段原始字节数：`23266`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "196fe789df6949a13cd35eee415c84ec9f5a7706acf713e8e235f20bdb3b0438"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0218e9054d84422f8c8ffef2cb6fb40adf3f482b59a53565bb265774de51882f"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -568,6 +568,42 @@ describe('cross-platform source candidates', () => {
     expect(wrapper.text()).toContain('代码已保留，未经运行验证')
     wrapper.unmount()
   })
+
+  it.each(['delivery', 'conversation'])(
+    'shows verified partial runtime delivery accurately in %s',
+    (view) => {
+      state.run!.status = 'SOURCE_READY'
+      state.run!.pending = null
+      state.run!.result = {
+        validation_level: 'runtime',
+        delivery_kind: 'partial',
+        production_ready: false,
+        full_request_complete: false,
+        cleanroom: { passed: true },
+      }
+      state.events = [
+        { id: 1, kind: 'stage', data: { name: 'extension_verify', phase: 'completed' } },
+      ]
+      const wrapper = mount(RunView, {
+        props: { runId: 'saved-run', view },
+        global: { plugins: [Antd] },
+      })
+      expect(wrapper.text()).toContain('部分成果已通过运行验收，完整需求仍未完成')
+      expect(wrapper.text()).not.toContain('代码已保留，未经运行验证')
+      expect(wrapper.text()).not.toContain('运行验收未通过')
+      expect(wrapper.find('.source-candidate-notice').exists()).toBe(false)
+      if (view === 'delivery') {
+        expect(wrapper.find('.coverage-notice').text()).toContain('仅交付明确批准的部分成果')
+        expect(
+          wrapper
+            .findAll('button')
+            .find((button) => button.text().includes('下载部分成果包'))!
+            .attributes('disabled'),
+        ).toBeUndefined()
+      }
+      wrapper.unmount()
+    },
+  )
 
   it('preserves normal runtime delivery success for legacy READY records', () => {
     state.run!.status = 'READY'

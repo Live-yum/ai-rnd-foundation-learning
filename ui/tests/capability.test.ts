@@ -550,6 +550,42 @@ describe('cross-platform source candidates', () => {
     wrapper.unmount()
   })
 
+  it.each(['delivery', 'conversation'])(
+    'shows verified partial runtime delivery accurately in %s',
+    (view) => {
+      state.run!.status = 'SOURCE_READY'
+      state.run!.pending = null
+      state.run!.result = {
+        validation_level: 'runtime',
+        delivery_kind: 'partial',
+        production_ready: false,
+        full_request_complete: false,
+        cleanroom: { passed: true },
+      }
+      state.events = [
+        { id: 1, kind: 'stage', data: { name: 'extension_verify', phase: 'completed' } },
+      ]
+      const wrapper = mount(RunView, {
+        props: { runId: 'saved-run', view },
+        global: { plugins: [Antd] },
+      })
+      expect(wrapper.text()).toContain('部分成果已通过运行验收，完整需求仍未完成')
+      expect(wrapper.text()).not.toContain('代码已保留，未经运行验证')
+      expect(wrapper.text()).not.toContain('运行验收未通过')
+      expect(wrapper.find('.source-candidate-notice').exists()).toBe(false)
+      if (view === 'delivery') {
+        expect(wrapper.find('.coverage-notice').text()).toContain('仅交付明确批准的部分成果')
+        expect(
+          wrapper
+            .findAll('button')
+            .find((button) => button.text().includes('下载部分成果包'))!
+            .attributes('disabled'),
+        ).toBeUndefined()
+      }
+      wrapper.unmount()
+    },
+  )
+
   it('preserves normal runtime delivery success for legacy READY records', () => {
     state.run!.status = 'READY'
     state.run!.pending = null

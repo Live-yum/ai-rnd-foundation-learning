@@ -15,27 +15,31 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_service_exit_classification_uses_real_tool_failure`（L27–L38）：接收`tmp_path`、`monkeypatch`、`diagnostic`、`expected`。 控制顺序：L38断言`type(failure.value) is expected`。 调用`monkeypatch.setattr`、`pytest.raises`、`resources.start_services`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_service_exit_classification_uses_real_tool_failure.command`（L30–L33）：接收`*args`。 调用`tools.run_command`。 返回路径：L31的`tools.run_command( [sys.executable, "-c", f"import sys; print({diagnostic!r}); sys.exit(1)…`。
-- `test_managed_generation_only_downgrades_classified_service_unavailability`（L42–L77）：接收`settings`、`monkeypatch`、`known_unavailable`。 控制顺序：L69按`known_unavailable`分支；L70断言`native.managed_generate(settings, "fastapiadmin", native_plan(), product) == { "candi…`；L73断言`len(calls) == 1`；L77断言`calls == []`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`resources.NativeServiceUnavailable`、`tools.ToolFailure`、`calls.append`、`native.managed_generate`、`native_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_managed_generation_only_downgrades_classified_service_unavailability.fail`（L58–L59）：接收`*args`。 控制顺序：L59抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `rule_plan`（L80–L92）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`native_plan`、`CustomRule`。 返回路径：L92的`plan`。
-- `test_unavailable_rule_coder_retains_source_before_any_runtime_effect`（L98–L120）：接收`settings`、`monkeypatch`、`engine`、`enabled`。 控制顺序：L116断言`result["execution"] == "source-candidate"`；L117断言`result["generation_status"] == "partial"`；L118断言`result["runtime_verified"] is False`；L119断言`"CODING_ENGINE=aider" in result["runtime_unavailable_reason"]`；L120断言`result["pending_steps"]`。 调用`monkeypatch.setattr`、`native.managed_generate`、`rule_plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unavailable_rule_coder_retains_source_before_any_runtime_effect.forbidden`（L106–L107）：接收`*args`。 控制顺序：L107抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_available_rule_coder_reaches_strict_runtime_path`（L123–L141）：接收`settings`、`monkeypatch`。 控制顺序：L141断言`not product.exists()`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`native.managed_generate`、`rule_plan`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_available_rule_coder_reaches_strict_runtime_path.reached`（L134–L135）：接收`*args`。 控制顺序：L135抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_docker_has_no_service_filesystem_side_effect`（L144–L148）：接收`settings`、`monkeypatch`。 控制顺序：L148断言`not (settings.data_dir / "native-services/missing-docker").exists()`。 调用`monkeypatch.setattr`、`pytest.raises`、`resources.for_run`、`(settings.data_dir / "native-services/missing-docker").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_managed_receipt_cannot_be_downgraded_for_missing_rule_coder`（L151–L172）：接收`settings`、`monkeypatch`。 控制顺序：L172断言`not product.exists()`。 调用`rule_plan`、`write_json`、`digest`、`plan.model_dump`、`monkeypatch.setattr`、`pytest.raises`、`native.managed_generate`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_aider_tool_environment_stays_source_only`（L175–L190）：接收`settings`、`monkeypatch`。 控制顺序：L189断言`"Aider" in result["reason"]`；L190断言`not (settings.data_dir / "native-services").exists()`。 调用`monkeypatch.setattr`、`native.managed_generate`、`rule_plan`、`(settings.data_dir / "native-services").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_aider_tool_environment_stays_source_only.missing`（L182–L183）：接收`settings`。 控制顺序：L183抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_service_exit_classification_uses_real_tool_failure`（L46–L57）：接收`tmp_path`、`monkeypatch`、`diagnostic`、`expected`。 控制顺序：L57断言`type(failure.value) is expected`。 调用`monkeypatch.setattr`、`pytest.raises`、`resources.start_services`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_service_exit_classification_uses_real_tool_failure.command`（L49–L52）：接收`*args`。 调用`tools.run_command`。 返回路径：L50的`tools.run_command( [sys.executable, "-c", f"import sys; print({diagnostic!r}); sys.exit(1)…`。
+- `test_managed_generation_only_downgrades_classified_service_unavailability`（L61–L96）：接收`settings`、`monkeypatch`、`known_unavailable`。 控制顺序：L88按`known_unavailable`分支；L89断言`native.managed_generate(settings, "fastapiadmin", native_plan(), product) == { "candi…`；L92断言`len(calls) == 1`；L96断言`calls == []`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`resources.NativeServiceUnavailable`、`tools.ToolFailure`、`calls.append`、`native.managed_generate`、`native_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_managed_generation_only_downgrades_classified_service_unavailability.fail`（L77–L78）：接收`*args`。 控制顺序：L78抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `rule_plan`（L99–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`native_plan`、`CustomRule`。 返回路径：L111的`plan`。
+- `test_unavailable_rule_coder_retains_source_before_any_runtime_effect`（L117–L139）：接收`settings`、`monkeypatch`、`engine`、`enabled`。 控制顺序：L135断言`result["execution"] == "source-candidate"`；L136断言`result["generation_status"] == "partial"`；L137断言`result["runtime_verified"] is False`；L138断言`"CODING_ENGINE=aider" in result["runtime_unavailable_reason"]`；L139断言`result["pending_steps"]`。 调用`monkeypatch.setattr`、`native.managed_generate`、`rule_plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unavailable_rule_coder_retains_source_before_any_runtime_effect.forbidden`（L125–L126）：接收`*args`。 控制顺序：L126抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_available_rule_coder_reaches_strict_runtime_path`（L142–L160）：接收`settings`、`monkeypatch`。 控制顺序：L160断言`not product.exists()`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`native.managed_generate`、`rule_plan`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_available_rule_coder_reaches_strict_runtime_path.reached`（L153–L154）：接收`*args`。 控制顺序：L154抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_docker_has_no_service_filesystem_side_effect`（L163–L167）：接收`settings`、`monkeypatch`。 控制顺序：L167断言`not (settings.data_dir / "native-services/missing-docker").exists()`。 调用`monkeypatch.setattr`、`pytest.raises`、`resources.for_run`、`(settings.data_dir / "native-services/missing-docker").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_managed_receipt_cannot_be_downgraded_for_missing_rule_coder`（L170–L191）：接收`settings`、`monkeypatch`。 控制顺序：L191断言`not product.exists()`。 调用`rule_plan`、`write_json`、`digest`、`plan.model_dump`、`monkeypatch.setattr`、`pytest.raises`、`native.managed_generate`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_aider_tool_environment_stays_source_only`（L194–L209）：接收`settings`、`monkeypatch`。 控制顺序：L208断言`"Aider" in result["reason"]`；L209断言`not (settings.data_dir / "native-services").exists()`。 调用`monkeypatch.setattr`、`native.managed_generate`、`rule_plan`、`(settings.data_dir / "native-services").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_aider_tool_environment_stays_source_only.missing`（L201–L202）：接收`settings`。 控制顺序：L202抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_compose_diagnostic_requires_compose_command`（L213–L222）：接收`tmp_path`、`monkeypatch`、`command`。 控制顺序：L222断言`type(failure.value) is tools.ToolFailure`。 调用`monkeypatch.setattr`、`pytest.raises`、`resources.start_services`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_compose_diagnostic_requires_compose_command.failed`（L214–L217）：接收`*args`。 控制顺序：L217抛异常，停止当前正常路径。 调用`tools.ToolFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_compose_reaches_source_fallback`（L225–L257）：接收`settings`、`monkeypatch`。 控制顺序：L255断言`result == {"execution": "source-candidate"}`；L256断言`len(calls) == 1`；L257断言`not product.exists()`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`calls.append`、`native.managed_generate`、`native_plan`、`len`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_compose_reaches_source_fallback.missing_plugin`（L235–L244）：接收`command`、`folder`、`timeout`。 控制顺序：L236断言`command[:2] == ["docker", "compose"]`。 调用`tools.run_command`。 返回路径：L237的`tools.run_command( [ sys.executable, "-c", "import sys; print(\"docker: 'compose' is not a…`。
 
 </details>
 
-**创建路径：** `tests/test_native_service_failures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L190。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_service_failures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L257。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7338`。本段原文以LF换行结束。
+本段原始字节数：`9971`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_service_failures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1748f1dc81e2dae635b4d62d64363a29d1fa957b5be1ed693103590f707d0bad"} -->
+<!-- learning-source: {"path": "tests/test_native_service_failures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "db5b390d37f0f6422036b4aa7c8c52f978b3a15c8fb61d70b94a617e0acffb54"} -->
 ````python
 # tests/test_native_service_failures.py
 """Docker errors after successful process spawn must not bypass authorization."""
@@ -61,6 +65,25 @@ from workbench.infrastructure.processes import tools
             "Cannot connect to the Docker daemon. Is the docker daemon running?",
             resources.NativeServiceUnavailable,
         ),
+        (
+            "docker: 'compose' is not a docker command.\nSee 'docker --help'",
+            resources.NativeServiceUnavailable,
+        ),
+        (
+            'docker: unknown command "compose" for "docker"',
+            resources.NativeServiceUnavailable,
+        ),
+        (
+            "docker: 'compose' is not a docker command.\nPermission denied",
+            PermissionError,
+        ),
+        (
+            'unknown command "compose" for "docker"\nAccess is denied',
+            PermissionError,
+        ),
+        ('unknown command "up" for "docker compose"', tools.ToolFailure),
+        ("unknown shorthand flag: 'f' in -f", tools.ToolFailure),
+        ("compose plugin failed to execute", tools.ToolFailure),
         ("unclassified server failure", tools.ToolFailure),
     ],
 )
@@ -228,4 +251,52 @@ def test_missing_aider_tool_environment_stays_source_only(settings, monkeypatch)
     result = native.managed_generate(settings, "fastapiadmin", rule_plan(), product)
     assert "Aider" in result["reason"]
     assert not (settings.data_dir / "native-services").exists()
+
+
+@pytest.mark.parametrize("command", [["docker", "inspect"], ["other", "compose"]])
+def test_missing_compose_diagnostic_requires_compose_command(tmp_path, monkeypatch, command):
+    def failed(*args):
+        error = tools.ToolFailure("failed")
+        error.log = "docker: 'compose' is not a docker command."
+        raise error
+
+    monkeypatch.setattr(resources, "run_command", failed)
+    with pytest.raises(tools.ToolFailure) as failure:
+        resources.start_services(command, tmp_path)
+    assert type(failure.value) is tools.ToolFailure
+
+
+def test_missing_compose_reaches_source_fallback(settings, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    monkeypatch.setattr(native, "runtime_capability", lambda template: {"available": True})
+    monkeypatch.setattr(native, "runtime_enabled", lambda *args: False)
+    monkeypatch.setitem(
+        sys.modules, "workbench.acceptance.native_lab", SimpleNamespace(run_acceptance=None)
+    )
+    monkeypatch.setattr(resources.shutil, "which", lambda name: "docker")
+
+    def missing_plugin(command, folder, timeout):
+        assert command[:2] == ["docker", "compose"]
+        return tools.run_command(
+            [
+                sys.executable,
+                "-c",
+                "import sys; print(\"docker: 'compose' is not a docker command.\"); sys.exit(1)",
+            ],
+            folder,
+        )
+
+    monkeypatch.setattr(resources, "run_command", missing_plugin)
+    calls = []
+    monkeypatch.setattr(
+        source_candidate,
+        "generate_candidate",
+        lambda *args: calls.append(args) or {"execution": "source-candidate"},
+    )
+    product = settings.data_dir / "runs/missing-compose/product"
+    result = native.managed_generate(settings, "fastapiadmin", native_plan(), product)
+    assert result == {"execution": "source-candidate"}
+    assert len(calls) == 1
+    assert not product.exists()
 ````

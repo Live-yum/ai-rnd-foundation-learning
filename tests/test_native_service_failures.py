@@ -21,6 +21,25 @@ from workbench.infrastructure.processes import tools
             "Cannot connect to the Docker daemon. Is the docker daemon running?",
             resources.NativeServiceUnavailable,
         ),
+        (
+            "docker: 'compose' is not a docker command.\nSee 'docker --help'",
+            resources.NativeServiceUnavailable,
+        ),
+        (
+            'docker: unknown command "compose" for "docker"',
+            resources.NativeServiceUnavailable,
+        ),
+        (
+            "docker: 'compose' is not a docker command.\nPermission denied",
+            PermissionError,
+        ),
+        (
+            'unknown command "compose" for "docker"\nAccess is denied',
+            PermissionError,
+        ),
+        ('unknown command "up" for "docker compose"', tools.ToolFailure),
+        ("unknown shorthand flag: 'f' in -f", tools.ToolFailure),
+        ("compose plugin failed to execute", tools.ToolFailure),
         ("unclassified server failure", tools.ToolFailure),
     ],
 )
@@ -188,3 +207,51 @@ def test_missing_aider_tool_environment_stays_source_only(settings, monkeypatch)
     result = native.managed_generate(settings, "fastapiadmin", rule_plan(), product)
     assert "Aider" in result["reason"]
     assert not (settings.data_dir / "native-services").exists()
+
+
+@pytest.mark.parametrize("command", [["docker", "inspect"], ["other", "compose"]])
+def test_missing_compose_diagnostic_requires_compose_command(tmp_path, monkeypatch, command):
+    def failed(*args):
+        error = tools.ToolFailure("failed")
+        error.log = "docker: 'compose' is not a docker command."
+        raise error
+
+    monkeypatch.setattr(resources, "run_command", failed)
+    with pytest.raises(tools.ToolFailure) as failure:
+        resources.start_services(command, tmp_path)
+    assert type(failure.value) is tools.ToolFailure
+
+
+def test_missing_compose_reaches_source_fallback(settings, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    monkeypatch.setattr(native, "runtime_capability", lambda template: {"available": True})
+    monkeypatch.setattr(native, "runtime_enabled", lambda *args: False)
+    monkeypatch.setitem(
+        sys.modules, "workbench.acceptance.native_lab", SimpleNamespace(run_acceptance=None)
+    )
+    monkeypatch.setattr(resources.shutil, "which", lambda name: "docker")
+
+    def missing_plugin(command, folder, timeout):
+        assert command[:2] == ["docker", "compose"]
+        return tools.run_command(
+            [
+                sys.executable,
+                "-c",
+                "import sys; print(\"docker: 'compose' is not a docker command.\"); sys.exit(1)",
+            ],
+            folder,
+        )
+
+    monkeypatch.setattr(resources, "run_command", missing_plugin)
+    calls = []
+    monkeypatch.setattr(
+        source_candidate,
+        "generate_candidate",
+        lambda *args: calls.append(args) or {"execution": "source-candidate"},
+    )
+    product = settings.data_dir / "runs/missing-compose/product"
+    result = native.managed_generate(settings, "fastapiadmin", native_plan(), product)
+    assert result == {"execution": "source-candidate"}
+    assert len(calls) == 1
+    assert not product.exists()

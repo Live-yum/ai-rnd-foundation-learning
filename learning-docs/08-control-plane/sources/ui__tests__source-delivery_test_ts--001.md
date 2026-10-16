@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/source-delivery.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L66。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/source-delivery.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L98。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2647`。本段原文以LF换行结束。
+本段原始字节数：`3866`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/source-delivery.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3597f2b7c3ec69f64a623fe77f244a4ee909aaaadc669a86ac0de79a95937686"} -->
+<!-- learning-source: {"path": "ui/tests/source-delivery.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "35916f934f7f6d76333a80e47e1def066661e452f2f86ff330aa99220e1892a6"} -->
 ````typescript
 // ui/tests/source-delivery.test.ts
 import { describe, expect, it } from 'vitest'
@@ -53,6 +53,38 @@ describe('source candidate presentation', () => {
       expect(runNextAction(candidate)).toBe(title + '；源码可下载')
     },
   )
+
+  it('distinguishes approved runtime partial scope from partial source generation', () => {
+    const partial = {
+      ...run,
+      result: { validation_level: 'runtime', delivery_kind: 'partial', production_ready: false },
+    }
+    expect(sourceDeliveryState(partial)).toMatchObject({
+      sourceOnly: false,
+      runtimePartial: true,
+      partial: false,
+    })
+    expect(runNextAction(partial)).toBe(
+      '部分成果已通过运行验收，完整需求仍未完成；查看验收证据与交付包',
+    )
+    expect(
+      milestoneStatus(4, partial, [
+        { id: 1, kind: 'stage', data: { name: 'extension_verify', phase: 'completed' } },
+      ]),
+    ).toBe('done')
+    expect(sourceDeliveryState(run, partial.result).runtimePartial).toBe(true)
+  })
+
+  it.each([
+    { execution: 'source-candidate' },
+    { validation_level: 'source' },
+    { runtime_verified: false },
+    { verification_status: 'failed' as const },
+  ])('preserves explicit source evidence over a conflicting runtime receipt: %j', (source) => {
+    expect(
+      sourceDeliveryState(run, { validation_level: 'runtime', delivery_kind: 'partial' }, source),
+    ).toMatchObject({ sourceOnly: true, runtimePartial: false })
+  })
 
   it('keeps negative evidence and deduplicates pending steps across reports', () => {
     const source = sourceDeliveryState(

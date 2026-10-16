@@ -37,6 +37,24 @@ def start_services(command, folder):
             raise PermissionError(
                 "Docker service access denied; source fallback is prohibited"
             ) from exc
+        # Missing Compose is an executable-capability failure, not a daemon or
+        # authorization failure. Match only the Docker CLI's explicit missing
+        # subcommand diagnostics; unrelated unknown flags/commands fail closed.
+        missing_compose = {
+            "'compose' is not a docker command.",
+            '"compose" is not a docker command.',
+            'unknown command "compose" for "docker"',
+        }
+        if (
+            len(command) >= 2
+            and command[0] == "docker"
+            and command[1] == "compose"
+            and any(
+                line.strip().removeprefix("docker: ") in missing_compose
+                for line in diagnostic.splitlines()
+            )
+        ):
+            raise NativeServiceUnavailable("Local Docker Compose plugin is unavailable") from exc
         if (
             "cannot connect to the docker daemon" in diagnostic
             or "is the docker daemon running?" in diagnostic

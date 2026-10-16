@@ -16,6 +16,8 @@ export interface Gate {
 }
 export interface SourceDeliveryEvidence {
   execution?: string
+  validation_level?: string
+  delivery_kind?: string
   generation_status?: 'complete' | 'partial'
   verification_status?: 'unverified' | 'failed' | 'passed'
   pending_steps?: string[]

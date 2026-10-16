@@ -61,7 +61,7 @@ export const statusLabels: Record<string, string> = {
   FAILED: '运行失败',
   PAUSED_LIMIT: '预算暂停',
   READY: '运行级交付',
-  SOURCE_READY: '源码级交付',
+  SOURCE_READY: '源码或部分成果交付',
   REJECTED: '已拒绝',
 }
 export const statusLabel = (status?: string) =>
@@ -83,19 +83,38 @@ export function sourceDeliveryState(
     Boolean,
   ) as SourceDeliveryEvidence[]
   const candidate = records.some((record) => record.execution === 'source-candidate')
-  const sourceOnly = candidate || run?.status === 'SOURCE_READY'
+  const sourceEvidence = records.some(
+    (record) =>
+      record.validation_level === 'source' ||
+      record.runtime_verified === false ||
+      ['unverified', 'failed'].includes(record.verification_status || ''),
+  )
+  const runtimeEvidence = records.some(
+    (record) => record.validation_level === 'runtime' || record.runtime_verified === true,
+  )
+  // SOURCE_READY also represents approved partial runtime deliveries. Only use the
+  // legacy status fallback when no runtime evidence is available.
+  const sourceOnly =
+    candidate || sourceEvidence || (run?.status === 'SOURCE_READY' && !runtimeEvidence)
+  const runtimePartial =
+    !sourceOnly && runtimeEvidence && records.some((record) => record.delivery_kind === 'partial')
   const partial = records.some((record) => record.generation_status === 'partial')
   const failed = records.some((record) => record.verification_status === 'failed')
   return {
     sourceOnly,
+    runtimePartial,
     candidate,
     partial,
     failed,
-    title: failed
-      ? '验证失败，代码已保留'
-      : partial
-        ? '生成未完成，部分源码已保留'
-        : '代码已保留，未经运行验证',
+    title: runtimePartial
+      ? '部分成果已通过运行验收，完整需求仍未完成'
+      : !sourceOnly && runtimeEvidence
+        ? '已通过运行验收，请查看交付范围'
+        : failed
+          ? '验证失败，代码已保留'
+          : partial
+            ? '生成未完成，部分源码已保留'
+            : '代码已保留，未经运行验证',
     pendingSteps: [...new Set(records.flatMap((record) => record.pending_steps || []))],
     reasons: [
       ...new Set(records.map((record) => record.runtime_unavailable_reason).filter(Boolean)),
@@ -193,7 +212,10 @@ export function runNextAction(run: Run) {
   if (run.status === 'PAUSED_LIMIT') return '检查预算后恢复'
   if (run.status === 'BLOCKED') return '处理阻塞，保留当前需求'
   if (run.status === 'REJECTED') return '查看记录或开始新一轮'
-  if (run.status === 'SOURCE_READY') return sourceDeliveryState(run).title + '；源码可下载'
+  if (run.status === 'SOURCE_READY') {
+    const delivery = sourceDeliveryState(run)
+    return delivery.title + (delivery.sourceOnly ? '；源码可下载' : '；查看验收证据与交付包')
+  }
   if (run.status === 'READY') return '查看验收证据与交付包'
   return run.pending?.actions.includes('answer') || run.status === 'WAITING_CLARIFICATION'
     ? '回答问题后继续'

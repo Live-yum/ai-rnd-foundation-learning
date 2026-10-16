@@ -15,23 +15,77 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ExtensionWorkflow.extension_after_aggregate`（L892–L904）：接收`state`。 控制顺序：L893按`state.get("extension_aggregate_passed")`分支；L896按`any( getattr(task, "executor", None) == "mini_swe" for task in design.implementation.…`分支；L899抛异常，停止当前正常路径；L900按`state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts`分支；L902抛异常，停止当前正常路径。 调用`state.get`、`self.checked_extension`、`any`、`getattr`、`UnsupportedScope`。 返回路径：L894的`"extension_review"`；L901的`"extension_integration_repair"`。
-- `ExtensionWorkflow.extension_integration_repair`（L906–L925）：接收`state`。 控制顺序：L915按`manifest(baseline) != state["extension_baseline"]`分支；L916抛异常，停止当前正常路径。 调用`self.checked_extension`、`digest`、`design.model_dump`、`manifest`、`PrerequisiteError`、`state.get`、`str`。 返回路径：L917的`{ "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1, "ext…`。
-- `ExtensionWorkflow.extension_review`（L927–L952）：接收`state`。 控制顺序：L929按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L930的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L952的`{"model_review": result}`。
-- `ExtensionWorkflow.extension_scope_data`（L954–L1004）：接收`state`、`design`。 控制顺序：L958按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L984的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
-- `ExtensionWorkflow.extension_scope`（L1006–L1016）：接收`state`。 控制顺序：L1014按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L1016的`result`。
-- `ExtensionWorkflow.extension_package`（L1018–L1189）：接收`state`。 控制顺序：L1022按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L1034按`native_receipt.get("spec_digest") != state["native_generation"].get("spec_digest")`分支；L1035抛异常，停止当前正常路径；L1098按`scope_name in handle.namelist()`分支；L1099抛异常，停止当前正常路径；L1122按`scope["requires_explicit_review"]`分支；L1130遍历`files(product)`；L1132按`"RND-DELIVERY.json" in listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.checked_extension`、`Path`、`state.get("native_generation", {}).get`、`state.get`、`verify_native`、`json.loads`、`(product.parent / "native-generation.json").read_text`、`native_receipt.get`、`state["native_generation"].get`等。 返回路径：L1107的`{"delivery": result, "plan": design.baseline.model_dump()}`；L1167的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
-- `ExtensionWorkflow.extension_delivery`（L1191–L1211）：接收`state`。 控制顺序：L1200按`sha(archive) != result["sha256"]`分支；L1201抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1211的`decision`。
+- `ExtensionWorkflow.extension_aggregate`（L859–L910）：接收`state`。 控制顺序：L864按`{row["task"] for row in state.get("extension_completed", [])} != { task.id for task i…`分支；L867抛异常，停止当前正常路径；L889按`plan.version == 2`分支。 调用`self.checked_extension`、`state.get`、`PrerequisiteError`、`Path`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`、`manifest`等。 返回路径：L892的`{ "extension_aggregate_passed": False, "extension_error": self.settings.redact(str(exc))[:…`；L906的`{ "extension_proof": proof, "extension_coverage": coverage, "extension_aggregate_passed": …`。
+- `ExtensionWorkflow.extension_after_aggregate`（L912–L924）：接收`state`。 控制顺序：L913按`state.get("extension_aggregate_passed")`分支；L916按`any( getattr(task, "executor", None) == "mini_swe" for task in design.implementation.…`分支；L919抛异常，停止当前正常路径；L920按`state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts`分支；L922抛异常，停止当前正常路径。 调用`state.get`、`self.checked_extension`、`any`、`getattr`、`UnsupportedScope`。 返回路径：L914的`"extension_review"`；L921的`"extension_integration_repair"`。
+- `ExtensionWorkflow.extension_integration_repair`（L926–L945）：接收`state`。 控制顺序：L935按`manifest(baseline) != state["extension_baseline"]`分支；L936抛异常，停止当前正常路径。 调用`self.checked_extension`、`digest`、`design.model_dump`、`manifest`、`PrerequisiteError`、`state.get`、`str`。 返回路径：L937的`{ "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1, "ext…`。
+- `ExtensionWorkflow.extension_review`（L947–L972）：接收`state`。 控制顺序：L949按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L950的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L972的`{"model_review": result}`。
+- `ExtensionWorkflow.extension_scope_data`（L974–L1024）：接收`state`、`design`。 控制顺序：L978按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L1004的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
+- `ExtensionWorkflow.extension_scope`（L1026–L1036）：接收`state`。 控制顺序：L1034按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L1036的`result`。
+- `ExtensionWorkflow.extension_package`（L1038–L1218）：接收`state`。 控制顺序：L1042按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L1054按`native_receipt.get("spec_digest") != state["native_generation"].get("spec_digest")`分支；L1055抛异常，停止当前正常路径；L1119按`scope_name.casefold() in {name.casefold() for name in handle.namelist()}`分支；L1120抛异常，停止当前正常路径；L1151按`scope["requires_explicit_review"]`分支；L1159遍历`files(product)`；L1161按`"RND-DELIVERY.json" in listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.checked_extension`、`Path`、`state.get("native_generation", {}).get`、`state.get`、`verify_native`、`json.loads`、`(product.parent / "native-generation.json").read_text`、`native_receipt.get`、`state["native_generation"].get`等。 返回路径：L1136的`{"delivery": result, "plan": design.baseline.model_dump()}`；L1196的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
+- `ExtensionWorkflow.extension_delivery`（L1220–L1240）：接收`state`。 控制顺序：L1229按`sha(archive) != result["sha256"]`分支；L1230抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1240的`decision`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L892–L1211。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L859–L1240。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14985`。本段原文以LF换行结束。
+本段原始字节数：`17683`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "692be4ca453bd626a5b18067c496b3bd1992d0c0f09c415ac4edc55b60bc88f0"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "c69ba2a9f3b0171fa5fb737ff8318edc5b775c48338b24d489356773b351ce37"} -->
 ````python
 # workbench/production/dispatcher.py
+    def extension_aggregate(self, state):
+        from workbench.acceptance.capability_sandbox import verify_capabilities
+
+        design = self.checked_extension(state)
+        plan = design.implementation
+        if {row["task"] for row in state.get("extension_completed", [])} != {
+            task.id for task in plan.tasks
+        }:
+            raise PrerequisiteError("模块节点未全部通过，不能汇总交付")
+        product = Path(state["extension_product"])
+        try:
+            proof = verify_capabilities(
+                product,
+                plan,
+                plan.scenarios,
+                self.settings,
+                aggregate=True,
+                selection=plan.selection.model_dump(),
+                trusted_oracle=state["extension_policy"]["trusted_oracle"],
+            )
+            require_evidence(
+                proof,
+                source_digest=digest(manifest(product)),
+                plan_digest=digest(plan.model_dump()),
+                scenarios=plan.scenarios,
+                selection=plan.selection.model_dump(),
+                database_tables=plan.runtime.database_tables,
+                aggregate=True,
+            )
+            coverage = self.extension_coverage(state, design, proof)
+            if plan.version == 2:
+                self.product_ledger(state, plan).verified(product, proof)
+        except CheckFailure as exc:
+            return {
+                "extension_aggregate_passed": False,
+                "extension_error": self.settings.redact(str(exc))[:6000],
+            }
+        write_json(
+            self.settings.data_dir / "runs" / state["run_id"] / "extension-proof.json", proof
+        )
+        write_json(
+            self.settings.data_dir / "runs" / state["run_id"] / "extension-coverage.json", coverage
+        )
+        write_json(
+            self.settings.data_dir / "runs" / state["run_id"] / "extension-readiness.json",
+            readiness_report(design, manifest(product), proof),
+        )
+        return {
+            "extension_proof": proof,
+            "extension_coverage": coverage,
+            "extension_aggregate_passed": True,
+        }
+
     def extension_after_aggregate(self, state):
         if state.get("extension_aggregate_passed"):
             return "extension_review"
@@ -206,10 +260,10 @@
             result = package_native(product, report)
             root = self.settings.data_dir / "runs" / state["run_id"]
             archive = root / "extension-source.zip"
-            shutil.copyfile(product.parent / result["package"], archive)
+            temporary = root / "extension-source.zip.tmp"
+            shutil.copyfile(product.parent / result["package"], temporary)
             result.update(
                 package=archive.name,
-                sha256=sha(archive),
                 generation_status=(
                     "partial"
                     if result.get("generation_status") == "partial"
@@ -232,15 +286,24 @@
                 {
                     key: value
                     for key, value in result.items()
-                    if key not in {"files", "sha256", "package"}
+                    if key not in {"files", "sha256", "package", "archive"}
                 },
                 ensure_ascii=False,
                 indent=2,
             ).encode("utf-8")
-            with zipfile.ZipFile(archive, "a", zipfile.ZIP_DEFLATED) as handle:
-                if scope_name in handle.namelist():
-                    raise PrerequisiteError("候选不能提供控制端源码范围声明")
-                handle.writestr(scope_name, scope_data)
+            try:
+                with zipfile.ZipFile(temporary, "a", zipfile.ZIP_DEFLATED) as handle:
+                    if scope_name.casefold() in {name.casefold() for name in handle.namelist()}:
+                        raise PrerequisiteError("候选不能提供控制端源码范围声明")
+                    handle.writestr(scope_name, scope_data)
+                # The final artifact, including the controller declaration, must
+                # satisfy the same entry/byte/path/compression policy as consumers.
+                result["archive"] = inspect_archive(
+                    temporary, product, template=native_receipt["template"]
+                )
+                temporary.replace(archive)
+            finally:
+                temporary.unlink(missing_ok=True)
             result["files"] = {
                 **result["files"],
                 scope_name: hashlib.sha256(scope_data).hexdigest(),

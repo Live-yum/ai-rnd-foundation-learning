@@ -10,26 +10,26 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.acceptance.native_acceptance`、`workbench.core.contracts`、`workbench.delivery`、`workbench.delivery.portable`、`workbench.filesystem`、`workbench.generation.native.compatibility`、`workbench.generation.native.frontend`、`workbench.generation.native.modules`、`workbench.generation.native.style`、`workbench.infrastructure.native.environment`、`workbench.infrastructure.native.ports`、`workbench.infrastructure.processes.tools`、`workbench.settings`、`workbench.templates.standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.acceptance.native_acceptance`、`workbench.business.browser`、`workbench.core.contracts`、`workbench.delivery`、`workbench.delivery.portable`、`workbench.filesystem`、`workbench.generation.native.compatibility`、`workbench.generation.native.frontend`、`workbench.generation.native.modules`、`workbench.generation.native.style`、`workbench.infrastructure.native.environment`、`workbench.infrastructure.native.ports`、`workbench.infrastructure.processes.tools`、`workbench.settings`、`workbench.templates.standards`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** 把原生流程看成一串证据：固定来源→专用库→真实生成→SQL/菜单→编译/类型检查→HTTP→原生页面。run_acceptance只能在每一步实际完成后汇总报告。某个模板跑通不能替另一个模板写passed，恢复也必须先核对原始Plan、源码与数据库身份。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_runtime_check`（L47–L73）：接收`check`、`check_id`、`*args`、`**kwargs`。 源码说明：Only explicitly selected executable acceptance checks use this boundary.。 控制顺序：L49按`check_id not in { "customer-service-http", "generated-crud", "generated-permissions",…`分支；L56抛异常，停止当前正常路径；L61遍历`reversed(traceback.extract_tb(exc.__traceback__))`；L66按`frame.name.isidentifier() and relative.suffix == ".py"`分支；L71抛异常，停止当前正常路径。 调用`ValueError`、`check`、`reversed`、`traceback.extract_tb`、`Path(frame.filename).resolve().relative_to`、`Path(frame.filename).resolve`、`Path`、`frame.name.isidentifier`、`relative.as_posix`等。 返回路径：L58的`check(*args, **kwargs)`。
-- `generated_browser`（L76–L99）：接收`template`、`front_url`、`reports`。 控制顺序：L98抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L102–L132）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L117按`plan.custom_rules and customization is None`分支；L118抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L120的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L135–L461）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L162按`not resumed`分支；L165按`template == "fastapiadmin"`分支；L169按`not resumed`分支；L171按`not resumed`分支；L186按`not resumed`分支；L190按`template == "fastapiadmin"`分支；L213按`plan.business`分支；L232按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L432的`report`。
-- `_run_acceptance.stage`（L179–L181）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_runtime_check`（L48–L84）：接收`check`、`check_id`、`*args`、`**kwargs`。 源码说明：Only explicitly selected executable acceptance checks use this boundary.。 控制顺序：L50按`check_id not in { "customer-service-http", "generated-crud", "generated-permissions",…`分支；L57抛异常，停止当前正常路径；L61按`isinstance(exc, BusinessBrowserValidationFailure) and check_id != "customer-service-b…`分支；L65抛异常，停止当前正常路径；L72遍历`reversed(traceback.extract_tb(exc.__traceback__))`；L77按`frame.name.isidentifier() and relative.suffix == ".py"`分支；L82抛异常，停止当前正常路径。 调用`ValueError`、`check`、`isinstance`、`reversed`、`traceback.extract_tb`、`Path(frame.filename).resolve().relative_to`、`Path(frame.filename).resolve`、`Path`、`frame.name.isidentifier`等。 返回路径：L59的`check(*args, **kwargs)`。
+- `generated_browser`（L87–L110）：接收`template`、`front_url`、`reports`。 控制顺序：L109抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L113–L143）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L128按`plan.custom_rules and customization is None`分支；L129抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L131的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L146–L472）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L173按`not resumed`分支；L176按`template == "fastapiadmin"`分支；L180按`not resumed`分支；L182按`not resumed`分支；L197按`not resumed`分支；L201按`template == "fastapiadmin"`分支；L224按`plan.business`分支；L243按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L443的`report`。
+- `_run_acceptance.stage`（L190–L192）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L461。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L472。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18539`。本段原文以LF换行结束。
+本段原始字节数：`18966`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ccbc09b3a81148c3205c3367d499ebbc118ff4ba9591e65228b2e91b5e69b49a"} -->
+<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "11a6bfcfea954aff021e170030df5b0295d03ba9448576534b40e71e3201d904"} -->
 ````python
 # workbench/acceptance/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -43,6 +43,7 @@ from workbench.acceptance.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
+from workbench.business.browser import BusinessBrowserValidationFailure
 from workbench.core.contracts import digest
 from workbench.delivery import recovery as native_recovery
 from workbench.delivery.portable import (
@@ -90,7 +91,17 @@ def _runtime_check(check, *args, check_id, **kwargs):
         raise ValueError("Unknown native acceptance check identifier")
     try:
         return check(*args, **kwargs)
-    except AssertionError as exc:
+    except (AssertionError, BusinessBrowserValidationFailure) as exc:
+        if (
+            isinstance(exc, BusinessBrowserValidationFailure)
+            and check_id != "customer-service-browser"
+        ):
+            raise
+        reason = (
+            "browser_evidence_failed"
+            if isinstance(exc, BusinessBrowserValidationFailure)
+            else "assertion_failed"
+        )
         location = ""
         for frame in reversed(traceback.extract_tb(exc.__traceback__)):
             try:
@@ -103,7 +114,7 @@ def _runtime_check(check, *args, check_id, **kwargs):
         # Only a controller-owned identifier is serialized. Assertion text can
         # contain credentials or entire HTTP responses and is deliberately omitted.
         raise native_recovery.NativeValidationFailure(
-            f"原生可执行验收未通过 [check_id={check_id}; reason=assertion_failed{location}]"
+            f"原生可执行验收未通过 [check_id={check_id}; reason={reason}{location}]"
         ) from exc
 
 

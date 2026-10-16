@@ -16,17 +16,17 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `NativeServiceUnavailable`（L13–L14）：继承`ToolFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `start_services`（L17–L45）：接收`command`、`folder`。 控制顺序：L25按`any( marker in diagnostic for marker in ( "permission denied", "access is denied", "a…`分支；L37抛异常，停止当前正常路径；L40按`"cannot connect to the docker daemon" in diagnostic or "is the docker daemon running?…`分支；L44抛异常，停止当前正常路径；L45抛异常，停止当前正常路径。 调用`run_command`、`getattr(exc, "log", "").casefold`、`getattr`、`any`、`PermissionError`、`NativeServiceUnavailable`。 返回路径：L19的`run_command(command, folder, 300)`。
-- `free_port`（L48–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L51的`sock.getsockname()[1]`。
-- `for_run`（L54–L95）：接收`settings`、`run_id`。 控制顺序：L55按`not shutil.which("docker")`分支；L56抛异常，停止当前正常路径；L60按`not path.exists()`分支。 调用`shutil.which`、`NativeServiceUnavailable`、`folder.mkdir`、`path.exists`、`write_json`、`secrets.token_urlsafe`、`secrets.token_hex`、`free_port`、`path.chmod`等。 返回路径：L92的`( f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_cod…`。
+- `start_services`（L17–L63）：接收`command`、`folder`。 控制顺序：L25按`any( marker in diagnostic for marker in ( "permission denied", "access is denied", "a…`分支；L37抛异常，停止当前正常路径；L48按`len(command) >= 2 and command[0] == "docker" and command[1] == "compose" and any( lin…`分支；L57抛异常，停止当前正常路径；L58按`"cannot connect to the docker daemon" in diagnostic or "is the docker daemon running?…`分支；L62抛异常，停止当前正常路径；L63抛异常，停止当前正常路径。 调用`run_command`、`getattr(exc, "log", "").casefold`、`getattr`、`any`、`PermissionError`、`len`、`line.strip().removeprefix`、`line.strip`、`diagnostic.splitlines`等。 返回路径：L19的`run_command(command, folder, 300)`。
+- `free_port`（L66–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L69的`sock.getsockname()[1]`。
+- `for_run`（L72–L113）：接收`settings`、`run_id`。 控制顺序：L73按`not shutil.which("docker")`分支；L74抛异常，停止当前正常路径；L78按`not path.exists()`分支。 调用`shutil.which`、`NativeServiceUnavailable`、`folder.mkdir`、`path.exists`、`write_json`、`secrets.token_urlsafe`、`secrets.token_hex`、`free_port`、`path.chmod`等。 返回路径：L110的`( f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_cod…`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/native/resources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L95。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/native/resources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3110`。本段原文以LF换行结束。
+本段原始字节数：`3930`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/native/resources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "939a30ede4a4ca92f27f76d107360458de7de65ac95c4cbacc0f1db379594ab2"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/native/resources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "14d4ddbb5faf08a3d53676e4947d8dde9d843c17d0a51e74fd360455810edb00"} -->
 ````python
 # workbench/infrastructure/native/resources.py
 """Per-run Docker services, created only after an operator chooses/approves a native stack."""
@@ -68,6 +68,24 @@ def start_services(command, folder):
             raise PermissionError(
                 "Docker service access denied; source fallback is prohibited"
             ) from exc
+        # Missing Compose is an executable-capability failure, not a daemon or
+        # authorization failure. Match only the Docker CLI's explicit missing
+        # subcommand diagnostics; unrelated unknown flags/commands fail closed.
+        missing_compose = {
+            "'compose' is not a docker command.",
+            '"compose" is not a docker command.',
+            'unknown command "compose" for "docker"',
+        }
+        if (
+            len(command) >= 2
+            and command[0] == "docker"
+            and command[1] == "compose"
+            and any(
+                line.strip().removeprefix("docker: ") in missing_compose
+                for line in diagnostic.splitlines()
+            )
+        ):
+            raise NativeServiceUnavailable("Local Docker Compose plugin is unavailable") from exc
         if (
             "cannot connect to the docker daemon" in diagnostic
             or "is the docker daemon running?" in diagnostic

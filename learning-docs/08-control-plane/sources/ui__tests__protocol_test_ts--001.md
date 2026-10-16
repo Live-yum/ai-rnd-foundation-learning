@@ -12,9 +12,9 @@
 
 **创建路径：** `ui/tests/protocol.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8476`。本段原文以LF换行结束。
+本段原始字节数：`8488`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/protocol.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e11068e7781db63878741ef02a7531bf0c362960396b428a5ffab568ccc260b2"} -->
+<!-- learning-source: {"path": "ui/tests/protocol.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b7faff44956eebc24c36ba709fb097e4a8f5fe0ff4689fa75116675e9bec2814"} -->
 ````typescript
 // ui/tests/protocol.test.ts
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -221,7 +221,7 @@ describe('message reducer and authoritative gate identity', () => {
   it('distinguishes every gate version and source delivery label', () => {
     expect(gateIdentity(gate)).not.toBe(gateIdentity({ ...gate, version: 3 }))
     expect(statusLabel('READY')).toBe('运行级交付')
-    expect(statusLabel('SOURCE_READY')).toBe('源码级交付')
+    expect(statusLabel('SOURCE_READY')).toBe('源码或部分成果交付')
   })
   it.each([
     ['planning', 1],

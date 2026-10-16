@@ -21,18 +21,23 @@
 - `test_only_explicit_runtime_check_marks_validation_failed.failed_check`（L60–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L61抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets`（L67–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L76断言`"check_id=generated-permissions" in text`；L77断言`"reason=assertion_failed" in text`；L78断言`len(text) < 160`；L79断言`"private-token" not in text`；L80断言`"password" not in text`；L81断言`"sensitive" not in text`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets.failed_check`（L70–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_lab_failure_log_keeps_safe_check_identifier`（L84–L122）：接收`tmp_path`、`monkeypatch`。 控制顺序：L118断言`"check_id=generated-crud" in log`；L119断言`"reason=assertion_failed" in log`；L120断言`"super-secret" not in log`；L121断言`"private-body" not in log`；L122断言`len(log) < 300`。 调用`source.mkdir`、`(source / "upstream.py").write_text`、`Plan`、`monkeypatch.setattr`、`pytest.raises`、`native_lab._run_acceptance`、`(reports / "failure.log").read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_lab_failure_log_keeps_safe_check_identifier.failed_check`（L98–L99）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_lab_failure_log_keeps_safe_check_identifier.fail`（L101–L102）：接收`*args`。 调用`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_failure_identifies_trusted_assertion_frame_without_payload`（L125–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L131断言`"source=workbench/acceptance/native_acceptance.py:" in text`；L132断言`":list_rows" in text`；L133断言`"private response body" not in text`；L134断言`len(text) < 300`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier`（L85–L137）：接收`tmp_path`、`monkeypatch`、`browser_failure`。 控制顺序：L129断言`( "check_id=customer-service-browser" if browser_failure else "check_id=generated-cru…`；L132断言`( "reason=browser_evidence_failed" if browser_failure else "reason=assertion_failed" …`；L135断言`"super-secret" not in log`；L136断言`"private-body" not in log`；L137断言`len(log) < 300`。 调用`source.mkdir`、`(source / "upstream.py").write_text`、`Plan`、`monkeypatch.setattr`、`pytest.raises`、`native_lab._run_acceptance`、`(reports / "failure.log").read_text`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier.failed_check`（L99–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier.fail`（L102–L113）：接收`*args`。 控制顺序：L103按`browser_failure`分支。 调用`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_failure_identifies_trusted_assertion_frame_without_payload`（L140–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L146断言`"source=workbench/acceptance/native_acceptance.py:" in text`；L147断言`":list_rows" in text`；L148断言`"private response body" not in text`；L149断言`len(text) < 300`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_business_browser_failures_are_runtime_validation`（L153–L173）：接收`kind`。 控制顺序：L157按`kind == "failed_report"`分支；L160按`kind == "missing_journey"`分支；L172断言`"reason=browser_evidence_failed" in str(failure.value)`；L173断言`"secret-response" not in str(failure.value)`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_boundary_preserves_unknown_and_security_failures`（L177–L189）：接收`kind`。 控制顺序：L189断言`not isinstance(failure.value, NativeValidationFailure)`。 调用`pytest.raises`、`native_lab._runtime_check`、`isinstance`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_boundary_preserves_unknown_and_security_failures.check`（L180–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181按`kind == "identity"`分支；L183按`kind == "permission"`分支；L184抛异常，停止当前正常路径；L185抛异常，停止当前正常路径。 调用`require_business_browser`、`PermissionError`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_failure_type_is_not_converted_at_other_boundaries`（L192–L199）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_failure_type_is_not_converted_at_other_boundaries.check`（L195–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L196抛异常，停止当前正常路径。 调用`BusinessBrowserValidationFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L134。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L199。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4818`。本段原文以LF换行结束。
+本段原始字节数：`7544`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70ec4787fbd8018e88125e321fdae5c6263b1dbe2158d629d6e592954b97c161"} -->
+<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c161627df57ad45bc334ef36873c7634023f9aba326cd841a9628d6ad5134999"} -->
 ````python
 # tests/test_native_failure_classification.py
 """Exercise the real native lab wrapper, not a mocked delivery entry point."""
@@ -118,7 +123,8 @@ def test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets
     assert "sensitive" not in text
 
 
-def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch):
+@pytest.mark.parametrize("browser_failure", [False, True])
+def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch, browser_failure):
     source = tmp_path / "source"
     source.mkdir()
     (source / "upstream.py").write_text("value = 1\n", encoding="utf-8")
@@ -136,6 +142,16 @@ def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch)
         raise AssertionError("Bearer super-secret HTTP response private-body")
 
     def fail(*args):
+        if browser_failure:
+            from workbench.business.browser import require_business_browser
+
+            native_lab._runtime_check(
+                require_business_browser,
+                {"template": "fastapiadmin", "passed": False, "errors": ["super-secret"]},
+                plan,
+                "fastapiadmin",
+                check_id="customer-service-browser",
+            )
         native_lab._runtime_check(failed_check, check_id="generated-crud")
 
     monkeypatch.setattr(native_lab, "bootstrap_database", fail)
@@ -152,8 +168,12 @@ def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch)
             backend_port=18001,
         )
     log = (reports / "failure.log").read_text(encoding="utf-8")
-    assert "check_id=generated-crud" in log
-    assert "reason=assertion_failed" in log
+    assert (
+        "check_id=customer-service-browser" if browser_failure else "check_id=generated-crud"
+    ) in log
+    assert (
+        "reason=browser_evidence_failed" if browser_failure else "reason=assertion_failed"
+    ) in log
     assert "super-secret" not in log
     assert "private-body" not in log
     assert len(log) < 300
@@ -169,4 +189,54 @@ def test_runtime_failure_identifies_trusted_assertion_frame_without_payload():
     assert ":list_rows" in text
     assert "private response body" not in text
     assert len(text) < 300
+
+
+@pytest.mark.parametrize("kind", ["failed_report", "missing_role", "missing_journey"])
+def test_trusted_business_browser_failures_are_runtime_validation(kind):
+    from workbench.business.browser import require_business_browser
+
+    report = {"template": "fastapiadmin", "passed": True, "errors": [], "checks": []}
+    if kind == "failed_report":
+        report["passed"] = False
+        report["errors"] = ["Bearer secret-response"]
+    if kind == "missing_journey":
+        report["checks"] = [
+            role + ":real_native_login_menu_shell" for role in ("manager", "service", "employee")
+        ]
+    with pytest.raises(NativeValidationFailure) as failure:
+        native_lab._runtime_check(
+            require_business_browser,
+            report,
+            None,
+            "fastapiadmin",
+            check_id="customer-service-browser",
+        )
+    assert "reason=browser_evidence_failed" in str(failure.value)
+    assert "secret-response" not in str(failure.value)
+
+
+@pytest.mark.parametrize("kind", ["unknown_value", "permission", "identity"])
+def test_browser_boundary_preserves_unknown_and_security_failures(kind):
+    from workbench.business.browser import require_business_browser
+
+    def check():
+        if kind == "identity":
+            require_business_browser({"template": "yudao-vben"}, None, "fastapiadmin")
+        if kind == "permission":
+            raise PermissionError("denied")
+        raise ValueError("unknown security or malformed data error")
+
+    with pytest.raises(PermissionError if kind == "permission" else ValueError) as failure:
+        native_lab._runtime_check(check, check_id="customer-service-browser")
+    assert not isinstance(failure.value, NativeValidationFailure)
+
+
+def test_browser_failure_type_is_not_converted_at_other_boundaries():
+    from workbench.business.browser import BusinessBrowserValidationFailure
+
+    def check():
+        raise BusinessBrowserValidationFailure("not the selected browser boundary")
+
+    with pytest.raises(BusinessBrowserValidationFailure):
+        native_lab._runtime_check(check, check_id="generated-crud")
 ````

@@ -81,7 +81,8 @@ def test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets
     assert "sensitive" not in text
 
 
-def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch):
+@pytest.mark.parametrize("browser_failure", [False, True])
+def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch, browser_failure):
     source = tmp_path / "source"
     source.mkdir()
     (source / "upstream.py").write_text("value = 1\n", encoding="utf-8")
@@ -99,6 +100,16 @@ def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch)
         raise AssertionError("Bearer super-secret HTTP response private-body")
 
     def fail(*args):
+        if browser_failure:
+            from workbench.business.browser import require_business_browser
+
+            native_lab._runtime_check(
+                require_business_browser,
+                {"template": "fastapiadmin", "passed": False, "errors": ["super-secret"]},
+                plan,
+                "fastapiadmin",
+                check_id="customer-service-browser",
+            )
         native_lab._runtime_check(failed_check, check_id="generated-crud")
 
     monkeypatch.setattr(native_lab, "bootstrap_database", fail)
@@ -115,8 +126,12 @@ def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch)
             backend_port=18001,
         )
     log = (reports / "failure.log").read_text(encoding="utf-8")
-    assert "check_id=generated-crud" in log
-    assert "reason=assertion_failed" in log
+    assert (
+        "check_id=customer-service-browser" if browser_failure else "check_id=generated-crud"
+    ) in log
+    assert (
+        "reason=browser_evidence_failed" if browser_failure else "reason=assertion_failed"
+    ) in log
     assert "super-secret" not in log
     assert "private-body" not in log
     assert len(log) < 300
@@ -132,3 +147,53 @@ def test_runtime_failure_identifies_trusted_assertion_frame_without_payload():
     assert ":list_rows" in text
     assert "private response body" not in text
     assert len(text) < 300
+
+
+@pytest.mark.parametrize("kind", ["failed_report", "missing_role", "missing_journey"])
+def test_trusted_business_browser_failures_are_runtime_validation(kind):
+    from workbench.business.browser import require_business_browser
+
+    report = {"template": "fastapiadmin", "passed": True, "errors": [], "checks": []}
+    if kind == "failed_report":
+        report["passed"] = False
+        report["errors"] = ["Bearer secret-response"]
+    if kind == "missing_journey":
+        report["checks"] = [
+            role + ":real_native_login_menu_shell" for role in ("manager", "service", "employee")
+        ]
+    with pytest.raises(NativeValidationFailure) as failure:
+        native_lab._runtime_check(
+            require_business_browser,
+            report,
+            None,
+            "fastapiadmin",
+            check_id="customer-service-browser",
+        )
+    assert "reason=browser_evidence_failed" in str(failure.value)
+    assert "secret-response" not in str(failure.value)
+
+
+@pytest.mark.parametrize("kind", ["unknown_value", "permission", "identity"])
+def test_browser_boundary_preserves_unknown_and_security_failures(kind):
+    from workbench.business.browser import require_business_browser
+
+    def check():
+        if kind == "identity":
+            require_business_browser({"template": "yudao-vben"}, None, "fastapiadmin")
+        if kind == "permission":
+            raise PermissionError("denied")
+        raise ValueError("unknown security or malformed data error")
+
+    with pytest.raises(PermissionError if kind == "permission" else ValueError) as failure:
+        native_lab._runtime_check(check, check_id="customer-service-browser")
+    assert not isinstance(failure.value, NativeValidationFailure)
+
+
+def test_browser_failure_type_is_not_converted_at_other_boundaries():
+    from workbench.business.browser import BusinessBrowserValidationFailure
+
+    def check():
+        raise BusinessBrowserValidationFailure("not the selected browser boundary")
+
+    with pytest.raises(BusinessBrowserValidationFailure):
+        native_lab._runtime_check(check, check_id="generated-crud")
