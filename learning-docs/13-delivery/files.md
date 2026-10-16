@@ -36,6 +36,7 @@
 - [tests/test_native_registry.py](sources/tests__test_native_registry_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_relation_picker_browser.py](sources/tests__test_native_relation_picker_browser_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_review_evidence.py](sources/tests__test_native_review_evidence_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_service_failures.py](sources/tests__test_native_service_failures_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_style.py](sources/tests__test_native_style_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_style_selectors.py](sources/tests__test_native_style_selectors_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_transaction.py](sources/tests__test_native_transaction_py--001.md)：可重复的验收用例；1 段

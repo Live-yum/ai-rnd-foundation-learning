@@ -19,14 +19,20 @@
 - `test_native_lab_does_not_downgrade_unknown_or_integrity_failures.fail`（L28–L35）：接收`*args`。 控制顺序：L29按`kind == "source_changed"`分支；L31按`kind == "plan_changed"`分支；L33按`kind == "permission"`分支；L34抛异常，停止当前正常路径；L35抛异常，停止当前正常路径。 调用`source_file.write_text`、`PermissionError`、`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_only_explicit_runtime_check_marks_validation_failed`（L59–L64）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_only_explicit_runtime_check_marks_validation_failed.failed_check`（L60–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L61抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets`（L67–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L76断言`"check_id=generated-permissions" in text`；L77断言`"reason=assertion_failed" in text`；L78断言`len(text) < 160`；L79断言`"private-token" not in text`；L80断言`"password" not in text`；L81断言`"sensitive" not in text`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets.failed_check`（L70–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier`（L84–L122）：接收`tmp_path`、`monkeypatch`。 控制顺序：L118断言`"check_id=generated-crud" in log`；L119断言`"reason=assertion_failed" in log`；L120断言`"super-secret" not in log`；L121断言`"private-body" not in log`；L122断言`len(log) < 300`。 调用`source.mkdir`、`(source / "upstream.py").write_text`、`Plan`、`monkeypatch.setattr`、`pytest.raises`、`native_lab._run_acceptance`、`(reports / "failure.log").read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier.failed_check`（L98–L99）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_lab_failure_log_keeps_safe_check_identifier.fail`（L101–L102）：接收`*args`。 调用`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_failure_identifies_trusted_assertion_frame_without_payload`（L125–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L131断言`"source=workbench/acceptance/native_acceptance.py:" in text`；L132断言`":list_rows" in text`；L133断言`"private response body" not in text`；L134断言`len(text) < 300`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L64。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L134。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2200`。本段原文以LF换行结束。
+本段原始字节数：`4818`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ae8610356b61360891882a97e509c9a5a8ab4305eb41250c9dc888a8ab60bcbf"} -->
+<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70ec4787fbd8018e88125e321fdae5c6263b1dbe2158d629d6e592954b97c161"} -->
 ````python
 # tests/test_native_failure_classification.py
 """Exercise the real native lab wrapper, not a mocked delivery entry point."""
@@ -45,7 +51,7 @@ def test_native_lab_does_not_downgrade_unknown_or_integrity_failures(tmp_path, m
     source = tmp_path / "source"
     source.mkdir()
     source_file = source / "upstream.py"
-    source_file.write_text("value = 1\n")
+    source_file.write_text("value = 1\n", encoding="utf-8")
     plan = Plan(
         title="任务",
         data_scope="shared",
@@ -58,7 +64,7 @@ def test_native_lab_does_not_downgrade_unknown_or_integrity_failures(tmp_path, m
 
     def fail(*args):
         if kind == "source_changed":
-            source_file.write_text("corrupted\n")
+            source_file.write_text("corrupted\n", encoding="utf-8")
         if kind == "plan_changed":
             plan.title = "changed approval"
         if kind == "permission":
@@ -92,5 +98,75 @@ def test_only_explicit_runtime_check_marks_validation_failed():
         raise AssertionError("HTTP acceptance mismatch")
 
     with pytest.raises(NativeValidationFailure):
-        native_lab._runtime_check(failed_check)
+        native_lab._runtime_check(failed_check, check_id="generated-crud")
+
+
+def test_runtime_check_diagnostic_is_bounded_and_does_not_copy_assertion_secrets():
+    secret = "Bearer private-token https://user:password@host/" + "sensitive body" * 1000
+
+    def failed_check():
+        raise AssertionError(secret)
+
+    with pytest.raises(NativeValidationFailure) as failure:
+        native_lab._runtime_check(failed_check, check_id="generated-permissions")
+    text = str(failure.value)
+    assert "check_id=generated-permissions" in text
+    assert "reason=assertion_failed" in text
+    assert len(text) < 160
+    assert "private-token" not in text
+    assert "password" not in text
+    assert "sensitive" not in text
+
+
+def test_real_lab_failure_log_keeps_safe_check_identifier(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "upstream.py").write_text("value = 1\n", encoding="utf-8")
+    plan = Plan(
+        title="任务",
+        data_scope="shared",
+        acceptance=["CRUD"],
+        entities=[
+            {"name": "task", "description": "任务", "fields": [{"name": "title", "kind": "text"}]}
+        ],
+    )
+    monkeypatch.setattr(native_lab, "prepare_fastapi_transactions", lambda *args: {})
+
+    def failed_check():
+        raise AssertionError("Bearer super-secret HTTP response private-body")
+
+    def fail(*args):
+        native_lab._runtime_check(failed_check, check_id="generated-crud")
+
+    monkeypatch.setattr(native_lab, "bootstrap_database", fail)
+    reports = tmp_path / "reports"
+    with pytest.raises(NativeValidationFailure):
+        native_lab._run_acceptance(
+            "fastapiadmin",
+            source,
+            tmp_path / "product",
+            None,
+            "postgresql://localhost/test_codegen",
+            reports,
+            plan,
+            backend_port=18001,
+        )
+    log = (reports / "failure.log").read_text(encoding="utf-8")
+    assert "check_id=generated-crud" in log
+    assert "reason=assertion_failed" in log
+    assert "super-secret" not in log
+    assert "private-body" not in log
+    assert len(log) < 300
+
+
+def test_runtime_failure_identifies_trusted_assertion_frame_without_payload():
+    from workbench.acceptance.native_acceptance import list_rows
+
+    with pytest.raises(NativeValidationFailure) as failure:
+        native_lab._runtime_check(list_rows, "private response body", check_id="generated-crud")
+    text = str(failure.value)
+    assert "source=workbench/acceptance/native_acceptance.py:" in text
+    assert ":list_rows" in text
+    assert "private response body" not in text
+    assert len(text) < 300
 ````

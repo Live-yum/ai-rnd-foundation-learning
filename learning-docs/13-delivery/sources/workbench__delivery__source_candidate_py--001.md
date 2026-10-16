@@ -16,21 +16,27 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `continuation_step`（L17–L23）：接收`template`。 返回路径：L19的`"先下载并保留本候选；在已配置原生工具的 Linux/WSL 操作台新建运行，或执行 " f"uv run rnd chat --template {template} --fro…`。
-- `source_snapshot`（L26–L96）：接收`destination`。 源码说明：Commit an immutable, filtered source copy; absence of Git cannot lose work.。 控制顺序：L33按`receipt_path.is_file()`分支；L35按`manifest(base / "source") != listing`分支；L36抛异常，停止当前正常路径；L38按`not shutil.which("git")`分支；L56遍历`files(destination)`；L81按`manifest(work) != listing or manifest(destination) != listing`分支；L82抛异常，停止当前正常路径；L87抛异常，停止当前正常路径。 调用`Path`、`manifest`、`digest`、`receipt_path.is_file`、`json.loads`、`receipt_path.read_text`、`PrerequisiteError`、`shutil.which`、`base.parent.mkdir`等。 返回路径：L37的`receipt`；L39的`{ "status": "unavailable", "git_available": False, "source_digest": identity, "note": "未安装…`；L85的`receipt`。
-- `refresh_candidate`（L99–L144）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L104按`receipt.get("execution") != "source-candidate"`分支；L105抛异常，停止当前正常路径；L107遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L112按`value is not None`分支；L124按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L125抛异常，停止当前正常路径；L139按`not receipt.get("preserve_runtime_files")`分支。 调用`Path`、`receipt.get`、`PrerequisiteError`、`dict`、`receipt.update`、`list`、`dict.fromkeys`、`continuation_step`、`receipt.setdefault`等。 返回路径：L144的`receipt`。
-- `write_status`（L147–L161）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retain_failed_candidate`（L164–L199）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L168按`not listing`分支；L169抛异常，停止当前正常路径；L172按`recovery and recovery.get("files") != listing`分支；L173抛异常，停止当前正常路径；L176遍历`sources`；L177按`digest(manifest(source["path"])) != source["source_digest"]`分支；L178抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L199的`refresh_candidate(destination, receipt)`。
-- `generate_candidate`（L202–L230）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L209按`destination.exists()`分支；L210抛异常，停止当前正常路径；L213按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L230的`refresh_candidate(destination, receipt)`。
-- `verify_candidate`（L233–L270）：接收`destination`、`receipt`。 控制顺序：L236按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L240抛异常，停止当前正常路径；L241按`not current or current != receipt.get("files")`分支；L242抛异常，停止当前正常路径；L243按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L247抛异常，停止当前正常路径。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`result.update`、`digest`、`write_json`。 返回路径：L270的`result`。
-- `package_candidate`（L273–L305）：接收`destination`、`report`。 控制顺序：L279按`report != verified`分支；L280抛异常，停止当前正常路径；L283按`receipt.get("preserve_runtime_files")`分支；L286遍历`files(destination)`；L295按`manifest(destination) != receipt["files"]`分支；L296抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L305的`result`。
+- `source_snapshot`（L26–L247）：接收`destination`。 源码说明：Retain source; claim a commit only after independently checking its tree.。 控制顺序：L160按`base.exists()`分支；L163按`not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir()`分支；L164抛异常，停止当前正常路径；L167遍历`metadata.rglob("*")`；L172抛异常，停止当前正常路径；L174按`not isinstance(commit, str) or not re.fullmatch( r"(?:[0-9a-f]{40}\|[0-9a-f]{64})", c…`分支；L177抛异常，停止当前正常路径；L178按`receipt != expected_receipt(commit) or manifest(work) != listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`digest`、`inside`、`base.exists`、`receipt_path.is_file`、`work.is_dir`、`metadata.is_dir`、`PrerequisiteError`等。 返回路径：L181的`unavailable()`；L187的`receipt`；L189的`unavailable()`。
+- `source_snapshot.unavailable`（L42–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L43的`{ "status": "unavailable", "git_available": False, "source_digest": identity, "note": "Git…`。
+- `source_snapshot.expected_receipt`（L50–L58）：接收`commit`。 返回路径：L51的`{ "status": "committed", "git_available": True, "commit": commit, "source_digest": identit…`。
+- `source_snapshot.verify`（L60–L158）：接收`work`、`home`、`receipt`。 控制顺序：L70抛异常，停止当前正常路径；L82按`config.defaults() or any( section not in allowed or set(config[section]) - allowed[se…`分支；L86抛异常，停止当前正常路径；L87按`any( (work / ".git" / name).exists() for name in ( "commondir", "shallow", "info/graf…`分支；L97抛异常，停止当前正常路径；L104按`Path(query("rev-parse", "--show-toplevel")).resolve() != work.resolve()`分支；L105抛异常，停止当前正常路径；L106按`Path(query("rev-parse", "--absolute-git-dir")).resolve() != (work / ".git").resolve()`分支。后续分支沿下方源码相同行号继续阅读。 调用`configparser.ConfigParser`、`config.read_string`、`(work / ".git/config").read_text`、`PrerequisiteError`、`config.defaults`、`any`、`set`、`config.sections`、`(work / ".git" / name).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_snapshot.verify.query`（L99–L102）：接收`*args`。 调用`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=fal…`、`git`。 返回路径：L100的`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[ "log" ].stri…`。
+- `source_snapshot.verify.object_hash`（L118–L121）：接收`kind`、`data`。 调用`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b…`、`hashlib.new`、`str(len(data)).encode`、`str`、`len`。 返回路径：L119的`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data ).digest()`。
+- `source_snapshot.verify.tree_hash`（L135–L148）：接收`node`。 控制顺序：L137遍历`node.items()`。 调用`node.items`、`isinstance`、`os.fsencode`、`tree_hash`、`entries.append`、`object_hash`、`b"".join`、`sorted`。 返回路径：L148的`object_hash(b"tree", b"".join(body for _, body in sorted(entries)))`。
+- `refresh_candidate`（L250–L295）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L255按`receipt.get("execution") != "source-candidate"`分支；L256抛异常，停止当前正常路径；L258遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L263按`value is not None`分支；L275按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L276抛异常，停止当前正常路径；L290按`not receipt.get("preserve_runtime_files")`分支。 调用`Path`、`receipt.get`、`PrerequisiteError`、`dict`、`receipt.update`、`list`、`dict.fromkeys`、`continuation_step`、`receipt.setdefault`等。 返回路径：L295的`receipt`。
+- `write_status`（L298–L312）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `retain_failed_candidate`（L315–L350）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L319按`not listing`分支；L320抛异常，停止当前正常路径；L323按`recovery and recovery.get("files") != listing`分支；L324抛异常，停止当前正常路径；L327遍历`sources`；L328按`digest(manifest(source["path"])) != source["source_digest"]`分支；L329抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L350的`refresh_candidate(destination, receipt)`。
+- `generate_candidate`（L353–L381）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L360按`destination.exists()`分支；L361抛异常，停止当前正常路径；L364按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L381的`refresh_candidate(destination, receipt)`。
+- `verify_candidate`（L384–L421）：接收`destination`、`receipt`。 控制顺序：L387按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L391抛异常，停止当前正常路径；L392按`not current or current != receipt.get("files")`分支；L393抛异常，停止当前正常路径；L394按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L398抛异常，停止当前正常路径。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`result.update`、`digest`、`write_json`。 返回路径：L421的`result`。
+- `package_candidate`（L424–L456）：接收`destination`、`report`。 控制顺序：L430按`report != verified`分支；L431抛异常，停止当前正常路径；L434按`receipt.get("preserve_runtime_files")`分支；L437遍历`files(destination)`；L446按`manifest(destination) != receipt["files"]`分支；L447抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L456的`result`。
 
 </details>
 
-**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L305。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L456。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12878`。本段原文以LF换行结束。
+本段原始字节数：`19639`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d2e61610236ed2314019148d79a54261a9164fc39c41112ebf54867bd868f90d"} -->
+<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4f30ea20685d1db07fc7a3c8b05370df5f53f5ee9c3d5a98ae398174562b8adf"} -->
 ````python
 # workbench/delivery/source_candidate.py
 """Retain source without claiming execution, acceptance, or deployment.
@@ -59,26 +65,169 @@ def continuation_step(template):
 
 
 def source_snapshot(destination):
-    """Commit an immutable, filtered source copy; absence of Git cannot lose work."""
+    """Retain source; claim a commit only after independently checking its tree."""
+    import configparser
+    import hashlib
+    import os
+    import re
+
+    from workbench.coding.aider import git
+    from workbench.infrastructure.processes.tools import ToolFailure
+
     destination = Path(destination)
     listing = manifest(destination)
     identity = digest(listing)
-    base = destination.parent / "source-revisions" / identity
-    receipt_path = base / "commit.json"
-    if receipt_path.is_file():
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if manifest(base / "source") != listing:
-            raise PrerequisiteError("保留源码提交已被修改，拒绝复用")
-        return receipt
-    if not shutil.which("git"):
+    base = inside(destination.parent, "source-revisions/" + identity)
+    receipt_path = inside(base, "commit.json")
+
+    def unavailable():
         return {
             "status": "unavailable",
             "git_available": False,
             "source_digest": identity,
-            "note": "未安装 Git；源码文件和摘要已保存，尚未创建 Git 提交",
+            "note": "Git 不可用；源码文件和摘要已保存，无法验证 Git 提交",
         }
-    from workbench.coding.aider import git
-    from workbench.infrastructure.processes.tools import ToolFailure
+
+    def expected_receipt(commit):
+        return {
+            "status": "committed",
+            "git_available": True,
+            "commit": commit,
+            "source_digest": identity,
+            "journal": "source-revisions/" + identity + "/source",
+            "runtime_verified": False,
+        }
+
+    def verify(work, home, receipt):
+        # Do not trust the index, status, receipt, replace refs, or ignored .git
+        # contents to bind a commit to the filtered source bytes.
+        try:
+            # A journal is standalone: no config includes, remote/promisor object
+            # fetching, alternates, linked worktrees, or executable extensions.
+            config = configparser.ConfigParser(interpolation=None)
+            try:
+                config.read_string((work / ".git/config").read_text(encoding="utf-8"))
+            except (configparser.Error, UnicodeError) as exc:
+                raise PrerequisiteError("保留 Git 配置损坏") from exc
+            allowed = {
+                "core": {
+                    "repositoryformatversion",
+                    "filemode",
+                    "bare",
+                    "logallrefupdates",
+                    "ignorecase",
+                    "precomposeunicode",
+                },
+                "extensions": {"objectformat"},
+            }
+            if config.defaults() or any(
+                section not in allowed or set(config[section]) - allowed[section]
+                for section in config.sections()
+            ):
+                raise PrerequisiteError("保留 Git 配置包含未授权扩展或外部依赖")
+            if any(
+                (work / ".git" / name).exists()
+                for name in (
+                    "commondir",
+                    "shallow",
+                    "info/grafts",
+                    "objects/info/alternates",
+                    "objects/info/http-alternates",
+                )
+            ) or any((work / ".git/objects").rglob("*.promisor")):
+                raise PrerequisiteError("保留 Git 对象依赖外部仓库")
+
+            def query(*args):
+                return git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[
+                    "log"
+                ].strip()
+
+            if Path(query("rev-parse", "--show-toplevel")).resolve() != work.resolve():
+                raise PrerequisiteError("源码提交不属于独立保留仓库")
+            if (
+                Path(query("rev-parse", "--absolute-git-dir")).resolve()
+                != (work / ".git").resolve()
+            ):
+                raise PrerequisiteError("源码提交 Git 目录不匹配")
+            algorithm = query("rev-parse", "--show-object-format")
+            if algorithm not in {"sha1", "sha256"}:
+                raise PrerequisiteError("源码提交使用未知对象格式")
+            commit = query("rev-parse", "--verify", "HEAD^{commit}")
+            if receipt != expected_receipt(commit):
+                raise PrerequisiteError("源码提交回执与 HEAD 或摘要不匹配")
+
+            def object_hash(kind, data):
+                return hashlib.new(
+                    algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data
+                ).digest()
+
+            tree = {}
+            for name, path in files(work):
+                # copyfile creates non-executable journal files. On POSIX, a
+                # later mode change must not be hidden by the content manifest.
+                if os.name != "nt" and path.stat().st_mode & 0o111:
+                    raise PrerequisiteError("保留源码文件执行权限已被修改")
+                node = tree
+                parts = name.split("/")
+                for part in parts[:-1]:
+                    node = node.setdefault(part, {})
+                node[parts[-1]] = object_hash(b"blob", path.read_bytes())
+
+            def tree_hash(node):
+                entries = []
+                for name, value in node.items():
+                    directory = isinstance(value, dict)
+                    mode = b"40000" if directory else b"100644"
+                    encoded = os.fsencode(name)
+                    oid = tree_hash(value) if directory else value
+                    entries.append(
+                        (
+                            encoded + (b"/" if directory else b""),
+                            mode + b" " + encoded + b"\0" + oid,
+                        )
+                    )
+                return object_hash(b"tree", b"".join(body for _, body in sorted(entries)))
+
+            if query("rev-parse", "--verify", "HEAD^{tree}") != tree_hash(tree).hex():
+                raise PrerequisiteError("源码提交树与过滤源码内容不匹配")
+            query("fsck", "--strict", "--no-reflogs", "--no-dangling", commit)
+            if manifest(work) != listing or manifest(destination) != listing:
+                raise PrerequisiteError("源码在保留提交期间发生变化")
+        except PermissionError:
+            raise
+        except (OSError, ToolFailure) as exc:
+            raise PrerequisiteError("无法验证保留 Git 仓库的完整性") from exc
+
+    if base.exists():
+        work = inside(base, "source")
+        metadata = inside(work, ".git")
+        if not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir():
+            raise PrerequisiteError("保留源码提交缺少回执或独立 Git 仓库")
+        # Git metadata is omitted by manifest(), so enforce its path boundary
+        # separately before Git can follow a redirected ref/object/config path.
+        for path in metadata.rglob("*"):
+            inside(work, path.relative_to(work).as_posix())
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (ValueError, UnicodeError) as exc:
+            raise PrerequisiteError("保留源码提交回执损坏") from exc
+        commit = receipt.get("commit") if isinstance(receipt, dict) else None
+        if not isinstance(commit, str) or not re.fullmatch(
+            r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit
+        ):
+            raise PrerequisiteError("保留源码提交回执无效")
+        if receipt != expected_receipt(commit) or manifest(work) != listing:
+            raise PrerequisiteError("保留源码提交已被修改，拒绝复用")
+        if not shutil.which("git"):
+            return unavailable()
+        # Never reuse cached HOME/config: it is mutable metadata too.
+        with tempfile.TemporaryDirectory(prefix="snapshot-verify-") as temporary:
+            home = Path(temporary)
+            atomic_text(home / "empty", "")
+            verify(work, home, receipt)
+        return receipt
+    if not shutil.which("git"):
+        return unavailable()
 
     base.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -92,8 +241,24 @@ def source_snapshot(destination):
                 target = inside(work, name)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
-            git(work, home, "init", "-q")
-            git(work, home, "add", "-f", "--", ".")
+            git(work, home, "-c", "core.autocrlf=false", "init", "-q")
+            # Highest-precedence attributes prevent source-controlled .gitattributes
+            # from transforming bytes or requesting clean/encoding filters.
+            atomic_text(
+                work / ".git/info/attributes", "* -text -filter -ident -working-tree-encoding\n"
+            )
+            git(
+                work,
+                home,
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.fsmonitor=false",
+                "add",
+                "-f",
+                "--",
+                ".",
+            )
             git(
                 work,
                 home,
@@ -105,24 +270,16 @@ def source_snapshot(destination):
                 "Retained source candidate: NOT runtime verified or accepted",
             )
             commit = git(work, home, "rev-parse", "HEAD")["log"].strip()
-            receipt = {
-                "status": "committed",
-                "git_available": True,
-                "commit": commit,
-                "source_digest": identity,
-                "journal": "source-revisions/" + identity + "/source",
-                "runtime_verified": False,
-            }
+            receipt = expected_receipt(commit)
             if manifest(work) != listing or manifest(destination) != listing:
                 raise PrerequisiteError("源码在保留提交期间发生变化")
+            verify(work, home, receipt)
             write_json(root / "commit.json", receipt)
             root.replace(base)
             return receipt
     except PermissionError:
         raise
     except (OSError, ToolFailure) as exc:
-        # Source files are already durable. A missing/broken Git installation is
-        # neither permission to discard them nor evidence that a commit exists.
         return {
             "status": "failed",
             "git_available": True,

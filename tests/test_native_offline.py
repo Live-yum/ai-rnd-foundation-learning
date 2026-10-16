@@ -54,12 +54,22 @@ def forbidden(*args, **kwargs):
     raise AssertionError("Offline generation attempted a process/network operation")
 
 
-def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
+@pytest.mark.parametrize("default_encoding", ["utf-8", "cp1252"])
+def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch, default_encoding):
+    # Exercise Windows-style defaults without enabling global Python UTF-8 mode.
+    original_read_text = Path.read_text
+
+    def locale_read_text(path, encoding=None, errors=None, newline=None):
+        return original_read_text(
+            path, encoding=encoding or default_encoding, errors=errors, newline=newline
+        )
+
+    monkeypatch.setattr(Path, "read_text", locale_read_text)
     monkeypatch.setattr(subprocess, "Popen", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
     baseline = tmp_path / "backend" / "main.py"
     baseline.parent.mkdir()
-    baseline.write_text("raise RuntimeError('upstream must not execute')\n")
+    baseline.write_text("raise RuntimeError('upstream must not execute')\n", encoding="utf-8")
     receipt = generate_offline("fastapiadmin", plan(), tmp_path, sources("fastapiadmin"))
     assert receipt["generation_status"] == "partial"
     assert receipt["pending_steps"]
@@ -69,12 +79,12 @@ def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
         path = tmp_path / name
         assert path.is_file()
         if path.suffix == ".py":
-            ast.parse(path.read_text())
+            ast.parse(path.read_text(encoding="utf-8"))
     root = tmp_path / "backend/app/plugin/module_rnd/tickets"
-    assert "class TicketsModel" in (root / "model.py").read_text()
-    assert "String(80)" in (root / "model.py").read_text()
-    assert "TicketsRouter" in (root / "controller.py").read_text()
-    schema = ast.parse((root / "schema.py").read_text())
+    assert "class TicketsModel" in (root / "model.py").read_text(encoding="utf-8")
+    assert "String(80)" in (root / "model.py").read_text(encoding="utf-8")
+    assert "TicketsRouter" in (root / "controller.py").read_text(encoding="utf-8")
+    schema = ast.parse((root / "schema.py").read_text(encoding="utf-8"))
     create = next(
         node
         for node in schema.body
@@ -88,11 +98,13 @@ def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
     title_args = {k.arg: ast.literal_eval(k.value) for k in fields["title"].value.keywords}
     assert title_args["max_length"] == 80
     assert title_args["description"] == plan()["entities"][0]["fields"][0]["label"]
-    api_source = (tmp_path / "frontend/web/src/api/module_rnd/tickets.ts").read_text()
+    api_source = (tmp_path / "frontend/web/src/api/module_rnd/tickets.ts").read_text(
+        encoding="utf-8"
+    )
     assert "/rnd/tickets" in api_source
     assert "//rnd" not in api_source
     assert (tmp_path / "frontend/web/src/views/module_rnd/tickets/index.vue").is_file()
-    stored = json.loads((tmp_path / "generated/business-schema.json").read_text())
+    stored = json.loads((tmp_path / "generated/business-schema.json").read_text(encoding="utf-8"))
     assert stored["entities"][0]["description"] == plan()["entities"][0]["description"]
 
 
@@ -104,10 +116,10 @@ def test_output_is_deterministic_and_never_clobbers(tmp_path, template):
     for name in receipt["generated_files"]:
         assert (first / name).read_bytes() == (second / name).read_bytes()
     marker = first / receipt["generated_files"][0]
-    marker.write_text("USER EDIT")
+    marker.write_text("USER EDIT", encoding="utf-8")
     with pytest.raises(FileExistsError):
         generate_offline(template, plan(), first, sources(template))
-    assert marker.read_text() == "USER EDIT"
+    assert marker.read_text(encoding="utf-8") == "USER EDIT"
 
 
 def test_yudao_is_honest_sql_only_partial(tmp_path, monkeypatch):
@@ -116,12 +128,14 @@ def test_yudao_is_honest_sql_only_partial(tmp_path, monkeypatch):
     receipt = generate_offline("yudao-vben", plan(), tmp_path, sources("yudao-vben"))
     assert receipt["generation_status"] == "partial"
     assert any("not Java/Vue" in s for s in receipt["pending_steps"])
-    sql = (tmp_path / "backend/sql/workbench-business.sql").read_text()
+    sql = (tmp_path / "backend/sql/workbench-business.sql").read_text(encoding="utf-8")
     assert 'CREATE TABLE "wb_tickets"' in sql
     assert '"title" VARCHAR(80) NOT NULL' in sql
     assert '"due" DATE NOT NULL' in sql
     assert not any(p.endswith((".java", ".vue")) for p in receipt["generated_files"])
-    template_inputs = json.loads((tmp_path / "generated/offline-template-inputs.json").read_text())
+    template_inputs = json.loads(
+        (tmp_path / "generated/offline-template-inputs.json").read_text(encoding="utf-8")
+    )
     assert "java/dal/do.vm" in template_inputs
 
 

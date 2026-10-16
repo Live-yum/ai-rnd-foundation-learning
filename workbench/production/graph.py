@@ -78,7 +78,7 @@ approved_requirement.limitations 是已排除的边界说明，不得复制进 P
 entrypoint_obligation 是从用户原文确定的报名入口义务；authenticated_business_ui 必须由真实报名实体、默认非管理员参赛角色、create/read 与 own 行权限实现；用户要求注册账号时启用 registration.enabled。原生管理端普通CRUD不能替代参赛者自行报名。python-basic 的 per_user 内置登录与本人记录隔离也可实现该入口，不自动要求匿名访问或独立门户。
 Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板限制清单。runtime_constraints 是实际配置约束，不能假称环境已满足。
 原生FastapiAdmin和芋道的entities[].description直接用作代码生成显示标题：1到100字符，只能中文、字母、数字、下划线、空格和连字符，不能含标点、代码分隔符、换行或制表符；详细业务说明放入验收条件，不写入这个短标题。
-原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则必须在runtime_constraints中coding_engine=aider时使用。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
+原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则的实际运行实现需要runtime_constraints中coding_engine=aider；源码候选可以保留这些规则及完整正反例为待实现、待验证事项，不能因缺少运行工具删除已批准规则或声称已实现。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
 需要团队关系、负责人、状态、处理记录、提醒、统计和角色时，使用完整 business 契约，data_scope=shared，独立字段用 business_contract.field_kinds。
 业务记录间与用户引用用 text 逻辑ID+relations；assignee_field 必须可空并由 assign 动作设置；状态字段 enum 必填，初始值由workflow.initial设置；完成时间 datetime 可空并由 transition.set_timestamp 设置。
 所有实体都声明resource；权限默认拒绝，每角色实体列完整动作与 own/assigned/all 范围；注册默认角色不能是管理角色，初始化与角色管理角色显式声明。
@@ -491,16 +491,16 @@ class Workflow(ExtensionWorkflow):
         ):
             reasons.append("共享业务必须有完整关系、角色和动作的 business 契约")
             reason_sources.append("business_contract")
-        if plan.custom_rules and not self.settings.enable_coding:
+        if (
+            state["template"] == "python-basic"
+            and plan.custom_rules
+            and not self.settings.enable_coding
+        ):
             reasons.append("当前配置已禁用规则编码器")
             reason_sources.append("coding_disabled")
-        if (
-            state["template"] != "python-basic"
-            and plan.custom_rules
-            and self.settings.coding_engine != "aider"
-        ):
-            reasons.append("原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成")
-            reason_sources.append("native_coding_engine")
+        # Native rule tooling is checked only if runtime customization actually
+        # runs. Missing tools/resources may instead yield an unverified source
+        # candidate with those approved rules explicitly retained as pending.
         if state["template"] != "python-basic":
             from workbench.delivery.native import runtime_config, runtime_enabled
             from workbench.generation.native.modules import validate_plan
@@ -573,7 +573,7 @@ class Workflow(ExtensionWorkflow):
             from workbench.generation.native.service import generate_native
 
             def fn():
-                return generate_native(
+                receipt = generate_native(
                     self.settings,
                     state["template"],
                     plan,
@@ -581,6 +581,33 @@ class Workflow(ExtensionWorkflow):
                     managed=True,
                     customization=self.native_customization(state, plan),
                 )
+                if receipt.get("execution") == "source-candidate" and plan.custom_rules:
+                    from workbench.delivery.source_candidate import (
+                        refresh_candidate,
+                        verify_candidate,
+                    )
+
+                    verify_candidate(self.product(state), receipt)
+                    receipt = refresh_candidate(
+                        self.product(state),
+                        receipt,
+                        generation_status="partial",
+                        pending_steps=list(
+                            dict.fromkeys(
+                                [
+                                    *receipt.get("pending_steps", []),
+                                    *[
+                                        "Implement/review and runtime-verify approved custom rule "
+                                        + rule.entity
+                                        + ": "
+                                        + rule.description
+                                        for rule in plan.custom_rules
+                                    ],
+                                ]
+                            )
+                        ),
+                    )
+                return receipt
 
         receipt = self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
         return {"native_generation": receipt} if state["template"] != "python-basic" else {}
@@ -588,9 +615,21 @@ class Workflow(ExtensionWorkflow):
     def native_customization(self, state, plan):
         if not plan.custom_rules:
             return None
-        from workbench.generation.native.coding import native_rule_customizer
 
-        return native_rule_customizer(self.settings, self.gateway, state["run_id"])
+        def customize(*args, **kwargs):
+            # Defer both optional runtime imports and Aider/enable_coding checks
+            # until managed generation actually invokes runtime customization.
+            if not self.settings.enable_coding or self.settings.coding_engine != "aider":
+                raise PrerequisiteError(
+                    "原生业务规则运行实现需要 ENABLE_CODING=true 和 CODING_ENGINE=aider"
+                )
+            from workbench.generation.native.coding import native_rule_customizer
+
+            return native_rule_customizer(self.settings, self.gateway, state["run_id"])(
+                *args, **kwargs
+            )
+
+        return customize
 
     def run_coder(self, state, plan):
         if self.settings.coding_engine == "aider":

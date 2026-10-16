@@ -44,12 +44,33 @@ from workbench.settings import ROOT
 from workbench.templates.standards import write_coding_standard
 
 
-def _runtime_check(check, *args, **kwargs):
+def _runtime_check(check, *args, check_id, **kwargs):
     """Only explicitly selected executable acceptance checks use this boundary."""
+    if check_id not in {
+        "customer-service-http",
+        "generated-crud",
+        "generated-permissions",
+        "restart-persistence",
+        "customer-service-browser",
+    }:
+        raise ValueError("Unknown native acceptance check identifier")
     try:
         return check(*args, **kwargs)
     except AssertionError as exc:
-        raise native_recovery.NativeValidationFailure("原生可执行验收未通过") from exc
+        location = ""
+        for frame in reversed(traceback.extract_tb(exc.__traceback__)):
+            try:
+                relative = Path(frame.filename).resolve().relative_to(ROOT / "workbench")
+            except ValueError:
+                continue
+            if frame.name.isidentifier() and relative.suffix == ".py":
+                location = f"; source=workbench/{relative.as_posix()}:{frame.lineno}:{frame.name}"
+                break
+        # Only a controller-owned identifier is serialized. Assertion text can
+        # contain credentials or entire HTTP responses and is deliberately omitted.
+        raise native_recovery.NativeValidationFailure(
+            f"原生可执行验收未通过 [check_id={check_id}; reason=assertion_failed{location}]"
+        ) from exc
 
 
 def generated_browser(template, front_url, reports):
@@ -226,17 +247,39 @@ def _run_acceptance(
 
                 stage("customer-service-http")
                 records = _runtime_check(
-                    customer_service_acceptance, template, base_url, token, targets, plan
+                    customer_service_acceptance,
+                    template,
+                    base_url,
+                    token,
+                    targets,
+                    plan,
+                    check_id="customer-service-http",
                 )
                 write_json(reports / "generated/business.json", records)
             else:
                 stage("generated-crud")
-                records = _runtime_check(generated_crud, template, base_url, token, targets, plan)
+                records = _runtime_check(
+                    generated_crud,
+                    template,
+                    base_url,
+                    token,
+                    targets,
+                    plan,
+                    check_id="generated-crud",
+                )
                 write_json(reports / "generated/crud.json", records)
                 stage("generated-permissions")
                 write_json(
                     reports / "generated/permissions.json",
-                    _runtime_check(generated_permissions, template, base_url, token, targets, plan),
+                    _runtime_check(
+                        generated_permissions,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        plan,
+                        check_id="generated-permissions",
+                    ),
                 )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
@@ -286,7 +329,13 @@ def _run_acceptance(
                 write_json(
                     reports / "restart/persistence.json",
                     _runtime_check(
-                        check_generated_persistence, template, base_url, token, targets, records
+                        check_generated_persistence,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        records,
+                        check_id="restart-persistence",
                     ),
                 )
             for target, entity in zip(targets, plan.entities, strict=True):
@@ -325,6 +374,7 @@ def _run_acceptance(
                         records,
                         plan,
                         ROOT / ".native/browser/node_modules/playwright",
+                        check_id="customer-service-browser",
                     )
                     write_json(reports / "browser.json", browser_report)
                 else:

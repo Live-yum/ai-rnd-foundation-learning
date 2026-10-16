@@ -27,7 +27,7 @@ jobs:
       - name: Install only locked base and test dependencies
         run: uv sync --locked
       - name: Validate source-only generation, snapshots and honest delivery status
-        run: uv run pytest -q tests/test_native_offline.py tests/test_source_candidate_delivery.py tests/test_source_candidate_workflow.py tests/test_native_optional_dependencies.py --junitxml=reports/source-candidate.xml
+        run: uv run pytest -q tests/test_native_offline.py tests/test_source_candidate_delivery.py tests/test_source_candidate_workflow.py tests/test_native_optional_dependencies.py tests/test_native_service_failures.py tests/test_source_snapshot_integrity.py --junitxml=reports/source-candidate.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:

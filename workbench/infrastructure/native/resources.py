@@ -2,11 +2,47 @@
 
 import json
 import secrets
+import shutil
 import socket
 
 from workbench.filesystem import write_json
-from workbench.infrastructure.processes.tools import run_command
+from workbench.infrastructure.processes.tools import ToolFailure, run_command
 from workbench.settings import ROOT
+
+
+class NativeServiceUnavailable(ToolFailure):
+    """A known local service availability failure, never an authorization failure."""
+
+
+def start_services(command, folder):
+    try:
+        return run_command(command, folder, 300)
+    except ToolFailure as exc:
+        # Docker often reports socket authorization errors after a successful spawn.
+        # Its CLI has no structured error protocol: classify only known availability
+        # diagnostics and fail closed for unknown/localized failures.
+        diagnostic = getattr(exc, "log", "").casefold()
+        if any(
+            marker in diagnostic
+            for marker in (
+                "permission denied",
+                "access is denied",
+                "access denied",
+                "operation not permitted",
+                "unauthorized",
+                "forbidden",
+                "authentication required",
+            )
+        ):
+            raise PermissionError(
+                "Docker service access denied; source fallback is prohibited"
+            ) from exc
+        if (
+            "cannot connect to the docker daemon" in diagnostic
+            or "is the docker daemon running?" in diagnostic
+        ):
+            raise NativeServiceUnavailable("Local Docker daemon is unavailable") from exc
+        raise
 
 
 def free_port():
@@ -16,6 +52,8 @@ def free_port():
 
 
 def for_run(settings, run_id):
+    if not shutil.which("docker"):
+        raise NativeServiceUnavailable("Local Docker executable is unavailable")
     folder = settings.data_dir / "native-services" / run_id
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "services.json"
@@ -37,7 +75,7 @@ def for_run(settings, run_id):
         encoding="utf-8",
     )
     env.chmod(0o600)
-    run_command(
+    start_services(
         [
             "docker",
             "compose",
@@ -50,7 +88,6 @@ def for_run(settings, run_id):
             "--wait",
         ],
         folder,
-        300,
     )
     return (
         f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_codegen",

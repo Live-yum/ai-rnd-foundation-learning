@@ -40,9 +40,9 @@
 
 **创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10552`。本段原文以LF换行结束。
+本段原始字节数：`10750`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "10f5f7bd30b9fccedeed6836ad7ce14c12a0c1a22e2448dccc56c897a078436e"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8ba0a839e7ca8c88c554d165b46ee65b29f53b00eff04a0326835477a30fbbf"} -->
 ````python
 # tests/test_source_candidate_delivery.py
 """Source preservation is portable; no runtime acceptance is inferred from a ZIP/commit."""
@@ -76,7 +76,7 @@ def native_plan():
 def minimal_candidate(tmp_path, monkeypatch, verification="unverified"):
     product = tmp_path / "product"
     product.mkdir()
-    (product / "example.py").write_text("def add(a, b):\n    return a + b\n")
+    (product / "example.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
     monkeypatch.setattr(source_candidate.shutil, "which", lambda name: None)
     receipt = source_candidate.refresh_candidate(
         product,
@@ -97,10 +97,10 @@ def minimal_candidate(tmp_path, monkeypatch, verification="unverified"):
 @pytest.mark.parametrize("verification", ["unverified", "failed"])
 def test_candidate_package_keeps_truth_and_filters_secrets(tmp_path, monkeypatch, verification):
     product, receipt = minimal_candidate(tmp_path, monkeypatch, verification)
-    (product / ".env").write_text("SECRET=not-for-export")
-    (product / "credentials.json").write_text("secret")
+    (product / ".env").write_text("SECRET=not-for-export", encoding="utf-8")
+    (product / "credentials.json").write_text("secret", encoding="utf-8")
     (product / "logs").mkdir()
-    (product / "logs/private.log").write_text("secret")
+    (product / "logs/private.log").write_text("secret", encoding="utf-8")
     report = verify_native(product)
     assert report["passed"] is False
     assert report["source_checks_passed"] is True
@@ -120,7 +120,7 @@ def test_changed_sources_and_forged_runtime_report_fail_closed(tmp_path, monkeyp
     report = verify_native(product)
     with pytest.raises(PrerequisiteError):
         package_native(product, {**report, "passed": True})
-    (product / "example.py").write_text("changed")
+    (product / "example.py").write_text("changed", encoding="utf-8")
     with pytest.raises(PrerequisiteError):
         verify_native(product)
 
@@ -138,7 +138,7 @@ def test_candidate_retry_reuses_receipt_without_generation(tmp_path, monkeypatch
 def test_failed_runtime_sources_and_recovery_checkpoint_remain_unchanged(tmp_path, monkeypatch):
     product = tmp_path / "product"
     product.mkdir()
-    (product / "actual.py").write_text("print('generated business source')\n")
+    (product / "actual.py").write_text("print('generated business source')\n", encoding="utf-8")
     before = manifest(product)
     checkpoint = tmp_path / "native-evidence/recovery.json"
     write_json(
@@ -168,7 +168,7 @@ def test_failed_runtime_sources_and_recovery_checkpoint_remain_unchanged(tmp_pat
 def test_runtime_integrity_error_not_reclassified(tmp_path, monkeypatch):
     product = tmp_path / "product"
     product.mkdir()
-    (product / "changed.py").write_text("modified\n")
+    (product / "changed.py").write_text("modified\n", encoding="utf-8")
     write_json(tmp_path / "native-evidence/recovery.json", {"files": {}, "targets": [1]})
     with pytest.raises(PrerequisiteError):
         source_candidate.retain_failed_candidate(
@@ -182,7 +182,7 @@ def test_real_git_snapshot_is_traceable_and_replayed(tmp_path):
         pytest.skip("Git not installed")
     product = tmp_path / "product"
     product.mkdir()
-    (product / "source.py").write_text("value = 3\n")
+    (product / "source.py").write_text("value = 3\n", encoding="utf-8")
     first = source_candidate.source_snapshot(product)
     assert first["status"] == "committed"
     assert source_candidate.source_snapshot(product) == first
@@ -201,12 +201,12 @@ def test_git_snapshot_integrity_race_is_not_a_git_failure(tmp_path, monkeypatch)
 
     product = tmp_path / "product"
     product.mkdir()
-    (product / "source.py").write_text("original\n")
+    (product / "source.py").write_text("original\n", encoding="utf-8")
     monkeypatch.setattr(source_candidate.shutil, "which", lambda name: "git")
 
     def raced_git(work, home, *args):
         if args[0] == "rev-parse":
-            (product / "source.py").write_text("raced\n")
+            (product / "source.py").write_text("raced\n", encoding="utf-8")
         return {"log": "a" * 40}
 
     monkeypatch.setattr(aider, "git", raced_git)
@@ -227,7 +227,7 @@ def test_unclassified_or_permission_runtime_failure_cannot_become_candidate(
     )
     source = settings.data_dir / "source"
     source.mkdir(parents=True)
-    (source / "code.py").write_text("source\n")
+    (source / "code.py").write_text("source\n", encoding="utf-8")
     monkeypatch.setattr(
         service, "prepare_sources", lambda *args: [{"slot": "fastapiadmin", "path": str(source)}]
     )

@@ -589,6 +589,13 @@ class ExtensionWorkflow:
         task = self.extension_task(state, design)
         if task is None:
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
+        if (
+            state.get("native_generation", {}).get("execution") == "source-candidate"
+            and getattr(task, "executor", "bounded_edit") != "bounded_edit"
+        ):
+            # Also protect a resumed checkpoint already at the code node. The
+            # source path never substitutes host execution for an isolated agent.
+            return {"extension_candidate": "", "extension_candidate_passed": False}
         product = Path(state["extension_product"])
         identity = digest(
             {

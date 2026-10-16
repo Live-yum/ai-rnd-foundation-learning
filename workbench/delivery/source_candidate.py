@@ -24,26 +24,169 @@ def continuation_step(template):
 
 
 def source_snapshot(destination):
-    """Commit an immutable, filtered source copy; absence of Git cannot lose work."""
+    """Retain source; claim a commit only after independently checking its tree."""
+    import configparser
+    import hashlib
+    import os
+    import re
+
+    from workbench.coding.aider import git
+    from workbench.infrastructure.processes.tools import ToolFailure
+
     destination = Path(destination)
     listing = manifest(destination)
     identity = digest(listing)
-    base = destination.parent / "source-revisions" / identity
-    receipt_path = base / "commit.json"
-    if receipt_path.is_file():
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if manifest(base / "source") != listing:
-            raise PrerequisiteError("保留源码提交已被修改，拒绝复用")
-        return receipt
-    if not shutil.which("git"):
+    base = inside(destination.parent, "source-revisions/" + identity)
+    receipt_path = inside(base, "commit.json")
+
+    def unavailable():
         return {
             "status": "unavailable",
             "git_available": False,
             "source_digest": identity,
-            "note": "未安装 Git；源码文件和摘要已保存，尚未创建 Git 提交",
+            "note": "Git 不可用；源码文件和摘要已保存，无法验证 Git 提交",
         }
-    from workbench.coding.aider import git
-    from workbench.infrastructure.processes.tools import ToolFailure
+
+    def expected_receipt(commit):
+        return {
+            "status": "committed",
+            "git_available": True,
+            "commit": commit,
+            "source_digest": identity,
+            "journal": "source-revisions/" + identity + "/source",
+            "runtime_verified": False,
+        }
+
+    def verify(work, home, receipt):
+        # Do not trust the index, status, receipt, replace refs, or ignored .git
+        # contents to bind a commit to the filtered source bytes.
+        try:
+            # A journal is standalone: no config includes, remote/promisor object
+            # fetching, alternates, linked worktrees, or executable extensions.
+            config = configparser.ConfigParser(interpolation=None)
+            try:
+                config.read_string((work / ".git/config").read_text(encoding="utf-8"))
+            except (configparser.Error, UnicodeError) as exc:
+                raise PrerequisiteError("保留 Git 配置损坏") from exc
+            allowed = {
+                "core": {
+                    "repositoryformatversion",
+                    "filemode",
+                    "bare",
+                    "logallrefupdates",
+                    "ignorecase",
+                    "precomposeunicode",
+                },
+                "extensions": {"objectformat"},
+            }
+            if config.defaults() or any(
+                section not in allowed or set(config[section]) - allowed[section]
+                for section in config.sections()
+            ):
+                raise PrerequisiteError("保留 Git 配置包含未授权扩展或外部依赖")
+            if any(
+                (work / ".git" / name).exists()
+                for name in (
+                    "commondir",
+                    "shallow",
+                    "info/grafts",
+                    "objects/info/alternates",
+                    "objects/info/http-alternates",
+                )
+            ) or any((work / ".git/objects").rglob("*.promisor")):
+                raise PrerequisiteError("保留 Git 对象依赖外部仓库")
+
+            def query(*args):
+                return git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[
+                    "log"
+                ].strip()
+
+            if Path(query("rev-parse", "--show-toplevel")).resolve() != work.resolve():
+                raise PrerequisiteError("源码提交不属于独立保留仓库")
+            if (
+                Path(query("rev-parse", "--absolute-git-dir")).resolve()
+                != (work / ".git").resolve()
+            ):
+                raise PrerequisiteError("源码提交 Git 目录不匹配")
+            algorithm = query("rev-parse", "--show-object-format")
+            if algorithm not in {"sha1", "sha256"}:
+                raise PrerequisiteError("源码提交使用未知对象格式")
+            commit = query("rev-parse", "--verify", "HEAD^{commit}")
+            if receipt != expected_receipt(commit):
+                raise PrerequisiteError("源码提交回执与 HEAD 或摘要不匹配")
+
+            def object_hash(kind, data):
+                return hashlib.new(
+                    algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data
+                ).digest()
+
+            tree = {}
+            for name, path in files(work):
+                # copyfile creates non-executable journal files. On POSIX, a
+                # later mode change must not be hidden by the content manifest.
+                if os.name != "nt" and path.stat().st_mode & 0o111:
+                    raise PrerequisiteError("保留源码文件执行权限已被修改")
+                node = tree
+                parts = name.split("/")
+                for part in parts[:-1]:
+                    node = node.setdefault(part, {})
+                node[parts[-1]] = object_hash(b"blob", path.read_bytes())
+
+            def tree_hash(node):
+                entries = []
+                for name, value in node.items():
+                    directory = isinstance(value, dict)
+                    mode = b"40000" if directory else b"100644"
+                    encoded = os.fsencode(name)
+                    oid = tree_hash(value) if directory else value
+                    entries.append(
+                        (
+                            encoded + (b"/" if directory else b""),
+                            mode + b" " + encoded + b"\0" + oid,
+                        )
+                    )
+                return object_hash(b"tree", b"".join(body for _, body in sorted(entries)))
+
+            if query("rev-parse", "--verify", "HEAD^{tree}") != tree_hash(tree).hex():
+                raise PrerequisiteError("源码提交树与过滤源码内容不匹配")
+            query("fsck", "--strict", "--no-reflogs", "--no-dangling", commit)
+            if manifest(work) != listing or manifest(destination) != listing:
+                raise PrerequisiteError("源码在保留提交期间发生变化")
+        except PermissionError:
+            raise
+        except (OSError, ToolFailure) as exc:
+            raise PrerequisiteError("无法验证保留 Git 仓库的完整性") from exc
+
+    if base.exists():
+        work = inside(base, "source")
+        metadata = inside(work, ".git")
+        if not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir():
+            raise PrerequisiteError("保留源码提交缺少回执或独立 Git 仓库")
+        # Git metadata is omitted by manifest(), so enforce its path boundary
+        # separately before Git can follow a redirected ref/object/config path.
+        for path in metadata.rglob("*"):
+            inside(work, path.relative_to(work).as_posix())
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (ValueError, UnicodeError) as exc:
+            raise PrerequisiteError("保留源码提交回执损坏") from exc
+        commit = receipt.get("commit") if isinstance(receipt, dict) else None
+        if not isinstance(commit, str) or not re.fullmatch(
+            r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit
+        ):
+            raise PrerequisiteError("保留源码提交回执无效")
+        if receipt != expected_receipt(commit) or manifest(work) != listing:
+            raise PrerequisiteError("保留源码提交已被修改，拒绝复用")
+        if not shutil.which("git"):
+            return unavailable()
+        # Never reuse cached HOME/config: it is mutable metadata too.
+        with tempfile.TemporaryDirectory(prefix="snapshot-verify-") as temporary:
+            home = Path(temporary)
+            atomic_text(home / "empty", "")
+            verify(work, home, receipt)
+        return receipt
+    if not shutil.which("git"):
+        return unavailable()
 
     base.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -57,8 +200,24 @@ def source_snapshot(destination):
                 target = inside(work, name)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
-            git(work, home, "init", "-q")
-            git(work, home, "add", "-f", "--", ".")
+            git(work, home, "-c", "core.autocrlf=false", "init", "-q")
+            # Highest-precedence attributes prevent source-controlled .gitattributes
+            # from transforming bytes or requesting clean/encoding filters.
+            atomic_text(
+                work / ".git/info/attributes", "* -text -filter -ident -working-tree-encoding\n"
+            )
+            git(
+                work,
+                home,
+                "-c",
+                "core.autocrlf=false",
+                "-c",
+                "core.fsmonitor=false",
+                "add",
+                "-f",
+                "--",
+                ".",
+            )
             git(
                 work,
                 home,
@@ -70,24 +229,16 @@ def source_snapshot(destination):
                 "Retained source candidate: NOT runtime verified or accepted",
             )
             commit = git(work, home, "rev-parse", "HEAD")["log"].strip()
-            receipt = {
-                "status": "committed",
-                "git_available": True,
-                "commit": commit,
-                "source_digest": identity,
-                "journal": "source-revisions/" + identity + "/source",
-                "runtime_verified": False,
-            }
+            receipt = expected_receipt(commit)
             if manifest(work) != listing or manifest(destination) != listing:
                 raise PrerequisiteError("源码在保留提交期间发生变化")
+            verify(work, home, receipt)
             write_json(root / "commit.json", receipt)
             root.replace(base)
             return receipt
     except PermissionError:
         raise
     except (OSError, ToolFailure) as exc:
-        # Source files are already durable. A missing/broken Git installation is
-        # neither permission to discard them nor evidence that a commit exists.
         return {
             "status": "failed",
             "git_available": True,

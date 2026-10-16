@@ -18,23 +18,24 @@
 - `plan`（L15–L41）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L16的`{ "title": "Offline tickets", "data_scope": "per_user", "acceptance": ["Create tickets"], …`。
 - `sources`（L44–L50）：接收`template`。 调用`vendor.inventory`。 返回路径：L46的`[ {k: row[k] for k in ("slot", "sha", "source_digest")} for row in vendor.inventory() if r…`。
 - `forbidden`（L53–L54）：接收`*args`、`**kwargs`。 控制顺序：L54抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fastapi_real_business_sources_without_runtime`（L57–L96）：接收`tmp_path`、`monkeypatch`。 控制顺序：L64断言`receipt["generation_status"] == "partial"`；L65断言`receipt["pending_steps"]`；L66断言`"backend/main.py" not in receipt["generated_files"]`；L67断言`len(receipt["generated_files"]) == 12`；L68遍历`receipt["generated_files"]`；L70断言`path.is_file()`；L71按`path.suffix == ".py"`分支；L74断言`"class TicketsModel" in (root / "model.py").read_text()`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`baseline.parent.mkdir`、`baseline.write_text`、`generate_offline`、`plan`、`sources`、`len`、`path.is_file`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_output_is_deterministic_and_never_clobbers`（L100–L110）：接收`tmp_path`、`template`。 控制顺序：L103断言`generate_offline(template, plan(), second, sources(template)) == receipt`；L104遍历`receipt["generated_files"]`；L105断言`(first / name).read_bytes() == (second / name).read_bytes()`；L110断言`marker.read_text() == "USER EDIT"`。 调用`generate_offline`、`plan`、`sources`、`(first / name).read_bytes`、`(second / name).read_bytes`、`marker.write_text`、`pytest.raises`、`marker.read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_yudao_is_honest_sql_only_partial`（L113–L125）：接收`tmp_path`、`monkeypatch`。 控制顺序：L117断言`receipt["generation_status"] == "partial"`；L118断言`any("not Java/Vue" in s for s in receipt["pending_steps"])`；L120断言`'CREATE TABLE "wb_tickets"' in sql`；L121断言`'"title" VARCHAR(80) NOT NULL' in sql`；L122断言`'"due" DATE NOT NULL' in sql`；L123断言`not any(p.endswith((".java", ".vue")) for p in receipt["generated_files"])`；L125断言`"java/dal/do.vm" in template_inputs`。 调用`monkeypatch.setattr`、`generate_offline`、`plan`、`sources`、`any`、`(tmp_path / "backend/sql/workbench-business.sql").read_text`、`p.endswith`、`json.loads`、`(tmp_path / "generated/offline-template-inputs.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_rejects_unpinned_source_and_tampered_archive`（L128–L141）：接收`tmp_path`、`monkeypatch`。 控制顺序：L141断言`not (tmp_path / "out").exists()`。 调用`sources`、`pytest.raises`、`generate_offline`、`plan`、`vendor.inventory`、`fake.mkdir`、`(fake / "fastapiadmin.zip").write_bytes`、`monkeypatch.setattr`、`(tmp_path / "out").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_symlink_and_colliding_paths_leave_no_outputs`（L144–L153）：接收`tmp_path`。 控制顺序：L152断言`not list(outside.iterdir())`；L153断言`not (out / "generated").exists()`。 调用`outside.mkdir`、`out.mkdir`、`(out / "backend").symlink_to`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`list`、`outside.iterdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_reserved_native_fields_are_not_silently_discarded`（L156–L161）：接收`tmp_path`。 控制顺序：L161断言`not list(tmp_path.iterdir())`。 调用`plan`、`pytest.raises`、`generate_offline`、`sources`、`list`、`tmp_path.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_windows_and_traversal_targets_rejected`（L167–L170）：接收`tmp_path`、`name`。 控制顺序：L170断言`not list(tmp_path.iterdir())`。 调用`pytest.raises`、`_write_new`、`list`、`tmp_path.iterdir`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_casefold_existing_path_conflict_is_preflighted`（L173–L178）：接收`tmp_path`。 控制顺序：L177断言`not (tmp_path / "generated").exists()`；L178断言`not list((tmp_path / "BACKEND").iterdir())`。 调用`(tmp_path / "BACKEND").mkdir`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`(tmp_path / "generated").exists`、`list`、`(tmp_path / "BACKEND").iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_windows_junction_is_rejected`（L181–L187）：接收`tmp_path`、`monkeypatch`。 控制顺序：L187断言`not (tmp_path / "generated").exists()`。 调用`(tmp_path / "backend").mkdir`、`monkeypatch.setattr`、`original`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`(tmp_path / "generated").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fastapi_real_business_sources_without_runtime`（L58–L108）：接收`tmp_path`、`monkeypatch`、`default_encoding`。 控制顺序：L74断言`receipt["generation_status"] == "partial"`；L75断言`receipt["pending_steps"]`；L76断言`"backend/main.py" not in receipt["generated_files"]`；L77断言`len(receipt["generated_files"]) == 12`；L78遍历`receipt["generated_files"]`；L80断言`path.is_file()`；L81按`path.suffix == ".py"`分支；L84断言`"class TicketsModel" in (root / "model.py").read_text(encoding="utf-8")`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`baseline.parent.mkdir`、`baseline.write_text`、`generate_offline`、`plan`、`sources`、`len`、`path.is_file`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fastapi_real_business_sources_without_runtime.locale_read_text`（L62–L65）：接收`path`、`encoding`、`errors`、`newline`。 调用`original_read_text`。 返回路径：L63的`original_read_text( path, encoding=encoding or default_encoding, errors=errors, newline=ne…`。
+- `test_output_is_deterministic_and_never_clobbers`（L112–L122）：接收`tmp_path`、`template`。 控制顺序：L115断言`generate_offline(template, plan(), second, sources(template)) == receipt`；L116遍历`receipt["generated_files"]`；L117断言`(first / name).read_bytes() == (second / name).read_bytes()`；L122断言`marker.read_text(encoding="utf-8") == "USER EDIT"`。 调用`generate_offline`、`plan`、`sources`、`(first / name).read_bytes`、`(second / name).read_bytes`、`marker.write_text`、`pytest.raises`、`marker.read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_is_honest_sql_only_partial`（L125–L139）：接收`tmp_path`、`monkeypatch`。 控制顺序：L129断言`receipt["generation_status"] == "partial"`；L130断言`any("not Java/Vue" in s for s in receipt["pending_steps"])`；L132断言`'CREATE TABLE "wb_tickets"' in sql`；L133断言`'"title" VARCHAR(80) NOT NULL' in sql`；L134断言`'"due" DATE NOT NULL' in sql`；L135断言`not any(p.endswith((".java", ".vue")) for p in receipt["generated_files"])`；L139断言`"java/dal/do.vm" in template_inputs`。 调用`monkeypatch.setattr`、`generate_offline`、`plan`、`sources`、`any`、`(tmp_path / "backend/sql/workbench-business.sql").read_text`、`p.endswith`、`json.loads`、`(tmp_path / "generated/offline-template-inputs.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rejects_unpinned_source_and_tampered_archive`（L142–L155）：接收`tmp_path`、`monkeypatch`。 控制顺序：L155断言`not (tmp_path / "out").exists()`。 调用`sources`、`pytest.raises`、`generate_offline`、`plan`、`vendor.inventory`、`fake.mkdir`、`(fake / "fastapiadmin.zip").write_bytes`、`monkeypatch.setattr`、`(tmp_path / "out").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_symlink_and_colliding_paths_leave_no_outputs`（L158–L167）：接收`tmp_path`。 控制顺序：L166断言`not list(outside.iterdir())`；L167断言`not (out / "generated").exists()`。 调用`outside.mkdir`、`out.mkdir`、`(out / "backend").symlink_to`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`list`、`outside.iterdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reserved_native_fields_are_not_silently_discarded`（L170–L175）：接收`tmp_path`。 控制顺序：L175断言`not list(tmp_path.iterdir())`。 调用`plan`、`pytest.raises`、`generate_offline`、`sources`、`list`、`tmp_path.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_and_traversal_targets_rejected`（L181–L184）：接收`tmp_path`、`name`。 控制顺序：L184断言`not list(tmp_path.iterdir())`。 调用`pytest.raises`、`_write_new`、`list`、`tmp_path.iterdir`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_casefold_existing_path_conflict_is_preflighted`（L187–L192）：接收`tmp_path`。 控制顺序：L191断言`not (tmp_path / "generated").exists()`；L192断言`not list((tmp_path / "BACKEND").iterdir())`。 调用`(tmp_path / "BACKEND").mkdir`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`(tmp_path / "generated").exists`、`list`、`(tmp_path / "BACKEND").iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_windows_junction_is_rejected`（L195–L201）：接收`tmp_path`、`monkeypatch`。 控制顺序：L201断言`not (tmp_path / "generated").exists()`。 调用`(tmp_path / "backend").mkdir`、`monkeypatch.setattr`、`original`、`pytest.raises`、`generate_offline`、`plan`、`sources`、`(tmp_path / "generated").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_offline.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L187。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_offline.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L201。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8225`。本段原文以LF换行结束。
+本段原始字节数：`8924`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_offline.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "17cae9101d8c9263abc1b0057e51f5a68100d3bf8d9864bb837135f5ef280fd3"} -->
+<!-- learning-source: {"path": "tests/test_native_offline.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d0d30a1b540ea2b227932de4a27f75f69ec6595f70d3e92196643f8ca77e6b14"} -->
 ````python
 # tests/test_native_offline.py
 """Source-only native generation must be useful without executing upstream code."""
@@ -93,12 +94,22 @@ def forbidden(*args, **kwargs):
     raise AssertionError("Offline generation attempted a process/network operation")
 
 
-def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
+@pytest.mark.parametrize("default_encoding", ["utf-8", "cp1252"])
+def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch, default_encoding):
+    # Exercise Windows-style defaults without enabling global Python UTF-8 mode.
+    original_read_text = Path.read_text
+
+    def locale_read_text(path, encoding=None, errors=None, newline=None):
+        return original_read_text(
+            path, encoding=encoding or default_encoding, errors=errors, newline=newline
+        )
+
+    monkeypatch.setattr(Path, "read_text", locale_read_text)
     monkeypatch.setattr(subprocess, "Popen", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
     baseline = tmp_path / "backend" / "main.py"
     baseline.parent.mkdir()
-    baseline.write_text("raise RuntimeError('upstream must not execute')\n")
+    baseline.write_text("raise RuntimeError('upstream must not execute')\n", encoding="utf-8")
     receipt = generate_offline("fastapiadmin", plan(), tmp_path, sources("fastapiadmin"))
     assert receipt["generation_status"] == "partial"
     assert receipt["pending_steps"]
@@ -108,12 +119,12 @@ def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
         path = tmp_path / name
         assert path.is_file()
         if path.suffix == ".py":
-            ast.parse(path.read_text())
+            ast.parse(path.read_text(encoding="utf-8"))
     root = tmp_path / "backend/app/plugin/module_rnd/tickets"
-    assert "class TicketsModel" in (root / "model.py").read_text()
-    assert "String(80)" in (root / "model.py").read_text()
-    assert "TicketsRouter" in (root / "controller.py").read_text()
-    schema = ast.parse((root / "schema.py").read_text())
+    assert "class TicketsModel" in (root / "model.py").read_text(encoding="utf-8")
+    assert "String(80)" in (root / "model.py").read_text(encoding="utf-8")
+    assert "TicketsRouter" in (root / "controller.py").read_text(encoding="utf-8")
+    schema = ast.parse((root / "schema.py").read_text(encoding="utf-8"))
     create = next(
         node
         for node in schema.body
@@ -127,11 +138,13 @@ def test_fastapi_real_business_sources_without_runtime(tmp_path, monkeypatch):
     title_args = {k.arg: ast.literal_eval(k.value) for k in fields["title"].value.keywords}
     assert title_args["max_length"] == 80
     assert title_args["description"] == plan()["entities"][0]["fields"][0]["label"]
-    api_source = (tmp_path / "frontend/web/src/api/module_rnd/tickets.ts").read_text()
+    api_source = (tmp_path / "frontend/web/src/api/module_rnd/tickets.ts").read_text(
+        encoding="utf-8"
+    )
     assert "/rnd/tickets" in api_source
     assert "//rnd" not in api_source
     assert (tmp_path / "frontend/web/src/views/module_rnd/tickets/index.vue").is_file()
-    stored = json.loads((tmp_path / "generated/business-schema.json").read_text())
+    stored = json.loads((tmp_path / "generated/business-schema.json").read_text(encoding="utf-8"))
     assert stored["entities"][0]["description"] == plan()["entities"][0]["description"]
 
 
@@ -143,10 +156,10 @@ def test_output_is_deterministic_and_never_clobbers(tmp_path, template):
     for name in receipt["generated_files"]:
         assert (first / name).read_bytes() == (second / name).read_bytes()
     marker = first / receipt["generated_files"][0]
-    marker.write_text("USER EDIT")
+    marker.write_text("USER EDIT", encoding="utf-8")
     with pytest.raises(FileExistsError):
         generate_offline(template, plan(), first, sources(template))
-    assert marker.read_text() == "USER EDIT"
+    assert marker.read_text(encoding="utf-8") == "USER EDIT"
 
 
 def test_yudao_is_honest_sql_only_partial(tmp_path, monkeypatch):
@@ -155,12 +168,14 @@ def test_yudao_is_honest_sql_only_partial(tmp_path, monkeypatch):
     receipt = generate_offline("yudao-vben", plan(), tmp_path, sources("yudao-vben"))
     assert receipt["generation_status"] == "partial"
     assert any("not Java/Vue" in s for s in receipt["pending_steps"])
-    sql = (tmp_path / "backend/sql/workbench-business.sql").read_text()
+    sql = (tmp_path / "backend/sql/workbench-business.sql").read_text(encoding="utf-8")
     assert 'CREATE TABLE "wb_tickets"' in sql
     assert '"title" VARCHAR(80) NOT NULL' in sql
     assert '"due" DATE NOT NULL' in sql
     assert not any(p.endswith((".java", ".vue")) for p in receipt["generated_files"])
-    template_inputs = json.loads((tmp_path / "generated/offline-template-inputs.json").read_text())
+    template_inputs = json.loads(
+        (tmp_path / "generated/offline-template-inputs.json").read_text(encoding="utf-8")
+    )
     assert "java/dal/do.vm" in template_inputs
 
 

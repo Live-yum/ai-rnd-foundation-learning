@@ -134,6 +134,22 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
             verify_candidate(destination, saved)
             return saved
     capability = runtime_capability(template)
+    if plan.custom_rules and (not settings.enable_coding or settings.coding_engine != "aider"):
+        capability = {
+            "available": False,
+            "reason": "原生业务规则运行实现需要 ENABLE_CODING=true 和 CODING_ENGINE=aider；"
+            "已批准规则保留为待实现、待运行验证事项",
+        }
+    elif plan.custom_rules and capability["available"]:
+        from workbench.coding.aider import executable
+
+        try:
+            executable(settings)  # Read-only path checks; never starts Aider.
+        except ValueError:
+            capability = {
+                "available": False,
+                "reason": "原生规则编码器的独立 Aider 工具环境不可用；批准规则保留为待实现事项",
+            }
     if not capability["available"]:
         if receipt_path.is_file():
             raise PrerequisiteError("已验收运行产物不能自动降级或被覆盖")
@@ -146,14 +162,13 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
         _, url = runtime_config(settings, template)
         redis_port = 6379
     else:
-        from workbench.infrastructure.native.resources import for_run
-        from workbench.infrastructure.processes.tools import ToolFailure
+        from workbench.infrastructure.native.resources import NativeServiceUnavailable, for_run
 
         try:
             url, redis_port = for_run(settings, destination.parent.name)
         except PermissionError:
             raise
-        except ToolFailure, OSError:
+        except NativeServiceUnavailable:
             if receipt_path.is_file() or destination.exists():
                 raise
             return generate_candidate(

@@ -17,7 +17,7 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Workflow`（L95–L937）：继承`ExtensionWorkflow`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Workflow`（L95–L976）：继承`ExtensionWorkflow`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Workflow.__init__`（L96–L97）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Workflow.product`（L99–L100）：接收`state`。 返回路径：L100的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
 - `Workflow.gate`（L102–L121）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L108按`action in {"approve", "recommend"} and can_approve and stage in {"requirements", "des…`分支；L116按`recovery`分支；L118按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.capability_recovery`、`self.store.auto_approve`。 返回路径：L117的`{**recovery, "decision": "revise", "last_job_id": value["job_id"]}`；L121的`{"decision": action, "last_job_id": value["job_id"]}`。
@@ -27,32 +27,33 @@
 - `Workflow.requirements`（L301–L356）：接收`state`。 控制顺序：L309按`capability_conflicts`分支；L312按`not supported`分支；L321按`diagnostics`分支；L323按`isinstance(blocked, str)`分支；L335按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L350按`diagnostics`分支；L354按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`data.get`、`isinstance`、`self.gate`等。 返回路径：L356的`outcome`。
 - `Workflow.source_context`（L358–L367）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L367的`{"code_context": value}`。
 - `Workflow.plan`（L369–L432）：接收`state`。 控制顺序：L372遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`registration_scope`、`self.store.messages`、`state.get`、`state.get("resolution_feedback", {}).get`等。 返回路径：L432的`{"plan": value.model_dump(), "attempt": 0, "native_normalization": normalization}`。
-- `Workflow.design`（L434–L558）：接收`state`。 控制顺序：L441按`state.get("feature_design")`分支；L452按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L487按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L494按`plan.custom_rules and not self.settings.enable_coding`分支；L497按`state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_en…`分支；L504按`state["template"] != "python-basic"`分支；L510按`runtime_enabled(self.settings, state["template"])`分支；L546按`outcome["decision"] in {"revise", "recommend"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`source_plan`、`state.get`、`list`、`len`、`reasons.extend`、`reason_sources.extend`、`options_for_run`、`self.store.get_run`等。 返回路径：L558的`outcome`。
-- `Workflow.generate`（L560–L586）：接收`state`。 控制顺序：L561按`state.get("feature_design")`分支；L564按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L586的`{"native_generation": receipt} if state["template"] != "python-basic" else {}`。
+- `Workflow.design`（L434–L558）：接收`state`。 控制顺序：L441按`state.get("feature_design")`分支；L452按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L487按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L494按`state["template"] == "python-basic" and plan.custom_rules and not self.settings.enabl…`分支；L504按`state["template"] != "python-basic"`分支；L510按`runtime_enabled(self.settings, state["template"])`分支；L546按`outcome["decision"] in {"revise", "recommend"}`分支；L556按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`source_plan`、`state.get`、`list`、`len`、`reasons.extend`、`reason_sources.extend`、`options_for_run`、`self.store.get_run`等。 返回路径：L558的`outcome`。
+- `Workflow.generate`（L560–L613）：接收`state`。 控制顺序：L561按`state.get("feature_design")`分支；L564按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L613的`{"native_generation": receipt} if state["template"] != "python-basic" else {}`。
 - `Workflow.generate.fn`（L566–L571）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L567的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
-- `Workflow.generate.fn`（L575–L583）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`、`self.native_customization`。 返回路径：L576的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
-- `Workflow.native_customization`（L588–L593）：接收`state`、`plan`。 控制顺序：L589按`not plan.custom_rules`分支。 调用`native_rule_customizer`。 返回路径：L590的`None`；L593的`native_rule_customizer(self.settings, self.gateway, state["run_id"])`。
-- `Workflow.run_coder`（L595–L615）：接收`state`、`plan`。 控制顺序：L596按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L599的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L608的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
-- `Workflow.code`（L617–L629）：接收`state`。 控制顺序：L619按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L620的`{}`；L628的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L629的`{}`。
-- `Workflow.verify`（L631–L643）：接收`state`。 控制顺序：L632按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L643的`{"verification": result}`。
-- `Workflow.after_verify`（L645–L661）：接收`state`。 控制顺序：L646按`state.get("native_generation", {}).get("execution") == "source-candidate" and state["…`分支；L651按`state["verification"]["passed"]`分支；L653按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L659抛异常，停止当前正常路径。 调用`state.get("native_generation", {}).get`、`state.get`、`state["verification"].get`、`state["plan"].get`、`PrerequisiteError`。 返回路径：L650的`"package"`；L652的`"sandbox"`；L658的`"repair"`。
-- `Workflow.sandbox`（L663–L669）：接收`state`。 控制顺序：L664按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L665的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L669的`{"sandbox": {"enabled": True, **result}}`。
-- `Workflow.model_review`（L671–L705）：接收`state`。 控制顺序：L676按`not self.settings.review_enabled`分支；L678按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`state.get`等。 返回路径：L680的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L705的`{"model_review": result}`。
-- `Workflow.require_review_clearance`（L707–L733）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L711按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L712按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L728按`gaps`分支；L729抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.repair`（L735–L736）：接收`state`。 返回路径：L736的`{"attempt": state["attempt"] + 1}`。
-- `Workflow.package`（L738–L775）：接收`state`。 控制顺序：L739按`state.get("feature_design")`分支；L743按`not source_candidate`分支；L745按`state.get("requirement")`分支；L761按`gaps`分支；L762抛异常，停止当前正常路径；L763按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`state.get("native_generation", {}).get`、`self.require_review_clearance`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`等。 返回路径：L775的`{"delivery": result}`。
-- `Workflow.delivery`（L777–L791）：接收`state`。 控制顺序：L782按`decision["decision"] == "revise"`分支；L784按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L785抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L783的`{**decision, "round": state["round"] + 1, "status": "RUNNING"}`；L791的`decision`。
-- `Workflow.observed_node`（L793–L814）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L814的`observed`。
-- `Workflow.observed_node.observed`（L797–L812）：接收`state`。 控制顺序：L805抛异常，停止当前正常路径；L810抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L812的`result`。
-- `Workflow.compile`（L816–L937）：接收`checkpointer`。 控制顺序：L818遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`state.get`、`s["feature_design"].get`、`graph.compile`。 返回路径：L937的`graph.compile(checkpointer=checkpointer)`。
+- `Workflow.generate.fn`（L575–L610）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L584按`receipt.get("execution") == "source-candidate" and plan.custom_rules`分支。 调用`generate_native`、`self.product`、`self.native_customization`、`receipt.get`、`verify_candidate`、`refresh_candidate`、`list`、`dict.fromkeys`。 返回路径：L610的`receipt`。
+- `Workflow.native_customization`（L615–L632）：接收`state`、`plan`。 控制顺序：L616按`not plan.custom_rules`分支。 返回路径：L617的`None`；L632的`customize`。
+- `Workflow.native_customization.customize`（L619–L630）：接收`*args`、`**kwargs`。 控制顺序：L622按`not self.settings.enable_coding or self.settings.coding_engine != "aider"`分支；L623抛异常，停止当前正常路径。 调用`PrerequisiteError`、`native_rule_customizer(self.settings, self.gateway, state["run_id…`、`native_rule_customizer`。 返回路径：L628的`native_rule_customizer(self.settings, self.gateway, state["run_id"])( *args, **kwargs )`。
+- `Workflow.run_coder`（L634–L654）：接收`state`、`plan`。 控制顺序：L635按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L638的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L647的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
+- `Workflow.code`（L656–L668）：接收`state`。 控制顺序：L658按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L659的`{}`；L667的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L668的`{}`。
+- `Workflow.verify`（L670–L682）：接收`state`。 控制顺序：L671按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L682的`{"verification": result}`。
+- `Workflow.after_verify`（L684–L700）：接收`state`。 控制顺序：L685按`state.get("native_generation", {}).get("execution") == "source-candidate" and state["…`分支；L690按`state["verification"]["passed"]`分支；L692按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L698抛异常，停止当前正常路径。 调用`state.get("native_generation", {}).get`、`state.get`、`state["verification"].get`、`state["plan"].get`、`PrerequisiteError`。 返回路径：L689的`"package"`；L691的`"sandbox"`；L697的`"repair"`。
+- `Workflow.sandbox`（L702–L708）：接收`state`。 控制顺序：L703按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L704的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L708的`{"sandbox": {"enabled": True, **result}}`。
+- `Workflow.model_review`（L710–L744）：接收`state`。 控制顺序：L715按`not self.settings.review_enabled`分支；L717按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`state.get`等。 返回路径：L719的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L744的`{"model_review": result}`。
+- `Workflow.require_review_clearance`（L746–L772）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L750按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L751按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L767按`gaps`分支；L768抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.repair`（L774–L775）：接收`state`。 返回路径：L775的`{"attempt": state["attempt"] + 1}`。
+- `Workflow.package`（L777–L814）：接收`state`。 控制顺序：L778按`state.get("feature_design")`分支；L782按`not source_candidate`分支；L784按`state.get("requirement")`分支；L800按`gaps`分支；L801抛异常，停止当前正常路径；L802按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`state.get("native_generation", {}).get`、`self.require_review_clearance`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`等。 返回路径：L814的`{"delivery": result}`。
+- `Workflow.delivery`（L816–L830）：接收`state`。 控制顺序：L821按`decision["decision"] == "revise"`分支；L823按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L824抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L822的`{**decision, "round": state["round"] + 1, "status": "RUNNING"}`；L830的`decision`。
+- `Workflow.observed_node`（L832–L853）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L853的`observed`。
+- `Workflow.observed_node.observed`（L836–L851）：接收`state`。 控制顺序：L844抛异常，停止当前正常路径；L849抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L851的`result`。
+- `Workflow.compile`（L855–L976）：接收`checkpointer`。 控制顺序：L857遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`state.get`、`s["feature_design"].get`、`graph.compile`。 返回路径：L976的`graph.compile(checkpointer=checkpointer)`。
 
 </details>
 
-**创建路径：** `workbench/production/graph.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L937。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/graph.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L976。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`52664`。本段原文以LF换行结束。
+本段原始字节数：`54620`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/graph.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "52e90dc156897545162c689f1dd76d23f99e0c3639fcaeda7e7b86b1777019cb"} -->
+<!-- learning-source: {"path": "workbench/production/graph.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "973519ef6193ebabe648d592f8705bcf49a70a821feb0237242b7b109a5504e0"} -->
 ````python
 # workbench/production/graph.py
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
@@ -135,7 +136,7 @@ approved_requirement.limitations 是已排除的边界说明，不得复制进 P
 entrypoint_obligation 是从用户原文确定的报名入口义务；authenticated_business_ui 必须由真实报名实体、默认非管理员参赛角色、create/read 与 own 行权限实现；用户要求注册账号时启用 registration.enabled。原生管理端普通CRUD不能替代参赛者自行报名。python-basic 的 per_user 内置登录与本人记录隔离也可实现该入口，不自动要求匿名访问或独立门户。
 Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板限制清单。runtime_constraints 是实际配置约束，不能假称环境已满足。
 原生FastapiAdmin和芋道的entities[].description直接用作代码生成显示标题：1到100字符，只能中文、字母、数字、下划线、空格和连字符，不能含标点、代码分隔符、换行或制表符；详细业务说明放入验收条件，不写入这个短标题。
-原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则必须在runtime_constraints中coding_engine=aider时使用。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
+原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则的实际运行实现需要runtime_constraints中coding_engine=aider；源码候选可以保留这些规则及完整正反例为待实现、待验证事项，不能因缺少运行工具删除已批准规则或声称已实现。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
 需要团队关系、负责人、状态、处理记录、提醒、统计和角色时，使用完整 business 契约，data_scope=shared，独立字段用 business_contract.field_kinds。
 业务记录间与用户引用用 text 逻辑ID+relations；assignee_field 必须可空并由 assign 动作设置；状态字段 enum 必填，初始值由workflow.initial设置；完成时间 datetime 可空并由 transition.set_timestamp 设置。
 所有实体都声明resource；权限默认拒绝，每角色实体列完整动作与 own/assigned/all 范围；注册默认角色不能是管理角色，初始化与角色管理角色显式声明。
@@ -548,16 +549,16 @@ class Workflow(ExtensionWorkflow):
         ):
             reasons.append("共享业务必须有完整关系、角色和动作的 business 契约")
             reason_sources.append("business_contract")
-        if plan.custom_rules and not self.settings.enable_coding:
+        if (
+            state["template"] == "python-basic"
+            and plan.custom_rules
+            and not self.settings.enable_coding
+        ):
             reasons.append("当前配置已禁用规则编码器")
             reason_sources.append("coding_disabled")
-        if (
-            state["template"] != "python-basic"
-            and plan.custom_rules
-            and self.settings.coding_engine != "aider"
-        ):
-            reasons.append("原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成")
-            reason_sources.append("native_coding_engine")
+        # Native rule tooling is checked only if runtime customization actually
+        # runs. Missing tools/resources may instead yield an unverified source
+        # candidate with those approved rules explicitly retained as pending.
         if state["template"] != "python-basic":
             from workbench.delivery.native import runtime_config, runtime_enabled
             from workbench.generation.native.modules import validate_plan
@@ -630,7 +631,7 @@ class Workflow(ExtensionWorkflow):
             from workbench.generation.native.service import generate_native
 
             def fn():
-                return generate_native(
+                receipt = generate_native(
                     self.settings,
                     state["template"],
                     plan,
@@ -638,6 +639,33 @@ class Workflow(ExtensionWorkflow):
                     managed=True,
                     customization=self.native_customization(state, plan),
                 )
+                if receipt.get("execution") == "source-candidate" and plan.custom_rules:
+                    from workbench.delivery.source_candidate import (
+                        refresh_candidate,
+                        verify_candidate,
+                    )
+
+                    verify_candidate(self.product(state), receipt)
+                    receipt = refresh_candidate(
+                        self.product(state),
+                        receipt,
+                        generation_status="partial",
+                        pending_steps=list(
+                            dict.fromkeys(
+                                [
+                                    *receipt.get("pending_steps", []),
+                                    *[
+                                        "Implement/review and runtime-verify approved custom rule "
+                                        + rule.entity
+                                        + ": "
+                                        + rule.description
+                                        for rule in plan.custom_rules
+                                    ],
+                                ]
+                            )
+                        ),
+                    )
+                return receipt
 
         receipt = self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
         return {"native_generation": receipt} if state["template"] != "python-basic" else {}
@@ -645,9 +673,21 @@ class Workflow(ExtensionWorkflow):
     def native_customization(self, state, plan):
         if not plan.custom_rules:
             return None
-        from workbench.generation.native.coding import native_rule_customizer
 
-        return native_rule_customizer(self.settings, self.gateway, state["run_id"])
+        def customize(*args, **kwargs):
+            # Defer both optional runtime imports and Aider/enable_coding checks
+            # until managed generation actually invokes runtime customization.
+            if not self.settings.enable_coding or self.settings.coding_engine != "aider":
+                raise PrerequisiteError(
+                    "原生业务规则运行实现需要 ENABLE_CODING=true 和 CODING_ENGINE=aider"
+                )
+            from workbench.generation.native.coding import native_rule_customizer
+
+            return native_rule_customizer(self.settings, self.gateway, state["run_id"])(
+                *args, **kwargs
+            )
+
+        return customize
 
     def run_coder(self, state, plan):
         if self.settings.coding_engine == "aider":

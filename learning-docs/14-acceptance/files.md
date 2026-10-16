@@ -232,6 +232,7 @@
 - [tests/test_sla_vertical.py](sources/tests__test_sla_vertical_py--001.md)：可重复的验收用例；1 段
 - [tests/test_source_candidate_delivery.py](sources/tests__test_source_candidate_delivery_py--001.md)：可重复的验收用例；1 段
 - [tests/test_source_candidate_workflow.py](sources/tests__test_source_candidate_workflow_py--001.md)：可重复的验收用例；1 段
+- [tests/test_source_snapshot_integrity.py](sources/tests__test_source_snapshot_integrity_py--001.md)：可重复的验收用例；1 段
 - [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；2 段
