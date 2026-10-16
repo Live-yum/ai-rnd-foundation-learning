@@ -1,8 +1,8 @@
-# workbench/delivery/source_candidate.py · 1/1
+# workbench/delivery/source_candidate.py · 1/2
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-
+[下一段](workbench__delivery__source_candidate_py--002.md)
 
 **作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
 
@@ -36,18 +36,20 @@
 - `refresh_candidate`（L456–L508）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L461按`receipt.get("execution") != "source-candidate"`分支；L462抛异常，停止当前正常路径；L465按`"files" in receipt or inside(destination, "SOURCE-STATUS.json").exists() or inside(de…`分支；L473遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L478按`value is not None`分支；L490按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L491抛异常，停止当前正常路径；L493按`not receipt.get("preserve_runtime_files")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`receipt.get`、`PrerequisiteError`、`inside`、`saved_path.is_file`、`json.loads`、`saved_path.read_text`、`inside(destination, "SOURCE-STATUS.json").exists`、`inside(destination.parent, "source-candidate-status.json").exists`等。 返回路径：L508的`receipt`。
 - `derive_candidate`（L511–L602）：接收`source`、`edited`、`destination`、`base_receipt`、`edit_receipt`、`derivation`、`pending_steps`、`generated_files`。 源码说明：Atomically publish an independently bound draft; never alter recovery source.。 控制顺序：L525按`destination.absolute() != expected_destination.absolute()`分支；L526抛异常，停止当前正常路径；L531按`edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files`分支；L532抛异常，停止当前正常路径；L540按`derivation != expected or not isinstance(expected["approved_files"], list)`分支；L541抛异常，停止当前正常路径；L544按`any(name.casefold() in reserved for name in approved) or { name for name in set(origi…`分支；L553抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`destination.absolute`、`expected_destination.absolute`、`PrerequisiteError`、`verify_candidate`、`manifest`、`edit_receipt.get`、`digest`等。 返回路径：L568的`saved`；L602的`result`。
 - `write_status`（L605–L619）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retain_failed_candidate`（L622–L657）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L626按`not listing`分支；L627抛异常，停止当前正常路径；L630按`recovery and recovery.get("files") != listing`分支；L631抛异常，停止当前正常路径；L634遍历`sources`；L635按`digest(manifest(source["path"])) != source["source_digest"]`分支；L636抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L657的`refresh_candidate(destination, receipt)`。
-- `generate_candidate`（L660–L688）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L667按`destination.exists()`分支；L668抛异常，停止当前正常路径；L671按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L688的`refresh_candidate(destination, receipt)`。
-- `verify_candidate`（L691–L754）：接收`destination`、`receipt`。 控制顺序：L694按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L698抛异常，停止当前正常路径；L699按`not current or current != receipt.get("files")`分支；L700抛异常，停止当前正常路径；L701按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L705抛异常，停止当前正常路径；L708按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L713抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`check_status_binding`、`isinstance`、`claim.get`、`inside`、`digest`等。 返回路径：L754的`result`。
-- `package_candidate`（L757–L789）：接收`destination`、`report`。 控制顺序：L763按`report != verified`分支；L764抛异常，停止当前正常路径；L767按`receipt.get("preserve_runtime_files")`分支；L770遍历`files(destination)`；L779按`manifest(destination) != receipt["files"]`分支；L780抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L789的`result`。
+- `retain_failed_candidate`（L622–L667）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L626按`not listing`分支；L627抛异常，停止当前正常路径；L630按`recovery and recovery.get("files") != listing`分支；L631抛异常，停止当前正常路径；L634遍历`sources`；L635按`digest(manifest(source["path"])) != source["source_digest"]`分支；L636抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L667的`refresh_candidate(destination, receipt)`。
+- `_publish_new`（L670–L703）：接收`source`、`target`。 源码说明：Atomic no-replace publication; unsupported systems must fail closed.。 控制顺序：L676按`os.name == "nt"`分支；L680按`sys.platform == "linux"`分支；L682按`function is None`分支；L683抛异常，停止当前正常路径；L692按`sys.platform == "darwin"`分支；L694按`function is None`分支；L695抛异常，停止当前正常路径；L699抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.rename`、`ctypes.CDLL`、`getattr`、`PrerequisiteError`、`os.fsencode`、`function`、`ctypes.get_errno`、`OSError`、`os.strerror`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_transaction_tree`（L706–L735）：接收`root`。 源码说明：Bind every byte and mode, including Git metadata and excluded filenames.。 控制顺序：L712按`not root.is_dir()`分支；L713抛异常，停止当前正常路径；L719遍历`os.walk(root, followlinks=False, onerror=denied)`；L720遍历`sorted(dirs + names)`；L724按`stat.S_ISDIR(info.st_mode)`分支；L726按`stat.S_ISREG(info.st_mode)`分支；L728按`info.st_size > 512_000_000 or total > 1_000_000_000`分支；L729抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`inside`、`Path`、`root.is_dir`、`PrerequisiteError`、`os.walk`、`sorted`、`(Path(directory) / name).relative_to(root).as_posix`、`(Path(directory) / name).relative_to`、`path.lstat`等。 返回路径：L735的`result`。
+- `_transaction_tree.denied`（L716–L717）：接收`error`。 控制顺序：L717抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `recover_candidate`（L738–L859）：接收`template`、`plan`、`destination`。 源码说明：Resume only a complete, identity-bound source publication transaction.。 控制顺序：L742按`not transaction.exists()`分支；L754按`not isinstance(seal, dict) or set(seal) != {*expected, "tree", "receipt"} or any(seal…`分支；L759抛异常，停止当前正常路径；L761按`before != seal["tree"]`分支；L762抛异常，停止当前正常路径；L764按`receipt != seal["receipt"] or receipt.get("template") != template or receipt.get("spe…`分支；L769抛异常，停止当前正常路径；L775按`product_files != set(receipt.get("files", {}))`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`transaction.exists`、`seal_path.read_bytes`、`json.loads`、`digest`、`plan.model_dump`、`isinstance`、`set`等。 返回路径：L743的`None`；L859的`receipt`。
+- `recover_candidate.matches`（L792–L807）：接收`name`、`target`。 控制顺序：L793按`target.is_dir()`分支；L799按`not target.is_file()`分支；L800抛异常，停止当前正常路径。 调用`target.is_dir`、`target.stat`、`actual.update`、`_transaction_tree(target).items`、`_transaction_tree`、`target.is_file`、`PrerequisiteError`、`sha`、`before.items`等。 返回路径：L807的`actual == wanted`。
 
 </details>
 
-**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L789。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L861。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35633`。本段原文以LF换行结束。
+本段原始字节数：`38880`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e2f471338ad89e1ef15f94416850cecb41ea1d5e0d46ff4b170589a9cfc2c1cd"} -->
+<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "b6e349917a0ebbd878573a77dd77d43cd6b1a86abe8a17229e2acc7eeed6eaf4"} -->
 ````python
 # workbench/delivery/source_candidate.py
 """Retain source without claiming execution, acceptance, or deployment.
@@ -702,141 +704,213 @@ def retain_failed_candidate(template, plan, destination, sources, error_type):
         "runtime_unavailable_reason": "原生运行流程未完成（"
         + error_type
         + "）；源码已保留，原始诊断在本机运行证据中",
-        "pending_steps": ["检查本机原生运行失败证据", "在具备能力且获授权的环境恢复生成和运行验收"],
+        "pending_steps": [
+            "检查本机原生运行失败证据",
+            "在具备能力且获授权的环境恢复生成和运行验收",
+            *[
+                "Implement/review and runtime-verify approved custom rule "
+                + rule.entity
+                + ": "
+                + rule.description
+                for rule in plan.custom_rules
+            ],
+        ],
         "generated_files": [name for name, value in listing.items() if baseline.get(name) != value],
         "preserve_runtime_files": True,
     }
     return refresh_candidate(destination, receipt)
 
 
-def generate_candidate(settings, template, plan, destination, reason):
-    from workbench.generation.native.offline import generate_offline
-    from workbench.generation.native.service import prepare_sources
-    from workbench.infrastructure.native.environment import copy_source
-    from workbench.templates.standards import write_coding_standard
+def _publish_new(source, target):
+    """Atomic no-replace publication; unsupported systems must fail closed."""
+    import ctypes
+    import os
+    import sys
 
-    destination = Path(destination)
-    if destination.exists():
-        raise PrerequisiteError("已有源码不能被离线生成覆盖；请保留当前运行并创建新的运行")
-    sources = prepare_sources(settings, template)
-    slots = {item["slot"]: Path(item["path"]) for item in sources}
-    if template == "fastapiadmin":
-        copy_source(slots["fastapiadmin"], destination)
+    if os.name == "nt":
+        os.rename(source, target)  # Windows never replaces an existing target.
+        return
+    library = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "linux":
+        function = getattr(library, "renameat2", None)
+        if function is None:
+            raise PrerequisiteError("系统缺少安全的不覆盖发布能力")
+        function.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        args = (-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    elif sys.platform == "darwin":
+        function = getattr(library, "renamex_np", None)
+        if function is None:
+            raise PrerequisiteError("系统缺少安全的不覆盖发布能力")
+        function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        args = (os.fsencode(source), os.fsencode(target), 4)
     else:
-        copy_source(slots["backend"], destination / "backend")
-        copy_source(slots["frontend"], destination / "frontend-product")
-    write_json(destination / "approved-spec.json", plan.model_dump())
-    write_coding_standard(destination, template)
-    generated = generate_offline(template, plan, destination, sources)
-    receipt = {
+        raise PrerequisiteError("当前系统不支持安全的不覆盖发布")
+    function.restype = ctypes.c_int
+    if function(*args):
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(target))
+
+
+def _transaction_tree(root):
+    """Bind every byte and mode, including Git metadata and excluded filenames."""
+    import os
+    import stat
+
+    root = inside(Path(root).parent, Path(root).name)
+    if not root.is_dir():
+        raise PrerequisiteError("源码事务目录缺失")
+    result, total = {}, 0
+
+    def denied(error):
+        raise error
+
+    for directory, dirs, names in os.walk(root, followlinks=False, onerror=denied):
+        for name in sorted(dirs + names):
+            path = inside(root, (Path(directory) / name).relative_to(root).as_posix())
+            info = path.lstat()
+            relative = path.relative_to(root).as_posix()
+            if stat.S_ISDIR(info.st_mode):
+                result[relative] = ["directory", stat.S_IMODE(info.st_mode)]
+            elif stat.S_ISREG(info.st_mode):
+                total += info.st_size
+                if info.st_size > 512_000_000 or total > 1_000_000_000:
+                    raise PrerequisiteError("源码事务超过验证大小限制")
+                result[relative] = ["file", stat.S_IMODE(info.st_mode), info.st_size, sha(path)]
+            else:
+                raise PrerequisiteError("源码事务只允许普通文件和目录")
+            if len(result) > 100_000:
+                raise PrerequisiteError("源码事务超过验证文件数量限制")
+    return result
+
+
+def recover_candidate(template, plan, destination):
+    """Resume only a complete, identity-bound source publication transaction."""
+    destination = Path(destination)
+    transaction = inside(destination.parent, ".source-candidate-transaction")
+    if not transaction.exists():
+        return None
+    seal_path = inside(transaction, "transaction.json")
+    stage = inside(transaction, "candidate")
+    seal_bytes = seal_path.read_bytes()
+    seal = json.loads(seal_bytes)
+    expected = {
+        "version": 1,
         "template": template,
-        "execution": "source-candidate",
         "spec_digest": digest(plan.model_dump()),
-        "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
-        "verification_status": "unverified",
-        "runtime_unavailable_reason": reason,
-        **generated,
+        "product": destination.name,
     }
-    return refresh_candidate(destination, receipt)
+    if (
+        not isinstance(seal, dict)
+        or set(seal) != {*expected, "tree", "receipt"}
+        or any(seal.get(key) != value for key, value in expected.items())
+    ):
+        raise PrerequisiteError("源码事务与批准设计或目标不匹配")
+    before = _transaction_tree(stage)
+    if before != seal["tree"]:
+        raise PrerequisiteError("源码事务内容已改变，拒绝恢复")
+    receipt = json.loads(inside(stage, "native-generation.json").read_text(encoding="utf-8"))
+    if (
+        receipt != seal["receipt"]
+        or receipt.get("template") != template
+        or receipt.get("spec_digest") != expected["spec_digest"]
+    ):
+        raise PrerequisiteError("源码事务回执不匹配")
+    product_files = {
+        name[len(destination.name) + 1 :]
+        for name, entry in before.items()
+        if name.startswith(destination.name + "/") and entry[0] == "file"
+    }
+    if product_files != set(receipt.get("files", {})):
+        raise PrerequisiteError("源码事务包含未纳入交付的额外文件")
+    product = inside(stage, destination.name)
+    if (
+        json.loads(inside(product, "approved-spec.json").read_text(encoding="utf-8"))
+        != plan.model_dump()
+    ):
+        raise PrerequisiteError("源码事务批准设计不匹配")
+    verify_candidate(product, receipt, persist=False)
+    names = {Path(name).parts[0] for name in before}
+    allowed = {destination.name, "native-generation.json", "verification.json", "source-revisions"}
+    if (
+        names - allowed
+        or not {destination.name, "native-generation.json", "verification.json"} <= names
+    ):
+        raise PrerequisiteError("源码事务包含未知发布项")
 
-
-def verify_candidate(destination, receipt):
-    destination = Path(destination)
-    current = manifest(destination)
-    if receipt.get("execution") != "source-candidate" or receipt.get("generation_status") not in {
-        "complete",
-        "partial",
-    }:
-        raise PrerequisiteError("候选源码身份或生成状态无效")
-    if not current or current != receipt.get("files"):
-        raise PrerequisiteError("候选源码与保存摘要不一致，拒绝打包")
-    if receipt.get("runtime_verified") is not False or receipt.get("verification_status") not in {
-        "unverified",
-        "failed",
-    }:
-        raise PrerequisiteError("候选源码的运行状态无效")
-    check_status_binding(destination, receipt)
-    claim = receipt.get("source_commit")
-    if not isinstance(claim, dict) or claim.get("status") not in {
-        "committed",
-        "unavailable",
-        "failed",
-    }:
-        raise PrerequisiteError("候选源码提交声明无效")
-    if claim["status"] == "committed":
-        # Verification must never repair or recreate a missing journal. Its path
-        # comes from current source identity, never from the mutable receipt.
-        journal = inside(destination.parent, "source-revisions/" + digest(current))
-        if not journal.is_dir():
-            raise PrerequisiteError("候选源码提交记录缺失，拒绝宣称已提交")
-        checked_commit = source_snapshot(destination)
-        if checked_commit["status"] == "committed" and checked_commit != claim:
-            raise PrerequisiteError("候选源码提交声明与实际 Git 证据不一致")
-    else:
-        # Non-commit receipts cannot smuggle arbitrary commit IDs/journal paths
-        # into delivery reports. Do not create a new Git history during verification.
-        checked_commit = {
-            "status": claim["status"],
-            "source_digest": digest(current),
-            "note": "没有已验证的 Git 提交；仅保留源码及摘要",
+    def matches(name, target):
+        if target.is_dir():
+            actual = {name: ["directory", target.stat().st_mode & 0o7777]}
+            actual.update(
+                {name + "/" + key: value for key, value in _transaction_tree(target).items()}
+            )
+        else:
+            if not target.is_file():
+                raise PrerequisiteError("源码事务发布目标不是普通文件")
+            actual = {
+                name: ["file", target.stat().st_mode & 0o7777, target.stat().st_size, sha(target)]
+            }
+        wanted = {
+            key: value for key, value in before.items() if key == name or key.startswith(name + "/")
         }
-    result = {
-        key: receipt[key]
-        for key in (
-            "execution",
-            "generation_status",
-            "verification_status",
-            "pending_steps",
-            "runtime_unavailable_reason",
-        )
-    }
-    result.update(
-        source_commit=checked_commit,
-        passed=False,
-        source_checks_passed=True,
-        validation_level="source",
-        runtime_verified=False,
-        production_ready=False,
-        acceptance_passed=False,
-        source_digest=digest(current),
-        checks=["source-manifest"]
-        + (["source-git-journal"] if checked_commit["status"] == "committed" else []),
-    )
-    write_json(destination.parent / "verification.json", result)
-    return result
+        return actual == wanted
+
+    # Preflight every destination before publishing any item. Matching bytes are
+    # already-published evidence after a crash, never permission to overwrite.
+    for name in names:
+        target = inside(destination.parent, name)
+        if target.exists() and not matches(name, target):
+            raise PrerequisiteError("已有内容不属于本次源码事务，拒绝覆盖")
+    for name in sorted(names, key=lambda value: (value == "native-generation.json", value)):
+        target = inside(destination.parent, name)
+        if target.exists():
+            if not matches(name, target):
+                raise PrerequisiteError("源码事务发布目标已改变")
+            continue
+        original = inside(stage, name)
+        with tempfile.TemporaryDirectory(
+            prefix="source-publish-", dir=destination.parent
+        ) as temporary:
+            copied = Path(temporary) / name
+            if original.is_dir():
+                copied.mkdir()
+                for relative, entry in sorted(_transaction_tree(original).items()):
+                    source, output = inside(original, relative), inside(copied, relative)
+                    if entry[0] == "directory":
+                        output.mkdir()
+                    else:
+                        shutil.copy2(source, output, follow_symlinks=False)
+                for relative, entry in sorted(_transaction_tree(original).items(), reverse=True):
+                    if entry[0] == "directory":
+                        shutil.copystat(inside(original, relative), inside(copied, relative))
+                shutil.copystat(original, copied)
+            else:
+                shutil.copy2(original, copied, follow_symlinks=False)
+            if _transaction_tree(stage) != before or not matches(name, copied):
+                raise PrerequisiteError("源码事务复制期间发生变化")
+            if inside(destination.parent, name).exists():
+                raise PrerequisiteError("源码事务目标被其他内容占用")
+            _publish_new(copied, target)
+    if (
+        _transaction_tree(stage) != before
+        or inside(transaction, "transaction.json").read_bytes() != seal_bytes
+    ):
+        raise PrerequisiteError("源码事务在发布期间发生变化")
+    if any(not matches(name, inside(destination.parent, name)) for name in names):
+        raise PrerequisiteError("已发布源码事务内容发生变化")
+    verify_candidate(destination, receipt, persist=False)
+    # Retire the recovery marker atomically only after all published evidence
+    # validates. A later bounded edit must not be compared to this old snapshot.
+    with tempfile.TemporaryDirectory(
+        prefix="source-completed-", dir=destination.parent
+    ) as temporary:
+        _publish_new(transaction, Path(temporary) / "transaction")
+    return receipt
 
 
-def package_candidate(destination, report):
-    destination = Path(destination)
-    receipt = json.loads(
-        (destination.parent / "native-generation.json").read_text(encoding="utf-8")
-    )
-    verified = verify_candidate(destination, receipt)
-    if report != verified:
-        raise PrerequisiteError("候选源码报告不匹配")
-    package = destination.parent / "native-source.zip"
-    listing = manifest(destination)
-    if receipt.get("preserve_runtime_files"):
-        with tempfile.TemporaryDirectory(prefix="source-package-", dir=destination.parent) as temp:
-            root = Path(temp)
-            for name, path in files(destination):
-                target = inside(root, name)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(path, target)
-            write_status(root, verified)
-            archive = pack_source(root, package, template=receipt["template"])
-            listing = manifest(root)
-    else:
-        archive = pack_source(destination, package, template=receipt["template"])
-    if manifest(destination) != receipt["files"]:
-        raise PrerequisiteError("源码在打包期间发生变化，拒绝发布")
-    result = {
-        **verified,
-        "package": package.name,
-        "sha256": sha(package),
-        "files": listing,
-        "archive": archive,
-    }
-    write_json(destination.parent / "delivery.json", result)
-    return result
 ````

@@ -12,7 +12,7 @@ from workbench.business.contracts import BusinessSpec
 from workbench.coding import code_rules
 from workbench.core.contracts import ModelReview, Plan, Requirement, digest
 from workbench.errors import PausedLimit, UnsupportedScope
-from workbench.filesystem import sha, write_json
+from workbench.filesystem import manifest, sha, write_json
 from workbench.generation.python_basic import PrerequisiteError, generate_basic
 from workbench.knowledge_services.index import design_pack
 from workbench.production.dispatcher import ExtensionWorkflow
@@ -569,7 +569,30 @@ class Workflow(ExtensionWorkflow):
             outcome["status"] = "REJECTED"
         return outcome
 
+    def checked_native_generation(self, state, *, product=None):
+        """Bind disk evidence to the durable graph/step receipt before trusting it."""
+        receipt = state.get("native_generation")
+        if not isinstance(receipt, dict) or not receipt:
+            raise PrerequisiteError("原生产物缺少已批准生成回执")
+        product = self.product(state) if product is None else product
+        saved = json.loads((product.parent / "native-generation.json").read_text(encoding="utf-8"))
+        if saved != receipt:
+            raise PrerequisiteError("原生生成回执与批准状态不一致")
+        if (
+            receipt.get("template") != state["template"]
+            or receipt.get("spec_digest") != digest(Plan.model_validate(state["plan"]).model_dump())
+            or receipt.get("files") != manifest(product)
+        ):
+            raise PrerequisiteError("原生源码树或设计与批准生成回执不一致")
+        if receipt.get("execution") == "source-candidate":
+            from workbench.delivery.source_candidate import verify_candidate
+
+            verify_candidate(product, receipt)
+        return receipt
+
     def generate(self, state):
+        if state["template"] != "python-basic" and state.get("native_generation"):
+            self.checked_native_generation(state)
         if state.get("feature_design"):
             self.checked_feature(state)
         plan = Plan.model_validate(state["plan"])
@@ -593,36 +616,13 @@ class Workflow(ExtensionWorkflow):
                     managed=True,
                     customization=self.native_customization(state, plan),
                 )
-                if receipt.get("execution") == "source-candidate" and plan.custom_rules:
-                    from workbench.delivery.source_candidate import (
-                        refresh_candidate,
-                        verify_candidate,
-                    )
-
-                    verify_candidate(self.product(state), receipt)
-                    receipt = refresh_candidate(
-                        self.product(state),
-                        receipt,
-                        generation_status="partial",
-                        pending_steps=list(
-                            dict.fromkeys(
-                                [
-                                    *receipt.get("pending_steps", []),
-                                    *[
-                                        "Implement/review and runtime-verify approved custom rule "
-                                        + rule.entity
-                                        + ": "
-                                        + rule.description
-                                        for rule in plan.custom_rules
-                                    ],
-                                ]
-                            )
-                        ),
-                    )
                 return receipt
 
         receipt = self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
-        return {"native_generation": receipt} if state["template"] != "python-basic" else {}
+        if state["template"] != "python-basic":
+            self.checked_native_generation({**state, "native_generation": receipt})
+            return {"native_generation": receipt}
+        return {}
 
     def native_customization(self, state, plan):
         if not plan.custom_rules:
@@ -681,6 +681,7 @@ class Workflow(ExtensionWorkflow):
 
     def verify(self, state):
         if state["template"] != "python-basic":
+            self.checked_native_generation(state)
             from workbench.generation.native.service import verify_native
 
             result = verify_native(self.product(state))
@@ -795,6 +796,8 @@ class Workflow(ExtensionWorkflow):
         return {"attempt": state["attempt"] + 1}
 
     def package(self, state):
+        if state["template"] != "python-basic":
+            self.checked_native_generation(state)
         if state.get("feature_design"):
             self.checked_feature(state)
         # Also protects a checkpoint created before the review gate was enforced.

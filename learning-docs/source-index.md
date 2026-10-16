@@ -546,7 +546,7 @@
 - [tests/test_yudao_navigation_browser.py](13-delivery/sources/tests__test_yudao_navigation_browser_py--001.md)（1 段）
 - [tests/test_yudao_navigation_evidence.py](13-delivery/sources/tests__test_yudao_navigation_evidence_py--001.md)（1 段）
 - [tests/test_yudao_screenshot_readiness.py](13-delivery/sources/tests__test_yudao_screenshot_readiness_py--001.md)（1 段）
-- [workbench/delivery/source_candidate.py](13-delivery/sources/workbench__delivery__source_candidate_py--001.md)（1 段）
+- [workbench/delivery/source_candidate.py](13-delivery/sources/workbench__delivery__source_candidate_py--001.md)（2 段）
 ## [14-acceptance · 全平台验收与证据阅读](14-acceptance/README.md)
 
 - [.github/workflows/capability-browser-isolation.yml](14-acceptance/sources/_github__workflows__capability-browser-isolation_yml--001.md)（1 段）
@@ -777,6 +777,7 @@
 - [tests/test_sla_vertical.py](14-acceptance/sources/tests__test_sla_vertical_py--001.md)（1 段）
 - [tests/test_source_candidate_delivery.py](14-acceptance/sources/tests__test_source_candidate_delivery_py--001.md)（1 段）
 - [tests/test_source_candidate_derivation.py](14-acceptance/sources/tests__test_source_candidate_derivation_py--001.md)（1 段）
+- [tests/test_source_candidate_transaction.py](14-acceptance/sources/tests__test_source_candidate_transaction_py--001.md)（1 段）
 - [tests/test_source_candidate_workflow.py](14-acceptance/sources/tests__test_source_candidate_workflow_py--001.md)（2 段）
 - [tests/test_source_snapshot_integrity.py](14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md)（1 段）
 - [tests/test_streaming_limits.py](14-acceptance/sources/tests__test_streaming_limits_py--001.md)（1 段）

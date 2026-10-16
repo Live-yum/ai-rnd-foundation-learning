@@ -650,11 +650,213 @@ def retain_failed_candidate(template, plan, destination, sources, error_type):
         "runtime_unavailable_reason": "原生运行流程未完成（"
         + error_type
         + "）；源码已保留，原始诊断在本机运行证据中",
-        "pending_steps": ["检查本机原生运行失败证据", "在具备能力且获授权的环境恢复生成和运行验收"],
+        "pending_steps": [
+            "检查本机原生运行失败证据",
+            "在具备能力且获授权的环境恢复生成和运行验收",
+            *[
+                "Implement/review and runtime-verify approved custom rule "
+                + rule.entity
+                + ": "
+                + rule.description
+                for rule in plan.custom_rules
+            ],
+        ],
         "generated_files": [name for name, value in listing.items() if baseline.get(name) != value],
         "preserve_runtime_files": True,
     }
     return refresh_candidate(destination, receipt)
+
+
+def _publish_new(source, target):
+    """Atomic no-replace publication; unsupported systems must fail closed."""
+    import ctypes
+    import os
+    import sys
+
+    if os.name == "nt":
+        os.rename(source, target)  # Windows never replaces an existing target.
+        return
+    library = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "linux":
+        function = getattr(library, "renameat2", None)
+        if function is None:
+            raise PrerequisiteError("系统缺少安全的不覆盖发布能力")
+        function.argtypes = [
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_uint,
+        ]
+        args = (-100, os.fsencode(source), -100, os.fsencode(target), 1)
+    elif sys.platform == "darwin":
+        function = getattr(library, "renamex_np", None)
+        if function is None:
+            raise PrerequisiteError("系统缺少安全的不覆盖发布能力")
+        function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
+        args = (os.fsencode(source), os.fsencode(target), 4)
+    else:
+        raise PrerequisiteError("当前系统不支持安全的不覆盖发布")
+    function.restype = ctypes.c_int
+    if function(*args):
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(target))
+
+
+def _transaction_tree(root):
+    """Bind every byte and mode, including Git metadata and excluded filenames."""
+    import os
+    import stat
+
+    root = inside(Path(root).parent, Path(root).name)
+    if not root.is_dir():
+        raise PrerequisiteError("源码事务目录缺失")
+    result, total = {}, 0
+
+    def denied(error):
+        raise error
+
+    for directory, dirs, names in os.walk(root, followlinks=False, onerror=denied):
+        for name in sorted(dirs + names):
+            path = inside(root, (Path(directory) / name).relative_to(root).as_posix())
+            info = path.lstat()
+            relative = path.relative_to(root).as_posix()
+            if stat.S_ISDIR(info.st_mode):
+                result[relative] = ["directory", stat.S_IMODE(info.st_mode)]
+            elif stat.S_ISREG(info.st_mode):
+                total += info.st_size
+                if info.st_size > 512_000_000 or total > 1_000_000_000:
+                    raise PrerequisiteError("源码事务超过验证大小限制")
+                result[relative] = ["file", stat.S_IMODE(info.st_mode), info.st_size, sha(path)]
+            else:
+                raise PrerequisiteError("源码事务只允许普通文件和目录")
+            if len(result) > 100_000:
+                raise PrerequisiteError("源码事务超过验证文件数量限制")
+    return result
+
+
+def recover_candidate(template, plan, destination):
+    """Resume only a complete, identity-bound source publication transaction."""
+    destination = Path(destination)
+    transaction = inside(destination.parent, ".source-candidate-transaction")
+    if not transaction.exists():
+        return None
+    seal_path = inside(transaction, "transaction.json")
+    stage = inside(transaction, "candidate")
+    seal_bytes = seal_path.read_bytes()
+    seal = json.loads(seal_bytes)
+    expected = {
+        "version": 1,
+        "template": template,
+        "spec_digest": digest(plan.model_dump()),
+        "product": destination.name,
+    }
+    if (
+        not isinstance(seal, dict)
+        or set(seal) != {*expected, "tree", "receipt"}
+        or any(seal.get(key) != value for key, value in expected.items())
+    ):
+        raise PrerequisiteError("源码事务与批准设计或目标不匹配")
+    before = _transaction_tree(stage)
+    if before != seal["tree"]:
+        raise PrerequisiteError("源码事务内容已改变，拒绝恢复")
+    receipt = json.loads(inside(stage, "native-generation.json").read_text(encoding="utf-8"))
+    if (
+        receipt != seal["receipt"]
+        or receipt.get("template") != template
+        or receipt.get("spec_digest") != expected["spec_digest"]
+    ):
+        raise PrerequisiteError("源码事务回执不匹配")
+    product_files = {
+        name[len(destination.name) + 1 :]
+        for name, entry in before.items()
+        if name.startswith(destination.name + "/") and entry[0] == "file"
+    }
+    if product_files != set(receipt.get("files", {})):
+        raise PrerequisiteError("源码事务包含未纳入交付的额外文件")
+    product = inside(stage, destination.name)
+    if (
+        json.loads(inside(product, "approved-spec.json").read_text(encoding="utf-8"))
+        != plan.model_dump()
+    ):
+        raise PrerequisiteError("源码事务批准设计不匹配")
+    verify_candidate(product, receipt, persist=False)
+    names = {Path(name).parts[0] for name in before}
+    allowed = {destination.name, "native-generation.json", "verification.json", "source-revisions"}
+    if (
+        names - allowed
+        or not {destination.name, "native-generation.json", "verification.json"} <= names
+    ):
+        raise PrerequisiteError("源码事务包含未知发布项")
+
+    def matches(name, target):
+        if target.is_dir():
+            actual = {name: ["directory", target.stat().st_mode & 0o7777]}
+            actual.update(
+                {name + "/" + key: value for key, value in _transaction_tree(target).items()}
+            )
+        else:
+            if not target.is_file():
+                raise PrerequisiteError("源码事务发布目标不是普通文件")
+            actual = {
+                name: ["file", target.stat().st_mode & 0o7777, target.stat().st_size, sha(target)]
+            }
+        wanted = {
+            key: value for key, value in before.items() if key == name or key.startswith(name + "/")
+        }
+        return actual == wanted
+
+    # Preflight every destination before publishing any item. Matching bytes are
+    # already-published evidence after a crash, never permission to overwrite.
+    for name in names:
+        target = inside(destination.parent, name)
+        if target.exists() and not matches(name, target):
+            raise PrerequisiteError("已有内容不属于本次源码事务，拒绝覆盖")
+    for name in sorted(names, key=lambda value: (value == "native-generation.json", value)):
+        target = inside(destination.parent, name)
+        if target.exists():
+            if not matches(name, target):
+                raise PrerequisiteError("源码事务发布目标已改变")
+            continue
+        original = inside(stage, name)
+        with tempfile.TemporaryDirectory(
+            prefix="source-publish-", dir=destination.parent
+        ) as temporary:
+            copied = Path(temporary) / name
+            if original.is_dir():
+                copied.mkdir()
+                for relative, entry in sorted(_transaction_tree(original).items()):
+                    source, output = inside(original, relative), inside(copied, relative)
+                    if entry[0] == "directory":
+                        output.mkdir()
+                    else:
+                        shutil.copy2(source, output, follow_symlinks=False)
+                for relative, entry in sorted(_transaction_tree(original).items(), reverse=True):
+                    if entry[0] == "directory":
+                        shutil.copystat(inside(original, relative), inside(copied, relative))
+                shutil.copystat(original, copied)
+            else:
+                shutil.copy2(original, copied, follow_symlinks=False)
+            if _transaction_tree(stage) != before or not matches(name, copied):
+                raise PrerequisiteError("源码事务复制期间发生变化")
+            if inside(destination.parent, name).exists():
+                raise PrerequisiteError("源码事务目标被其他内容占用")
+            _publish_new(copied, target)
+    if (
+        _transaction_tree(stage) != before
+        or inside(transaction, "transaction.json").read_bytes() != seal_bytes
+    ):
+        raise PrerequisiteError("源码事务在发布期间发生变化")
+    if any(not matches(name, inside(destination.parent, name)) for name in names):
+        raise PrerequisiteError("已发布源码事务内容发生变化")
+    verify_candidate(destination, receipt, persist=False)
+    # Retire the recovery marker atomically only after all published evidence
+    # validates. A later bounded edit must not be compared to this old snapshot.
+    with tempfile.TemporaryDirectory(
+        prefix="source-completed-", dir=destination.parent
+    ) as temporary:
+        _publish_new(transaction, Path(temporary) / "transaction")
+    return receipt
 
 
 def generate_candidate(settings, template, plan, destination, reason):
@@ -664,31 +866,72 @@ def generate_candidate(settings, template, plan, destination, reason):
     from workbench.templates.standards import write_coding_standard
 
     destination = Path(destination)
-    if destination.exists():
+    recovered = recover_candidate(template, plan, destination)
+    if recovered is not None:
+        return recovered
+    if destination.exists() or inside(destination.parent, "native-generation.json").exists():
         raise PrerequisiteError("已有源码不能被离线生成覆盖；请保留当前运行并创建新的运行")
     sources = prepare_sources(settings, template)
     slots = {item["slot"]: Path(item["path"]) for item in sources}
-    if template == "fastapiadmin":
-        copy_source(slots["fastapiadmin"], destination)
-    else:
-        copy_source(slots["backend"], destination / "backend")
-        copy_source(slots["frontend"], destination / "frontend-product")
-    write_json(destination / "approved-spec.json", plan.model_dump())
-    write_coding_standard(destination, template)
-    generated = generate_offline(template, plan, destination, sources)
-    receipt = {
-        "template": template,
-        "execution": "source-candidate",
-        "spec_digest": digest(plan.model_dump()),
-        "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
-        "verification_status": "unverified",
-        "runtime_unavailable_reason": reason,
-        **generated,
-    }
-    return refresh_candidate(destination, receipt)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    transaction = inside(destination.parent, ".source-candidate-transaction")
+    with tempfile.TemporaryDirectory(prefix="source-initial-", dir=destination.parent) as temporary:
+        root = Path(temporary) / "transaction"
+        stage = root / "candidate"
+        product = stage / destination.name
+        if template == "fastapiadmin":
+            copy_source(slots["fastapiadmin"], product)
+        else:
+            copy_source(slots["backend"], product / "backend")
+            copy_source(slots["frontend"], product / "frontend-product")
+        write_json(product / "approved-spec.json", plan.model_dump())
+        write_coding_standard(product, template)
+        generated = generate_offline(template, plan, product, sources)
+        receipt = {
+            "template": template,
+            "execution": "source-candidate",
+            "spec_digest": digest(plan.model_dump()),
+            "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
+            "verification_status": "unverified",
+            "runtime_unavailable_reason": reason,
+            **generated,
+        }
+        receipt["pending_steps"] = list(
+            dict.fromkeys(
+                [
+                    *receipt.get("pending_steps", []),
+                    *[
+                        "Implement/review and runtime-verify approved custom rule "
+                        + rule.entity
+                        + ": "
+                        + rule.description
+                        for rule in plan.custom_rules
+                    ],
+                ]
+            )
+        )
+        if plan.custom_rules:
+            receipt["generation_status"] = "partial"
+        receipt = refresh_candidate(product, receipt)
+        verify_candidate(product, receipt)
+        write_json(
+            root / "transaction.json",
+            {
+                "version": 1,
+                "template": template,
+                "spec_digest": digest(plan.model_dump()),
+                "product": destination.name,
+                "receipt": receipt,
+                "tree": _transaction_tree(stage),
+            },
+        )
+        if inside(destination.parent, ".source-candidate-transaction").exists():
+            raise PrerequisiteError("已有源码事务，拒绝覆盖")
+        _publish_new(root, transaction)
+    return recover_candidate(template, plan, destination)
 
 
-def verify_candidate(destination, receipt):
+def verify_candidate(destination, receipt, *, persist=True):
     destination = Path(destination)
     current = manifest(destination)
     if receipt.get("execution") != "source-candidate" or receipt.get("generation_status") not in {
@@ -750,7 +993,8 @@ def verify_candidate(destination, receipt):
         checks=["source-manifest"]
         + (["source-git-journal"] if checked_commit["status"] == "committed" else []),
     )
-    write_json(destination.parent / "verification.json", result)
+    if persist:
+        write_json(destination.parent / "verification.json", result)
     return result
 
 

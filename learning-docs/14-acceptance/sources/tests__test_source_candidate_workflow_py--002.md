@@ -10,26 +10,28 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.generation.python_basic`、`workbench.production.graph`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.core.contracts`、`workbench.generation.python_basic`、`workbench.production.graph`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_source_edit_derivation_is_bound_and_replay_safe`（L861–L1072）：接收`settings`、`plan`、`monkeypatch`、`failed_runtime`、`scenario`。 控制顺序：L880按`failed_runtime`分支；L968按`scenario == "after-apply"`分支；L975按`scenario == "after-derive"`分支；L982按`scenario == "during-derive"`分支；L989按`scenario == "source-tamper"`分支；L991按`scenario == "sidecar-tamper"`分支；L999按`scenario in {"source-tamper", "during-model-tamper", "sidecar-tamper"}`分支；L1002断言`len(calls) == (1 if scenario == "during-model-tamper" else 0)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`target.parent.mkdir`、`target.write_text`、`plan.model_copy`、`write_json`、`manifest`、`source_candidate.retain_failed_candidate`、`source_candidate.refresh_candidate`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway`（L942–L947）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway.complete`（L943–L947）：接收`*args`。 控制顺序：L945按`scenario == "during-model-tamper"`分支。 调用`calls.append`、`target.write_text`。 返回路径：L947的`edits`。
-- `test_source_edit_derivation_is_bound_and_replay_safe.SimulatedCrash`（L962–L963）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_apply`（L970–L972）：接收`*args`、`**kwargs`。 控制顺序：L972抛异常，停止当前正常路径。 调用`apply`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_derive`（L977–L979）：接收`*args`、`**kwargs`。 控制顺序：L979抛异常，停止当前正常路径。 调用`derive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_refresh`（L984–L986）：接收`*args`、`**kwargs`。 控制顺序：L986抛异常，停止当前正常路径。 调用`refresh`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe`（L873–L1084）：接收`settings`、`plan`、`monkeypatch`、`failed_runtime`、`scenario`。 控制顺序：L892按`failed_runtime`分支；L980按`scenario == "after-apply"`分支；L987按`scenario == "after-derive"`分支；L994按`scenario == "during-derive"`分支；L1001按`scenario == "source-tamper"`分支；L1003按`scenario == "sidecar-tamper"`分支；L1011按`scenario in {"source-tamper", "during-model-tamper", "sidecar-tamper"}`分支；L1014断言`len(calls) == (1 if scenario == "during-model-tamper" else 0)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`target.parent.mkdir`、`target.write_text`、`plan.model_copy`、`write_json`、`manifest`、`source_candidate.retain_failed_candidate`、`source_candidate.refresh_candidate`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway`（L954–L959）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway.complete`（L955–L959）：接收`*args`。 控制顺序：L957按`scenario == "during-model-tamper"`分支。 调用`calls.append`、`target.write_text`。 返回路径：L959的`edits`。
+- `test_source_edit_derivation_is_bound_and_replay_safe.SimulatedCrash`（L974–L975）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_apply`（L982–L984）：接收`*args`、`**kwargs`。 控制顺序：L984抛异常，停止当前正常路径。 调用`apply`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_derive`（L989–L991）：接收`*args`、`**kwargs`。 控制顺序：L991抛异常，停止当前正常路径。 调用`derive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_refresh`（L996–L998）：接收`*args`、`**kwargs`。 控制顺序：L998抛异常，停止当前正常路径。 调用`refresh`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_main_workflow_binds_native_checkpoint`（L1090–L1159）：接收`settings`、`plan`、`monkeypatch`、`origin`、`stage`、`attack`。 控制顺序：L1106按`origin == "failed-runtime"`分支；L1137按`attack in {"tree", "tree-and-receipt"}`分支；L1139按`attack == "tree-and-receipt"`分支；L1143按`attack == "receipt-only"`分支；L1147按`stage == "generate-cached"`分支；L1150按`attack`分支；L1153断言`not (product.parent / "native-source.zip").exists()`；L1155遍历`range(2)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`plan.model_copy`、`Workflow`、`plan.model_dump`、`flow.product`、`product.mkdir`、`(product / "example.py").write_text`、`write_json`、`manifest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extension_generation_cache_binds_native_evidence`（L1163–L1215）：接收`settings`、`plan`、`monkeypatch`、`attack`。 控制顺序：L1193按`attack == "tree-and-receipt"`分支；L1198按`attack == "git"`分支；L1202按`attack == "status"`分支；L1208按`attack`分支；L1212遍历`range(2)`；L1214断言`result["native_generation"] == receipt`；L1215断言`result["extension_product"] == str(product)`。 调用`monkeypatch.setattr`、`plan.model_copy`、`SimpleNamespace`、`plan.model_dump`、`digest`、`design.model_dump`、`product.mkdir`、`(product / "example.py").write_text`、`source_candidate.refresh_candidate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L842–L1072。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L854–L1215。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9048`。本段原文以LF换行结束。
+本段原始字节数：`14783`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "33b5bfcf5849f8dcdae9c69954c47e25353bbb00ee70476feced3f4a8adc88b2"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "7c6b9edb2bd9ae49d7657eddd86066582839004211a2e90fffbba82820ca74a1"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 @pytest.mark.parametrize("failed_runtime", [False, True])
@@ -263,4 +265,135 @@ def test_source_edit_derivation_is_bound_and_replay_safe(
                 assert "Run isolated module and aggregate acceptance" in delivered["pending_steps"]
                 assert manifest(derived) == bound_files
                 assert receipt_path.read_bytes() == bound_receipt
+
+
+@pytest.mark.parametrize("origin", ["ordinary", "failed-runtime"])
+@pytest.mark.parametrize("stage", ["verify", "package", "generate-cached", "generate-state"])
+@pytest.mark.parametrize("attack", [None, "tree", "tree-and-receipt", "receipt-only"])
+def test_main_workflow_binds_native_checkpoint(settings, plan, monkeypatch, origin, stage, attack):
+    from workbench.delivery import source_candidate
+    from workbench.filesystem import manifest, write_json
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    plan = plan.model_copy(update={"data_scope": "shared"})
+    flow = Workflow(settings, None, None)
+    state = {
+        "run_id": "main-native-binding",
+        "template": "fastapiadmin",
+        "plan": plan.model_dump(),
+        "attempt": 0,
+    }
+    product = flow.product(state)
+    product.mkdir(parents=True)
+    (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
+    if origin == "failed-runtime":
+        write_json(
+            product.parent / "native-evidence/recovery.json",
+            {
+                "files": manifest(product),
+                "stage": "validation-interrupted",
+                "targets": {"demo": {}},
+            },
+        )
+        receipt = source_candidate.retain_failed_candidate(
+            "fastapiadmin", plan, product, [], "FixtureFailure"
+        )
+    else:
+        receipt = source_candidate.refresh_candidate(
+            product,
+            {
+                "execution": "source-candidate",
+                "template": "fastapiadmin",
+                "spec_digest": digest(plan.model_dump()),
+                "generation_status": "complete",
+                "verification_status": "unverified",
+                "pending_steps": [],
+                "runtime_unavailable_reason": "Fixture unavailable",
+            },
+        )
+    state["native_generation"] = receipt
+    state["verification"] = flow.verify(state)["verification"]
+    original = manifest(product)
+    saved = product.parent / "native-generation.json"
+    approved_bytes = saved.read_bytes()
+    flow.store = SimpleNamespace(step=lambda run, key, action: receipt)
+    if attack in {"tree", "tree-and-receipt"}:
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+    if attack == "tree-and-receipt":
+        source_candidate.refresh_candidate(
+            product, {**receipt, "source_commit": {"status": "unavailable"}}
+        )
+    elif attack == "receipt-only":
+        write_json(
+            saved, {**receipt, "source_commit": {"status": "unavailable", "note": "changed"}}
+        )
+    if stage == "generate-cached":
+        del state["native_generation"]  # Crash after Store.step, before graph checkpoint.
+    operation = flow.generate if stage.startswith("generate-") else getattr(flow, stage)
+    if attack:
+        with pytest.raises(PrerequisiteError):
+            operation(state)
+        assert not (product.parent / "native-source.zip").exists()
+    else:
+        for _ in range(2):
+            result = operation(state)
+            assert result
+            assert manifest(product) == original
+            assert saved.read_bytes() == approved_bytes
+
+
+@pytest.mark.parametrize("attack", [None, "tree-and-receipt", "git", "status"])
+def test_extension_generation_cache_binds_native_evidence(settings, plan, monkeypatch, attack):
+    from workbench.delivery import source_candidate
+    from workbench.filesystem import manifest, write_json
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    plan = plan.model_copy(update={"data_scope": "shared"})
+    design = SimpleNamespace(
+        baseline=plan,
+        model_dump=lambda: {"approved": plan.model_dump()},
+        implementation=SimpleNamespace(
+            version=1, selection=SimpleNamespace(model_dump=lambda: {"template": "fastapiadmin"})
+        ),
+    )
+    root = settings.data_dir / "runs" / "extension-cache-binding" / "extension-baselines"
+    product = root / digest(design.model_dump())
+    product.mkdir(parents=True)
+    (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
+    receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "execution": "source-candidate",
+            "template": "fastapiadmin",
+            "spec_digest": digest(plan.model_dump()),
+            "generation_status": "complete",
+            "verification_status": "unverified",
+            "pending_steps": [],
+            "runtime_unavailable_reason": "Fixture unavailable",
+        },
+    )
+    cached = {"files": manifest(product), "native_generation": receipt}
+    if attack == "tree-and-receipt":
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+        source_candidate.refresh_candidate(product, receipt)
+        # Exercise the receipt binding even if the outer inventory is current.
+        cached["files"] = manifest(product)
+    elif attack == "git":
+        write_json(
+            root / "native-generation.json", {**receipt, "source_commit": {"status": "failed"}}
+        )
+    elif attack == "status":
+        write_json(product / "SOURCE-STATUS.json", {})
+        cached["files"] = manifest(product)
+    flow = Workflow(settings, SimpleNamespace(step=lambda *args: cached), None)
+    flow.checked_extension = lambda state: design
+    state = {"run_id": "extension-cache-binding"}
+    if attack:
+        with pytest.raises(PrerequisiteError):
+            flow.extension_generate(state)
+    else:
+        for _ in range(2):
+            result = flow.extension_generate(state)
+            assert result["native_generation"] == receipt
+            assert result["extension_product"] == str(product)
 ````

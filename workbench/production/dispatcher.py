@@ -544,6 +544,16 @@ class ExtensionWorkflow:
         )
         if manifest(baseline) != receipt["files"]:
             raise PrerequisiteError("模块基线与生成回执不一致")
+        if selection["template"] != "python-basic":
+            self.checked_native_generation(
+                {
+                    **state,
+                    "template": selection["template"],
+                    "plan": design.baseline.model_dump(),
+                    "native_generation": receipt.get("native_generation"),
+                },
+                product=baseline,
+            )
         if design.implementation.version == 2:
             self.product_ledger(state, design.implementation).baseline(baseline)
         return {

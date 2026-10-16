@@ -143,12 +143,19 @@ def generation_capability(settings, template, plan):
 
 
 def managed_generate(settings, template, plan, destination, *, customization=None):
-    from workbench.delivery.source_candidate import generate_candidate, verify_candidate
+    from workbench.delivery.source_candidate import (
+        generate_candidate,
+        recover_candidate,
+        verify_candidate,
+    )
     from workbench.generation.native.service import prepare_sources
 
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
     receipt_path = destination.parent / "native-generation.json"
+    recovered = recover_candidate(template, plan, destination)
+    if recovered is not None:
+        return recovered
     if receipt_path.is_file():
         saved = json.loads(receipt_path.read_text(encoding="utf-8"))
         if (

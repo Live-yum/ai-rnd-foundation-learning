@@ -47,4 +47,4 @@
 - [tests/test_yudao_navigation_browser.py](sources/tests__test_yudao_navigation_browser_py--001.md)：可重复的验收用例；1 段
 - [tests/test_yudao_navigation_evidence.py](sources/tests__test_yudao_navigation_evidence_py--001.md)：可重复的验收用例；1 段
 - [tests/test_yudao_screenshot_readiness.py](sources/tests__test_yudao_screenshot_readiness_py--001.md)：可重复的验收用例；1 段
-- [workbench/delivery/source_candidate.py](sources/workbench__delivery__source_candidate_py--001.md)：项目根配置或说明；1 段
+- [workbench/delivery/source_candidate.py](sources/workbench__delivery__source_candidate_py--001.md)：项目根配置或说明；2 段

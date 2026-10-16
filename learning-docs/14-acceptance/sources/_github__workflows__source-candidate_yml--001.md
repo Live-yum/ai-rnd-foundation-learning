@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/source-candidate.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L36。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1353`。本段原文以LF换行结束。
+本段原始字节数：`1396`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/source-candidate.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70fb3ca32cb0a9d0b97cf156237fd580e69aa799d90a9c7a67addcf61f2e0f9a"} -->
+<!-- learning-source: {"path": ".github/workflows/source-candidate.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1bf86abc0bd8ba303ddda34396652ef8c8ecc3969103511c7bcbe0f63a4a7d07"} -->
 ````yaml
 # .github/workflows/source-candidate.yml
 name: Portable source candidate validation
@@ -46,7 +46,7 @@ jobs:
       - name: Install only locked base and test dependencies
         run: uv sync --locked
       - name: Validate source-only generation, snapshots and honest delivery status
-        run: uv run pytest -q tests/test_native_offline.py tests/test_source_candidate_delivery.py tests/test_source_candidate_workflow.py tests/test_native_optional_dependencies.py tests/test_native_service_failures.py tests/test_source_snapshot_integrity.py tests/test_source_candidate_derivation.py tests/test_native_sandbox_route_gate.py --junitxml=reports/source-candidate.xml
+        run: uv run pytest -q tests/test_native_offline.py tests/test_source_candidate_delivery.py tests/test_source_candidate_workflow.py tests/test_native_optional_dependencies.py tests/test_native_service_failures.py tests/test_source_snapshot_integrity.py tests/test_source_candidate_derivation.py tests/test_source_candidate_transaction.py tests/test_native_sandbox_route_gate.py --junitxml=reports/source-candidate.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:

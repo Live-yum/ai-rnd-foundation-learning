@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from workbench.core.contracts import digest
 from workbench.generation.python_basic import PrerequisiteError
 from workbench.production.graph import Workflow
 
@@ -101,6 +102,7 @@ def test_workflow_source_generation_reaches_download_without_runtime(settings, p
             destination,
             {
                 "execution": "source-candidate",
+                "spec_digest": digest(plan.model_dump()),
                 "template": template,
                 "generation_status": "complete",
                 "verification_status": "unverified",
@@ -356,9 +358,19 @@ def test_native_rule_source_fallback_is_lazy_and_keeps_rule_pending(
             {
                 "template": template,
                 "execution": "source-candidate",
+                "spec_digest": digest(plan.model_dump()),
                 "generation_status": "partial",
                 "verification_status": "unverified",
-                "pending_steps": ["Run isolated acceptance"],
+                "pending_steps": [
+                    "Run isolated acceptance",
+                    *[
+                        "Implement/review and runtime-verify approved custom rule "
+                        + rule.entity
+                        + ": "
+                        + rule.description
+                        for rule in plan.custom_rules
+                    ],
+                ],
                 "runtime_unavailable_reason": reason,
             },
         )
@@ -1070,3 +1082,134 @@ def test_source_edit_derivation_is_bound_and_replay_safe(
                 assert "Run isolated module and aggregate acceptance" in delivered["pending_steps"]
                 assert manifest(derived) == bound_files
                 assert receipt_path.read_bytes() == bound_receipt
+
+
+@pytest.mark.parametrize("origin", ["ordinary", "failed-runtime"])
+@pytest.mark.parametrize("stage", ["verify", "package", "generate-cached", "generate-state"])
+@pytest.mark.parametrize("attack", [None, "tree", "tree-and-receipt", "receipt-only"])
+def test_main_workflow_binds_native_checkpoint(settings, plan, monkeypatch, origin, stage, attack):
+    from workbench.delivery import source_candidate
+    from workbench.filesystem import manifest, write_json
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    plan = plan.model_copy(update={"data_scope": "shared"})
+    flow = Workflow(settings, None, None)
+    state = {
+        "run_id": "main-native-binding",
+        "template": "fastapiadmin",
+        "plan": plan.model_dump(),
+        "attempt": 0,
+    }
+    product = flow.product(state)
+    product.mkdir(parents=True)
+    (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
+    if origin == "failed-runtime":
+        write_json(
+            product.parent / "native-evidence/recovery.json",
+            {
+                "files": manifest(product),
+                "stage": "validation-interrupted",
+                "targets": {"demo": {}},
+            },
+        )
+        receipt = source_candidate.retain_failed_candidate(
+            "fastapiadmin", plan, product, [], "FixtureFailure"
+        )
+    else:
+        receipt = source_candidate.refresh_candidate(
+            product,
+            {
+                "execution": "source-candidate",
+                "template": "fastapiadmin",
+                "spec_digest": digest(plan.model_dump()),
+                "generation_status": "complete",
+                "verification_status": "unverified",
+                "pending_steps": [],
+                "runtime_unavailable_reason": "Fixture unavailable",
+            },
+        )
+    state["native_generation"] = receipt
+    state["verification"] = flow.verify(state)["verification"]
+    original = manifest(product)
+    saved = product.parent / "native-generation.json"
+    approved_bytes = saved.read_bytes()
+    flow.store = SimpleNamespace(step=lambda run, key, action: receipt)
+    if attack in {"tree", "tree-and-receipt"}:
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+    if attack == "tree-and-receipt":
+        source_candidate.refresh_candidate(
+            product, {**receipt, "source_commit": {"status": "unavailable"}}
+        )
+    elif attack == "receipt-only":
+        write_json(
+            saved, {**receipt, "source_commit": {"status": "unavailable", "note": "changed"}}
+        )
+    if stage == "generate-cached":
+        del state["native_generation"]  # Crash after Store.step, before graph checkpoint.
+    operation = flow.generate if stage.startswith("generate-") else getattr(flow, stage)
+    if attack:
+        with pytest.raises(PrerequisiteError):
+            operation(state)
+        assert not (product.parent / "native-source.zip").exists()
+    else:
+        for _ in range(2):
+            result = operation(state)
+            assert result
+            assert manifest(product) == original
+            assert saved.read_bytes() == approved_bytes
+
+
+@pytest.mark.parametrize("attack", [None, "tree-and-receipt", "git", "status"])
+def test_extension_generation_cache_binds_native_evidence(settings, plan, monkeypatch, attack):
+    from workbench.delivery import source_candidate
+    from workbench.filesystem import manifest, write_json
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    plan = plan.model_copy(update={"data_scope": "shared"})
+    design = SimpleNamespace(
+        baseline=plan,
+        model_dump=lambda: {"approved": plan.model_dump()},
+        implementation=SimpleNamespace(
+            version=1, selection=SimpleNamespace(model_dump=lambda: {"template": "fastapiadmin"})
+        ),
+    )
+    root = settings.data_dir / "runs" / "extension-cache-binding" / "extension-baselines"
+    product = root / digest(design.model_dump())
+    product.mkdir(parents=True)
+    (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
+    receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "execution": "source-candidate",
+            "template": "fastapiadmin",
+            "spec_digest": digest(plan.model_dump()),
+            "generation_status": "complete",
+            "verification_status": "unverified",
+            "pending_steps": [],
+            "runtime_unavailable_reason": "Fixture unavailable",
+        },
+    )
+    cached = {"files": manifest(product), "native_generation": receipt}
+    if attack == "tree-and-receipt":
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+        source_candidate.refresh_candidate(product, receipt)
+        # Exercise the receipt binding even if the outer inventory is current.
+        cached["files"] = manifest(product)
+    elif attack == "git":
+        write_json(
+            root / "native-generation.json", {**receipt, "source_commit": {"status": "failed"}}
+        )
+    elif attack == "status":
+        write_json(product / "SOURCE-STATUS.json", {})
+        cached["files"] = manifest(product)
+    flow = Workflow(settings, SimpleNamespace(step=lambda *args: cached), None)
+    flow.checked_extension = lambda state: design
+    state = {"run_id": "extension-cache-binding"}
+    if attack:
+        with pytest.raises(PrerequisiteError):
+            flow.extension_generate(state)
+    else:
+        for _ in range(2):
+            result = flow.extension_generate(state)
+            assert result["native_generation"] == receipt
+            assert result["extension_product"] == str(product)
