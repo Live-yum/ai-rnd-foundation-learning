@@ -202,7 +202,7 @@ describe('message reducer and authoritative gate identity', () => {
   it('distinguishes every gate version and source delivery label', () => {
     expect(gateIdentity(gate)).not.toBe(gateIdentity({ ...gate, version: 3 }))
     expect(statusLabel('READY')).toBe('运行级交付')
-    expect(statusLabel('SOURCE_READY')).toBe('源码级交付')
+    expect(statusLabel('SOURCE_READY')).toBe('源码或部分成果交付')
   })
   it.each([
     ['planning', 1],

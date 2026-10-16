@@ -249,9 +249,43 @@ def chat(
                     typer.echo("状态：" + state["status"])
                     previous = state["status"]
                 if state["status"] in {"READY", "SOURCE_READY"}:
-                    typer.echo(f"完成。下载命令：uv run rnd download {run}")
-                    if state["status"] == "SOURCE_READY":
-                        typer.echo("这是原生源码导出，不是已通过完整运行验收的产品。")
+                    result = state.get("result") or {}
+                    # SOURCE_READY also labels approved partial runtime deliveries.
+                    # Explicit negative evidence always wins over stale success flags.
+                    source_only = (
+                        result.get("execution") == "source-candidate"
+                        or result.get("validation_level") == "source"
+                        or result.get("runtime_verified") is False
+                        or result.get("verification_status") in {"unverified", "failed"}
+                    )
+                    runtime_evidence = (
+                        result.get("validation_level") == "runtime"
+                        or result.get("runtime_verified") is True
+                    )
+                    if source_only:
+                        if result.get("verification_status") == "failed":
+                            headline = "验证失败，源码已保留"
+                        elif result.get("generation_status") == "partial":
+                            headline = "生成未完成，部分源码已保留"
+                        else:
+                            headline = "源码已保留，未经运行验证"
+                        detail = "这是源码候选，尚未通过运行验收；请查看待完成事项。"
+                    elif state["status"] == "READY":
+                        headline = "完成"
+                        detail = None
+                    elif runtime_evidence:
+                        if result.get("delivery_kind") == "partial":
+                            headline = "部分成果已通过运行验收，完整需求仍未完成"
+                            detail = "运行验收仅覆盖本次部分交付范围；请查看验收证据和未完成项。"
+                        else:
+                            headline = "已通过运行验收，请查看交付范围"
+                            detail = "请查看交付范围与对应的运行验收证据。"
+                    else:
+                        headline = "成果已保留，运行验收状态待核实"
+                        detail = "交付信息不足，不能确认已通过运行验收；请查看验收证据与交付范围。"
+                    typer.echo(f"{headline}。下载命令：uv run rnd download {run}")
+                    if detail:
+                        typer.echo(detail)
                     break
                 gate = state.get("pending")
                 if state["status"] in {"FAILED", "REJECTED", "BLOCKED", "PAUSED_LIMIT"}:

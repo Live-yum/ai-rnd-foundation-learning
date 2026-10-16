@@ -10,6 +10,10 @@ from workbench.filesystem import atomic_text, write_json
 from workbench.infrastructure.processes.tools import run_command
 
 
+class BusinessBrowserValidationFailure(ValueError):
+    """An explicit trusted UI acceptance result failed; not arbitrary ValueError."""
+
+
 def run_business_browser(template, script, front_url, reports, scenario, plan, playwright):
     reports = Path(reports)
     actors = {
@@ -90,17 +94,19 @@ def query_journey_evidence(report):
             for key, item in expected.items()
         )
     ):
-        raise ValueError("Native browser query journey is missing or incomplete")
+        raise BusinessBrowserValidationFailure(
+            "Native browser query journey is missing or incomplete"
+        )
     return dict(expected)
 
 
 def require_business_browser(report, plan, template):
-    if (
-        report.get("passed") is not True
-        or report.get("errors") != []
-        or report.get("template") != template
-    ):
-        raise ValueError("Native business browser did not pass all three-role UI checks")
+    if report.get("template") != template:
+        raise ValueError("Native business browser template identity mismatch")
+    if report.get("passed") is not True or report.get("errors") != []:
+        raise BusinessBrowserValidationFailure(
+            "Native business browser did not pass all three-role UI checks"
+        )
     fastapi = template == "fastapiadmin"
     family = "Fa/Element Plus" if fastapi else "Vben/Ant Design/VXE"
     tokens = (
@@ -112,7 +118,7 @@ def require_business_browser(report, plan, template):
     if not {role + ":" + login for role in ("manager", "service", "employee")} <= set(
         report.get("checks", [])
     ):
-        raise ValueError("Native business browser omitted a real role login")
+        raise BusinessBrowserValidationFailure("Native business browser omitted a real role login")
     if fastapi:
         journeys = {
             "manager:customer_native_form_create",
@@ -144,7 +150,9 @@ def require_business_browser(report, plan, template):
         }
     journeys.add("manager:customers:native-query-and-exact-filter")
     if not journeys <= set(report.get("checks", [])):
-        raise ValueError("Native business browser omitted required workflow or isolation checks")
+        raise BusinessBrowserValidationFailure(
+            "Native business browser omitted required workflow or isolation checks"
+        )
     query_journey_evidence(report)
     if template == "yudao-vben":
         from workbench.acceptance.yudao_navigation import validate_sidebar
@@ -164,7 +172,7 @@ def require_business_browser(report, plan, template):
             )
             for page in proofs
         ):
-            raise ValueError(
+            raise BusinessBrowserValidationFailure(
                 "Native business page lacks original shell, form and real list proof: "
                 + entity.name
             )

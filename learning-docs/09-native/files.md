@@ -61,6 +61,7 @@
 - [workbench/generation/native/compatibility.py](sources/workbench__generation__native__compatibility_py--001.md)：原生事务提交时机的精确适配；1 段
 - [workbench/generation/native/frontend.py](sources/workbench__generation__native__frontend_py--001.md)：完整原生前端构建和浏览器入口；1 段
 - [workbench/generation/native/modules.py](sources/workbench__generation__native__modules_py--001.md)：把Plan的实体挂载成原生业务模块；1 段
+- [workbench/generation/native/offline.py](sources/workbench__generation__native__offline_py--001.md)：项目根配置或说明；1 段
 - [workbench/generation/native/plan_normalization.py](sources/workbench__generation__native__plan_normalization_py--001.md)：项目根配置或说明；1 段
 - [workbench/generation/native/style.py](sources/workbench__generation__native__style_py--001.md)：原生UI壳、主题和组件族的身份检查；1 段
 - [workbench/generation/native/vben.py](sources/workbench__generation__native__vben_py--001.md)：Vben兼容适配与生成表单类型保持；1 段

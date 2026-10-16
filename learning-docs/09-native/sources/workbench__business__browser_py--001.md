@@ -15,17 +15,18 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `run_business_browser`（L13–L66）：接收`template`、`script`、`front_url`、`reports`、`scenario`、`plan`、`playwright`。 控制顺序：L59抛异常，停止当前正常路径。 调用`Path`、`scenario["browser_actors"].items`、`tempfile.TemporaryDirectory`、`write_json`、`next`、`plan.model_dump`、`run_command`、`str`、`reports.resolve`等。 返回路径：L66的`report`。
-- `query_journey_evidence`（L69–L94）：接收`report`。 源码说明：A marker alone cannot prove native widgets serialized a discriminating query.。 控制顺序：L85按`not isinstance(value, dict) or set(value) != set(expected) or any( type(value[key]) i…`分支；L93抛异常，停止当前正常路径。 调用`report.get`、`isinstance`、`set`、`any`、`type`、`expected.items`、`ValueError`、`dict`。 返回路径：L94的`dict(expected)`。
-- `require_business_browser`（L97–L170）：接收`report`、`plan`、`template`。 控制顺序：L98按`report.get("passed") is not True or report.get("errors") != [] or report.get("templat…`分支；L103抛异常，停止当前正常路径；L112按`not {role + ":" + login for role in ("manager", "service", "employee")} <= set( repor…`分支；L115抛异常，停止当前正常路径；L116按`fastapi`分支；L146按`not journeys <= set(report.get("checks", []))`分支；L147抛异常，停止当前正常路径；L149按`template == "yudao-vben"`分支。后续分支沿下方源码相同行号继续阅读。 调用`report.get`、`ValueError`、`set`、`journeys.add`、`query_journey_evidence`、`validate_sidebar`、`page.get`、`any`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BusinessBrowserValidationFailure`（L13–L14）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `run_business_browser`（L17–L70）：接收`template`、`script`、`front_url`、`reports`、`scenario`、`plan`、`playwright`。 控制顺序：L63抛异常，停止当前正常路径。 调用`Path`、`scenario["browser_actors"].items`、`tempfile.TemporaryDirectory`、`write_json`、`next`、`plan.model_dump`、`run_command`、`str`、`reports.resolve`等。 返回路径：L70的`report`。
+- `query_journey_evidence`（L73–L100）：接收`report`。 源码说明：A marker alone cannot prove native widgets serialized a discriminating query.。 控制顺序：L89按`not isinstance(value, dict) or set(value) != set(expected) or any( type(value[key]) i…`分支；L97抛异常，停止当前正常路径。 调用`report.get`、`isinstance`、`set`、`any`、`type`、`expected.items`、`BusinessBrowserValidationFailure`、`dict`。 返回路径：L100的`dict(expected)`。
+- `require_business_browser`（L103–L178）：接收`report`、`plan`、`template`。 控制顺序：L104按`report.get("template") != template`分支；L105抛异常，停止当前正常路径；L106按`report.get("passed") is not True or report.get("errors") != []`分支；L107抛异常，停止当前正常路径；L118按`not {role + ":" + login for role in ("manager", "service", "employee")} <= set( repor…`分支；L121抛异常，停止当前正常路径；L122按`fastapi`分支；L152按`not journeys <= set(report.get("checks", []))`分支。后续分支沿下方源码相同行号继续阅读。 调用`report.get`、`ValueError`、`BusinessBrowserValidationFailure`、`set`、`journeys.add`、`query_journey_evidence`、`validate_sidebar`、`page.get`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/business/browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L170。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/business/browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L178。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6710`。本段原文以LF换行结束。
+本段原始字节数：`7077`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/business/browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "18c90b67716580079dc288841d46b512524954e8eaff85f5e127b4048f9bd608"} -->
+<!-- learning-source: {"path": "workbench/business/browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d0d4f398ae35a056bab03014572df4a600d7f1fed626e7246c55dd2c25569bd1"} -->
 ````python
 # workbench/business/browser.py
 """Run native three-role UI acceptance with temporary synthetic credentials only."""
@@ -38,6 +39,10 @@ from pathlib import Path
 from workbench.core.contracts import digest
 from workbench.filesystem import atomic_text, write_json
 from workbench.infrastructure.processes.tools import run_command
+
+
+class BusinessBrowserValidationFailure(ValueError):
+    """An explicit trusted UI acceptance result failed; not arbitrary ValueError."""
 
 
 def run_business_browser(template, script, front_url, reports, scenario, plan, playwright):
@@ -120,17 +125,19 @@ def query_journey_evidence(report):
             for key, item in expected.items()
         )
     ):
-        raise ValueError("Native browser query journey is missing or incomplete")
+        raise BusinessBrowserValidationFailure(
+            "Native browser query journey is missing or incomplete"
+        )
     return dict(expected)
 
 
 def require_business_browser(report, plan, template):
-    if (
-        report.get("passed") is not True
-        or report.get("errors") != []
-        or report.get("template") != template
-    ):
-        raise ValueError("Native business browser did not pass all three-role UI checks")
+    if report.get("template") != template:
+        raise ValueError("Native business browser template identity mismatch")
+    if report.get("passed") is not True or report.get("errors") != []:
+        raise BusinessBrowserValidationFailure(
+            "Native business browser did not pass all three-role UI checks"
+        )
     fastapi = template == "fastapiadmin"
     family = "Fa/Element Plus" if fastapi else "Vben/Ant Design/VXE"
     tokens = (
@@ -142,7 +149,7 @@ def require_business_browser(report, plan, template):
     if not {role + ":" + login for role in ("manager", "service", "employee")} <= set(
         report.get("checks", [])
     ):
-        raise ValueError("Native business browser omitted a real role login")
+        raise BusinessBrowserValidationFailure("Native business browser omitted a real role login")
     if fastapi:
         journeys = {
             "manager:customer_native_form_create",
@@ -174,7 +181,9 @@ def require_business_browser(report, plan, template):
         }
     journeys.add("manager:customers:native-query-and-exact-filter")
     if not journeys <= set(report.get("checks", [])):
-        raise ValueError("Native business browser omitted required workflow or isolation checks")
+        raise BusinessBrowserValidationFailure(
+            "Native business browser omitted required workflow or isolation checks"
+        )
     query_journey_evidence(report)
     if template == "yudao-vben":
         from workbench.acceptance.yudao_navigation import validate_sidebar
@@ -194,7 +203,7 @@ def require_business_browser(report, plan, template):
             )
             for page in proofs
         ):
-            raise ValueError(
+            raise BusinessBrowserValidationFailure(
                 "Native business page lacks original shell, form and real list proof: "
                 + entity.name
             )

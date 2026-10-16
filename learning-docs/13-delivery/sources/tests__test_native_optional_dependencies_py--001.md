@@ -15,16 +15,16 @@
 
 - `without_postgres`（L24–L34）：接收`source`、`*args`。 控制顺序：L34断言`result.returncode == 0`。 调用`subprocess.run`、`textwrap.dedent`、`map`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_config_inspection_does_not_import_postgres_runtime`（L37–L56）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_execution_checks_platform_and_driver_before_side_effects`（L60–L100）：接收`tmp_path`、`platform`。 调用`without_postgres`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_legacy_failed_native_design_resumes_same_persisted_run`（L103–L193）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_execution_checks_platform_and_driver_before_side_effects`（L60–L101）：接收`tmp_path`、`platform`。 调用`without_postgres`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_legacy_failed_native_design_resumes_same_persisted_run`（L104–L194）：接收`tmp_path`。 调用`without_postgres`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_optional_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L193。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_optional_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L194。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8471`。本段原文以LF换行结束。
+本段原始字节数：`8562`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_optional_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "594a137bada2dfbe52bca77c80b397d4b61c170f2acb0f885d7e54077ef40446"} -->
+<!-- learning-source: {"path": "tests/test_native_optional_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3b87c4acc3279dd4587e41aab9b9c99f69f7999427d6a15a2ac23bf4a4c3bd1d"} -->
 ````python
 # tests/test_native_optional_dependencies.py
 """Base installs can inspect native plans; execution still requires its real tools."""
@@ -97,6 +97,7 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
         from workbench.settings import Settings
 
         native_delivery.os = SimpleNamespace(name=sys.argv[2])
+        native_delivery.sys = SimpleNamespace(platform="win32" if sys.argv[2] == "nt" else "linux")
         def unexpected(*args, **kwargs):
             raise AssertionError("Tool discovery must follow platform/driver checks")
         native_delivery.shutil.which = unexpected
@@ -106,12 +107,12 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
             "name": "task", "description": "任务", "fields": [{"name": "title", "kind": "text"}]
         }])
         try:
-            native_delivery.managed_generate(settings, "fastapiadmin", plan, product)
+            native_delivery.prerequisites("fastapiadmin")
         except PrerequisiteError as exc:
             message = str(exc)
             assert "WSL 2/Linux" in message
             if sys.argv[2] == "nt":
-                assert "默认 Python 通道支持 Windows" in message
+                assert "Windows/macOS 仍可生成并保留未经验证源码" in message
                 assert "uv sync" not in message
             else:
                 assert "uv sync --locked --extra postgres" in message

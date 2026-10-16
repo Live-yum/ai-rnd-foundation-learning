@@ -30,16 +30,16 @@
 - `NativeClient.close`（L311–L312）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.client.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `native_export`（L315–L415）：接收`client`、`template`、`mapping`、`plan`。 源码说明：Invoke the upstream's import/update/download APIs, returning actual ZIP bytes.。 控制顺序：L319按`template == "fastapiadmin"`分支；L330按`missing`分支；L341遍历`plan.entities`；L343按`not row`分支；L344抛异常，停止当前正常路径；L350按`not {f.name for f in entity.fields}.issubset(fields)`分支；L351抛异常，停止当前正常路径；L367按`response.headers.get("X-Skipped-Tables")`分支。后续分支沿下方源码相同行号继续阅读。 调用`list`、`mapping.values`、`client.payload`、`client.request`、`tables[0].split`、`isinstance`、`page.get`、`known.get`、`PrerequisiteError`等。 返回路径：L415的`exports`。
 - `generate_native`（L418–L466）：接收`settings`、`template`、`plan`、`destination`、`managed`、`customization`。 控制顺序：L422按`managed or runtime_enabled(settings, template)`分支；L425按`plan.custom_rules or plan.unsupported`分支；L426抛异常，停止当前正常路径；L437遍历`exports`；L442遍历`sources`；L444遍历`files(source["path"])`。 调用`runtime_enabled`、`managed_generate`、`load_config`、`PrerequisiteError`、`prepare_sources`、`create_codegen_tables`、`db_url.get_secret_value`、`destination.mkdir`、`write_json`等。 返回路径：L423的`managed_generate(settings, template, plan, destination, customization=customization)`；L466的`receipt`。
-- `verify_native`（L469–L491）：接收`destination`。 控制顺序：L473按`receipt.get("execution") == "managed-runtime"`分支；L478按`current != receipt["files"] or not any(p.startswith("generated/") for p in current)`分支；L479抛异常，停止当前正常路径；L480遍历`files(destination / "generated")`；L481按`name.endswith(".py")`分支。 调用`json.loads`、`(destination.parent / "native-generation.json").read_text`、`receipt.get`、`managed_verify`、`manifest`、`any`、`p.startswith`、`PrerequisiteError`、`files`等。 返回路径：L476的`managed_verify(destination, receipt)`；L491的`result`。
-- `package_native`（L494–L515）：接收`destination`、`report`。 控制顺序：L495按`report.get("validation_level") == "runtime"`分支；L500按`report.get("passed") is not True or digest(listing) != report["source_digest"]`分支；L501抛异常，停止当前正常路径；L504遍历`files(destination)`。 调用`report.get`、`managed_package`、`manifest`、`digest`、`PrerequisiteError`、`zipfile.ZipFile`、`files`、`z.write`、`sha`等。 返回路径：L498的`managed_package(destination, report)`；L515的`result`。
+- `verify_native`（L469–L495）：接收`destination`。 控制顺序：L473按`receipt.get("execution") == "source-candidate"`分支；L477按`receipt.get("execution") == "managed-runtime"`分支；L482按`current != receipt["files"] or not any(p.startswith("generated/") for p in current)`分支；L483抛异常，停止当前正常路径；L484遍历`files(destination / "generated")`；L485按`name.endswith(".py")`分支。 调用`json.loads`、`(destination.parent / "native-generation.json").read_text`、`receipt.get`、`verify_candidate`、`managed_verify`、`manifest`、`any`、`p.startswith`、`PrerequisiteError`等。 返回路径：L476的`verify_candidate(destination, receipt)`；L480的`managed_verify(destination, receipt)`；L495的`result`。
+- `package_native`（L498–L523）：接收`destination`、`report`。 控制顺序：L499按`report.get("execution") == "source-candidate"`分支；L503按`report.get("validation_level") == "runtime"`分支；L508按`report.get("passed") is not True or digest(listing) != report["source_digest"]`分支；L509抛异常，停止当前正常路径；L512遍历`files(destination)`。 调用`report.get`、`package_candidate`、`managed_package`、`manifest`、`digest`、`PrerequisiteError`、`zipfile.ZipFile`、`files`、`z.write`等。 返回路径：L502的`package_candidate(destination, report)`；L506的`managed_package(destination, report)`；L523的`result`。
 
 </details>
 
-**创建路径：** `workbench/generation/native/service.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L515。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/generation/native/service.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L523。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20486`。本段原文以LF换行结束。
+本段原始字节数：`20852`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/generation/native/service.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "524827f9fc50f98a43d87ae9d2a83a91953c20c1959a6b95584090e1b7160793"} -->
+<!-- learning-source: {"path": "workbench/generation/native/service.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "094e8cdcacdc4c5ac3b023b3943ca84524b7235a606ab7ae2db4bb9cf53e4c1f"} -->
 ````python
 # workbench/generation/native/service.py
 """Pinned upstream sources + their real HTTP code generators.
@@ -514,6 +514,10 @@ def verify_native(destination):
     receipt = json.loads(
         (destination.parent / "native-generation.json").read_text(encoding="utf-8")
     )
+    if receipt.get("execution") == "source-candidate":
+        from workbench.delivery.source_candidate import verify_candidate
+
+        return verify_candidate(destination, receipt)
     if receipt.get("execution") == "managed-runtime":
         from workbench.delivery.native import managed_verify
 
@@ -536,6 +540,10 @@ def verify_native(destination):
 
 
 def package_native(destination, report):
+    if report.get("execution") == "source-candidate":
+        from workbench.delivery.source_candidate import package_candidate
+
+        return package_candidate(destination, report)
     if report.get("validation_level") == "runtime":
         from workbench.delivery.native import managed_package
 

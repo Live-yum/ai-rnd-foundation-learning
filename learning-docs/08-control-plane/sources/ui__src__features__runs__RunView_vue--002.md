@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L376–L1213。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L385–L1258。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35641`。本段原文以LF换行结束。
+本段原始字节数：`37345`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "19e8ed963bd9b66a6b1160adb9c124ef1e65285eb9abd304aaba375821038ad7"} -->
+<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "ad9fb9cd6565e02fbd8d3b0edc6d6160c30e45b8e59f5f487e25d75d790435b5"} -->
 ````vue
 <!-- ui/src/features/runs/RunView.vue -->
 function reread() {
@@ -308,14 +308,21 @@ function reread() {
           </div>
         </div>
         <div v-else-if="downloadable" class="info-callout">
-          <CheckOutlined aria-hidden="true" />
+          <DownloadOutlined v-if="sourceDelivery.sourceOnly" aria-hidden="true" />
+          <CheckOutlined v-else aria-hidden="true" />
           <div>
-            <strong>{{ statusLabel(run.status) }}</strong>
+            <strong>{{
+              sourceDelivery.sourceOnly || run.status === 'SOURCE_READY'
+                ? sourceDelivery.title
+                : statusLabel(run.status)
+            }}</strong>
             <p>
               {{
-                run.status === 'SOURCE_READY'
-                  ? '源码包已通过交付确认；这不代表已经完成运行环境验收。'
-                  : '已通过运行级验收及交付确认，可查看报告与下载产物。'
+                sourceDelivery.sourceOnly
+                  ? '已保留的源码可下载；运行验收未通过，不代表生产就绪，也不会自动部署。'
+                  : sourceDelivery.runtimePartial
+                    ? '已批准范围内的部分成果通过运行验收；完整需求仍未完成，请查看覆盖报告。'
+                    : '已通过运行级验收及交付确认，可查看报告与下载产物。'
               }}
             </p>
             <a-button type="primary" @click="route('delivery')">查看交付结果</a-button>
@@ -716,18 +723,26 @@ function reread() {
         <a-tag :color="statusColor(run.status)">{{ statusLabel(run.status) }}</a-tag>
       </header>
       <a-alert
-        :type="run.status === 'READY' ? 'success' : 'info'"
+        :type="
+          sourceDelivery.sourceOnly
+            ? sourceDelivery.failed
+              ? 'error'
+              : 'warning'
+            : run.status === 'READY'
+              ? 'success'
+              : 'info'
+        "
         show-icon
         :message="
-          run.status === 'READY'
-            ? '运行级验收与交付确认已完成'
+          sourceDelivery.sourceOnly
+            ? sourceDelivery.title
             : run.status === 'SOURCE_READY'
-              ? delivery?.delivery_kind === 'partial'
-                ? '部分成果交付已确认，完整需求仍未完成'
-                : '源码级交付已确认，运行验收尚未证明'
-              : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
-                ? '验证结果已保存，等待你的交付确认'
-                : '本轮尚未进入交付确认'
+              ? sourceDelivery.title
+              : run.status === 'READY'
+                ? '运行级验收与交付确认已完成'
+                : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
+                  ? '验证结果已保存，等待你的交付确认'
+                  : '本轮尚未进入交付确认'
         "
         :description="
           downloadable
@@ -742,11 +757,24 @@ function reread() {
         show-icon
         :message="extensionCoverageNotice"
       />
+      <section v-if="sourceDelivery.sourceOnly" class="panel source-candidate-notice">
+        <div class="panel-content">
+          <h2>源码保留与后续验证</h2>
+          <p v-if="sourceDelivery.failed">验证失败，失败项不计入验收通过。</p>
+          <p>下载源码不代表运行验收通过或生产就绪；不会自动部署。</p>
+          <p v-for="reason in sourceDelivery.reasons" :key="reason">{{ reason }}</p>
+          <h3>下一步待完成</h3>
+          <ul v-if="sourceDelivery.pendingSteps.length">
+            <li v-for="step in sourceDelivery.pendingSteps" :key="step">{{ step }}</li>
+          </ul>
+          <p v-else>在支持的运行环境中完成构建、测试与运行验收后，再评估交付就绪情况。</p>
+        </div>
+      </section>
       <div class="delivery-grid">
         <section class="panel">
           <div class="panel-heading">
             <h2>交付产物</h2>
-            <a-tag :color="downloadable ? 'green' : 'gold'">{{
+            <a-tag :color="downloadable && !sourceDelivery.sourceOnly ? 'green' : 'gold'">{{
               downloadable ? '可下载' : '下载锁定'
             }}</a-tag>
           </div>
@@ -760,7 +788,15 @@ function reread() {
               :disabled="!downloadable || !state.online"
               @click="download"
               ><DownloadOutlined aria-hidden="true" />{{
-                delivery?.delivery_kind === 'partial' ? '下载部分成果包' : '下载完整交付包'
+                sourceDelivery.candidate
+                  ? sourceDelivery.partial
+                    ? '下载已保留的部分源码'
+                    : '下载未经验证的源码包'
+                  : delivery?.delivery_kind === 'partial'
+                    ? '下载部分成果包'
+                    : sourceDelivery.sourceOnly
+                      ? '下载源码包'
+                      : '下载完整交付包'
               }}</a-button
             >
           </div>
@@ -792,7 +828,7 @@ function reread() {
             <p>运行验收通过，批准交付后可下载</p>
           </div>
           <div class="definition">
-            <h3>SOURCE_READY · 源码级交付</h3>
+            <h3>SOURCE_READY · 源码或部分成果交付</h3>
             <p>源码级或明确批准的部分成果；查看覆盖报告，不代表完整需求完成或任意环境可运行</p>
           </div>
         </div>

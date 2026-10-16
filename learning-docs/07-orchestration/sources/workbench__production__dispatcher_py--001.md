@@ -15,42 +15,38 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ExtensionDesign`（L39–L44）：继承`Contract`。声明的数据项为`baseline`、`implementation`、`dependency_requests`、`permission_changes`、`decisions`；类型约束/数据库列参数以完整定义为准。
-- `human_scope`（L115–L121）：接收`store`、`run_id`。 调用`store.messages`、`digest`、`scope_sources`。 返回路径：L117的`{ "messages": messages, "source_digest": digest(messages), "sources": scope_sources(messag…`。
-- `design_errors`（L124–L152）：接收`design`、`scope`、`selection`。 控制顺序：L127按`plan.selection.model_dump() != selection or plan.source_digest != scope["source_diges…`分支；L129按`design.baseline.unsupported or design.baseline.custom_rules`分支；L131按`design.dependency_requests`分支；L133按`not any(s.after_restart for s in plan.scenarios) or not any( s.browser for s in plan.…`分支；L137遍历`plan.tasks`；L139按`selection["template"] == "fastapiadmin"`分支；L146按`plan.runtime.start.cwd != "backend" or not any(value == "app:create_app" for value in…`分支。 调用`coverage_errors`、`contract_errors`、`plan.selection.model_dump`、`errors.append`、`any`、`errors.extend`、`task_path_errors`、`validate_plan`、`str`等。 返回路径：L152的`list(dict.fromkeys(errors))`。
-- `ExtensionWorkflow`（L155–L1035）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ExtensionWorkflow.product_ledger`（L158–L169）：接收`state`、`plan`。 调用`ProductLedger`、`digest`、`plan.model_dump`、`str`、`state.get`。 返回路径：L161的`ProductLedger( self.settings.data_dir / "runs" / state["run_id"] / "versions" / digest(pla…`。
-- `ExtensionWorkflow.extension_progress`（L171–L182）：接收`state`、`**update`。 调用`state.get("extension_scope", {}).get`、`state.get`、`write_json`、`self.store.record_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ExtensionWorkflow.extension_requested`（L184–L193）：接收`state`。 调用`custom_requested`、`self.store.messages`。 返回路径：L187的`custom_requested( [ row["content"] for row in self.store.messages(state["run_id"]) if row[…`。
-- `ExtensionWorkflow.feature_requested`（L195–L200）：接收`state`。 调用`self.store.get_run(state["run_id"]) .get("options", {}) .get`、`self.store.get_run(state["run_id"]) .get`、`self.store.get_run`。 返回路径：L196的`self.store.get_run(state["run_id"]) .get("options", {}) .get("allow_custom_extensions", Fa…`。
-- `ExtensionWorkflow.feature_plan`（L202–L324）：接收`state`。 控制顺序：L203按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L204抛异常，停止当前正常路径；L211按`run.get("options", {}).get("specification_mode") == "enhanced"`分支；L256按`version_for_run(run) == 2`分支；L260按`value.outline.version != 1`分支；L261抛异常，停止当前正常路径；L272按`specification and not errors`分支；L277按`not value.implementation`分支。后续分支沿下方源码相同行号继续阅读。 调用`PausedLimit`、`human_scope`、`self.analyse_requirement`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`run.get("options", {}).get`、`run.get`、`prepare_specifications`等。 返回路径：L324的`update`。
-- `ExtensionWorkflow._feature_requirement_errors`（L326–L338）：接收`state`、`baseline`。 调用`Requirement.model_validate`、`source_plan`、`state.get`、`coverage_gaps`、`business_gaps`。 返回路径：L334的`[ *(item["message"] for item in state.get("requirement_analysis_diagnostics", [])), *cover…`。
-- `ExtensionWorkflow.checked_feature`（L340–L362）：接收`state`。 控制顺序：L348按`design.outline.version != version_for_run(run)`分支；L350按`design.outline.version == 2`分支；L356按`scope != state["extension_scope"]`分支；L358按`design.baseline.model_dump() != state["plan"]`分支；L360按`errors`分支；L361抛异常，停止当前正常路径。 调用`human_scope`、`FeatureDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`feature_design_errors`、`version_for_run`、`errors.append`、`compile_v2`等。 返回路径：L362的`design`。
-- `ExtensionWorkflow.feature_design`（L364–L368）：接收`state`。 控制顺序：L366按`design.implementation`分支。 调用`FeatureDesign.model_validate`、`self.extension_design`、`self.design`。 返回路径：L367的`self.extension_design(state)`；L368的`self.design(state)`。
-- `ExtensionWorkflow.extension_plan`（L370–L427）：接收`state`。 控制顺序：L371按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L372抛异常，停止当前正常路径；L376按`scope["messages"][: len(original["messages"])] != original["messages"]`分支；L377抛异常，停止当前正常路径；L395按`policy["requires_explicit_review"]`分支；L399按`policy["trusted_oracle"] and selection["template"] != "fastapiadmin"`分支；L413按`not self.settings.enable_coding`分支。 调用`PausedLimit`、`human_scope`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`self.store.step`、`len`、`UnsupportedScope`、`scope_policy`等。 返回路径：L415的`{ "extension_design": value.model_dump(), "extension_scope": scope, "extension_policy": po…`。
-- `ExtensionWorkflow.checked_extension`（L429–L452）：接收`state`。 控制顺序：L430按`state.get("feature_design")`分支；L439按`expected.model_dump() != state["extension_design"]`分支；L440抛异常，停止当前正常路径；L442按`scope["source_digest"] != state["extension_scope"]["source_digest"]`分支；L443抛异常，停止当前正常路径；L448按`state.get("extension_policy") != policy`分支；L450按`errors`分支；L451抛异常，停止当前正常路径。 调用`state.get`、`self.checked_feature`、`ExtensionDesign`、`expected.model_dump`、`UnsupportedScope`、`human_scope`、`ExtensionDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`等。 返回路径：L452的`design`。
-- `ExtensionWorkflow.extension_design`（L454–L468）：接收`state`。 控制顺序：L464按`result["decision"] in {"revise", "recommend"}`分支；L466按`result["decision"] == "reject"`分支。 调用`ExtensionDesign.model_validate`、`self.extension_design_data`、`self.gate`。 返回路径：L468的`result`。
-- `ExtensionWorkflow.extension_design_data`（L470–L494）：接收`state`、`design`。 调用`review_contract`、`bool`、`state.get`。 返回路径：L471的`{ "extension": state["extension_design"], "source_units": state["extension_scope"]["source…`。
-- `ExtensionWorkflow.extension_coverage`（L496–L511）：接收`state`、`design`、`proof`。 控制顺序：L498按`not design.implementation.obligations`分支。 调用`business_coverage`、`self.store.explicit_approval`、`self.extension_design_data`、`digest`、`review_contract`、`reviewed_coverage`。 返回路径：L499的`base`；L509的`reviewed_coverage( design.implementation, state["extension_policy"], proof, approval, base…`。
-- `ExtensionWorkflow.extension_generate`（L513–L546）：接收`state`。 控制顺序：L542按`manifest(baseline) != receipt["files"]`分支；L543抛异常，停止当前正常路径；L544按`design.implementation.version == 2`分支。 调用`self.checked_extension`、`digest`、`design.model_dump`、`design.implementation.selection.model_dump`、`self.store.step`、`manifest`、`PrerequisiteError`、`self.product_ledger(state, design.implementation).baseline`、`self.product_ledger`等。 返回路径：L546的`{"extension_product": str(baseline), "extension_baseline": receipt["files"]}`。
-- `ExtensionWorkflow.extension_generate.generate`（L524–L537）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L525按`selection["template"] == "python-basic"`分支；L533按`selection["template"] == "python-basic"`分支。 调用`generate_basic`、`generate_native`、`prepare_consumer`、`manifest`。 返回路径：L537的`{"files": manifest(baseline)}`。
-- `ExtensionWorkflow.extension_task`（L548–L557）：接收`state`、`design`。 调用`state.get`、`next`、`set`。 返回路径：L550的`next( ( task for task in design.implementation.tasks if task.id not in completed and set(t…`。
-- `ExtensionWorkflow.extension_code`（L559–L680）：接收`state`。 控制顺序：L562按`task is None`分支；L563抛异常，停止当前正常路径；L574按`getattr(task, "executor", "bounded_edit") == "mini_swe"`分支；L600遍历`task.files`；L612按`self.settings.repo_map_provider == "aider"`分支。 调用`self.checked_extension`、`self.extension_task`、`PrerequisiteError`、`Path`、`digest`、`design.model_dump`、`manifest`、`state.get`、`getattr`等。 返回路径：L667的`{ "extension_candidate": "", "extension_error": str(exc)[:4000], "extension_candidate_pass…`；L675的`{ "extension_candidate": str(candidate), "extension_edit_receipt": receipt, "extension_err…`。
-- `ExtensionWorkflow.extension_verify`（L682–L734）：接收`state`。 控制顺序：L687按`not state.get("extension_candidate")`分支；L720按`plan.version == 2`分支。 调用`self.checked_extension`、`self.extension_task`、`state.get`、`Path`、`self.extension_progress`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`等。 返回路径：L688的`{"extension_candidate_passed": False}`；L711的`{ "extension_candidate_passed": False, "extension_error": self.settings.redact( str(exc) +…`；L728的`{ "extension_completed": completed, "extension_product": str(candidate), "extension_candid…`。
-- `ExtensionWorkflow.extension_after_verify`（L736–L748）：接收`state`。 控制顺序：L737按`state.get("extension_candidate_passed")`分支；L741按`getattr(self.extension_task(state, design), "executor", None) == "mini_swe"`分支；L742抛异常，停止当前正常路径；L743按`state.get("extension_attempt", 0) < self.settings.max_repair_attempts`分支；L745抛异常，停止当前正常路径。 调用`state.get`、`ExtensionDesign.model_validate`、`self.extension_task`、`self.checked_extension`、`getattr`、`UnsupportedScope`。 返回路径：L739的`"extension_code" if self.extension_task(state, design) else "extension_aggregate"`；L744的`"extension_repair"`。
-- `ExtensionWorkflow.extension_repair`（L750–L751）：接收`state`。 调用`state.get`。 返回路径：L751的`{"extension_attempt": state.get("extension_attempt", 0) + 1}`。
-- `ExtensionWorkflow.extension_aggregate`（L753–L804）：接收`state`。 控制顺序：L758按`{row["task"] for row in state.get("extension_completed", [])} != { task.id for task i…`分支；L761抛异常，停止当前正常路径；L783按`plan.version == 2`分支。 调用`self.checked_extension`、`state.get`、`PrerequisiteError`、`Path`、`verify_capabilities`、`plan.selection.model_dump`、`require_evidence`、`digest`、`manifest`等。 返回路径：L786的`{ "extension_aggregate_passed": False, "extension_error": self.settings.redact(str(exc))[:…`；L800的`{ "extension_proof": proof, "extension_coverage": coverage, "extension_aggregate_passed": …`。
-- `ExtensionWorkflow.extension_after_aggregate`（L806–L818）：接收`state`。 控制顺序：L807按`state.get("extension_aggregate_passed")`分支；L810按`any( getattr(task, "executor", None) == "mini_swe" for task in design.implementation.…`分支；L813抛异常，停止当前正常路径；L814按`state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts`分支；L816抛异常，停止当前正常路径。 调用`state.get`、`self.checked_extension`、`any`、`getattr`、`UnsupportedScope`。 返回路径：L808的`"extension_review"`；L815的`"extension_integration_repair"`。
-- `ExtensionWorkflow.extension_integration_repair`（L820–L839）：接收`state`。 控制顺序：L829按`manifest(baseline) != state["extension_baseline"]`分支；L830抛异常，停止当前正常路径。 调用`self.checked_extension`、`digest`、`design.model_dump`、`manifest`、`PrerequisiteError`、`state.get`、`str`。 返回路径：L831的`{ "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1, "ext…`。
-- `ExtensionWorkflow.extension_review`（L841–L866）：接收`state`。 控制顺序：L843按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L844的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L866的`{"model_review": result}`。
+- `ExtensionDesign`（L41–L46）：继承`Contract`。声明的数据项为`baseline`、`implementation`、`dependency_requests`、`permission_changes`、`decisions`；类型约束/数据库列参数以完整定义为准。
+- `human_scope`（L117–L123）：接收`store`、`run_id`。 调用`store.messages`、`digest`、`scope_sources`。 返回路径：L119的`{ "messages": messages, "source_digest": digest(messages), "sources": scope_sources(messag…`。
+- `design_errors`（L126–L154）：接收`design`、`scope`、`selection`。 控制顺序：L129按`plan.selection.model_dump() != selection or plan.source_digest != scope["source_diges…`分支；L131按`design.baseline.unsupported or design.baseline.custom_rules`分支；L133按`design.dependency_requests`分支；L135按`not any(s.after_restart for s in plan.scenarios) or not any( s.browser for s in plan.…`分支；L139遍历`plan.tasks`；L141按`selection["template"] == "fastapiadmin"`分支；L148按`plan.runtime.start.cwd != "backend" or not any(value == "app:create_app" for value in…`分支。 调用`coverage_errors`、`contract_errors`、`plan.selection.model_dump`、`errors.append`、`any`、`errors.extend`、`task_path_errors`、`validate_plan`、`str`等。 返回路径：L154的`list(dict.fromkeys(errors))`。
+- `ExtensionWorkflow`（L157–L1324）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ExtensionWorkflow.product_ledger`（L160–L171）：接收`state`、`plan`。 调用`ProductLedger`、`digest`、`plan.model_dump`、`str`、`state.get`。 返回路径：L163的`ProductLedger( self.settings.data_dir / "runs" / state["run_id"] / "versions" / digest(pla…`。
+- `ExtensionWorkflow.extension_progress`（L173–L184）：接收`state`、`**update`。 调用`state.get("extension_scope", {}).get`、`state.get`、`write_json`、`self.store.record_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ExtensionWorkflow.extension_requested`（L186–L195）：接收`state`。 调用`custom_requested`、`self.store.messages`。 返回路径：L189的`custom_requested( [ row["content"] for row in self.store.messages(state["run_id"]) if row[…`。
+- `ExtensionWorkflow.feature_requested`（L197–L202）：接收`state`。 调用`self.store.get_run(state["run_id"]) .get("options", {}) .get`、`self.store.get_run(state["run_id"]) .get`、`self.store.get_run`。 返回路径：L198的`self.store.get_run(state["run_id"]) .get("options", {}) .get("allow_custom_extensions", Fa…`。
+- `ExtensionWorkflow.feature_plan`（L204–L326）：接收`state`。 控制顺序：L205按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L206抛异常，停止当前正常路径；L213按`run.get("options", {}).get("specification_mode") == "enhanced"`分支；L258按`version_for_run(run) == 2`分支；L262按`value.outline.version != 1`分支；L263抛异常，停止当前正常路径；L274按`specification and not errors`分支；L279按`not value.implementation`分支。后续分支沿下方源码相同行号继续阅读。 调用`PausedLimit`、`human_scope`、`self.analyse_requirement`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`run.get("options", {}).get`、`run.get`、`prepare_specifications`等。 返回路径：L326的`update`。
+- `ExtensionWorkflow._feature_requirement_errors`（L328–L340）：接收`state`、`baseline`。 调用`Requirement.model_validate`、`source_plan`、`state.get`、`coverage_gaps`、`business_gaps`。 返回路径：L336的`[ *(item["message"] for item in state.get("requirement_analysis_diagnostics", [])), *cover…`。
+- `ExtensionWorkflow.checked_feature`（L342–L364）：接收`state`。 控制顺序：L350按`design.outline.version != version_for_run(run)`分支；L352按`design.outline.version == 2`分支；L358按`scope != state["extension_scope"]`分支；L360按`design.baseline.model_dump() != state["plan"]`分支；L362按`errors`分支；L363抛异常，停止当前正常路径。 调用`human_scope`、`FeatureDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`feature_design_errors`、`version_for_run`、`errors.append`、`compile_v2`等。 返回路径：L364的`design`。
+- `ExtensionWorkflow.feature_design`（L366–L370）：接收`state`。 控制顺序：L368按`design.implementation`分支。 调用`FeatureDesign.model_validate`、`self.extension_design`、`self.design`。 返回路径：L369的`self.extension_design(state)`；L370的`self.design(state)`。
+- `ExtensionWorkflow.extension_plan`（L372–L429）：接收`state`。 控制顺序：L373按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L374抛异常，停止当前正常路径；L378按`scope["messages"][: len(original["messages"])] != original["messages"]`分支；L379抛异常，停止当前正常路径；L397按`policy["requires_explicit_review"]`分支；L401按`policy["trusted_oracle"] and selection["template"] != "fastapiadmin"`分支；L415按`not self.settings.enable_coding`分支。 调用`PausedLimit`、`human_scope`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`、`self.store.step`、`len`、`UnsupportedScope`、`scope_policy`等。 返回路径：L417的`{ "extension_design": value.model_dump(), "extension_scope": scope, "extension_policy": po…`。
+- `ExtensionWorkflow.checked_extension`（L431–L454）：接收`state`。 控制顺序：L432按`state.get("feature_design")`分支；L441按`expected.model_dump() != state["extension_design"]`分支；L442抛异常，停止当前正常路径；L444按`scope["source_digest"] != state["extension_scope"]["source_digest"]`分支；L445抛异常，停止当前正常路径；L450按`state.get("extension_policy") != policy`分支；L452按`errors`分支；L453抛异常，停止当前正常路径。 调用`state.get`、`self.checked_feature`、`ExtensionDesign`、`expected.model_dump`、`UnsupportedScope`、`human_scope`、`ExtensionDesign.model_validate`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`等。 返回路径：L454的`design`。
+- `ExtensionWorkflow.extension_design`（L456–L470）：接收`state`。 控制顺序：L466按`result["decision"] in {"revise", "recommend"}`分支；L468按`result["decision"] == "reject"`分支。 调用`ExtensionDesign.model_validate`、`self.extension_design_data`、`self.gate`。 返回路径：L470的`result`。
+- `ExtensionWorkflow.extension_design_data`（L472–L496）：接收`state`、`design`。 调用`review_contract`、`bool`、`state.get`。 返回路径：L473的`{ "extension": state["extension_design"], "source_units": state["extension_scope"]["source…`。
+- `ExtensionWorkflow.extension_coverage`（L498–L513）：接收`state`、`design`、`proof`。 控制顺序：L500按`not design.implementation.obligations`分支。 调用`business_coverage`、`self.store.explicit_approval`、`self.extension_design_data`、`digest`、`review_contract`、`reviewed_coverage`。 返回路径：L501的`base`；L511的`reviewed_coverage( design.implementation, state["extension_policy"], proof, approval, base…`。
+- `ExtensionWorkflow.extension_generate`（L515–L564）：接收`state`。 控制顺序：L545按`manifest(baseline) != receipt["files"]`分支；L546抛异常，停止当前正常路径；L547按`selection["template"] != "python-basic"`分支；L557按`design.implementation.version == 2`分支。 调用`self.checked_extension`、`digest`、`design.model_dump`、`design.implementation.selection.model_dump`、`self.store.step`、`manifest`、`PrerequisiteError`、`self.checked_native_generation`、`design.baseline.model_dump`等。 返回路径：L559的`{ "extension_product": str(baseline), "extension_baseline": receipt["files"], "native_gene…`。
+- `ExtensionWorkflow.extension_generate.generate`（L526–L540）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L528按`selection["template"] == "python-basic"`分支；L536按`selection["template"] == "python-basic"`分支。 调用`generate_basic`、`generate_native`、`prepare_consumer`、`manifest`。 返回路径：L540的`{"files": manifest(baseline), "native_generation": native_receipt}`。
+- `ExtensionWorkflow.extension_task`（L566–L580）：接收`state`、`design`。 控制顺序：L569按`source_only`分支。 调用`state.get`、`state.get("native_generation", {}).get`、`set`、`next`、`getattr`。 返回路径：L571的`next( ( task for task in design.implementation.tasks if task.id not in completed and set(t…`。
+- `ExtensionWorkflow.extension_after_generate`（L582–L591）：接收`state`。 控制顺序：L583按`state.get("native_generation", {}).get("execution") != "source-candidate"`分支；L589按`task is None or getattr(task, "executor", "bounded_edit") != "bounded_edit"`分支。 调用`state.get("native_generation", {}).get`、`state.get`、`self.checked_extension`、`self.extension_task`、`getattr`。 返回路径：L584的`"extension_code"`；L590的`"extension_package"`；L591的`"extension_code"`。
+- `ExtensionWorkflow.extension_after_code`（L593–L598）：接收`state`。 控制顺序：L594按`state.get("native_generation", {}).get("execution") != "source-candidate"`分支；L596按`state.get("extension_error")`分支。 调用`state.get("native_generation", {}).get`、`state.get`、`self.extension_after_generate`。 返回路径：L595的`"extension_verify"`；L597的`"extension_package"`；L598的`self.extension_after_generate(state)`。
+- `ExtensionWorkflow.extension_source_draft`（L600–L675）：接收`state`、`design`、`task`、`edited`、`edits`、`edit_receipt`。 控制顺序：L613按`edit_receipt.get("identity") != expected_identity or edit_receipt.get("before") != pa…`分支；L620抛异常，停止当前正常路径；L622按`len(edit_paths) != len(set(edit_paths)) or set(edit_paths) != set(task.files)`分支；L623抛异常，停止当前正常路径；L625遍历`edits.files`；L626按`edit.before_sha256 != parent["files"].get(edit.path)`分支；L627抛异常，停止当前正常路径；L629按`edit_receipt["files"] != expected_files or manifest(edited) != expected_files`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`verify_candidate`、`digest`、`task.model_dump`、`edits.model_dump`、`edit_receipt.get`、`PrerequisiteError`、`len`、`set`等。 返回路径：L667的`{ "extension_candidate": str(destination), "extension_product": str(destination), "extensi…`。
+- `ExtensionWorkflow.extension_code`（L677–L874）：接收`state`。 控制顺序：L680按`task is None`分支；L681按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L685抛异常，停止当前正常路径；L686按`state.get("native_generation", {}).get("execution") == "source-candidate" and getattr…`分支；L694按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L696按`any( inside(product, name).relative_to(product.resolve()).as_posix().casefold() in re…`分支；L709按`source_only`分支；L730按`source_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.checked_extension`、`self.extension_task`、`state.get("native_generation", {}).get`、`state.get`、`PrerequisiteError`、`getattr`、`Path`、`any`、`inside(product, name).relative_to(product.resolve()).as_posix().c…`等。 返回路径：L684的`{"extension_candidate": "", "extension_candidate_passed": False}`；L692的`{"extension_candidate": "", "extension_candidate_passed": False}`；L703的`{ "extension_candidate": "", "extension_candidate_passed": False, "extension_error": "模块不能…`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L867。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L875。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`42291`。本段原文以LF换行结束。
+本段原始字节数：`44447`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "1e47d6a1d4f8e33a0e717c031c88d6889bcab87c031fc08adb6b7d06a407196e"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "0eb54d8259603f1bf62092437c280ec4407aa3adbc5c563373a4a308550d3d9f"} -->
 ````python
 # workbench/production/dispatcher.py
 """Durable reviewed capability development, preserving the selected template.
@@ -59,7 +55,9 @@ Planning is not proof. Candidate source is never imported on the platform host;
 only controller-owned, source-bound sandbox evidence may authorize delivery.
 """
 
+import hashlib
 import json
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -73,7 +71,7 @@ from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.extensions.obligations import review_contract, reviewed_coverage
 from workbench.extensions.policy import business_coverage, contract_errors, scope_policy
 from workbench.extensions.readiness import readiness_report
-from workbench.filesystem import files, inside, manifest, sha, unpack, write_json
+from workbench.filesystem import files, inside, inspect_archive, manifest, sha, unpack, write_json
 from workbench.generation.python_basic import PrerequisiteError, generate_basic
 from workbench.planning.contracts import (
     CapabilityEdits,
@@ -577,46 +575,192 @@ class ExtensionWorkflow:
         selection = design.implementation.selection.model_dump()
 
         def generate():
+            native_receipt = {}
             if selection["template"] == "python-basic":
                 generate_basic(design.baseline, baseline, selection=selection)
             else:
                 from workbench.generation.native.service import generate_native
 
-                generate_native(
+                native_receipt = generate_native(
                     self.settings, selection["template"], design.baseline, baseline, managed=True
                 )
             if selection["template"] == "python-basic":
                 from workbench.extensions.consumer import prepare_consumer
 
                 prepare_consumer(baseline, design.implementation)
-            return {"files": manifest(baseline)}
+            return {"files": manifest(baseline), "native_generation": native_receipt}
 
         receipt = self.store.step(
             state["run_id"], "extension:baseline:" + digest(design.model_dump()), generate
         )
         if manifest(baseline) != receipt["files"]:
             raise PrerequisiteError("模块基线与生成回执不一致")
+        if selection["template"] != "python-basic":
+            self.checked_native_generation(
+                {
+                    **state,
+                    "template": selection["template"],
+                    "plan": design.baseline.model_dump(),
+                    "native_generation": receipt.get("native_generation"),
+                },
+                product=baseline,
+            )
         if design.implementation.version == 2:
             self.product_ledger(state, design.implementation).baseline(baseline)
-        return {"extension_product": str(baseline), "extension_baseline": receipt["files"]}
+        return {
+            "extension_product": str(baseline),
+            "extension_baseline": receipt["files"],
+            "native_generation": receipt.get("native_generation", {}),
+            "extension_drafted": [],
+        }
 
     def extension_task(self, state, design):
         completed = {row["task"] for row in state.get("extension_completed", [])}
+        source_only = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if source_only:
+            completed |= set(state.get("extension_drafted", []))
         return next(
             (
                 task
                 for task in design.implementation.tasks
-                if task.id not in completed and set(task.depends_on) <= completed
+                if task.id not in completed
+                and set(task.depends_on) <= completed
+                and (not source_only or getattr(task, "executor", "bounded_edit") == "bounded_edit")
             ),
             None,
         )
+
+    def extension_after_generate(self, state):
+        if state.get("native_generation", {}).get("execution") != "source-candidate":
+            return "extension_code"
+        design = self.checked_extension(state)
+        task = self.extension_task(state, design)
+        # Only bounded file editing is allowed without runtime isolation. A
+        # mini-SWE task remains pending; its sandbox cannot be replaced by host execution.
+        if task is None or getattr(task, "executor", "bounded_edit") != "bounded_edit":
+            return "extension_package"
+        return "extension_code"
+
+    def extension_after_code(self, state):
+        if state.get("native_generation", {}).get("execution") != "source-candidate":
+            return "extension_verify"
+        if state.get("extension_error"):
+            return "extension_package"
+        return self.extension_after_generate(state)
+
+    def extension_source_draft(self, state, design, task, edited, edits, edit_receipt):
+        from workbench.delivery.source_candidate import derive_candidate, verify_candidate
+
+        parent = state["native_generation"]
+        source = Path(state["extension_product"])
+        verify_candidate(source, parent)
+        expected_identity = digest(
+            {
+                "source": parent["files"],
+                "task": task.model_dump(),
+                "edits": edits.model_dump(),
+            }
+        )
+        if (
+            edit_receipt.get("identity") != expected_identity
+            or edit_receipt.get("before") != parent["files"]
+            or edit_receipt.get("task") != task.id
+            or edit_receipt.get("engine") != "bounded-source-files"
+            or edit_receipt.get("host_execution") is not False
+        ):
+            raise PrerequisiteError("源码编辑回执与批准任务或原始候选不一致")
+        edit_paths = [edit.path for edit in edits.files]
+        if len(edit_paths) != len(set(edit_paths)) or set(edit_paths) != set(task.files):
+            raise PrerequisiteError("持久化修改文件与批准任务不一致")
+        expected_files = dict(parent["files"])
+        for edit in edits.files:
+            if edit.before_sha256 != parent["files"].get(edit.path):
+                raise PrerequisiteError("持久化修改前像与已验证源码不一致")
+            expected_files[edit.path] = hashlib.sha256(edit.content.encode("utf-8")).hexdigest()
+        if edit_receipt["files"] != expected_files or manifest(edited) != expected_files:
+            raise PrerequisiteError("派生前源码与绑定的修改内容不一致")
+        changed = {
+            name
+            for name in set(parent["files"]) | set(edit_receipt["files"])
+            if parent["files"].get(name) != edit_receipt["files"].get(name)
+        }
+        if changed - set(task.files):
+            raise PrerequisiteError("持久化源码编辑超出批准文件范围")
+        drafted = [*state.get("extension_drafted", []), task.id]
+        destination = edited.parent / "source" / "product"
+        native_receipt = derive_candidate(
+            source,
+            edited,
+            destination,
+            parent,
+            edit_receipt,
+            derivation={
+                "parent_receipt_digest": digest(parent),
+                "edit_identity": expected_identity,
+                "task": task.id,
+                "approved_files": list(task.files),
+                "candidate_edit_files_digest": digest(edit_receipt["files"]),
+            },
+            generated_files=sorted(set(parent.get("generated_files", [])) | set(task.files)),
+            pending_steps=[
+                *[
+                    step
+                    for step in parent.get("pending_steps", [])
+                    if not step.startswith("Implement module task: ")
+                ],
+                *[
+                    "Implement module task: " + item.id
+                    for item in design.implementation.tasks
+                    if item.id not in drafted
+                ],
+            ],
+        )
+        return {
+            "extension_candidate": str(destination),
+            "extension_product": str(destination),
+            "extension_edit_receipt": edit_receipt,
+            "extension_drafted": drafted,
+            "native_generation": native_receipt,
+            "extension_candidate_passed": False,
+            "extension_error": "",
+        }
 
     def extension_code(self, state):
         design = self.checked_extension(state)
         task = self.extension_task(state, design)
         if task is None:
+            if state.get("native_generation", {}).get("execution") == "source-candidate":
+                # A resumed source checkpoint may only have isolated tasks left.
+                # Leave them pending rather than executing or marking them complete.
+                return {"extension_candidate": "", "extension_candidate_passed": False}
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
+        if (
+            state.get("native_generation", {}).get("execution") == "source-candidate"
+            and getattr(task, "executor", "bounded_edit") != "bounded_edit"
+        ):
+            # Also protect a resumed checkpoint already at the code node. The
+            # source path never substitutes host execution for an isolated agent.
+            return {"extension_candidate": "", "extension_candidate_passed": False}
         product = Path(state["extension_product"])
+        if state.get("native_generation", {}).get("execution") == "source-candidate":
+            reserved = {"source-status.json", "source-status.md", "rnd-source-scope.json"}
+            if any(
+                inside(product, name).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for name in task.files
+            ):
+                # Status/scope records belong to the controller. Reject before
+                # model calls or edits instead of silently overwriting a drafted task.
+                return {
+                    "extension_candidate": "",
+                    "extension_candidate_passed": False,
+                    "extension_error": "模块不能修改控制端源码状态或范围声明",
+                }
+        source_only = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if source_only:
+            from workbench.delivery.source_candidate import verify_candidate
+
+            verify_candidate(product, state["native_generation"])
         identity = digest(
             {
                 "design": design.model_dump(),
@@ -626,81 +770,6 @@ class ExtensionWorkflow:
             }
         )
         attempt = state.get("extension_attempt", 0)
-        if getattr(task, "executor", "bounded_edit") == "mini_swe":
-            from workbench.coding.mini_swe import run_agent
-
-            value = run_agent(
-                self.settings,
-                self.gateway,
-                state["run_id"],
-                task,
-                design.implementation,
-                product,
-                self.settings.data_dir
-                / "runs"
-                / state["run_id"]
-                / "agent"
-                / identity
-                / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}",
-                {
-                    "coding_standard": get_adapter(
-                        design.implementation.selection.template
-                    ).coding_standard(),
-                    "source_units": state["extension_scope"]["sources"],
-                    "previous_error": state.get("extension_error", ""),
-                },
-            )
-        else:
-            context = {}
-            for name in task.files:
-                path = inside(product, name)
-                context[name] = (
-                    {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
-                    if path.is_file()
-                    else {"sha256": None, "content": None}
-                )
-            from workbench.knowledge_services.index import build_index
-            from workbench.knowledge_services.retrieval import compact_map, query
-
-            index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
-            build_index(product, index)
-            if self.settings.repo_map_provider == "aider":
-                from workbench.coding.aider import repo_map
-
-                mapping = repo_map(product, index, self.settings)
-            else:
-                mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
-            retrieved = query(
-                product,
-                index,
-                task.title + " " + task.contract,
-                limit=4,
-                max_chars=6000,
-                settings=self.settings,
-            )
-            value = self.gateway.complete(
-                state["run_id"],
-                f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",
-                CODING,
-                {
-                    "task": task.model_dump(),
-                    "coding_standard": get_adapter(
-                        design.implementation.selection.template
-                    ).coding_standard(),
-                    "context": context,
-                    "approved_design": design.model_dump(),
-                    **(
-                        {"native_normalization": state.get("native_normalization", {})}
-                        if state.get("feature_design")
-                        else {}
-                    ),
-                    "source_units": state["extension_scope"]["sources"],
-                    "previous_error": state.get("extension_error", ""),
-                    "repo_map": mapping,
-                    "retrieval": retrieved,
-                },
-                CapabilityEdits,
-            )
         candidate = (
             self.settings.data_dir
             / "runs"
@@ -709,15 +778,134 @@ class ExtensionWorkflow:
             / identity
             / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}"
         )
+        if source_only:
+            candidate = candidate / "product"
+            proposal_path = inside(candidate.parent, "source-edits.json")
+            proposal_identity = {
+                "parent_receipt_digest": digest(state["native_generation"]),
+                "task_digest": digest(task.model_dump()),
+            }
+        if source_only and proposal_path.is_file():
+            saved_proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+            if {key: saved_proposal.get(key) for key in proposal_identity} != proposal_identity:
+                raise PrerequisiteError("持久化源码修改与原始候选或批准任务不一致")
+            value = CapabilityEdits.model_validate(saved_proposal["edits"])
+        else:
+            if getattr(task, "executor", "bounded_edit") == "mini_swe":
+                from workbench.coding.mini_swe import run_agent
+
+                value = run_agent(
+                    self.settings,
+                    self.gateway,
+                    state["run_id"],
+                    task,
+                    design.implementation,
+                    product,
+                    self.settings.data_dir
+                    / "runs"
+                    / state["run_id"]
+                    / "agent"
+                    / identity
+                    / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}",
+                    {
+                        "coding_standard": get_adapter(
+                            design.implementation.selection.template
+                        ).coding_standard(),
+                        "source_units": state["extension_scope"]["sources"],
+                        "previous_error": state.get("extension_error", ""),
+                    },
+                )
+            else:
+                context = {}
+                for name in task.files:
+                    path = inside(product, name)
+                    context[name] = (
+                        {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
+                        if path.is_file()
+                        else {"sha256": None, "content": None}
+                    )
+                from workbench.knowledge_services.index import build_index
+                from workbench.knowledge_services.retrieval import compact_map, query
+
+                index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
+                build_index(product, index)
+                if (
+                    self.settings.repo_map_provider == "aider"
+                    and state.get("native_generation", {}).get("execution") != "source-candidate"
+                ):
+                    from workbench.coding.aider import repo_map
+
+                    mapping = repo_map(product, index, self.settings)
+                else:
+                    mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
+                retrieved = query(
+                    product,
+                    index,
+                    task.title + " " + task.contract,
+                    limit=4,
+                    max_chars=6000,
+                    # Source drafting must not invoke Continue, embeddings, or other
+                    # optional retrieval services. None selects deterministic AST/FTS5.
+                    settings=None
+                    if state.get("native_generation", {}).get("execution") == "source-candidate"
+                    else self.settings,
+                )
+                value = self.gateway.complete(
+                    state["run_id"],
+                    f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",
+                    CODING,
+                    {
+                        "task": task.model_dump(),
+                        "coding_standard": get_adapter(
+                            design.implementation.selection.template
+                        ).coding_standard(),
+                        "context": context,
+                        "approved_design": design.model_dump(),
+                        **(
+                            {"native_normalization": state.get("native_normalization", {})}
+                            if state.get("feature_design")
+                            else {}
+                        ),
+                        "source_units": state["extension_scope"]["sources"],
+                        "previous_error": state.get("extension_error", ""),
+                        "repo_map": mapping,
+                        "retrieval": retrieved,
+                    },
+                    CapabilityEdits,
+                )
         try:
-            receipt = apply_candidate(
-                product,
-                value,
-                task,
-                design.implementation.selection.model_dump(),
-                candidate,
-                self.settings,
-            )
+            if source_only:
+                verify_candidate(product, state["native_generation"])
+            if state.get("native_generation", {}).get("execution") == "source-candidate" and any(
+                inside(product, edit.path).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for edit in value.files
+            ):
+                raise ValueError("模块不能修改控制端源码状态或范围声明")
+            if source_only:
+                proposal = {**proposal_identity, "edits": value.model_dump()}
+                if proposal_path.is_file():
+                    if json.loads(proposal_path.read_text(encoding="utf-8")) != proposal:
+                        raise PrerequisiteError("源码修改提案在回放期间发生变化")
+                else:
+                    if candidate.exists():
+                        raise PrerequisiteError("已有源码候选缺少绑定的修改提案")
+                    write_json(proposal_path, proposal)
+            if source_only and candidate.exists():
+                receipt = json.loads(
+                    inside(candidate.parent, "product-edit.json").read_text(encoding="utf-8")
+                )
+            else:
+                receipt = apply_candidate(
+                    product,
+                    value,
+                    task,
+                    design.implementation.selection.model_dump(),
+                    candidate,
+                    None
+                    if state.get("native_generation", {}).get("execution") == "source-candidate"
+                    else self.settings,
+                )
         except (ValueError, SyntaxError) as exc:
             return {
                 "extension_candidate": "",
@@ -727,197 +915,13 @@ class ExtensionWorkflow:
         self.extension_progress(
             state, task=task.id, phase="candidate_saved", candidate_digest=digest(receipt["files"])
         )
+        if source_only:
+            return self.extension_source_draft(state, design, task, candidate, value, receipt)
         return {
             "extension_candidate": str(candidate),
             "extension_edit_receipt": receipt,
             "extension_error": "",
             "extension_candidate_passed": False,
         }
-
-    def extension_verify(self, state):
-        from workbench.acceptance.capability_sandbox import verify_capabilities
-
-        design = self.checked_extension(state)
-        task = self.extension_task(state, design)
-        if not state.get("extension_candidate"):
-            return {"extension_candidate_passed": False}
-        candidate = Path(state["extension_candidate"])
-        plan = design.implementation
-        scenarios = [s for s in plan.scenarios if s.id in task.scenarios]
-        self.extension_progress(state, task=task.id, phase="waiting_for_isolated_verification")
-        proof = verify_capabilities(
-            candidate,
-            plan,
-            scenarios,
-            self.settings,
-            aggregate=False,
-            selection=plan.selection.model_dump(),
-        )
-        try:
-            require_evidence(
-                proof,
-                source_digest=digest(manifest(candidate)),
-                plan_digest=digest(plan.model_dump()),
-                scenarios=scenarios,
-                selection=plan.selection.model_dump(),
-                database_tables=plan.runtime.database_tables,
-            )
-        except CheckFailure as exc:
-            return {
-                "extension_candidate_passed": False,
-                "extension_error": self.settings.redact(
-                    str(exc)
-                    + "\n"
-                    + json.dumps({k: proof.get(k) for k in ("error", "checks")}, ensure_ascii=False)
-                )[:6000],
-            }
-        self.extension_progress(state, task=task.id, phase="verified", implementation_verified=True)
-        if plan.version == 2:
-            ledger = self.product_ledger(state, plan)
-            ledger.baseline(state["extension_product"])
-            ledger.promote(candidate, task, proof, manifest(state["extension_product"]))
-        completed = [
-            *state.get("extension_completed", []),
-            {"task": task.id, "proof": proof, "base_product": state["extension_product"]},
-        ]
-        return {
-            "extension_completed": completed,
-            "extension_product": str(candidate),
-            "extension_candidate_passed": True,
-            "extension_attempt": 0,
-            "extension_error": "",
-        }
-
-    def extension_after_verify(self, state):
-        if state.get("extension_candidate_passed"):
-            design = ExtensionDesign.model_validate(state["extension_design"])
-            return "extension_code" if self.extension_task(state, design) else "extension_aggregate"
-        design = self.checked_extension(state)
-        if getattr(self.extension_task(state, design), "executor", None) == "mini_swe":
-            raise UnsupportedScope("最终独立节点验收否决；不重启mini-SWE预算")
-        if state.get("extension_attempt", 0) < self.settings.max_repair_attempts:
-            return "extension_repair"
-        raise UnsupportedScope(
-            "模块修复预算已用尽；候选和验收失败已保留，未减少需求："
-            + state.get("extension_error", "")
-        )
-
-    def extension_repair(self, state):
-        return {"extension_attempt": state.get("extension_attempt", 0) + 1}
-
-    def extension_aggregate(self, state):
-        from workbench.acceptance.capability_sandbox import verify_capabilities
-
-        design = self.checked_extension(state)
-        plan = design.implementation
-        if {row["task"] for row in state.get("extension_completed", [])} != {
-            task.id for task in plan.tasks
-        }:
-            raise PrerequisiteError("模块节点未全部通过，不能汇总交付")
-        product = Path(state["extension_product"])
-        try:
-            proof = verify_capabilities(
-                product,
-                plan,
-                plan.scenarios,
-                self.settings,
-                aggregate=True,
-                selection=plan.selection.model_dump(),
-                trusted_oracle=state["extension_policy"]["trusted_oracle"],
-            )
-            require_evidence(
-                proof,
-                source_digest=digest(manifest(product)),
-                plan_digest=digest(plan.model_dump()),
-                scenarios=plan.scenarios,
-                selection=plan.selection.model_dump(),
-                database_tables=plan.runtime.database_tables,
-                aggregate=True,
-            )
-            coverage = self.extension_coverage(state, design, proof)
-            if plan.version == 2:
-                self.product_ledger(state, plan).verified(product, proof)
-        except CheckFailure as exc:
-            return {
-                "extension_aggregate_passed": False,
-                "extension_error": self.settings.redact(str(exc))[:6000],
-            }
-        write_json(
-            self.settings.data_dir / "runs" / state["run_id"] / "extension-proof.json", proof
-        )
-        write_json(
-            self.settings.data_dir / "runs" / state["run_id"] / "extension-coverage.json", coverage
-        )
-        write_json(
-            self.settings.data_dir / "runs" / state["run_id"] / "extension-readiness.json",
-            readiness_report(design, manifest(product), proof),
-        )
-        return {
-            "extension_proof": proof,
-            "extension_coverage": coverage,
-            "extension_aggregate_passed": True,
-        }
-
-    def extension_after_aggregate(self, state):
-        if state.get("extension_aggregate_passed"):
-            return "extension_review"
-        design = self.checked_extension(state)
-        if any(
-            getattr(task, "executor", None) == "mini_swe" for task in design.implementation.tasks
-        ):
-            raise UnsupportedScope("最终独立汇总验收否决；不重启mini-SWE预算")
-        if state.get("extension_integration_attempt", 0) < self.settings.max_repair_attempts:
-            return "extension_integration_repair"
-        raise UnsupportedScope(
-            "模块集成修复预算已用尽；候选及全部范围保留：" + state.get("extension_error", "")
-        )
-
-    def extension_integration_repair(self, state):
-        design = self.checked_extension(state)
-        baseline = (
-            self.settings.data_dir
-            / "runs"
-            / state["run_id"]
-            / "extension-baselines"
-            / digest(design.model_dump())
-        )
-        if manifest(baseline) != state["extension_baseline"]:
-            raise PrerequisiteError("集成修复基线与已批准生成回执不一致")
-        return {
-            "extension_integration_attempt": state.get("extension_integration_attempt", 0) + 1,
-            "extension_completed": [],
-            "extension_attempt": 0,
-            "extension_product": str(baseline),
-            "extension_candidate": "",
-            "extension_candidate_passed": False,
-            "extension_aggregate_passed": False,
-        }
-
-    def extension_review(self, state):
-        design = self.checked_extension(state)
-        if not self.settings.review_enabled:
-            return {
-                "model_review": {
-                    "enabled": False,
-                    "note": "Independent execution remains mandatory",
-                }
-            }
-        review = self.gateway.complete(
-            state["run_id"],
-            "review:extension:"
-            + digest({"design": design.model_dump(), "proof": state["extension_proof"]}),
-            "独立审阅全部原始需求、模块实现契约与独立验收证据。列出未覆盖需求；不能以摘要或模型自称替代测试。",
-            {
-                "sources": state["extension_scope"]["sources"],
-                "design": design.model_dump(),
-                "independent_evidence": state["extension_proof"],
-            },
-            ModelReview,
-        )
-        result = {"enabled": True, **review.model_dump()}
-        write_json(
-            self.settings.data_dir / "runs" / state["run_id"] / "extension-review.json", result
-        )
-        return {"model_review": result}
 
 ````

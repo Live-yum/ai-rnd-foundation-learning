@@ -13,15 +13,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `State`（L6–L47）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`requirement_capability_conflicts`、`requirement_intent_version`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`、`native_normalization`、`extension_requested_mode`、`extension_design`、`extension_scope`、`extension_errors`、`extension_completed`、`extension_attempt`、`extension_candidate`、`extension_product`、`extension_baseline`、`extension_error`、`extension_edit_receipt`、`extension_candidate_passed`、`extension_proof`、`extension_integration_attempt`、`extension_policy`、`extension_aggregate_passed`、`extension_coverage`、`feature_requested_mode`、`feature_design`；类型约束/数据库列参数以完整定义为准。
+- `State`（L6–L49）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`requirement_capability_conflicts`、`requirement_intent_version`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`、`native_generation`、`native_normalization`、`extension_requested_mode`、`extension_design`、`extension_scope`、`extension_errors`、`extension_completed`、`extension_drafted`、`extension_attempt`、`extension_candidate`、`extension_product`、`extension_baseline`、`extension_error`、`extension_edit_receipt`、`extension_candidate_passed`、`extension_proof`、`extension_integration_attempt`、`extension_policy`、`extension_aggregate_passed`、`extension_coverage`、`feature_requested_mode`、`feature_design`；类型约束/数据库列参数以完整定义为准。
 
 </details>
 
-**创建路径：** `workbench/production/state.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L47。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/state.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L49。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1291`。本段原文以LF换行结束。
+本段原始字节数：`1352`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/state.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "898a895a26a7cf506bfb80102de2418598403f860d86aa576af86aa10974925d"} -->
+<!-- learning-source: {"path": "workbench/production/state.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "976e94744fa2ef9d17d057eed10841107b5e7d73e2f8117e39994b00399ba00b"} -->
 ````python
 # workbench/production/state.py
 """Persisted graph state. Legacy fields retain their names and meaning."""
@@ -51,12 +51,14 @@ class State(TypedDict, total=False):
     model_review: dict
     code_context: dict
     sandbox: dict
+    native_generation: dict
     native_normalization: dict
     extension_requested_mode: bool
     extension_design: dict
     extension_scope: dict
     extension_errors: list[str]
     extension_completed: list[dict]
+    extension_drafted: list[str]
     extension_attempt: int
     extension_candidate: str
     extension_product: str

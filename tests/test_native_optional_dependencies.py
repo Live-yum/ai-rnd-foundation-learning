@@ -68,6 +68,7 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
         from workbench.settings import Settings
 
         native_delivery.os = SimpleNamespace(name=sys.argv[2])
+        native_delivery.sys = SimpleNamespace(platform="win32" if sys.argv[2] == "nt" else "linux")
         def unexpected(*args, **kwargs):
             raise AssertionError("Tool discovery must follow platform/driver checks")
         native_delivery.shutil.which = unexpected
@@ -77,12 +78,12 @@ def test_execution_checks_platform_and_driver_before_side_effects(tmp_path, plat
             "name": "task", "description": "任务", "fields": [{"name": "title", "kind": "text"}]
         }])
         try:
-            native_delivery.managed_generate(settings, "fastapiadmin", plan, product)
+            native_delivery.prerequisites("fastapiadmin")
         except PrerequisiteError as exc:
             message = str(exc)
             assert "WSL 2/Linux" in message
             if sys.argv[2] == "nt":
-                assert "默认 Python 通道支持 Windows" in message
+                assert "Windows/macOS 仍可生成并保留未经验证源码" in message
                 assert "uv sync" not in message
             else:
                 assert "uv sync --locked --extra postgres" in message

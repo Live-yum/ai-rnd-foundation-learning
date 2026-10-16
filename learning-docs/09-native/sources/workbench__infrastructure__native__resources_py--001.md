@@ -15,27 +15,83 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `free_port`（L12–L15）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L15的`sock.getsockname()[1]`。
-- `for_run`（L18–L58）：接收`settings`、`run_id`。 控制顺序：L22按`not path.exists()`分支。 调用`folder.mkdir`、`path.exists`、`write_json`、`secrets.token_urlsafe`、`secrets.token_hex`、`free_port`、`path.chmod`、`json.loads`、`path.read_text`等。 返回路径：L55的`( f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_cod…`。
+- `NativeServiceUnavailable`（L13–L14）：继承`ToolFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `start_services`（L17–L63）：接收`command`、`folder`。 控制顺序：L25按`any( marker in diagnostic for marker in ( "permission denied", "access is denied", "a…`分支；L37抛异常，停止当前正常路径；L48按`len(command) >= 2 and command[0] == "docker" and command[1] == "compose" and any( lin…`分支；L57抛异常，停止当前正常路径；L58按`"cannot connect to the docker daemon" in diagnostic or "is the docker daemon running?…`分支；L62抛异常，停止当前正常路径；L63抛异常，停止当前正常路径。 调用`run_command`、`getattr(exc, "log", "").casefold`、`getattr`、`any`、`PermissionError`、`len`、`line.strip().removeprefix`、`line.strip`、`diagnostic.splitlines`等。 返回路径：L19的`run_command(command, folder, 300)`。
+- `free_port`（L66–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L69的`sock.getsockname()[1]`。
+- `for_run`（L72–L113）：接收`settings`、`run_id`。 控制顺序：L73按`not shutil.which("docker")`分支；L74抛异常，停止当前正常路径；L78按`not path.exists()`分支。 调用`shutil.which`、`NativeServiceUnavailable`、`folder.mkdir`、`path.exists`、`write_json`、`secrets.token_urlsafe`、`secrets.token_hex`、`free_port`、`path.chmod`等。 返回路径：L110的`( f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_cod…`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/native/resources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L58。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/native/resources.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1676`。本段原文以LF换行结束。
+本段原始字节数：`3930`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/native/resources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2d894d15af0236bec0319792f9d11a1a9d2147bd7ac5fc9fa21e2dfe162e8982"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/native/resources.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "14d4ddbb5faf08a3d53676e4947d8dde9d843c17d0a51e74fd360455810edb00"} -->
 ````python
 # workbench/infrastructure/native/resources.py
 """Per-run Docker services, created only after an operator chooses/approves a native stack."""
 
 import json
 import secrets
+import shutil
 import socket
 
 from workbench.filesystem import write_json
-from workbench.infrastructure.processes.tools import run_command
+from workbench.infrastructure.processes.tools import ToolFailure, run_command
 from workbench.settings import ROOT
+
+
+class NativeServiceUnavailable(ToolFailure):
+    """A known local service availability failure, never an authorization failure."""
+
+
+def start_services(command, folder):
+    try:
+        return run_command(command, folder, 300)
+    except ToolFailure as exc:
+        # Docker often reports socket authorization errors after a successful spawn.
+        # Its CLI has no structured error protocol: classify only known availability
+        # diagnostics and fail closed for unknown/localized failures.
+        diagnostic = getattr(exc, "log", "").casefold()
+        if any(
+            marker in diagnostic
+            for marker in (
+                "permission denied",
+                "access is denied",
+                "access denied",
+                "operation not permitted",
+                "unauthorized",
+                "forbidden",
+                "authentication required",
+            )
+        ):
+            raise PermissionError(
+                "Docker service access denied; source fallback is prohibited"
+            ) from exc
+        # Missing Compose is an executable-capability failure, not a daemon or
+        # authorization failure. Match only the Docker CLI's explicit missing
+        # subcommand diagnostics; unrelated unknown flags/commands fail closed.
+        missing_compose = {
+            "'compose' is not a docker command.",
+            '"compose" is not a docker command.',
+            'unknown command "compose" for "docker"',
+        }
+        if (
+            len(command) >= 2
+            and command[0] == "docker"
+            and command[1] == "compose"
+            and any(
+                line.strip().removeprefix("docker: ") in missing_compose
+                for line in diagnostic.splitlines()
+            )
+        ):
+            raise NativeServiceUnavailable("Local Docker Compose plugin is unavailable") from exc
+        if (
+            "cannot connect to the docker daemon" in diagnostic
+            or "is the docker daemon running?" in diagnostic
+        ):
+            raise NativeServiceUnavailable("Local Docker daemon is unavailable") from exc
+        raise
 
 
 def free_port():
@@ -45,6 +101,8 @@ def free_port():
 
 
 def for_run(settings, run_id):
+    if not shutil.which("docker"):
+        raise NativeServiceUnavailable("Local Docker executable is unavailable")
     folder = settings.data_dir / "native-services" / run_id
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "services.json"
@@ -66,7 +124,7 @@ def for_run(settings, run_id):
         encoding="utf-8",
     )
     env.chmod(0o600)
-    run_command(
+    start_services(
         [
             "docker",
             "compose",
@@ -79,7 +137,6 @@ def for_run(settings, run_id):
             "--wait",
         ],
         folder,
-        300,
     )
     return (
         f"postgresql+psycopg://native:{data['password']}@127.0.0.1:{data['pg_port']}/product_codegen",

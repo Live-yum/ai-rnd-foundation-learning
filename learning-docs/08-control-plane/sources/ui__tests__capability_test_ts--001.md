@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L467。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L603。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17313`。本段原文以LF换行结束。
+本段原始字节数：`23266`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c63cc2f841c655225899b4fa1aa445eccb35231de12741d8915b64dd95bf87ca"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0218e9054d84422f8c8ffef2cb6fb40adf3f482b59a53565bb265774de51882f"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -483,5 +483,141 @@ it('allows only server-marked retained packaging retries without model settings'
     expect.objectContaining({ method: 'POST' }),
   )
   wrapper.unmount()
+})
+
+describe('cross-platform source candidates', () => {
+  function candidate(generation_status = 'complete', verification_status = 'unverified') {
+    state.run!.status = 'SOURCE_READY'
+    state.run!.pending = null
+    state.run!.result = {
+      execution: 'source-candidate',
+      generation_status,
+      verification_status,
+      runtime_verified: false,
+      production_ready: false,
+      acceptance_passed: false,
+      pending_steps: ['在 Linux 主机运行完整验收'],
+      runtime_unavailable_reason: '当前 Windows 环境缺少原生全栈运行时',
+      source_commit: { status: 'committed', commit: 'a'.repeat(40), git_available: true },
+    }
+    state.report = {
+      'verification.json': { ...state.run!.result, passed: false, source_checks_passed: true },
+    }
+    return mount(RunView, {
+      props: { runId: 'saved-run', view: 'delivery' },
+      global: { plugins: [Antd] },
+    })
+  }
+
+  it.each([
+    ['complete', 'unverified', '代码已保留，未经运行验证'],
+    ['partial', 'unverified', '生成未完成，部分源码已保留'],
+    ['complete', 'failed', '验证失败，代码已保留'],
+    ['partial', 'failed', '验证失败，代码已保留'],
+  ])('shows the primary delivery warning for %s / %s', (generation, verification, title) => {
+    const wrapper = candidate(generation, verification)
+    expect(wrapper.find('.ant-alert-message').text()).toBe(title)
+    expect(wrapper.find('.ant-alert-error').exists()).toBe(verification === 'failed')
+    expect(wrapper.find('.ant-alert-success').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('retains downloads and commit evidence without treating source checks as runtime success', () => {
+    const wrapper = candidate()
+    expect(wrapper.text()).toContain('代码已保留，未经运行验证')
+    expect(wrapper.text()).toContain('在 Linux 主机运行完整验收')
+    expect(wrapper.text()).toContain('当前 Windows 环境缺少原生全栈运行时')
+    expect(wrapper.text()).toContain('源码提交记录')
+    expect(wrapper.text()).toContain('a'.repeat(40))
+    expect(wrapper.text()).toContain('源码检查通过（不代表运行验收）')
+    expect(wrapper.text()).toContain('不会自动部署')
+    expect(wrapper.find('.ant-alert-success').exists()).toBe(false)
+    const download = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('下载未经验证的源码包'))!
+    expect(download.attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('下载完整交付包')
+    wrapper.unmount()
+  })
+
+  it('labels partial generation and failed verification independently', () => {
+    const wrapper = candidate('partial', 'failed')
+    expect(wrapper.find('.ant-alert-message').text()).toBe('验证失败，代码已保留')
+    expect(wrapper.text()).toContain('生成未完成 / 部分源码已保留')
+    expect(wrapper.text()).toContain('验证失败，失败项不计入验收通过')
+    expect(wrapper.text()).toContain('下载已保留的部分源码')
+    expect(wrapper.text()).not.toContain('生成完成')
+    expect(wrapper.find('.ant-alert-error').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps complete generation with failed verification downloadable', () => {
+    const wrapper = candidate('complete', 'failed')
+    expect(wrapper.text()).toContain('验证失败，代码已保留')
+    const download = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('下载未经验证的源码包'))!
+    expect(download.attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('reads candidate evidence from reports even when older run results omit it', async () => {
+    const wrapper = candidate()
+    state.run!.result = {}
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('代码已保留，未经运行验证')
+    wrapper.unmount()
+  })
+
+  it.each(['delivery', 'conversation'])(
+    'shows verified partial runtime delivery accurately in %s',
+    (view) => {
+      state.run!.status = 'SOURCE_READY'
+      state.run!.pending = null
+      state.run!.result = {
+        validation_level: 'runtime',
+        delivery_kind: 'partial',
+        production_ready: false,
+        full_request_complete: false,
+        cleanroom: { passed: true },
+      }
+      state.events = [
+        { id: 1, kind: 'stage', data: { name: 'extension_verify', phase: 'completed' } },
+      ]
+      const wrapper = mount(RunView, {
+        props: { runId: 'saved-run', view },
+        global: { plugins: [Antd] },
+      })
+      expect(wrapper.text()).toContain('部分成果已通过运行验收，完整需求仍未完成')
+      expect(wrapper.text()).not.toContain('代码已保留，未经运行验证')
+      expect(wrapper.text()).not.toContain('运行验收未通过')
+      expect(wrapper.find('.source-candidate-notice').exists()).toBe(false)
+      if (view === 'delivery') {
+        expect(wrapper.find('.coverage-notice').text()).toContain('仅交付明确批准的部分成果')
+        expect(
+          wrapper
+            .findAll('button')
+            .find((button) => button.text().includes('下载部分成果包'))!
+            .attributes('disabled'),
+        ).toBeUndefined()
+      }
+      wrapper.unmount()
+    },
+  )
+
+  it('preserves normal runtime delivery success for legacy READY records', () => {
+    state.run!.status = 'READY'
+    state.run!.pending = null
+    state.run!.result = { validation_level: 'runtime' }
+    const wrapper = mount(RunView, {
+      props: { runId: 'saved-run', view: 'delivery' },
+      global: { plugins: [Antd] },
+    })
+    expect(wrapper.find('.ant-alert-success').exists()).toBe(true)
+    expect(wrapper.text()).toContain('运行级验收与交付确认已完成')
+    expect(wrapper.text()).toContain('下载完整交付包')
+    expect(wrapper.find('.source-candidate-notice').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })
 ````

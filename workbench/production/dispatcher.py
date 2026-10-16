@@ -4,7 +4,9 @@ Planning is not proof. Candidate source is never imported on the platform host;
 only controller-owned, source-bound sandbox evidence may authorize delivery.
 """
 
+import hashlib
 import json
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -18,7 +20,7 @@ from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.extensions.obligations import review_contract, reviewed_coverage
 from workbench.extensions.policy import business_coverage, contract_errors, scope_policy
 from workbench.extensions.readiness import readiness_report
-from workbench.filesystem import files, inside, manifest, sha, unpack, write_json
+from workbench.filesystem import files, inside, inspect_archive, manifest, sha, unpack, write_json
 from workbench.generation.python_basic import PrerequisiteError, generate_basic
 from workbench.planning.contracts import (
     CapabilityEdits,
@@ -522,46 +524,192 @@ class ExtensionWorkflow:
         selection = design.implementation.selection.model_dump()
 
         def generate():
+            native_receipt = {}
             if selection["template"] == "python-basic":
                 generate_basic(design.baseline, baseline, selection=selection)
             else:
                 from workbench.generation.native.service import generate_native
 
-                generate_native(
+                native_receipt = generate_native(
                     self.settings, selection["template"], design.baseline, baseline, managed=True
                 )
             if selection["template"] == "python-basic":
                 from workbench.extensions.consumer import prepare_consumer
 
                 prepare_consumer(baseline, design.implementation)
-            return {"files": manifest(baseline)}
+            return {"files": manifest(baseline), "native_generation": native_receipt}
 
         receipt = self.store.step(
             state["run_id"], "extension:baseline:" + digest(design.model_dump()), generate
         )
         if manifest(baseline) != receipt["files"]:
             raise PrerequisiteError("模块基线与生成回执不一致")
+        if selection["template"] != "python-basic":
+            self.checked_native_generation(
+                {
+                    **state,
+                    "template": selection["template"],
+                    "plan": design.baseline.model_dump(),
+                    "native_generation": receipt.get("native_generation"),
+                },
+                product=baseline,
+            )
         if design.implementation.version == 2:
             self.product_ledger(state, design.implementation).baseline(baseline)
-        return {"extension_product": str(baseline), "extension_baseline": receipt["files"]}
+        return {
+            "extension_product": str(baseline),
+            "extension_baseline": receipt["files"],
+            "native_generation": receipt.get("native_generation", {}),
+            "extension_drafted": [],
+        }
 
     def extension_task(self, state, design):
         completed = {row["task"] for row in state.get("extension_completed", [])}
+        source_only = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if source_only:
+            completed |= set(state.get("extension_drafted", []))
         return next(
             (
                 task
                 for task in design.implementation.tasks
-                if task.id not in completed and set(task.depends_on) <= completed
+                if task.id not in completed
+                and set(task.depends_on) <= completed
+                and (not source_only or getattr(task, "executor", "bounded_edit") == "bounded_edit")
             ),
             None,
         )
+
+    def extension_after_generate(self, state):
+        if state.get("native_generation", {}).get("execution") != "source-candidate":
+            return "extension_code"
+        design = self.checked_extension(state)
+        task = self.extension_task(state, design)
+        # Only bounded file editing is allowed without runtime isolation. A
+        # mini-SWE task remains pending; its sandbox cannot be replaced by host execution.
+        if task is None or getattr(task, "executor", "bounded_edit") != "bounded_edit":
+            return "extension_package"
+        return "extension_code"
+
+    def extension_after_code(self, state):
+        if state.get("native_generation", {}).get("execution") != "source-candidate":
+            return "extension_verify"
+        if state.get("extension_error"):
+            return "extension_package"
+        return self.extension_after_generate(state)
+
+    def extension_source_draft(self, state, design, task, edited, edits, edit_receipt):
+        from workbench.delivery.source_candidate import derive_candidate, verify_candidate
+
+        parent = state["native_generation"]
+        source = Path(state["extension_product"])
+        verify_candidate(source, parent)
+        expected_identity = digest(
+            {
+                "source": parent["files"],
+                "task": task.model_dump(),
+                "edits": edits.model_dump(),
+            }
+        )
+        if (
+            edit_receipt.get("identity") != expected_identity
+            or edit_receipt.get("before") != parent["files"]
+            or edit_receipt.get("task") != task.id
+            or edit_receipt.get("engine") != "bounded-source-files"
+            or edit_receipt.get("host_execution") is not False
+        ):
+            raise PrerequisiteError("源码编辑回执与批准任务或原始候选不一致")
+        edit_paths = [edit.path for edit in edits.files]
+        if len(edit_paths) != len(set(edit_paths)) or set(edit_paths) != set(task.files):
+            raise PrerequisiteError("持久化修改文件与批准任务不一致")
+        expected_files = dict(parent["files"])
+        for edit in edits.files:
+            if edit.before_sha256 != parent["files"].get(edit.path):
+                raise PrerequisiteError("持久化修改前像与已验证源码不一致")
+            expected_files[edit.path] = hashlib.sha256(edit.content.encode("utf-8")).hexdigest()
+        if edit_receipt["files"] != expected_files or manifest(edited) != expected_files:
+            raise PrerequisiteError("派生前源码与绑定的修改内容不一致")
+        changed = {
+            name
+            for name in set(parent["files"]) | set(edit_receipt["files"])
+            if parent["files"].get(name) != edit_receipt["files"].get(name)
+        }
+        if changed - set(task.files):
+            raise PrerequisiteError("持久化源码编辑超出批准文件范围")
+        drafted = [*state.get("extension_drafted", []), task.id]
+        destination = edited.parent / "source" / "product"
+        native_receipt = derive_candidate(
+            source,
+            edited,
+            destination,
+            parent,
+            edit_receipt,
+            derivation={
+                "parent_receipt_digest": digest(parent),
+                "edit_identity": expected_identity,
+                "task": task.id,
+                "approved_files": list(task.files),
+                "candidate_edit_files_digest": digest(edit_receipt["files"]),
+            },
+            generated_files=sorted(set(parent.get("generated_files", [])) | set(task.files)),
+            pending_steps=[
+                *[
+                    step
+                    for step in parent.get("pending_steps", [])
+                    if not step.startswith("Implement module task: ")
+                ],
+                *[
+                    "Implement module task: " + item.id
+                    for item in design.implementation.tasks
+                    if item.id not in drafted
+                ],
+            ],
+        )
+        return {
+            "extension_candidate": str(destination),
+            "extension_product": str(destination),
+            "extension_edit_receipt": edit_receipt,
+            "extension_drafted": drafted,
+            "native_generation": native_receipt,
+            "extension_candidate_passed": False,
+            "extension_error": "",
+        }
 
     def extension_code(self, state):
         design = self.checked_extension(state)
         task = self.extension_task(state, design)
         if task is None:
+            if state.get("native_generation", {}).get("execution") == "source-candidate":
+                # A resumed source checkpoint may only have isolated tasks left.
+                # Leave them pending rather than executing or marking them complete.
+                return {"extension_candidate": "", "extension_candidate_passed": False}
             raise PrerequisiteError("没有可执行模块节点，不能以空任务冒充完成")
+        if (
+            state.get("native_generation", {}).get("execution") == "source-candidate"
+            and getattr(task, "executor", "bounded_edit") != "bounded_edit"
+        ):
+            # Also protect a resumed checkpoint already at the code node. The
+            # source path never substitutes host execution for an isolated agent.
+            return {"extension_candidate": "", "extension_candidate_passed": False}
         product = Path(state["extension_product"])
+        if state.get("native_generation", {}).get("execution") == "source-candidate":
+            reserved = {"source-status.json", "source-status.md", "rnd-source-scope.json"}
+            if any(
+                inside(product, name).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for name in task.files
+            ):
+                # Status/scope records belong to the controller. Reject before
+                # model calls or edits instead of silently overwriting a drafted task.
+                return {
+                    "extension_candidate": "",
+                    "extension_candidate_passed": False,
+                    "extension_error": "模块不能修改控制端源码状态或范围声明",
+                }
+        source_only = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if source_only:
+            from workbench.delivery.source_candidate import verify_candidate
+
+            verify_candidate(product, state["native_generation"])
         identity = digest(
             {
                 "design": design.model_dump(),
@@ -571,81 +719,6 @@ class ExtensionWorkflow:
             }
         )
         attempt = state.get("extension_attempt", 0)
-        if getattr(task, "executor", "bounded_edit") == "mini_swe":
-            from workbench.coding.mini_swe import run_agent
-
-            value = run_agent(
-                self.settings,
-                self.gateway,
-                state["run_id"],
-                task,
-                design.implementation,
-                product,
-                self.settings.data_dir
-                / "runs"
-                / state["run_id"]
-                / "agent"
-                / identity
-                / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}",
-                {
-                    "coding_standard": get_adapter(
-                        design.implementation.selection.template
-                    ).coding_standard(),
-                    "source_units": state["extension_scope"]["sources"],
-                    "previous_error": state.get("extension_error", ""),
-                },
-            )
-        else:
-            context = {}
-            for name in task.files:
-                path = inside(product, name)
-                context[name] = (
-                    {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
-                    if path.is_file()
-                    else {"sha256": None, "content": None}
-                )
-            from workbench.knowledge_services.index import build_index
-            from workbench.knowledge_services.retrieval import compact_map, query
-
-            index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
-            build_index(product, index)
-            if self.settings.repo_map_provider == "aider":
-                from workbench.coding.aider import repo_map
-
-                mapping = repo_map(product, index, self.settings)
-            else:
-                mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
-            retrieved = query(
-                product,
-                index,
-                task.title + " " + task.contract,
-                limit=4,
-                max_chars=6000,
-                settings=self.settings,
-            )
-            value = self.gateway.complete(
-                state["run_id"],
-                f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",
-                CODING,
-                {
-                    "task": task.model_dump(),
-                    "coding_standard": get_adapter(
-                        design.implementation.selection.template
-                    ).coding_standard(),
-                    "context": context,
-                    "approved_design": design.model_dump(),
-                    **(
-                        {"native_normalization": state.get("native_normalization", {})}
-                        if state.get("feature_design")
-                        else {}
-                    ),
-                    "source_units": state["extension_scope"]["sources"],
-                    "previous_error": state.get("extension_error", ""),
-                    "repo_map": mapping,
-                    "retrieval": retrieved,
-                },
-                CapabilityEdits,
-            )
         candidate = (
             self.settings.data_dir
             / "runs"
@@ -654,15 +727,134 @@ class ExtensionWorkflow:
             / identity
             / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}"
         )
+        if source_only:
+            candidate = candidate / "product"
+            proposal_path = inside(candidate.parent, "source-edits.json")
+            proposal_identity = {
+                "parent_receipt_digest": digest(state["native_generation"]),
+                "task_digest": digest(task.model_dump()),
+            }
+        if source_only and proposal_path.is_file():
+            saved_proposal = json.loads(proposal_path.read_text(encoding="utf-8"))
+            if {key: saved_proposal.get(key) for key in proposal_identity} != proposal_identity:
+                raise PrerequisiteError("持久化源码修改与原始候选或批准任务不一致")
+            value = CapabilityEdits.model_validate(saved_proposal["edits"])
+        else:
+            if getattr(task, "executor", "bounded_edit") == "mini_swe":
+                from workbench.coding.mini_swe import run_agent
+
+                value = run_agent(
+                    self.settings,
+                    self.gateway,
+                    state["run_id"],
+                    task,
+                    design.implementation,
+                    product,
+                    self.settings.data_dir
+                    / "runs"
+                    / state["run_id"]
+                    / "agent"
+                    / identity
+                    / f"{task.id}-{state.get('extension_integration_attempt', 0)}-{attempt}",
+                    {
+                        "coding_standard": get_adapter(
+                            design.implementation.selection.template
+                        ).coding_standard(),
+                        "source_units": state["extension_scope"]["sources"],
+                        "previous_error": state.get("extension_error", ""),
+                    },
+                )
+            else:
+                context = {}
+                for name in task.files:
+                    path = inside(product, name)
+                    context[name] = (
+                        {"sha256": sha(path), "content": path.read_text(encoding="utf-8")}
+                        if path.is_file()
+                        else {"sha256": None, "content": None}
+                    )
+                from workbench.knowledge_services.index import build_index
+                from workbench.knowledge_services.retrieval import compact_map, query
+
+                index = self.settings.data_dir / "runs" / state["run_id"] / "extension-context"
+                build_index(product, index)
+                if (
+                    self.settings.repo_map_provider == "aider"
+                    and state.get("native_generation", {}).get("execution") != "source-candidate"
+                ):
+                    from workbench.coding.aider import repo_map
+
+                    mapping = repo_map(product, index, self.settings)
+                else:
+                    mapping = compact_map(index, max_chars=self.settings.repo_map_chars)
+                retrieved = query(
+                    product,
+                    index,
+                    task.title + " " + task.contract,
+                    limit=4,
+                    max_chars=6000,
+                    # Source drafting must not invoke Continue, embeddings, or other
+                    # optional retrieval services. None selects deterministic AST/FTS5.
+                    settings=None
+                    if state.get("native_generation", {}).get("execution") == "source-candidate"
+                    else self.settings,
+                )
+                value = self.gateway.complete(
+                    state["run_id"],
+                    f"coding:extension:{identity}:{task.id}:{state.get('extension_integration_attempt', 0)}:{attempt}",
+                    CODING,
+                    {
+                        "task": task.model_dump(),
+                        "coding_standard": get_adapter(
+                            design.implementation.selection.template
+                        ).coding_standard(),
+                        "context": context,
+                        "approved_design": design.model_dump(),
+                        **(
+                            {"native_normalization": state.get("native_normalization", {})}
+                            if state.get("feature_design")
+                            else {}
+                        ),
+                        "source_units": state["extension_scope"]["sources"],
+                        "previous_error": state.get("extension_error", ""),
+                        "repo_map": mapping,
+                        "retrieval": retrieved,
+                    },
+                    CapabilityEdits,
+                )
         try:
-            receipt = apply_candidate(
-                product,
-                value,
-                task,
-                design.implementation.selection.model_dump(),
-                candidate,
-                self.settings,
-            )
+            if source_only:
+                verify_candidate(product, state["native_generation"])
+            if state.get("native_generation", {}).get("execution") == "source-candidate" and any(
+                inside(product, edit.path).relative_to(product.resolve()).as_posix().casefold()
+                in reserved
+                for edit in value.files
+            ):
+                raise ValueError("模块不能修改控制端源码状态或范围声明")
+            if source_only:
+                proposal = {**proposal_identity, "edits": value.model_dump()}
+                if proposal_path.is_file():
+                    if json.loads(proposal_path.read_text(encoding="utf-8")) != proposal:
+                        raise PrerequisiteError("源码修改提案在回放期间发生变化")
+                else:
+                    if candidate.exists():
+                        raise PrerequisiteError("已有源码候选缺少绑定的修改提案")
+                    write_json(proposal_path, proposal)
+            if source_only and candidate.exists():
+                receipt = json.loads(
+                    inside(candidate.parent, "product-edit.json").read_text(encoding="utf-8")
+                )
+            else:
+                receipt = apply_candidate(
+                    product,
+                    value,
+                    task,
+                    design.implementation.selection.model_dump(),
+                    candidate,
+                    None
+                    if state.get("native_generation", {}).get("execution") == "source-candidate"
+                    else self.settings,
+                )
         except (ValueError, SyntaxError) as exc:
             return {
                 "extension_candidate": "",
@@ -672,6 +864,8 @@ class ExtensionWorkflow:
         self.extension_progress(
             state, task=task.id, phase="candidate_saved", candidate_digest=digest(receipt["files"])
         )
+        if source_only:
+            return self.extension_source_draft(state, design, task, candidate, value, receipt)
         return {
             "extension_candidate": str(candidate),
             "extension_edit_receipt": receipt,
@@ -930,11 +1124,102 @@ class ExtensionWorkflow:
         return result
 
     def extension_package(self, state):
-        from workbench.acceptance.capability_sandbox import verify_capabilities
-
         design = self.checked_extension(state)
         plan = design.implementation
         product = Path(state["extension_product"])
+        if state.get("native_generation", {}).get("execution") == "source-candidate":
+            # A preserved baseline is not a completed module and is never promoted
+            # into the verified task ledger or passed to the runtime sandbox.
+            from workbench.delivery.source_candidate import verify_candidate
+            from workbench.generation.native.service import package_native
+
+            # The graph checkpoint owns approval. A mutable on-disk receipt must
+            # never authorize its own replacement tree or weaker Git evidence.
+            native_receipt = state["native_generation"]
+            saved_receipt = json.loads(
+                (product.parent / "native-generation.json").read_text(encoding="utf-8")
+            )
+            if saved_receipt != native_receipt:
+                raise PrerequisiteError("候选源码回执与批准状态不一致")
+            report = verify_candidate(product, native_receipt)
+            pending_tasks = [
+                "Implement module task: " + task.id
+                for task in plan.tasks
+                if task.id not in state.get("extension_drafted", [])
+            ]
+            # Packaging adds scope, not source approval. Keep the approved tree
+            # and receipt immutable so a pre-checkpoint crash can safely replay.
+            pending_steps = list(
+                dict.fromkeys(
+                    [
+                        *[
+                            step
+                            for step in native_receipt.get("pending_steps", [])
+                            if not step.startswith("Implement module task: ")
+                        ],
+                        *pending_tasks,
+                        "Run isolated module and aggregate acceptance",
+                        *([state["extension_error"]] if state.get("extension_error") else []),
+                    ]
+                )
+            )
+            result = package_native(product, report)
+            root = self.settings.data_dir / "runs" / state["run_id"]
+            archive = root / "extension-source.zip"
+            temporary = root / "extension-source.zip.tmp"
+            shutil.copyfile(product.parent / result["package"], temporary)
+            result.update(
+                package=archive.name,
+                pending_steps=pending_steps,
+                generation_status=(
+                    "partial"
+                    if result.get("generation_status") == "partial"
+                    or any(task.id not in state.get("extension_drafted", []) for task in plan.tasks)
+                    else "complete"
+                ),
+                verification_status=report.get("verification_status", "unverified"),
+                generation_error=state.get("extension_error", ""),
+                drafted_tasks=state.get("extension_drafted", []),
+                acceptance_passed=False,
+                runtime_verified=False,
+                production_ready=False,
+                full_request_complete=False,
+                delivery_kind="source-candidate",
+                source_units=state["extension_scope"]["sources"],
+                acceptance_contract_digest=digest(plan.model_dump()),
+            )
+            scope_name = "RND-SOURCE-SCOPE.json"
+            scope_data = json.dumps(
+                {
+                    key: value
+                    for key, value in result.items()
+                    if key not in {"files", "sha256", "package", "archive"}
+                },
+                ensure_ascii=False,
+                indent=2,
+            ).encode("utf-8")
+            try:
+                with zipfile.ZipFile(temporary, "a", zipfile.ZIP_DEFLATED) as handle:
+                    if scope_name.casefold() in {name.casefold() for name in handle.namelist()}:
+                        raise PrerequisiteError("候选不能提供控制端源码范围声明")
+                    handle.writestr(scope_name, scope_data)
+                # The final artifact, including the controller declaration, must
+                # satisfy the same entry/byte/path/compression policy as consumers.
+                result["archive"] = inspect_archive(
+                    temporary, product, template=native_receipt["template"]
+                )
+                temporary.replace(archive)
+            finally:
+                temporary.unlink(missing_ok=True)
+            result["files"] = {
+                **result["files"],
+                scope_name: hashlib.sha256(scope_data).hexdigest(),
+            }
+            result["sha256"] = sha(archive)
+            write_json(root / "delivery.json", result)
+            return {"delivery": result, "plan": design.baseline.model_dump()}
+        from workbench.acceptance.capability_sandbox import verify_capabilities
+
         listing = manifest(product)
         require_evidence(
             state["extension_proof"],
@@ -1028,7 +1313,11 @@ class ExtensionWorkflow:
         if sha(archive) != result["sha256"]:
             raise PrerequisiteError("模块交付包在审批期间改变")
         decision["status"] = (
-            ("SOURCE_READY" if result["delivery_kind"] == "partial" else "READY")
+            (
+                "SOURCE_READY"
+                if result["delivery_kind"] in {"partial", "source-candidate"}
+                else "READY"
+            )
             if decision["decision"] == "approve"
             else "REJECTED"
         )

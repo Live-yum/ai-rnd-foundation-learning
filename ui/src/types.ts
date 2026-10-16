@@ -14,6 +14,20 @@ export interface Gate {
   can_approve: boolean
   needs_model?: Record<string, boolean>
 }
+export interface SourceDeliveryEvidence {
+  execution?: string
+  validation_level?: string
+  delivery_kind?: string
+  generation_status?: 'complete' | 'partial'
+  verification_status?: 'unverified' | 'failed' | 'passed'
+  pending_steps?: string[]
+  runtime_unavailable_reason?: string
+  runtime_verified?: boolean
+  production_ready?: boolean
+  acceptance_passed?: boolean
+  source_checks_passed?: boolean
+  source_commit?: { commit?: string; status?: string; git_available?: boolean }
+}
 export interface Run {
   id: string
   project_id: string

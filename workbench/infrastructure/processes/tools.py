@@ -107,6 +107,10 @@ def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
                 shell=False,
                 **process_options(),
             )
+        except PermissionError:
+            # Permission denials are safety boundaries, not missing capabilities.
+            # Preserve their type so callers cannot downgrade them to source mode.
+            raise
         except OSError:
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
         timed_out = False

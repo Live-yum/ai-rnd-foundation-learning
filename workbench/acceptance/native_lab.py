@@ -9,9 +9,11 @@ from workbench.acceptance.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
+from workbench.business.browser import BusinessBrowserValidationFailure
 from workbench.core.contracts import digest
 from workbench.delivery import recovery as native_recovery
 from workbench.delivery.portable import (
+    PortableValidationFailure,
     build_native_delivery,
     export_menu_sql,
     menu_snapshot,
@@ -42,6 +44,51 @@ from workbench.infrastructure.native.ports import backend_port_lease
 from workbench.infrastructure.processes.tools import run_command
 from workbench.settings import ROOT
 from workbench.templates.standards import write_coding_standard
+
+
+def _runtime_check(check, *args, check_id, **kwargs):
+    """Only explicitly selected executable acceptance checks use this boundary."""
+    if check_id not in {
+        "customer-service-http",
+        "generated-crud",
+        "generated-permissions",
+        "restart-persistence",
+        "customer-service-browser",
+        "installed-navigation-restart",
+        "independent-native-delivery",
+    }:
+        raise ValueError("Unknown native acceptance check identifier")
+    try:
+        return check(*args, **kwargs)
+    except (AssertionError, BusinessBrowserValidationFailure, PortableValidationFailure) as exc:
+        if isinstance(exc, PortableValidationFailure):
+            if check_id != "independent-native-delivery":
+                raise
+            reason = "portable_evidence_failed"
+        elif check_id == "independent-native-delivery":
+            # Unknown assertions and unrelated validation errors are not negative
+            # standalone receipts and must remain fail-closed.
+            raise
+        elif isinstance(exc, BusinessBrowserValidationFailure):
+            if check_id != "customer-service-browser":
+                raise
+            reason = "browser_evidence_failed"
+        else:
+            reason = "assertion_failed"
+        location = ""
+        for frame in reversed(traceback.extract_tb(exc.__traceback__)):
+            try:
+                relative = Path(frame.filename).resolve().relative_to(ROOT / "workbench")
+            except ValueError:
+                continue
+            if frame.name.isidentifier() and relative.suffix == ".py":
+                location = f"; source=workbench/{relative.as_posix()}:{frame.lineno}:{frame.name}"
+                break
+        # Only a controller-owned identifier is serialized. Assertion text can
+        # contain credentials or entire HTTP responses and is deliberately omitted.
+        raise native_recovery.NativeValidationFailure(
+            f"原生可执行验收未通过 [check_id={check_id}; reason={reason}{location}]"
+        ) from exc
 
 
 def generated_browser(template, front_url, reports):
@@ -217,16 +264,40 @@ def _run_acceptance(
                 from workbench.business.probe import customer_service_acceptance
 
                 stage("customer-service-http")
-                records = customer_service_acceptance(template, base_url, token, targets, plan)
+                records = _runtime_check(
+                    customer_service_acceptance,
+                    template,
+                    base_url,
+                    token,
+                    targets,
+                    plan,
+                    check_id="customer-service-http",
+                )
                 write_json(reports / "generated/business.json", records)
             else:
                 stage("generated-crud")
-                records = generated_crud(template, base_url, token, targets, plan)
+                records = _runtime_check(
+                    generated_crud,
+                    template,
+                    base_url,
+                    token,
+                    targets,
+                    plan,
+                    check_id="generated-crud",
+                )
                 write_json(reports / "generated/crud.json", records)
                 stage("generated-permissions")
                 write_json(
                     reports / "generated/permissions.json",
-                    generated_permissions(template, base_url, token, targets, plan),
+                    _runtime_check(
+                        generated_permissions,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        plan,
+                        check_id="generated-permissions",
+                    ),
                 )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
@@ -256,16 +327,24 @@ def _run_acceptance(
                 client = BusinessClient(template, base_url, token, targets)
                 try:
                     for name, identifier in records["records"].items():
-                        assert any(str(row["id"]) == identifier for row in client.rows(name)), (
-                            "Business record missing after restart"
-                        )
+                        if not any(str(row["id"]) == identifier for row in client.rows(name)):
+                            raise native_recovery.NativeValidationFailure(
+                                "Business record missing after restart"
+                            )
                 finally:
                     client.close()
                 if template == "yudao-vben":
                     from workbench.acceptance.yudao_navigation import check_navigation_restart
 
-                    records["installed_navigation_restart"] = check_navigation_restart(
-                        template, base_url, token, targets, records, plan
+                    records["installed_navigation_restart"] = _runtime_check(
+                        check_navigation_restart,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        records,
+                        plan,
+                        check_id="installed-navigation-restart",
                     )
                 write_json(
                     reports / "restart/persistence.json",
@@ -274,7 +353,15 @@ def _run_acceptance(
             else:
                 write_json(
                     reports / "restart/persistence.json",
-                    check_generated_persistence(template, base_url, token, targets, records),
+                    _runtime_check(
+                        check_generated_persistence,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        records,
+                        check_id="restart-persistence",
+                    ),
                 )
             for target, entity in zip(targets, plan.entities, strict=True):
                 target["fields"] = [field.model_dump() for field in entity.fields]
@@ -303,7 +390,8 @@ def _run_acceptance(
                             else "business_yudao_browser.cjs"
                         )
                     )
-                    browser_report = run_business_browser(
+                    browser_report = _runtime_check(
+                        run_business_browser,
                         template,
                         script,
                         front_url,
@@ -311,13 +399,15 @@ def _run_acceptance(
                         records,
                         plan,
                         ROOT / ".native/browser/node_modules/playwright",
+                        check_id="customer-service-browser",
                     )
                     write_json(reports / "browser.json", browser_report)
                 else:
                     generated_browser(template, front_url, reports)
-        assert before == manifest(source), "Original native source was modified"
-        if frontend_before is not None:
-            assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
+        if before != manifest(source):
+            raise native_recovery.NativeIntegrityError("Original native source was modified")
+        if frontend_before is not None and frontend_before != manifest(frontend_source):
+            raise native_recovery.NativeIntegrityError("Original Vben source was modified")
         write_json(
             reports / "generated-manifest.json",
             {"backend": manifest(backend), "frontend": manifest(frontend)},
@@ -351,12 +441,14 @@ def _run_acceptance(
             template, product_root, reports, plan, targets, url
         )
         stage("independent-native-delivery")
-        report["portable_restored"] = verify_native_delivery(
+        report["portable_restored"] = _runtime_check(
+            verify_native_delivery,
             product_root,
             url,
             reports,
             redis_port,
             template=template,
+            check_id="independent-native-delivery",
             **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")
@@ -366,6 +458,16 @@ def _run_acceptance(
         )
         return report
     except Exception as exc:
+        # Integrity failures never become downloadable failed-runtime candidates,
+        # even if the tool that noticed the corruption raised a generic error.
+        if digest(plan.model_dump()) != expected["spec_digest"]:
+            raise native_recovery.NativeIntegrityError("Approved native Plan was modified") from exc
+        if before != manifest(source) or (
+            frontend_before is not None and frontend_before != manifest(frontend_source)
+        ):
+            raise native_recovery.NativeIntegrityError(
+                "Original native source was modified"
+            ) from exc
         # Only generation-complete checkpoints can replay validation. Never re-run
         # upstream DROP/seed or codegen import against an existing database.
         if generation_ready and targets:

@@ -470,6 +470,10 @@ def verify_native(destination):
     receipt = json.loads(
         (destination.parent / "native-generation.json").read_text(encoding="utf-8")
     )
+    if receipt.get("execution") == "source-candidate":
+        from workbench.delivery.source_candidate import verify_candidate
+
+        return verify_candidate(destination, receipt)
     if receipt.get("execution") == "managed-runtime":
         from workbench.delivery.native import managed_verify
 
@@ -492,6 +496,10 @@ def verify_native(destination):
 
 
 def package_native(destination, report):
+    if report.get("execution") == "source-candidate":
+        from workbench.delivery.source_candidate import package_candidate
+
+        return package_candidate(destination, report)
     if report.get("validation_level") == "runtime":
         from workbench.delivery.native import managed_package
 

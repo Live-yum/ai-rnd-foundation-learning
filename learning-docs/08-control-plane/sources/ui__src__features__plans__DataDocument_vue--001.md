@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/plans/DataDocument.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L180。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/plans/DataDocument.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L193。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7230`。本段原文以LF换行结束。
+本段原始字节数：`7542`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/plans/DataDocument.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "489f50f24d831cf22ffd8c7aea81a4dbb74aab0e99f552e64631d9e21849f275"} -->
+<!-- learning-source: {"path": "ui/src/features/plans/DataDocument.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7cef251e433033ba6c2c3abf204b439145ae79512ef748c0e550cd00897084d4"} -->
 ````vue
 <!-- ui/src/features/plans/DataDocument.vue -->
 <script setup lang="ts">
@@ -65,11 +65,24 @@ const valueLabels: Record<string, string> = {
   unknown: '待确认',
   runtime: '运行级验收',
   source: '源码级验收',
+  'source-candidate': '源码候选（未经运行验收）',
+  complete: '生成完成',
+  partial: '生成未完成 / 部分源码已保留',
+  unverified: '未经验证',
+  failed: '验证失败',
+  passed: '验证通过',
 }
 const display = (value: any) =>
   value === true ? '是' : value === false ? '否' : value === null ? '—' : String(value)
 function semantic(value: any, key: string) {
-  return ['data_scope', 'validation_level', 'mode'].includes(key)
+  return [
+    'data_scope',
+    'validation_level',
+    'mode',
+    'execution',
+    'generation_status',
+    'verification_status',
+  ].includes(key)
     ? valueLabels[value] || display(value)
     : display(value)
 }
