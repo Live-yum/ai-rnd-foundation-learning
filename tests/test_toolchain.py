@@ -328,19 +328,29 @@ def test_sandbox_commands_are_registered_not_model_chosen():
         checks_for("shell:rm-anything")
 
 
-def test_workflow_daytona_gate_blocks_packaging(settings, store, monkeypatch):
+@pytest.mark.parametrize("authorized", [False, True])
+def test_workflow_daytona_gate_blocks_packaging(settings, store, plan, monkeypatch, authorized):
     from workbench.flow import Workflow
 
     workflow = Workflow(settings, store, None)
     assert workflow.after_verify({"verification": {"passed": True}}) == "sandbox"
-    settings.sandbox_provider = "daytona"
+    state = {"run_id": "fixture", "template": "python-basic"}
+    generate_basic(
+        plan, workflow.product(state), {"template": "python-basic", "frontend": "api-only"}
+    )
+    fake_daytona(settings)
+    settings.daytona_allow_local_execution = authorized
+    calls = []
 
     def failed(*args):
+        calls.append(args)
         raise PrerequisiteError("local sandbox verification rejected")
 
     monkeypatch.setattr("workbench.sandbox.verify_in_daytona", failed)
-    with pytest.raises(PrerequisiteError):
-        workflow.sandbox({"run_id": "fixture", "template": "python-basic"})
+    reason = "local sandbox verification rejected" if authorized else "ALLOW_LOCAL_EXECUTION"
+    with pytest.raises(PrerequisiteError, match=reason):
+        workflow.sandbox(state)
+    assert len(calls) == int(authorized)
 
 
 def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):

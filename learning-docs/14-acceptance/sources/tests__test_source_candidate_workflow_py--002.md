@@ -15,21 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_source_edit_derivation_is_bound_and_replay_safe`（L821–L1009）：接收`settings`、`plan`、`monkeypatch`、`failed_runtime`、`scenario`。 控制顺序：L840按`failed_runtime`分支；L928按`scenario == "after-apply"`分支；L935按`scenario == "after-derive"`分支；L942按`scenario == "during-derive"`分支；L949按`scenario == "source-tamper"`分支；L951按`scenario == "sidecar-tamper"`分支；L959按`scenario in {"source-tamper", "during-model-tamper", "sidecar-tamper"}`分支；L962断言`len(calls) == (1 if scenario == "during-model-tamper" else 0)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`target.parent.mkdir`、`target.write_text`、`plan.model_copy`、`write_json`、`manifest`、`source_candidate.retain_failed_candidate`、`source_candidate.refresh_candidate`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway`（L902–L907）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway.complete`（L903–L907）：接收`*args`。 控制顺序：L905按`scenario == "during-model-tamper"`分支。 调用`calls.append`、`target.write_text`。 返回路径：L907的`edits`。
-- `test_source_edit_derivation_is_bound_and_replay_safe.SimulatedCrash`（L922–L923）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_apply`（L930–L932）：接收`*args`、`**kwargs`。 控制顺序：L932抛异常，停止当前正常路径。 调用`apply`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_derive`（L937–L939）：接收`*args`、`**kwargs`。 控制顺序：L939抛异常，停止当前正常路径。 调用`derive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_refresh`（L944–L946）：接收`*args`、`**kwargs`。 控制顺序：L946抛异常，停止当前正常路径。 调用`refresh`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe`（L861–L1072）：接收`settings`、`plan`、`monkeypatch`、`failed_runtime`、`scenario`。 控制顺序：L880按`failed_runtime`分支；L968按`scenario == "after-apply"`分支；L975按`scenario == "after-derive"`分支；L982按`scenario == "during-derive"`分支；L989按`scenario == "source-tamper"`分支；L991按`scenario == "sidecar-tamper"`分支；L999按`scenario in {"source-tamper", "during-model-tamper", "sidecar-tamper"}`分支；L1002断言`len(calls) == (1 if scenario == "during-model-tamper" else 0)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`target.parent.mkdir`、`target.write_text`、`plan.model_copy`、`write_json`、`manifest`、`source_candidate.retain_failed_candidate`、`source_candidate.refresh_candidate`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway`（L942–L947）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_edit_derivation_is_bound_and_replay_safe.FixtureGateway.complete`（L943–L947）：接收`*args`。 控制顺序：L945按`scenario == "during-model-tamper"`分支。 调用`calls.append`、`target.write_text`。 返回路径：L947的`edits`。
+- `test_source_edit_derivation_is_bound_and_replay_safe.SimulatedCrash`（L962–L963）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_apply`（L970–L972）：接收`*args`、`**kwargs`。 控制顺序：L972抛异常，停止当前正常路径。 调用`apply`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_derive`（L977–L979）：接收`*args`、`**kwargs`。 控制顺序：L979抛异常，停止当前正常路径。 调用`derive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_edit_derivation_is_bound_and_replay_safe.crashed_refresh`（L984–L986）：接收`*args`、`**kwargs`。 控制顺序：L986抛异常，停止当前正常路径。 调用`refresh`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L804–L1009。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L842–L1072。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7791`。本段原文以LF换行结束。
+本段原始字节数：`9048`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "b4c436cd35dc59fc967c345fb1402c22a85e7dc8914d6a693be0e20585be1fc8"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "33b5bfcf5849f8dcdae9c69954c47e25353bbb00ee70476feced3f4a8adc88b2"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 @pytest.mark.parametrize("failed_runtime", [False, True])
@@ -37,6 +37,8 @@
     "scenario",
     [
         "fresh",
+        "package-replay",
+        "package-tamper",
         "replay",
         "after-apply",
         "after-derive",
@@ -238,4 +240,27 @@ def test_source_edit_derivation_is_bound_and_replay_safe(
         assert path.read_bytes() == content
     assert not (derived.parent / "native-evidence/recovery.json").exists()
     assert state["extension_completed"] == []
+
+    if scenario in {"package-replay", "package-tamper"}:
+        package_state = {**state, **result}
+        design.baseline = plan
+        design.implementation.model_dump = lambda: {"tasks": [task.model_dump()]}
+        bound_files = manifest(derived)
+        receipt_path = derived.parent / "native-generation.json"
+        bound_receipt = receipt_path.read_bytes()
+        if scenario == "package-tamper":
+            (derived / filename).write_text("VALUE = 999\n", encoding="utf-8")
+            source_candidate.refresh_candidate(
+                derived,
+                {**result["native_generation"], "source_commit": {"status": "unavailable"}},
+            )
+            with pytest.raises(PrerequisiteError, match="批准状态"):
+                flow.extension_package(package_state)
+        else:
+            for _ in range(2):
+                delivered = flow.extension_package(package_state)["delivery"]
+                assert delivered["acceptance_passed"] is False
+                assert "Run isolated module and aggregate acceptance" in delivered["pending_steps"]
+                assert manifest(derived) == bound_files
+                assert receipt_path.read_bytes() == bound_receipt
 ````

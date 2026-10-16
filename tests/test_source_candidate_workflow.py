@@ -141,9 +141,12 @@ def test_workflow_source_generation_reaches_download_without_runtime(settings, p
     assert (flow.product(result).parent / result["delivery"]["package"]).is_file()
 
 
-@pytest.mark.parametrize("attack", [None, "tampered", "casefold", "entry-limit", "scope-size"])
+@pytest.mark.parametrize("failed_runtime", [False, True])
+@pytest.mark.parametrize(
+    "attack", [None, "tampered", "receipt-tampered", "casefold", "entry-limit", "scope-size"]
+)
 def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
-    settings, plan, monkeypatch, attack
+    settings, plan, monkeypatch, attack, failed_runtime
 ):
     import json
     import zipfile
@@ -158,17 +161,40 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
     (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
     if attack == "casefold":
         (product / "rnd-source-scope.json").write_text("{}", encoding="utf-8")
-    receipt = source_candidate.refresh_candidate(
-        product,
-        {
-            "execution": "source-candidate",
-            "template": "fastapiadmin",
-            "generation_status": "complete",
-            "verification_status": "unverified",
-            "pending_steps": ["Run runtime acceptance"],
-            "runtime_unavailable_reason": "Test runtime unavailable",
-        },
-    )
+    if failed_runtime:
+        filesystem.write_json(
+            product.parent / "native-evidence/recovery.json",
+            {
+                "files": filesystem.manifest(product),
+                "stage": "validation-interrupted",
+                "targets": {"demo": {}},
+            },
+        )
+        receipt = source_candidate.retain_failed_candidate(
+            "fastapiadmin", plan, product, [], "TestRuntimeFailure"
+        )
+    else:
+        receipt = source_candidate.refresh_candidate(
+            product,
+            {
+                "execution": "source-candidate",
+                "template": "fastapiadmin",
+                "generation_status": "complete",
+                "verification_status": "unverified",
+                "pending_steps": ["Run runtime acceptance"],
+                "runtime_unavailable_reason": "Test runtime unavailable",
+            },
+        )
+    approved_files = filesystem.manifest(product)
+    approved_sidecars = {
+        path: path.read_bytes()
+        for path in (
+            product.parent / "native-generation.json",
+            product.parent / "source-candidate-status.json",
+            product.parent / "native-evidence/recovery.json",
+        )
+        if path.is_file()
+    }
     flow = Workflow(settings, None, None)
     implementation = SimpleNamespace(
         tasks=[SimpleNamespace(id="isolated-task")],
@@ -187,6 +213,12 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
     }
     if attack == "tampered":
         (product / "example.py").write_text("VALUE = 2\n", encoding="utf-8")
+    elif attack == "receipt-tampered":
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+        # Even a self-consistent weaker on-disk receipt is not graph approval.
+        source_candidate.refresh_candidate(
+            product, {**receipt, "source_commit": {"status": "unavailable"}}
+        )
     elif attack == "entry-limit":
         monkeypatch.setattr(
             filesystem, "archive_entry_limit", lambda template: len(receipt["files"])
@@ -205,7 +237,7 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
         return
     result = flow.extension_package(state)["delivery"]
     assert result["generation_status"] == "partial"
-    assert result["verification_status"] == "unverified"
+    assert result["verification_status"] == receipt["verification_status"]
     assert result["acceptance_passed"] is False
     assert "Implement module task: isolated-task" in result["pending_steps"]
     with zipfile.ZipFile(root / result["package"]) as archive:
@@ -218,8 +250,14 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
             item.file_size for item in archive.infolist()
         )
     assert result["archive"]["compressed_bytes"] == (root / result["package"]).stat().st_size
-    # Metadata refresh is replay-safe and does not promote tasks.
-    assert flow.extension_package(state)["delivery"]["verification_status"] == "unverified"
+    # Packaging never mutates approval, including before-checkpoint replay.
+    assert (
+        flow.extension_package(state)["delivery"]["verification_status"]
+        == receipt["verification_status"]
+    )
+    assert filesystem.manifest(product) == approved_files
+    for path, content in approved_sidecars.items():
+        assert path.read_bytes() == content
     assert state["extension_completed"] == []
 
 
@@ -806,6 +844,8 @@ def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatc
     "scenario",
     [
         "fresh",
+        "package-replay",
+        "package-tamper",
         "replay",
         "after-apply",
         "after-derive",
@@ -1007,3 +1047,26 @@ def test_source_edit_derivation_is_bound_and_replay_safe(
         assert path.read_bytes() == content
     assert not (derived.parent / "native-evidence/recovery.json").exists()
     assert state["extension_completed"] == []
+
+    if scenario in {"package-replay", "package-tamper"}:
+        package_state = {**state, **result}
+        design.baseline = plan
+        design.implementation.model_dump = lambda: {"tasks": [task.model_dump()]}
+        bound_files = manifest(derived)
+        receipt_path = derived.parent / "native-generation.json"
+        bound_receipt = receipt_path.read_bytes()
+        if scenario == "package-tamper":
+            (derived / filename).write_text("VALUE = 999\n", encoding="utf-8")
+            source_candidate.refresh_candidate(
+                derived,
+                {**result["native_generation"], "source_commit": {"status": "unavailable"}},
+            )
+            with pytest.raises(PrerequisiteError, match="批准状态"):
+                flow.extension_package(package_state)
+        else:
+            for _ in range(2):
+                delivered = flow.extension_package(package_state)["delivery"]
+                assert delivered["acceptance_passed"] is False
+                assert "Run isolated module and aggregate acceptance" in delivered["pending_steps"]
+                assert manifest(derived) == bound_files
+                assert receipt_path.read_bytes() == bound_receipt

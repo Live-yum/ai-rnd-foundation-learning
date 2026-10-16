@@ -109,12 +109,11 @@ def source_snapshot(destination):
                     "log"
                 ].strip()
 
-            if Path(query("rev-parse", "--show-toplevel")).resolve() != work.resolve():
+            # Windows can expose the same directory through long-path/8.3 names.
+            # Compare filesystem identity, not the spelling returned by Git.
+            if not Path(query("rev-parse", "--show-toplevel")).samefile(work):
                 raise PrerequisiteError("源码提交不属于独立保留仓库")
-            if (
-                Path(query("rev-parse", "--absolute-git-dir")).resolve()
-                != (work / ".git").resolve()
-            ):
+            if not Path(query("rev-parse", "--absolute-git-dir")).samefile(work / ".git"):
                 raise PrerequisiteError("源码提交 Git 目录不匹配")
             algorithm = query("rev-parse", "--show-object-format")
             if algorithm not in {"sha1", "sha256"}:

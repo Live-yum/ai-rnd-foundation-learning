@@ -1120,44 +1120,39 @@ class ExtensionWorkflow:
         if state.get("native_generation", {}).get("execution") == "source-candidate":
             # A preserved baseline is not a completed module and is never promoted
             # into the verified task ledger or passed to the runtime sandbox.
-            from workbench.delivery.source_candidate import refresh_candidate
-            from workbench.generation.native.service import package_native, verify_native
+            from workbench.delivery.source_candidate import verify_candidate
+            from workbench.generation.native.service import package_native
 
-            # Verify the last controller-bound tree before refreshing metadata;
-            # otherwise a modified candidate could be silently re-authorized here.
-            verify_native(product)
-            native_receipt = json.loads(
+            # The graph checkpoint owns approval. A mutable on-disk receipt must
+            # never authorize its own replacement tree or weaker Git evidence.
+            native_receipt = state["native_generation"]
+            saved_receipt = json.loads(
                 (product.parent / "native-generation.json").read_text(encoding="utf-8")
             )
-            if native_receipt.get("spec_digest") != state["native_generation"].get("spec_digest"):
-                raise PrerequisiteError("候选源码规格与批准状态不一致")
+            if saved_receipt != native_receipt:
+                raise PrerequisiteError("候选源码回执与批准状态不一致")
+            report = verify_candidate(product, native_receipt)
             pending_tasks = [
                 "Implement module task: " + task.id
                 for task in plan.tasks
                 if task.id not in state.get("extension_drafted", [])
             ]
-            refresh_candidate(
-                product,
-                native_receipt,
-                pending_steps=list(
-                    dict.fromkeys(
-                        [
-                            *[
-                                step
-                                for step in native_receipt.get("pending_steps", [])
-                                if not step.startswith("Implement module task: ")
-                            ],
-                            *pending_tasks,
-                            "Run isolated module and aggregate acceptance",
-                            *([state["extension_error"]] if state.get("extension_error") else []),
-                        ]
-                    )
-                ),
-                generation_status="partial"
-                if pending_tasks
-                else native_receipt["generation_status"],
+            # Packaging adds scope, not source approval. Keep the approved tree
+            # and receipt immutable so a pre-checkpoint crash can safely replay.
+            pending_steps = list(
+                dict.fromkeys(
+                    [
+                        *[
+                            step
+                            for step in native_receipt.get("pending_steps", [])
+                            if not step.startswith("Implement module task: ")
+                        ],
+                        *pending_tasks,
+                        "Run isolated module and aggregate acceptance",
+                        *([state["extension_error"]] if state.get("extension_error") else []),
+                    ]
+                )
             )
-            report = verify_native(product)
             result = package_native(product, report)
             root = self.settings.data_dir / "runs" / state["run_id"]
             archive = root / "extension-source.zip"
@@ -1165,6 +1160,7 @@ class ExtensionWorkflow:
             shutil.copyfile(product.parent / result["package"], temporary)
             result.update(
                 package=archive.name,
+                pending_steps=pending_steps,
                 generation_status=(
                     "partial"
                     if result.get("generation_status") == "partial"

@@ -25,42 +25,42 @@
 - `test_workflow_source_generation_reaches_download_without_runtime`（L91–L141）：接收`settings`、`plan`、`monkeypatch`。 控制顺序：L115遍历`("analyse", "source_context", "plan")`；L117遍历`("requirements", "design")`；L136断言`result["status"] == "SOURCE_READY"`；L137断言`result["verification"]["passed"] is False`；L138断言`result["delivery"]["verification_status"] == "unverified"`；L139断言`result["delivery"]["runtime_verified"] is False`；L140断言`result["delivery"]["acceptance_passed"] is False`；L141断言`(flow.product(result).parent / result["delivery"]["package"]).is_file()`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`action`、`Workflow`、`getattr`、`flow.compile(None).invoke`、`flow.compile`、`plan.model_dump`、`(flow.product(result).parent / result["delivery"]["package"]).is_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_workflow_source_generation_reaches_download_without_runtime.generate`（L97–L110）：接收`settings`、`template`、`plan`、`destination`、`**kwargs`。 调用`destination.mkdir`、`(destination / "example.py").write_text`、`source_candidate.refresh_candidate`。 返回路径：L100的`source_candidate.refresh_candidate( destination, { "execution": "source-candidate", "templ…`。
 - `test_workflow_source_generation_reaches_download_without_runtime.forbidden`（L122–L123）：接收`state`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_extension_source_package_keeps_pending_tasks_and_checks_integrity`（L145–L223）：接收`settings`、`plan`、`monkeypatch`、`attack`。 控制顺序：L159按`attack == "casefold"`分支；L188按`attack == "tampered"`分支；L190按`attack == "entry-limit"`分支；L194按`attack == "scope-size"`分支；L197按`attack`分支；L203断言`prior.read_bytes() == b"previous verified artifact"`；L204断言`not (root / "extension-source.zip.tmp").exists()`；L207断言`result["generation_status"] == "partial"`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`product.mkdir`、`(product / "example.py").write_text`、`(product / "rnd-source-scope.json").write_text`、`source_candidate.refresh_candidate`、`Workflow`、`SimpleNamespace`、`str`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `rule_plan`（L227–L243）：接收`plan`。 调用`Plan.model_validate`、`plan.model_dump`。 返回路径：L230的`Plan.model_validate( { **plan.model_dump(), "data_scope": "shared", "custom_rules": [ { "e…`。
-- `test_native_design_keeps_rules_without_requiring_aider`（L247–L293）：接收`settings`、`rule_plan`、`monkeypatch`、`coding_enabled`。 控制顺序：L291断言`result["decision"] == "approve"`；L292断言`gates[0][1] is True`；L293断言`gates[0][0]["plan"]["custom_rules"] == rule_plan.model_dump()["custom_rules"]`。 调用`native.write_runtime_example`、`monkeypatch.setattr`、`SimpleNamespace`、`Workflow`、`flow.design`、`rule_plan.model_dump`、`requirement().model_dump`、`requirement`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_design_keeps_rules_without_requiring_aider.gate`（L277–L279）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L279的`{"decision": "approve"}`。
-- `test_native_rule_source_fallback_is_lazy_and_keeps_rule_pending`（L297–L347）：接收`settings`、`rule_plan`、`monkeypatch`、`coding_enabled`。 控制顺序：L337断言`callable(callback)`；L342断言`receipt["generation_status"] == "partial"`；L343断言`receipt["verification_status"] == "unverified"`；L344断言`any(rule_plan.custom_rules[0].description in step for step in receipt["pending_steps"…`；L346断言`spec["custom_rules"] == rule_plan.model_dump()["custom_rules"]`；L347断言`source_candidate.verify_candidate(flow.product(state), receipt)["passed"] is False`。 调用`monkeypatch.setattr`、`Workflow`、`SimpleNamespace`、`action`、`rule_plan.model_dump`、`flow.native_customization`、`callable`、`pytest.raises`、`callback`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_rule_source_fallback_is_lazy_and_keeps_rule_pending.generate_candidate`（L313–L326）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`destination.mkdir`、`(destination / "approved-spec.json").write_text`、`plan.model_dump_json`、`source_candidate.refresh_candidate`。 返回路径：L316的`source_candidate.refresh_candidate( destination, { "template": template, "execution": "sou…`。
-- `test_resumed_source_code_node_never_runs_mini_swe_without_isolation`（L350–L365）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L361断言`flow.extension_code(state) == { "extension_candidate": "", "extension_candidate_passe…`；L365断言`flow.extension_after_code(state) == "extension_package"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_code`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_rule_runtime_factory_runs_only_when_callback_invoked`（L368–L389）：接收`settings`、`rule_plan`、`monkeypatch`。 控制顺序：L384断言`calls == []`；L386断言`calls == [ ("factory", "runtime-rule-test"), ("customize", ("template",), {"plan": ru…`。 调用`monkeypatch.setattr`、`Workflow`、`flow.native_customization`、`callback`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_rule_runtime_factory_runs_only_when_callback_invoked.factory`（L377–L379）：接收`settings`、`gateway`、`run_id`。 调用`calls.append`。 返回路径：L379的`lambda *args, **kwargs: calls.append(("customize", args, kwargs))`。
-- `test_source_task_selection_skips_isolated_task_but_preserves_dependencies`（L392–L417）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L407断言`flow.extension_task(state, design).id == "independent"`；L408断言`flow.extension_after_generate(state) == "extension_code"`；L410断言`flow.extension_task(state, design).id == "followup"`；L411断言`flow.extension_after_code(state) == "extension_code"`；L413断言`flow.extension_task(state, design) is None`；L414断言`flow.extension_after_code(state) == "extension_package"`；L415断言`state["extension_completed"] == []`；L417断言`flow.extension_task({"extension_completed": []}, design).id == "isolated"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_task`、`flow.extension_after_generate`、`state["extension_drafted"].append`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings`（L421–L515）：接收`settings`、`tmp_path`、`monkeypatch`、`reserved_edit`。 控制顺序：L502按`reserved_edit`分支；L505断言`"控制端" in result["extension_error"]`；L506断言`"extension_drafted" not in result`；L507断言`result["extension_candidate_passed"] is False`；L510遍历`range(2)`；L513断言`captured[0]["retrieval"] == captured[1]["retrieval"]`；L514断言`captured[0]["retrieval"]["mode"] == "ast+fts5"`；L515断言`captured[0]["retrieval"]["matches"]`。 调用`product.mkdir`、`(product / "example.py").write_text`、`monkeypatch.setattr`、`SimpleNamespace`、`source_candidate.refresh_candidate`、`Workflow`、`NoModelGateway`、`str`、`flow.extension_code`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings.forbidden`（L437–L438）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings.CapturedContext`（L468–L469）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway`（L471–L476）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway.complete`（L472–L476）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L474按`reserved_edit`分支；L476抛异常，停止当前正常路径。 调用`captured.append`、`SimpleNamespace`。 返回路径：L475的`SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])`。
-- `test_source_code_rejects_controller_paths_before_model_or_draft`（L528–L554）：接收`settings`、`tmp_path`、`name`。 控制顺序：L549断言`result["extension_candidate_passed"] is False`；L550断言`result["extension_error"]`；L551断言`"extension_drafted" not in result`；L552断言`state["extension_drafted"] == []`；L553断言`original.read_text(encoding="utf-8") == '{"runtime_verified": false}'`；L554断言`not list(settings.data_dir.glob("runs/*/candidates"))`。 调用`product.mkdir`、`original.write_text`、`SimpleNamespace`、`Workflow`、`NoModel`、`str`、`flow.extension_code`、`original.read_text`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel`（L536–L538）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel.complete`（L537–L538）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval`（L562–L642）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`config_state`。 控制顺序：L632断言`gates[0][1] is not available`；L633按`available`分支；L634断言`"native_validation_or_runtime" in gates[0][0]["block_sources"]`；L637断言`source_calls == []`；L640断言`result["execution"] == "source-candidate"`；L641断言`result["runtime_verified"] is False`；L642断言`source_calls == [capability]`。 调用`plan.model_copy`、`monkeypatch.delenv`、`write_json`、`native.runtime_path`、`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`Workflow`、`native_plan.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval.source_only`（L593–L595）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`source_calls.append`。 返回路径：L595的`{"execution": "source-candidate", "runtime_verified": False}`。
-- `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L597–L598）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval.gate`（L619–L621）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L621的`{"decision": "reject"}`。
-- `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L646–L681）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L681断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L698–L776）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L765断言`len(capability_calls) == (1 if native_design else 0)`；L766断言`len(sandbox_calls) == (0 if native_design else 1)`；L767断言`gates[0][3] is allowed`；L768断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not native_design`；L769按`native_design and not allowed`分支；L770断言`"native_validation_or_runtime" in gates[0][1]["block_sources"]`；L771断言`gates[0][0] == "design"`；L772断言`"approve" in gates[0][2]`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L727–L733）：接收`settings`、`selected`、`approved`。 控制顺序：L729断言`len(capability_calls) == 1`；L730按`capability == "error"`分支；L731抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L733的`{"available": available, "reason": capability}`。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L740–L742）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L742的`validate(*args)`。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L748–L751）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L751的`{"decision": "reject"}`。
-- `test_actual_sandbox_execution_still_requires_permission`（L780–L801）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_extension_source_package_keeps_pending_tasks_and_checks_integrity`（L148–L261）：接收`settings`、`plan`、`monkeypatch`、`attack`、`failed_runtime`。 控制顺序：L162按`attack == "casefold"`分支；L164按`failed_runtime`分支；L214按`attack == "tampered"`分支；L216按`attack == "receipt-tampered"`分支；L222按`attack == "entry-limit"`分支；L226按`attack == "scope-size"`分支；L229按`attack`分支；L235断言`prior.read_bytes() == b"previous verified artifact"`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`product.mkdir`、`(product / "example.py").write_text`、`(product / "rnd-source-scope.json").write_text`、`filesystem.write_json`、`filesystem.manifest`、`source_candidate.retain_failed_candidate`、`source_candidate.refresh_candidate`、`path.read_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `rule_plan`（L265–L281）：接收`plan`。 调用`Plan.model_validate`、`plan.model_dump`。 返回路径：L268的`Plan.model_validate( { **plan.model_dump(), "data_scope": "shared", "custom_rules": [ { "e…`。
+- `test_native_design_keeps_rules_without_requiring_aider`（L285–L331）：接收`settings`、`rule_plan`、`monkeypatch`、`coding_enabled`。 控制顺序：L329断言`result["decision"] == "approve"`；L330断言`gates[0][1] is True`；L331断言`gates[0][0]["plan"]["custom_rules"] == rule_plan.model_dump()["custom_rules"]`。 调用`native.write_runtime_example`、`monkeypatch.setattr`、`SimpleNamespace`、`Workflow`、`flow.design`、`rule_plan.model_dump`、`requirement().model_dump`、`requirement`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_design_keeps_rules_without_requiring_aider.gate`（L315–L317）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L317的`{"decision": "approve"}`。
+- `test_native_rule_source_fallback_is_lazy_and_keeps_rule_pending`（L335–L385）：接收`settings`、`rule_plan`、`monkeypatch`、`coding_enabled`。 控制顺序：L375断言`callable(callback)`；L380断言`receipt["generation_status"] == "partial"`；L381断言`receipt["verification_status"] == "unverified"`；L382断言`any(rule_plan.custom_rules[0].description in step for step in receipt["pending_steps"…`；L384断言`spec["custom_rules"] == rule_plan.model_dump()["custom_rules"]`；L385断言`source_candidate.verify_candidate(flow.product(state), receipt)["passed"] is False`。 调用`monkeypatch.setattr`、`Workflow`、`SimpleNamespace`、`action`、`rule_plan.model_dump`、`flow.native_customization`、`callable`、`pytest.raises`、`callback`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_rule_source_fallback_is_lazy_and_keeps_rule_pending.generate_candidate`（L351–L364）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`destination.mkdir`、`(destination / "approved-spec.json").write_text`、`plan.model_dump_json`、`source_candidate.refresh_candidate`。 返回路径：L354的`source_candidate.refresh_candidate( destination, { "template": template, "execution": "sou…`。
+- `test_resumed_source_code_node_never_runs_mini_swe_without_isolation`（L388–L403）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L399断言`flow.extension_code(state) == { "extension_candidate": "", "extension_candidate_passe…`；L403断言`flow.extension_after_code(state) == "extension_package"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_code`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_rule_runtime_factory_runs_only_when_callback_invoked`（L406–L427）：接收`settings`、`rule_plan`、`monkeypatch`。 控制顺序：L422断言`calls == []`；L424断言`calls == [ ("factory", "runtime-rule-test"), ("customize", ("template",), {"plan": ru…`。 调用`monkeypatch.setattr`、`Workflow`、`flow.native_customization`、`callback`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_rule_runtime_factory_runs_only_when_callback_invoked.factory`（L415–L417）：接收`settings`、`gateway`、`run_id`。 调用`calls.append`。 返回路径：L417的`lambda *args, **kwargs: calls.append(("customize", args, kwargs))`。
+- `test_source_task_selection_skips_isolated_task_but_preserves_dependencies`（L430–L455）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L445断言`flow.extension_task(state, design).id == "independent"`；L446断言`flow.extension_after_generate(state) == "extension_code"`；L448断言`flow.extension_task(state, design).id == "followup"`；L449断言`flow.extension_after_code(state) == "extension_code"`；L451断言`flow.extension_task(state, design) is None`；L452断言`flow.extension_after_code(state) == "extension_package"`；L453断言`state["extension_completed"] == []`；L455断言`flow.extension_task({"extension_completed": []}, design).id == "isolated"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_task`、`flow.extension_after_generate`、`state["extension_drafted"].append`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings`（L459–L553）：接收`settings`、`tmp_path`、`monkeypatch`、`reserved_edit`。 控制顺序：L540按`reserved_edit`分支；L543断言`"控制端" in result["extension_error"]`；L544断言`"extension_drafted" not in result`；L545断言`result["extension_candidate_passed"] is False`；L548遍历`range(2)`；L551断言`captured[0]["retrieval"] == captured[1]["retrieval"]`；L552断言`captured[0]["retrieval"]["mode"] == "ast+fts5"`；L553断言`captured[0]["retrieval"]["matches"]`。 调用`product.mkdir`、`(product / "example.py").write_text`、`monkeypatch.setattr`、`SimpleNamespace`、`source_candidate.refresh_candidate`、`Workflow`、`NoModelGateway`、`str`、`flow.extension_code`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.forbidden`（L475–L476）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.CapturedContext`（L506–L507）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway`（L509–L514）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway.complete`（L510–L514）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L512按`reserved_edit`分支；L514抛异常，停止当前正常路径。 调用`captured.append`、`SimpleNamespace`。 返回路径：L513的`SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])`。
+- `test_source_code_rejects_controller_paths_before_model_or_draft`（L566–L592）：接收`settings`、`tmp_path`、`name`。 控制顺序：L587断言`result["extension_candidate_passed"] is False`；L588断言`result["extension_error"]`；L589断言`"extension_drafted" not in result`；L590断言`state["extension_drafted"] == []`；L591断言`original.read_text(encoding="utf-8") == '{"runtime_verified": false}'`；L592断言`not list(settings.data_dir.glob("runs/*/candidates"))`。 调用`product.mkdir`、`original.write_text`、`SimpleNamespace`、`Workflow`、`NoModel`、`str`、`flow.extension_code`、`original.read_text`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel`（L574–L576）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel.complete`（L575–L576）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval`（L600–L680）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`config_state`。 控制顺序：L670断言`gates[0][1] is not available`；L671按`available`分支；L672断言`"native_validation_or_runtime" in gates[0][0]["block_sources"]`；L675断言`source_calls == []`；L678断言`result["execution"] == "source-candidate"`；L679断言`result["runtime_verified"] is False`；L680断言`source_calls == [capability]`。 调用`plan.model_copy`、`monkeypatch.delenv`、`write_json`、`native.runtime_path`、`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`Workflow`、`native_plan.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval.source_only`（L631–L633）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`source_calls.append`。 返回路径：L633的`{"execution": "source-candidate", "runtime_verified": False}`。
+- `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L635–L636）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval.gate`（L657–L659）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L659的`{"decision": "reject"}`。
+- `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L684–L719）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L719断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L736–L814）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L803断言`len(capability_calls) == (1 if native_design else 0)`；L804断言`len(sandbox_calls) == (0 if native_design else 1)`；L805断言`gates[0][3] is allowed`；L806断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not native_design`；L807按`native_design and not allowed`分支；L808断言`"native_validation_or_runtime" in gates[0][1]["block_sources"]`；L809断言`gates[0][0] == "design"`；L810断言`"approve" in gates[0][2]`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L765–L771）：接收`settings`、`selected`、`approved`。 控制顺序：L767断言`len(capability_calls) == 1`；L768按`capability == "error"`分支；L769抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L771的`{"available": available, "reason": capability}`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L778–L780）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L780的`validate(*args)`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L786–L789）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L789的`{"decision": "reject"}`。
+- `test_actual_sandbox_execution_still_requires_permission`（L818–L839）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L803。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L841。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`31572`。本段原文以LF换行结束。
+本段原始字节数：`33068`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "6118dd1c152f699d35c6e25fdde24cc74a3348936e82121c88ef15da7474f122"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "77407421f2df0684ba626095df999eb421292b759a0b331f250353f08143bb37"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 """Source drafts never become runtime acceptance or verified module progress."""
@@ -206,9 +206,12 @@ def test_workflow_source_generation_reaches_download_without_runtime(settings, p
     assert (flow.product(result).parent / result["delivery"]["package"]).is_file()
 
 
-@pytest.mark.parametrize("attack", [None, "tampered", "casefold", "entry-limit", "scope-size"])
+@pytest.mark.parametrize("failed_runtime", [False, True])
+@pytest.mark.parametrize(
+    "attack", [None, "tampered", "receipt-tampered", "casefold", "entry-limit", "scope-size"]
+)
 def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
-    settings, plan, monkeypatch, attack
+    settings, plan, monkeypatch, attack, failed_runtime
 ):
     import json
     import zipfile
@@ -223,17 +226,40 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
     (product / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
     if attack == "casefold":
         (product / "rnd-source-scope.json").write_text("{}", encoding="utf-8")
-    receipt = source_candidate.refresh_candidate(
-        product,
-        {
-            "execution": "source-candidate",
-            "template": "fastapiadmin",
-            "generation_status": "complete",
-            "verification_status": "unverified",
-            "pending_steps": ["Run runtime acceptance"],
-            "runtime_unavailable_reason": "Test runtime unavailable",
-        },
-    )
+    if failed_runtime:
+        filesystem.write_json(
+            product.parent / "native-evidence/recovery.json",
+            {
+                "files": filesystem.manifest(product),
+                "stage": "validation-interrupted",
+                "targets": {"demo": {}},
+            },
+        )
+        receipt = source_candidate.retain_failed_candidate(
+            "fastapiadmin", plan, product, [], "TestRuntimeFailure"
+        )
+    else:
+        receipt = source_candidate.refresh_candidate(
+            product,
+            {
+                "execution": "source-candidate",
+                "template": "fastapiadmin",
+                "generation_status": "complete",
+                "verification_status": "unverified",
+                "pending_steps": ["Run runtime acceptance"],
+                "runtime_unavailable_reason": "Test runtime unavailable",
+            },
+        )
+    approved_files = filesystem.manifest(product)
+    approved_sidecars = {
+        path: path.read_bytes()
+        for path in (
+            product.parent / "native-generation.json",
+            product.parent / "source-candidate-status.json",
+            product.parent / "native-evidence/recovery.json",
+        )
+        if path.is_file()
+    }
     flow = Workflow(settings, None, None)
     implementation = SimpleNamespace(
         tasks=[SimpleNamespace(id="isolated-task")],
@@ -252,6 +278,12 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
     }
     if attack == "tampered":
         (product / "example.py").write_text("VALUE = 2\n", encoding="utf-8")
+    elif attack == "receipt-tampered":
+        (product / "example.py").write_text("VALUE = 999\n", encoding="utf-8")
+        # Even a self-consistent weaker on-disk receipt is not graph approval.
+        source_candidate.refresh_candidate(
+            product, {**receipt, "source_commit": {"status": "unavailable"}}
+        )
     elif attack == "entry-limit":
         monkeypatch.setattr(
             filesystem, "archive_entry_limit", lambda template: len(receipt["files"])
@@ -270,7 +302,7 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
         return
     result = flow.extension_package(state)["delivery"]
     assert result["generation_status"] == "partial"
-    assert result["verification_status"] == "unverified"
+    assert result["verification_status"] == receipt["verification_status"]
     assert result["acceptance_passed"] is False
     assert "Implement module task: isolated-task" in result["pending_steps"]
     with zipfile.ZipFile(root / result["package"]) as archive:
@@ -283,8 +315,14 @@ def test_extension_source_package_keeps_pending_tasks_and_checks_integrity(
             item.file_size for item in archive.infolist()
         )
     assert result["archive"]["compressed_bytes"] == (root / result["package"]).stat().st_size
-    # Metadata refresh is replay-safe and does not promote tasks.
-    assert flow.extension_package(state)["delivery"]["verification_status"] == "unverified"
+    # Packaging never mutates approval, including before-checkpoint replay.
+    assert (
+        flow.extension_package(state)["delivery"]["verification_status"]
+        == receipt["verification_status"]
+    )
+    assert filesystem.manifest(product) == approved_files
+    for path, content in approved_sidecars.items():
+        assert path.read_bytes() == content
     assert state["extension_completed"] == []
 
 

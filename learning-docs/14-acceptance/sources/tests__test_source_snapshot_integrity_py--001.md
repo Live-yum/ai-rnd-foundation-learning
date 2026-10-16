@@ -39,14 +39,20 @@
 - `test_git_init_filesystem_symlink_probe_metadata_is_portable.git_with_platform_probe`（L224–L229）：接收`work`、`home`、`*args`。 控制顺序：L226按`"init" in args`分支。 调用`original`。 返回路径：L229的`result`。
 - `test_symlink_probe_metadata_does_not_allow_invalid_values`（L242–L253）：接收`snapshot`、`monkeypatch`。 调用`git`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_symlink_probe_metadata_does_not_allow_invalid_values.forbidden`（L248–L249）：接收`*args`、`**kwargs`。 控制顺序：L249抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_directory_uses_filesystem_identity`（L258–L287）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`、`same_directory`。 控制顺序：L268按`os.name == "nt"`分支；L283按`same_directory`分支；L284断言`source_snapshot(product) == receipt`。 调用`other.mkdir`、`str`、`target.resolve`、`monkeypatch.setattr`、`source_snapshot`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_directory_uses_filesystem_identity.aliased_git`（L276–L280）：接收`folder`、`home`、`*args`。 控制顺序：L278按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`。 返回路径：L279的`{**result, "log": reported}`；L280的`result`。
+- `test_git_directory_identity_permission_error_is_not_downgraded`（L290–L300）：接收`snapshot`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_directory_identity_permission_error_is_not_downgraded.denied`（L295–L296）：接收`other`。 控制顺序：L296抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_missing_directory_fails_closed`（L304–L318）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_missing_directory_fails_closed.missing_git`（L310–L314）：接收`folder`、`home`、`*args`。 控制顺序：L312按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`、`str`。 返回路径：L313的`{**result, "log": str(tmp_path / "missing-repository")}`；L314的`result`。
 
 </details>
 
-**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L253。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L318。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9491`。本段原文以LF换行结束。
+本段原始字节数：`11883`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8cc342bba45941157fdec0047a0081e5e65aec58ce6736a62903ae30ff3a052b"} -->
+<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8aeeb1040b2da915bd5a7a0b5654350b411e108693e090f578f25ae21cce7351"} -->
 ````python
 # tests/test_source_snapshot_integrity.py
 """A cached source receipt is evidence only while its real Git tree still matches."""
@@ -301,5 +307,70 @@ def test_symlink_probe_metadata_does_not_allow_invalid_values(snapshot, monkeypa
 
     monkeypatch.setattr(aider, "git", forbidden)
     with pytest.raises(PrerequisiteError, match="core.symlinks"):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+@pytest.mark.parametrize("same_directory", [True, False])
+def test_git_reported_directory_uses_filesystem_identity(
+    snapshot, tmp_path, monkeypatch, query_name, same_directory
+):
+    from workbench.coding import aider
+
+    product, work, receipt = snapshot
+    expected = work if query_name == "--show-toplevel" else work / ".git"
+    other = tmp_path / "different-repository"
+    other.mkdir()
+    target = expected if same_directory else other
+    if os.name == "nt":
+        # Exercise Windows' native extended-length alias without changing the
+        # controlled repository or granting symlink/long-path configuration rights.
+        reported = "\\\\?\\" + str(target.resolve())
+    else:
+        reported = str(target / ".")
+    original_git = aider.git
+
+    def aliased_git(folder, home, *args):
+        result = original_git(folder, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {**result, "log": reported}
+        return result
+
+    monkeypatch.setattr(aider, "git", aliased_git)
+    if same_directory:
+        assert source_snapshot(product) == receipt
+    else:
+        with pytest.raises(PrerequisiteError, match="独立保留仓库|Git 目录不匹配"):
+            source_snapshot(product)
+
+
+def test_git_directory_identity_permission_error_is_not_downgraded(snapshot, monkeypatch):
+    from pathlib import Path
+
+    product, _, _ = snapshot
+
+    def denied(self, other):
+        raise PermissionError("directory identity denied")
+
+    monkeypatch.setattr(Path, "samefile", denied)
+    with pytest.raises(PermissionError, match="identity denied"):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+def test_git_reported_missing_directory_fails_closed(snapshot, tmp_path, monkeypatch, query_name):
+    from workbench.coding import aider
+
+    product, _, _ = snapshot
+    original_git = aider.git
+
+    def missing_git(folder, home, *args):
+        result = original_git(folder, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {**result, "log": str(tmp_path / "missing-repository")}
+        return result
+
+    monkeypatch.setattr(aider, "git", missing_git)
+    with pytest.raises(PrerequisiteError, match="完整性"):
         source_snapshot(product)
 ````

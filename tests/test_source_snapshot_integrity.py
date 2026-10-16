@@ -251,3 +251,68 @@ def test_symlink_probe_metadata_does_not_allow_invalid_values(snapshot, monkeypa
     monkeypatch.setattr(aider, "git", forbidden)
     with pytest.raises(PrerequisiteError, match="core.symlinks"):
         source_snapshot(product)
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+@pytest.mark.parametrize("same_directory", [True, False])
+def test_git_reported_directory_uses_filesystem_identity(
+    snapshot, tmp_path, monkeypatch, query_name, same_directory
+):
+    from workbench.coding import aider
+
+    product, work, receipt = snapshot
+    expected = work if query_name == "--show-toplevel" else work / ".git"
+    other = tmp_path / "different-repository"
+    other.mkdir()
+    target = expected if same_directory else other
+    if os.name == "nt":
+        # Exercise Windows' native extended-length alias without changing the
+        # controlled repository or granting symlink/long-path configuration rights.
+        reported = "\\\\?\\" + str(target.resolve())
+    else:
+        reported = str(target / ".")
+    original_git = aider.git
+
+    def aliased_git(folder, home, *args):
+        result = original_git(folder, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {**result, "log": reported}
+        return result
+
+    monkeypatch.setattr(aider, "git", aliased_git)
+    if same_directory:
+        assert source_snapshot(product) == receipt
+    else:
+        with pytest.raises(PrerequisiteError, match="独立保留仓库|Git 目录不匹配"):
+            source_snapshot(product)
+
+
+def test_git_directory_identity_permission_error_is_not_downgraded(snapshot, monkeypatch):
+    from pathlib import Path
+
+    product, _, _ = snapshot
+
+    def denied(self, other):
+        raise PermissionError("directory identity denied")
+
+    monkeypatch.setattr(Path, "samefile", denied)
+    with pytest.raises(PermissionError, match="identity denied"):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+def test_git_reported_missing_directory_fails_closed(snapshot, tmp_path, monkeypatch, query_name):
+    from workbench.coding import aider
+
+    product, _, _ = snapshot
+    original_git = aider.git
+
+    def missing_git(folder, home, *args):
+        result = original_git(folder, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {**result, "log": str(tmp_path / "missing-repository")}
+        return result
+
+    monkeypatch.setattr(aider, "git", missing_git)
+    with pytest.raises(PrerequisiteError, match="完整性"):
+        source_snapshot(product)

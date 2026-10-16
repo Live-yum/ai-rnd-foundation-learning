@@ -45,25 +45,25 @@
 - `fake_daytona.Client.delete`（L293–L296）：接收`sandbox`、`**kwargs`。 控制顺序：L295按`fail == "delete"`分支；L296抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_always_cleans_and_blocks_failed_checks`（L302–L318）：接收`settings`、`plan`、`tmp_path`、`failure`。 控制顺序：L308按`failure`分支；L313断言`result["passed"] and result["cleanup"] == "deleted"`；L314断言`events[-1] == ("delete", "fixture-sandbox")`；L316断言`receipt["passed"] is (failure is None)`；L317断言`receipt["source_digest"] == digest(before)`；L318断言`manifest(product) == before`。 调用`generate_basic`、`fake_daytona`、`manifest`、`pytest.raises`、`verify_in_daytona`、`json.loads`、`(tmp_path / "daytona-verification.json").read_text`、`digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_sandbox_commands_are_registered_not_model_chosen`（L321–L328）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L323断言`len(checks) == 1`；L324断言`checks[0][1][-4:] == ["--template", "yudao-vben", "--database", "postgresql"]`；L325断言`checks[0][1][2] == "/opt/rnd/harness/.venv/bin/python"`；L326断言`"daytona_matrix_probe.py" in checks[0][1][3]`。 调用`checks_for`、`len`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_daytona_gate_blocks_packaging`（L331–L343）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L335断言`workflow.after_verify({"verification": {"passed": True}}) == "sandbox"`。 调用`Workflow`、`workflow.after_verify`、`monkeypatch.setattr`、`pytest.raises`、`workflow.sandbox`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_daytona_gate_blocks_packaging.failed`（L338–L339）：接收`*args`。 控制顺序：L339抛异常，停止当前正常路径。 调用`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_ast_packing_covers_every_line_without_one_chunk_per_variable`（L346–L359）：接收`tmp_path`。 控制顺序：L355断言`len(data["files"]["dense.ts"]["symbols"]) == 180`；L357断言`len(packed) == 3`；L358断言`"\n".join(row[6] for row in packed) == text.rstrip("\n")`；L359断言`[(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]`。 调用`source.mkdir`、`"\n".join`、`range`、`(source / "dense.ts").write_text`、`build_index`、`json.loads`、`(index / "index.json").read_text`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches`（L362–L380）：接收`tmp_path`。 控制顺序：L365遍历`range(100)`；L379断言`found["matches"][0]["path"] == "usage.vue"`；L380断言`"useVbenForm" in found["matches"][0]["content"]`。 调用`source.mkdir`、`range`、`(source / f"decoy{number}.ts").write_text`、`(source / "usage.vue").write_text`、`build_index`、`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_search_path_filters_apply_before_ranking`（L383–L394）：接收`indexed`。 控制顺序：L385断言`not query(source, index, "useVbenForm", file_suffix=".java")["matches"]`；L386断言`query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"] == "Art…`；L390断言`not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]`。 调用`query`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env`（L397–L433）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L433断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L413–L429）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L415断言`argv[1].endswith("tools/aider/offline_runner.py") or argv[1].endswith( "tools\\aider\…`；L419断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L420断言`"ANTHROPIC_API_KEY" not in environment`；L421按`"--version" in argv`分支；L425断言`config != env_file`；L426断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L427断言`env_file.read_text(encoding="utf-8") == ""`；L428断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`argv[1].endswith`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L422的`{"log": "aider 0.86.2"}`；L429的`{"log": "actual CLI is exercised by ci_toolchain"}`。
-- `test_runtime_preserves_redacted_wrapped_tool_failure`（L436–L465）：接收`settings`、`store`。 控制顺序：L459断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L462断言`report["returncode"] == 2 and report["passed"] is False`；L463断言`report["run_id"] == run_id and report["job_id"]`；L464断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L465断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L444–L453）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L445–L453）：接收`*args`、`**kwargs`。 控制顺序：L451抛异常，停止当前正常路径；L453抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_daytona_does_not_accept_http_only_receipt_for_generated_ui`（L468–L476）：接收`settings`、`plan`、`tmp_path`。 控制顺序：L474断言`events[-1] == ("delete", "fixture-sandbox")`；L476断言`receipt["passed"] is False and "浏览器" in receipt["error_detail"]`。 调用`generate_basic`、`fake_daytona`、`pytest.raises`、`verify_in_daytona`、`json.loads`、`(tmp_path / "daytona-verification.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_daytona_gate_blocks_packaging`（L332–L353）：接收`settings`、`store`、`plan`、`monkeypatch`、`authorized`。 控制顺序：L336断言`workflow.after_verify({"verification": {"passed": True}}) == "sandbox"`；L353断言`len(calls) == int(authorized)`。 调用`Workflow`、`workflow.after_verify`、`generate_basic`、`workflow.product`、`fake_daytona`、`monkeypatch.setattr`、`pytest.raises`、`workflow.sandbox`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_daytona_gate_blocks_packaging.failed`（L345–L347）：接收`*args`。 控制顺序：L347抛异常，停止当前正常路径。 调用`calls.append`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ast_packing_covers_every_line_without_one_chunk_per_variable`（L356–L369）：接收`tmp_path`。 控制顺序：L365断言`len(data["files"]["dense.ts"]["symbols"]) == 180`；L367断言`len(packed) == 3`；L368断言`"\n".join(row[6] for row in packed) == text.rstrip("\n")`；L369断言`[(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]`。 调用`source.mkdir`、`"\n".join`、`range`、`(source / "dense.ts").write_text`、`build_index`、`json.loads`、`(index / "index.json").read_text`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches`（L372–L390）：接收`tmp_path`。 控制顺序：L375遍历`range(100)`；L389断言`found["matches"][0]["path"] == "usage.vue"`；L390断言`"useVbenForm" in found["matches"][0]["content"]`。 调用`source.mkdir`、`range`、`(source / f"decoy{number}.ts").write_text`、`(source / "usage.vue").write_text`、`build_index`、`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_search_path_filters_apply_before_ranking`（L393–L404）：接收`indexed`。 控制顺序：L395断言`not query(source, index, "useVbenForm", file_suffix=".java")["matches"]`；L396断言`query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"] == "Art…`；L400断言`not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]`。 调用`query`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env`（L407–L443）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L443断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L423–L439）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L425断言`argv[1].endswith("tools/aider/offline_runner.py") or argv[1].endswith( "tools\\aider\…`；L429断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L430断言`"ANTHROPIC_API_KEY" not in environment`；L431按`"--version" in argv`分支；L435断言`config != env_file`；L436断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L437断言`env_file.read_text(encoding="utf-8") == ""`；L438断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`argv[1].endswith`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L432的`{"log": "aider 0.86.2"}`；L439的`{"log": "actual CLI is exercised by ci_toolchain"}`。
+- `test_runtime_preserves_redacted_wrapped_tool_failure`（L446–L475）：接收`settings`、`store`。 控制顺序：L469断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L472断言`report["returncode"] == 2 and report["passed"] is False`；L473断言`report["run_id"] == run_id and report["job_id"]`；L474断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L475断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L454–L463）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L455–L463）：接收`*args`、`**kwargs`。 控制顺序：L461抛异常，停止当前正常路径；L463抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_daytona_does_not_accept_http_only_receipt_for_generated_ui`（L478–L486）：接收`settings`、`plan`、`tmp_path`。 控制顺序：L484断言`events[-1] == ("delete", "fixture-sandbox")`；L486断言`receipt["passed"] is False and "浏览器" in receipt["error_detail"]`。 调用`generate_basic`、`fake_daytona`、`pytest.raises`、`verify_in_daytona`、`json.loads`、`(tmp_path / "daytona-verification.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_toolchain.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L476。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_toolchain.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L486。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19832`。本段原文以LF换行结束。
+本段原始字节数：`20272`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_toolchain.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f2ce0306dc8adc0603b3589895a2ed8a978950b7d1541ab96e6ebf4d6e210975"} -->
+<!-- learning-source: {"path": "tests/test_toolchain.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "74b8d29f632945cda4419d692feac0ed51701d9afbd7c419f66368c88694cf5c"} -->
 ````python
 # tests/test_toolchain.py
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
@@ -396,19 +396,29 @@ def test_sandbox_commands_are_registered_not_model_chosen():
         checks_for("shell:rm-anything")
 
 
-def test_workflow_daytona_gate_blocks_packaging(settings, store, monkeypatch):
+@pytest.mark.parametrize("authorized", [False, True])
+def test_workflow_daytona_gate_blocks_packaging(settings, store, plan, monkeypatch, authorized):
     from workbench.flow import Workflow
 
     workflow = Workflow(settings, store, None)
     assert workflow.after_verify({"verification": {"passed": True}}) == "sandbox"
-    settings.sandbox_provider = "daytona"
+    state = {"run_id": "fixture", "template": "python-basic"}
+    generate_basic(
+        plan, workflow.product(state), {"template": "python-basic", "frontend": "api-only"}
+    )
+    fake_daytona(settings)
+    settings.daytona_allow_local_execution = authorized
+    calls = []
 
     def failed(*args):
+        calls.append(args)
         raise PrerequisiteError("local sandbox verification rejected")
 
     monkeypatch.setattr("workbench.sandbox.verify_in_daytona", failed)
-    with pytest.raises(PrerequisiteError):
-        workflow.sandbox({"run_id": "fixture", "template": "python-basic"})
+    reason = "local sandbox verification rejected" if authorized else "ALLOW_LOCAL_EXECUTION"
+    with pytest.raises(PrerequisiteError, match=reason):
+        workflow.sandbox(state)
+    assert len(calls) == int(authorized)
 
 
 def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):

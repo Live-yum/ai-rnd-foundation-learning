@@ -20,16 +20,17 @@
 - `test_derivation_atomic_recovery_and_replay.interrupted`（L77–L79）：接收`*values`。 控制顺序：L79抛异常，停止当前正常路径。 调用`original_status`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_derivation_atomic_recovery_and_replay.interrupted`（L84–L86）：接收`*values`、`**options`。 控制顺序：L86抛异常，停止当前正常路径。 调用`original_refresh`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_derivation_never_adopts_unapproved_tampering`（L111–L125）：接收`tmp_path`、`monkeypatch`、`retained`、`attack`。 控制顺序：L114按`attack in {"derived", "receipt"}`分支；L116按`attack == "receipt"`分支。 调用`prepared`、`candidates.derive_candidate`、`json.loads`、`path.read_text`、`write_json`、`(target / "unapproved.py").write_text`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_published_derivation_git_journal_remains_valid_after_atomic_move`（L128–L136）：接收`tmp_path`、`monkeypatch`。 控制顺序：L129按`not shutil.which("git")`分支；L134断言`result["source_commit"]["status"] == "committed"`；L135断言`candidates.verify_candidate(args[2], result)["source_commit"] == result["source_commi…`；L136断言`candidates.derive_candidate(*args, **kwargs) == result`。 调用`shutil.which`、`pytest.skip`、`prepared`、`monkeypatch.undo`、`candidates.derive_candidate`、`candidates.verify_candidate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_derivation_rejects_redirected_publish_directory`（L139–L149）：接收`tmp_path`、`monkeypatch`。 控制顺序：L149断言`list(outside.iterdir()) == []`。 调用`prepared`、`outside.mkdir`、`args[2].parent.symlink_to`、`pytest.skip`、`pytest.raises`、`candidates.derive_candidate`、`list`、`outside.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_published_derivation_git_journal_remains_valid_after_atomic_move`（L128–L161）：接收`tmp_path`、`monkeypatch`。 控制顺序：L129按`not shutil.which("git")`分支；L158抛异常，停止当前正常路径；L159断言`result["source_commit"]["status"] == "committed"`；L160断言`candidates.verify_candidate(args[2], result)["source_commit"] == result["source_commi…`；L161断言`candidates.derive_candidate(*args, **kwargs) == result`。 调用`shutil.which`、`pytest.skip`、`prepared`、`monkeypatch.undo`、`monkeypatch.setattr`、`candidates.derive_candidate`、`exc.add_note`、`json.dumps`、`candidates.verify_candidate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_published_derivation_git_journal_remains_valid_after_atomic_move.observed_git`（L138–L149）：接收`work`、`home`、`*arguments`。 控制顺序：L140按`arguments[-2:] in { ("rev-parse", "--show-toplevel"), ("rev-parse", "--absolute-git-d…`分支。 调用`original_git`、`paths.append`、`str`。 返回路径：L149的`result`。
+- `test_derivation_rejects_redirected_publish_directory`（L164–L174）：接收`tmp_path`、`monkeypatch`。 控制顺序：L174断言`list(outside.iterdir()) == []`。 调用`prepared`、`outside.mkdir`、`args[2].parent.symlink_to`、`pytest.skip`、`pytest.raises`、`candidates.derive_candidate`、`list`、`outside.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_derivation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L149。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_derivation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L174。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6164`。本段原文以LF换行结束。
+本段原始字节数：`7049`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_derivation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f47b80f154407b5f6cbdf979292e869701c6f099f767e12ef9fdae213440d67"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_derivation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "83ec110444964e7e58d985c449086bcd043a5a19a53deccdb8ca789de0b321e5"} -->
 ````python
 # tests/test_source_candidate_derivation.py
 """Derived source drafts publish complete evidence without touching recovery sources."""
@@ -164,7 +165,32 @@ def test_published_derivation_git_journal_remains_valid_after_atomic_move(tmp_pa
         pytest.skip("Git not installed")
     args, kwargs = prepared(tmp_path, monkeypatch, False)
     monkeypatch.undo()
-    result = candidates.derive_candidate(*args, **kwargs)
+    from workbench.coding import aider
+
+    original_git = aider.git
+    paths = []
+
+    def observed_git(work, home, *arguments):
+        result = original_git(work, home, *arguments)
+        if arguments[-2:] in {
+            ("rev-parse", "--show-toplevel"),
+            ("rev-parse", "--absolute-git-dir"),
+        }:
+            # Owned temporary paths only: diagnose real-platform spelling without
+            # dumping config, command environments, product content or credentials.
+            paths.append(
+                {"query": arguments[-1], "reported": result["log"][:1200], "work": str(work)}
+            )
+        return result
+
+    monkeypatch.setattr(aider, "git", observed_git)
+    try:
+        result = candidates.derive_candidate(*args, **kwargs)
+    except PrerequisiteError as exc:
+        exc.add_note(
+            "Owned Git directory diagnostics: " + json.dumps(paths[-4:], ensure_ascii=True)
+        )
+        raise
     assert result["source_commit"]["status"] == "committed"
     assert candidates.verify_candidate(args[2], result)["source_commit"] == result["source_commit"]
     assert candidates.derive_candidate(*args, **kwargs) == result

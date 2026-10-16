@@ -1557,8 +1557,8 @@
     },
     {
       "path": "workbench/production/dispatcher.py",
-      "bytes": 64922,
-      "sha256": "c3fb7cbdcd89548db48675de80611a2e63143b51b5b8089edfc4f1ff15b069dd",
+      "bytes": 64805,
+      "sha256": "f29b5b9b1282b413e94068c7854b140bcfa9cbedeab6dece37424fc1c4b4846c",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__dispatcher_py--001.md",
@@ -3471,8 +3471,8 @@
     },
     {
       "path": "tests/test_toolchain.py",
-      "bytes": 19832,
-      "sha256": "f2ce0306dc8adc0603b3589895a2ed8a978950b7d1541ab96e6ebf4d6e210975",
+      "bytes": 20272,
+      "sha256": "74b8d29f632945cda4419d692feac0ed51701d9afbd7c419f66368c88694cf5c",
       "stage": "11-local-tools",
       "parts": [
         "11-local-tools/sources/tests__test_toolchain_py--001.md"
@@ -4661,8 +4661,8 @@
     },
     {
       "path": "workbench/delivery/source_candidate.py",
-      "bytes": 28235,
-      "sha256": "2fa89d8a607940436db22207d4cb4a7e53b9b4d6772afa49889a3c973636410a",
+      "bytes": 28325,
+      "sha256": "fe486ea95d280f41fdd88301214fb9a32615207b76d068840189d2aa9b05a8fb",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/workbench__delivery__source_candidate_py--001.md"
@@ -5012,8 +5012,8 @@
     },
     {
       "path": "docs/native-toolchain.md",
-      "bytes": 22058,
-      "sha256": "48f85d1e517c5bbef506a66a67ddf02fc1e683d797e1b4580cc93fef15104a98",
+      "bytes": 22708,
+      "sha256": "134dab7253995c19fec9acd2c211aee44c709b22d7c11713f39f59a77b3be0a0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__native-toolchain_md--001.md"
@@ -6720,8 +6720,8 @@
     },
     {
       "path": "tests/test_source_candidate_derivation.py",
-      "bytes": 6164,
-      "sha256": "1f47b80f154407b5f6cbdf979292e869701c6f099f767e12ef9fdae213440d67",
+      "bytes": 7049,
+      "sha256": "83ec110444964e7e58d985c449086bcd043a5a19a53deccdb8ca789de0b321e5",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_candidate_derivation_py--001.md"
@@ -6729,8 +6729,8 @@
     },
     {
       "path": "tests/test_source_candidate_workflow.py",
-      "bytes": 39363,
-      "sha256": "a048f816df09b31dbc49f6bac354483724e7110567966ad30c6816633a99c14a",
+      "bytes": 42116,
+      "sha256": "fbe34ad88a11b78b9ee908a3fceb45f6ac401065d829cb06474c10558c6dadde",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_candidate_workflow_py--001.md",
@@ -6739,8 +6739,8 @@
     },
     {
       "path": "tests/test_source_snapshot_integrity.py",
-      "bytes": 9491,
-      "sha256": "8cc342bba45941157fdec0047a0081e5e65aec58ce6736a62903ae30ff3a052b",
+      "bytes": 11883,
+      "sha256": "8aeeb1040b2da915bd5a7a0b5654350b411e108693e090f578f25ae21cce7351",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md"

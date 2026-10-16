@@ -24,16 +24,16 @@
 - `ExtensionWorkflow.extension_review`（L1025–L1050）：接收`state`。 控制顺序：L1027按`not self.settings.review_enabled`分支。 调用`self.checked_extension`、`self.gateway.complete`、`digest`、`design.model_dump`、`review.model_dump`、`write_json`。 返回路径：L1028的`{ "model_review": { "enabled": False, "note": "Independent execution remains mandatory", }…`；L1050的`{"model_review": result}`。
 - `ExtensionWorkflow.extension_scope_data`（L1052–L1102）：接收`state`、`design`。 控制顺序：L1056按`conflicts`分支。 调用`self.extension_coverage`、`state.get`、`list`、`review.get`、`dict`、`coverage.get`、`sorted`、`bool`、`digest`等。 返回路径：L1082的`{ "delivery_kind": "partial" if partial else "reviewed-contract", "full_request_complete":…`。
 - `ExtensionWorkflow.extension_scope`（L1104–L1114）：接收`state`。 控制顺序：L1112按`result["decision"] == "reject"`分支。 调用`self.checked_extension`、`self.extension_scope_data`、`write_json`、`self.gate`。 返回路径：L1114的`result`。
-- `ExtensionWorkflow.extension_package`（L1116–L1296）：接收`state`。 控制顺序：L1120按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L1132按`native_receipt.get("spec_digest") != state["native_generation"].get("spec_digest")`分支；L1133抛异常，停止当前正常路径；L1197按`scope_name.casefold() in {name.casefold() for name in handle.namelist()}`分支；L1198抛异常，停止当前正常路径；L1229按`scope["requires_explicit_review"]`分支；L1237遍历`files(product)`；L1239按`"RND-DELIVERY.json" in listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.checked_extension`、`Path`、`state.get("native_generation", {}).get`、`state.get`、`verify_native`、`json.loads`、`(product.parent / "native-generation.json").read_text`、`native_receipt.get`、`state["native_generation"].get`等。 返回路径：L1214的`{"delivery": result, "plan": design.baseline.model_dump()}`；L1274的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
-- `ExtensionWorkflow.extension_delivery`（L1298–L1318）：接收`state`。 控制顺序：L1307按`sha(archive) != result["sha256"]`分支；L1308抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1318的`decision`。
+- `ExtensionWorkflow.extension_package`（L1116–L1292）：接收`state`。 控制顺序：L1120按`state.get("native_generation", {}).get("execution") == "source-candidate"`分支；L1132按`saved_receipt != native_receipt`分支；L1133抛异常，停止当前正常路径；L1193按`scope_name.casefold() in {name.casefold() for name in handle.namelist()}`分支；L1194抛异常，停止当前正常路径；L1225按`scope["requires_explicit_review"]`分支；L1233遍历`files(product)`；L1235按`"RND-DELIVERY.json" in listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`self.checked_extension`、`Path`、`state.get("native_generation", {}).get`、`state.get`、`json.loads`、`(product.parent / "native-generation.json").read_text`、`PrerequisiteError`、`verify_candidate`、`list`等。 返回路径：L1210的`{"delivery": result, "plan": design.baseline.model_dump()}`；L1270的`{ "delivery": { "package": archive.name, "sha256": sha(archive), "files": clean_listing, "…`。
+- `ExtensionWorkflow.extension_delivery`（L1294–L1314）：接收`state`。 控制顺序：L1303按`sha(archive) != result["sha256"]`分支；L1304抛异常，停止当前正常路径。 调用`self.gate`、`result.items`、`sha`、`PrerequisiteError`。 返回路径：L1314的`decision`。
 
 </details>
 
-**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L866–L1318。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/production/dispatcher.py`；**本文件共有 2 段**。本段覆盖源文件 L866–L1314。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20873`。本段原文以LF换行结束。
+本段原始字节数：`20756`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "07651fe86876c2a26af9264ac68a870286448937249c6f573c4b29e66e5af704"} -->
+<!-- learning-source: {"path": "workbench/production/dispatcher.py", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "a3b0dee914c52185c08f62068c09a13740f87320d6523b46026801be491b94f8"} -->
 ````python
 # workbench/production/dispatcher.py
     def extension_verify(self, state):
@@ -293,44 +293,39 @@
         if state.get("native_generation", {}).get("execution") == "source-candidate":
             # A preserved baseline is not a completed module and is never promoted
             # into the verified task ledger or passed to the runtime sandbox.
-            from workbench.delivery.source_candidate import refresh_candidate
-            from workbench.generation.native.service import package_native, verify_native
+            from workbench.delivery.source_candidate import verify_candidate
+            from workbench.generation.native.service import package_native
 
-            # Verify the last controller-bound tree before refreshing metadata;
-            # otherwise a modified candidate could be silently re-authorized here.
-            verify_native(product)
-            native_receipt = json.loads(
+            # The graph checkpoint owns approval. A mutable on-disk receipt must
+            # never authorize its own replacement tree or weaker Git evidence.
+            native_receipt = state["native_generation"]
+            saved_receipt = json.loads(
                 (product.parent / "native-generation.json").read_text(encoding="utf-8")
             )
-            if native_receipt.get("spec_digest") != state["native_generation"].get("spec_digest"):
-                raise PrerequisiteError("候选源码规格与批准状态不一致")
+            if saved_receipt != native_receipt:
+                raise PrerequisiteError("候选源码回执与批准状态不一致")
+            report = verify_candidate(product, native_receipt)
             pending_tasks = [
                 "Implement module task: " + task.id
                 for task in plan.tasks
                 if task.id not in state.get("extension_drafted", [])
             ]
-            refresh_candidate(
-                product,
-                native_receipt,
-                pending_steps=list(
-                    dict.fromkeys(
-                        [
-                            *[
-                                step
-                                for step in native_receipt.get("pending_steps", [])
-                                if not step.startswith("Implement module task: ")
-                            ],
-                            *pending_tasks,
-                            "Run isolated module and aggregate acceptance",
-                            *([state["extension_error"]] if state.get("extension_error") else []),
-                        ]
-                    )
-                ),
-                generation_status="partial"
-                if pending_tasks
-                else native_receipt["generation_status"],
+            # Packaging adds scope, not source approval. Keep the approved tree
+            # and receipt immutable so a pre-checkpoint crash can safely replay.
+            pending_steps = list(
+                dict.fromkeys(
+                    [
+                        *[
+                            step
+                            for step in native_receipt.get("pending_steps", [])
+                            if not step.startswith("Implement module task: ")
+                        ],
+                        *pending_tasks,
+                        "Run isolated module and aggregate acceptance",
+                        *([state["extension_error"]] if state.get("extension_error") else []),
+                    ]
+                )
             )
-            report = verify_native(product)
             result = package_native(product, report)
             root = self.settings.data_dir / "runs" / state["run_id"]
             archive = root / "extension-source.zip"
@@ -338,6 +333,7 @@
             shutil.copyfile(product.parent / result["package"], temporary)
             result.update(
                 package=archive.name,
+                pending_steps=pending_steps,
                 generation_status=(
                     "partial"
                     if result.get("generation_status") == "partial"

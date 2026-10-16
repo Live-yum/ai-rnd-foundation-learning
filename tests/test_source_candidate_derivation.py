@@ -130,7 +130,32 @@ def test_published_derivation_git_journal_remains_valid_after_atomic_move(tmp_pa
         pytest.skip("Git not installed")
     args, kwargs = prepared(tmp_path, monkeypatch, False)
     monkeypatch.undo()
-    result = candidates.derive_candidate(*args, **kwargs)
+    from workbench.coding import aider
+
+    original_git = aider.git
+    paths = []
+
+    def observed_git(work, home, *arguments):
+        result = original_git(work, home, *arguments)
+        if arguments[-2:] in {
+            ("rev-parse", "--show-toplevel"),
+            ("rev-parse", "--absolute-git-dir"),
+        }:
+            # Owned temporary paths only: diagnose real-platform spelling without
+            # dumping config, command environments, product content or credentials.
+            paths.append(
+                {"query": arguments[-1], "reported": result["log"][:1200], "work": str(work)}
+            )
+        return result
+
+    monkeypatch.setattr(aider, "git", observed_git)
+    try:
+        result = candidates.derive_candidate(*args, **kwargs)
+    except PrerequisiteError as exc:
+        exc.add_note(
+            "Owned Git directory diagnostics: " + json.dumps(paths[-4:], ensure_ascii=True)
+        )
+        raise
     assert result["source_commit"]["status"] == "committed"
     assert candidates.verify_candidate(args[2], result)["source_commit"] == result["source_commit"]
     assert candidates.derive_candidate(*args, **kwargs) == result
