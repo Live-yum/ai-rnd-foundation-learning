@@ -46,11 +46,24 @@ const valueLabels: Record<string, string> = {
   unknown: '待确认',
   runtime: '运行级验收',
   source: '源码级验收',
+  'source-candidate': '源码候选（未经运行验收）',
+  complete: '生成完成',
+  partial: '生成未完成 / 部分源码已保留',
+  unverified: '未经验证',
+  failed: '验证失败',
+  passed: '验证通过',
 }
 const display = (value: any) =>
   value === true ? '是' : value === false ? '否' : value === null ? '—' : String(value)
 function semantic(value: any, key: string) {
-  return ['data_scope', 'validation_level', 'mode'].includes(key)
+  return [
+    'data_scope',
+    'validation_level',
+    'mode',
+    'execution',
+    'generation_status',
+    'verification_status',
+  ].includes(key)
     ? valueLabels[value] || display(value)
     : display(value)
 }

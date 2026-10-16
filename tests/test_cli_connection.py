@@ -76,3 +76,49 @@ def test_cli_checks_health_and_handles_later_disconnect(monkeypatch, settings, d
     ]
     assert result.exit_code == int(disconnect), result.output
     assert ("uv run rnd start" if disconnect else "READY") in result.output
+
+
+@pytest.mark.parametrize(
+    "status,receipt,headline",
+    [
+        (
+            "SOURCE_READY",
+            {"execution": "source-candidate", "generation_status": "partial"},
+            "生成未完成，部分源码已保留",
+        ),
+        (
+            "SOURCE_READY",
+            {"execution": "source-candidate", "generation_status": "complete"},
+            "源码已保留，未经运行验证",
+        ),
+        (
+            "SOURCE_READY",
+            {
+                "execution": "source-candidate",
+                "generation_status": "partial",
+                "verification_status": "failed",
+            },
+            "验证失败，源码已保留",
+        ),
+        ("SOURCE_READY", {}, "完成"),
+        ("READY", {}, "完成"),
+    ],
+)
+def test_chat_delivery_headline_matches_candidate_evidence(
+    monkeypatch, settings, status, receipt, headline
+):
+    settings.prepare()
+    (settings.data_dir / "access-token").write_text("local-test-token", encoding="utf-8")
+    monkeypatch.setattr(cli, "Settings", lambda: settings)
+
+    def handler(request):
+        return httpx.Response(200, json={"status": status, "result": receipt})
+
+    monkeypatch.setattr(
+        cli.httpx, "Client", partial(httpx.Client, transport=httpx.MockTransport(handler))
+    )
+    result = CliRunner().invoke(cli.app, ["chat", "--run", "saved-run"])
+    assert result.exit_code == 0, result.output
+    assert f"{headline}。下载命令：uv run rnd download saved-run" in result.output
+    if receipt:
+        assert "完成。下载命令" not in result.output

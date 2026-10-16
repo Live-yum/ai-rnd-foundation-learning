@@ -20,15 +20,15 @@
 - `stop_process`（L54–L69）：接收`process`。 控制顺序：L55按`process.poll() is not None`分支；L57按`os.name == "nt"`分支。 调用`process.poll`、`subprocess.run`、`str`、`os.killpg`、`process.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `process_options`（L72–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L73的`{"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new…`。
 - `memory_status`（L80–L91）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Non-sensitive Linux build diagnostics; no process environment or command lines.。 控制顺序：L83按`not path.is_file()`分支。 调用`Path`、`path.is_file`、`line.split`、`int`、`path.read_text().splitlines`、`path.read_text`。 返回路径：L84的`"memory unavailable"`；L89的`f"available MiB={values['MemAvailable'] // 1024}; swap free MiB={values['SwapFree'] // 102…`；L91的`"memory unavailable"`。
-- `run_command`（L94–L155）：接收`command`、`cwd`、`timeout`、`extra_env`、`heartbeat`。 控制顺序：L95按`not command or not all(isinstance(v, str) for v in command)`分支；L96抛异常，停止当前正常路径；L111抛异常，停止当前正常路径；L115在`True`成立时循环；L117按`remaining <= 0`分支；L118抛异常，停止当前正常路径；L123按`not heartbeat`分支；L124抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`all`、`isinstance`、`ValueError`、`local_docker_command`、`tempfile.TemporaryFile`、`subprocess.Popen`、`Path`、`clean_env`、`process_options`等。 返回路径：L155的`{"command": command, "returncode": code, "log": log}`。
+- `run_command`（L94–L159）：接收`command`、`cwd`、`timeout`、`extra_env`、`heartbeat`。 控制顺序：L95按`not command or not all(isinstance(v, str) for v in command)`分支；L96抛异常，停止当前正常路径；L113抛异常，停止当前正常路径；L115抛异常，停止当前正常路径；L119在`True`成立时循环；L121按`remaining <= 0`分支；L122抛异常，停止当前正常路径；L127按`not heartbeat`分支。后续分支沿下方源码相同行号继续阅读。 调用`all`、`isinstance`、`ValueError`、`local_docker_command`、`tempfile.TemporaryFile`、`subprocess.Popen`、`Path`、`clean_env`、`process_options`等。 返回路径：L159的`{"command": command, "returncode": code, "log": log}`。
 
 </details>
 
-**创建路径：** `workbench/infrastructure/processes/tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L155。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/infrastructure/processes/tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L159。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5279`。本段原文以LF换行结束。
+本段原始字节数：`5494`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/infrastructure/processes/tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6674521e19748a4a779874e9e6b772984ad1cc74a3a9854700446a1bebf0c232"} -->
+<!-- learning-source: {"path": "workbench/infrastructure/processes/tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "51371a115d720e006d976b7724836a6b5a13b69f41329679f1c98804c5924799"} -->
 ````python
 # workbench/infrastructure/processes/tools.py
 """Fixed-command execution for trusted tools, not a sandbox for arbitrary model code."""
@@ -140,6 +140,10 @@ def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
                 shell=False,
                 **process_options(),
             )
+        except PermissionError:
+            # Permission denials are safety boundaries, not missing capabilities.
+            # Preserve their type so callers cannot downgrade them to source mode.
+            raise
         except OSError:
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
         timed_out = False

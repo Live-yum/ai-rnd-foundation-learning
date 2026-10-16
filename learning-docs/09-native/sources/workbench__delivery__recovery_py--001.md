@@ -16,17 +16,18 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `NativeIntegrityError`（L12–L13）：继承`PrerequisiteError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `identity`（L16–L26）：接收`template`、`plan`、`url`、`source`、`frontend_source`。 调用`checked_database`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L18的`{ "template": template, "spec_digest": digest(plan.model_dump()), "database": digest( {"ho…`。
-- `save`（L29–L39）：接收`path`、`expected`、`product`、`targets`、`resumable`、`stage`。 调用`write_json`、`manifest`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load`（L42–L55）：接收`path`、`expected`、`product`。 控制顺序：L44按`not path.is_file()`分支；L45抛异常，停止当前正常路径；L47按`state.get("identity") != expected`分支；L48抛异常，停止当前正常路径；L49按`state.get("resumable") is not True`分支；L50抛异常，停止当前正常路径；L53按`state.get("files") != manifest(product)`分支；L54抛异常，停止当前正常路径。 调用`Path`、`path.is_file`、`PrerequisiteError`、`json.loads`、`path.read_text`、`state.get`、`manifest`。 返回路径：L55的`state`。
+- `NativeValidationFailure`（L16–L17）：继承`PrerequisiteError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `identity`（L20–L30）：接收`template`、`plan`、`url`、`source`、`frontend_source`。 调用`checked_database`、`digest`、`plan.model_dump`、`manifest`。 返回路径：L22的`{ "template": template, "spec_digest": digest(plan.model_dump()), "database": digest( {"ho…`。
+- `save`（L33–L43）：接收`path`、`expected`、`product`、`targets`、`resumable`、`stage`。 调用`write_json`、`manifest`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load`（L46–L59）：接收`path`、`expected`、`product`。 控制顺序：L48按`not path.is_file()`分支；L49抛异常，停止当前正常路径；L51按`state.get("identity") != expected`分支；L52抛异常，停止当前正常路径；L53按`state.get("resumable") is not True`分支；L54抛异常，停止当前正常路径；L57按`state.get("files") != manifest(product)`分支；L58抛异常，停止当前正常路径。 调用`Path`、`path.is_file`、`PrerequisiteError`、`json.loads`、`path.read_text`、`state.get`、`manifest`。 返回路径：L59的`state`。
 
 </details>
 
-**创建路径：** `workbench/delivery/recovery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L55。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/recovery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L59。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2055`。本段原文以LF换行结束。
+本段原始字节数：`2186`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/recovery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "14e9bbaed183c1d451230b98391eccbff8f7001bf562762a71e1215b6e3f323c"} -->
+<!-- learning-source: {"path": "workbench/delivery/recovery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bb58a536c64369452235a6cfb58d7ef495fe85ba5d88474c67d37d9c347b670c"} -->
 ````python
 # workbench/delivery/recovery.py
 """Identity-bound native validation checkpoints; never re-bootstrap a retained database."""
@@ -42,6 +43,10 @@ from workbench.infrastructure.native.environment import checked_database
 
 class NativeIntegrityError(PrerequisiteError):
     """An uncertain edit must not become a trusted retry checkpoint."""
+
+
+class NativeValidationFailure(PrerequisiteError):
+    """Executable acceptance failed while source integrity remained intact."""
 
 
 def identity(template, plan, url, source, frontend_source):

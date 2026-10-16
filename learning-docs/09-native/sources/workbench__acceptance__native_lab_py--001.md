@@ -17,18 +17,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `generated_browser`（L47–L70）：接收`template`、`front_url`、`reports`。 控制顺序：L69抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L73–L103）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L88按`plan.custom_rules and customization is None`分支；L89抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L91的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L106–L386）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L133按`not resumed`分支；L136按`template == "fastapiadmin"`分支；L140按`not resumed`分支；L142按`not resumed`分支；L157按`not resumed`分支；L161按`template == "fastapiadmin"`分支；L184按`plan.business`分支；L203按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L367的`report`。
-- `_run_acceptance.stage`（L150–L152）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_runtime_check`（L47–L52）：接收`check`、`*args`、`**kwargs`。 源码说明：Only explicitly selected executable acceptance checks use this boundary.。 控制顺序：L52抛异常，停止当前正常路径。 调用`check`、`native_recovery.NativeValidationFailure`。 返回路径：L50的`check(*args, **kwargs)`。
+- `generated_browser`（L55–L78）：接收`template`、`front_url`、`reports`。 控制顺序：L77抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L81–L111）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L96按`plan.custom_rules and customization is None`分支；L97抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L99的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L114–L411）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L141按`not resumed`分支；L144按`template == "fastapiadmin"`分支；L148按`not resumed`分支；L150按`not resumed`分支；L165按`not resumed`分支；L169按`template == "fastapiadmin"`分支；L192按`plan.business`分支；L211按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L382的`report`。
+- `_run_acceptance.stage`（L158–L160）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L386。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L411。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15500`。本段原文以LF换行结束。
+本段原始字节数：`16771`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "deb34116e75b4ca538ebe072e1d7004f2c6c41b33870ef3eadd4d398f95cfdce"} -->
+<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d34310cad68541b3e084d34f613eed412701e59f850e321e34c0d0f130717a08"} -->
 ````python
 # workbench/acceptance/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -75,6 +76,14 @@ from workbench.infrastructure.native.ports import backend_port_lease
 from workbench.infrastructure.processes.tools import run_command
 from workbench.settings import ROOT
 from workbench.templates.standards import write_coding_standard
+
+
+def _runtime_check(check, *args, **kwargs):
+    """Only explicitly selected executable acceptance checks use this boundary."""
+    try:
+        return check(*args, **kwargs)
+    except AssertionError as exc:
+        raise native_recovery.NativeValidationFailure("原生可执行验收未通过") from exc
 
 
 def generated_browser(template, front_url, reports):
@@ -250,16 +259,18 @@ def _run_acceptance(
                 from workbench.business.probe import customer_service_acceptance
 
                 stage("customer-service-http")
-                records = customer_service_acceptance(template, base_url, token, targets, plan)
+                records = _runtime_check(
+                    customer_service_acceptance, template, base_url, token, targets, plan
+                )
                 write_json(reports / "generated/business.json", records)
             else:
                 stage("generated-crud")
-                records = generated_crud(template, base_url, token, targets, plan)
+                records = _runtime_check(generated_crud, template, base_url, token, targets, plan)
                 write_json(reports / "generated/crud.json", records)
                 stage("generated-permissions")
                 write_json(
                     reports / "generated/permissions.json",
-                    generated_permissions(template, base_url, token, targets, plan),
+                    _runtime_check(generated_permissions, template, base_url, token, targets, plan),
                 )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
@@ -289,9 +300,10 @@ def _run_acceptance(
                 client = BusinessClient(template, base_url, token, targets)
                 try:
                     for name, identifier in records["records"].items():
-                        assert any(str(row["id"]) == identifier for row in client.rows(name)), (
-                            "Business record missing after restart"
-                        )
+                        if not any(str(row["id"]) == identifier for row in client.rows(name)):
+                            raise native_recovery.NativeValidationFailure(
+                                "Business record missing after restart"
+                            )
                 finally:
                     client.close()
                 if template == "yudao-vben":
@@ -307,7 +319,9 @@ def _run_acceptance(
             else:
                 write_json(
                     reports / "restart/persistence.json",
-                    check_generated_persistence(template, base_url, token, targets, records),
+                    _runtime_check(
+                        check_generated_persistence, template, base_url, token, targets, records
+                    ),
                 )
             for target, entity in zip(targets, plan.entities, strict=True):
                 target["fields"] = [field.model_dump() for field in entity.fields]
@@ -336,7 +350,8 @@ def _run_acceptance(
                             else "business_yudao_browser.cjs"
                         )
                     )
-                    browser_report = run_business_browser(
+                    browser_report = _runtime_check(
+                        run_business_browser,
                         template,
                         script,
                         front_url,
@@ -348,9 +363,10 @@ def _run_acceptance(
                     write_json(reports / "browser.json", browser_report)
                 else:
                     generated_browser(template, front_url, reports)
-        assert before == manifest(source), "Original native source was modified"
-        if frontend_before is not None:
-            assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
+        if before != manifest(source):
+            raise native_recovery.NativeIntegrityError("Original native source was modified")
+        if frontend_before is not None and frontend_before != manifest(frontend_source):
+            raise native_recovery.NativeIntegrityError("Original Vben source was modified")
         write_json(
             reports / "generated-manifest.json",
             {"backend": manifest(backend), "frontend": manifest(frontend)},
@@ -399,6 +415,16 @@ def _run_acceptance(
         )
         return report
     except Exception as exc:
+        # Integrity failures never become downloadable failed-runtime candidates,
+        # even if the tool that noticed the corruption raised a generic error.
+        if digest(plan.model_dump()) != expected["spec_digest"]:
+            raise native_recovery.NativeIntegrityError("Approved native Plan was modified") from exc
+        if before != manifest(source) or (
+            frontend_before is not None and frontend_before != manifest(frontend_source)
+        ):
+            raise native_recovery.NativeIntegrityError(
+                "Original native source was modified"
+            ) from exc
         # Only generation-complete checkpoints can replay validation. Never re-run
         # upstream DROP/seed or codegen import against an existing database.
         if generation_ready and targets:

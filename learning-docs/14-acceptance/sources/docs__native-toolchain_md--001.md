@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L117。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L144。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15711`。本段原文以LF换行结束。
+本段原始字节数：`18477`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "76b10b77ddc33e89ae438455a5a81327459f44cadde34fc9e79f8d49ef32b497"} -->
+<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "434d0ac5233da96c0aac283af333b0a4131964ff374fb84dcda1edb601e6041f"} -->
 ````markdown
 <!-- docs/native-toolchain.md -->
 # 原生业务规则、Plop 与本机 Daytona 的完整实现
@@ -134,4 +134,31 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 `workbench/infrastructure/sandbox/daytona/sessions.py`为非SQLite的长时间矩阵验收建立独立会话，再用一次异步命令提交启动检查；随后在原总运行期限内用短GET请求轮询状态，结束后读取日志一次。会话创建、命令提交、状态与日志请求均有最多30秒的单请求期限；SDK传输层关闭透明重试，尤其不自动重发可能已经执行的POST。回执保存mode、session_id及取得的command_id，便于定位本次操作。
 
 响应丢失不证明命令没执行，因此提交结果不确定、超时或缺少命令ID时直接失败并进入自有沙箱清理，不改用同步exec重新运行。输出目录的重复保护仍保持严格，不因发现目录已存在就跳过验收或宣布通过。这个处理改变请求组织方式，不延长网关空闲超时，不放开网络，也不减少矩阵检查。
+
+
+## 跨平台源码候选与运行验证的边界
+
+“生成与编码”不再因 Windows/macOS 或缺少 PostgreSQL、Node 等运行工具而在保存代码前整体失败。能力检测只决定是否能进入原生执行验证，不授予新权限。缺能力时：
+
+1. 校验并保留锁定的上游源码，保存批准规格；FastapiAdmin 静态渲染真实业务源码，芋道保存明确标为草稿的 PostgreSQL schema。后者不声称完成 Java/Vue 生成。
+2. 继续已批准文件范围内的 bounded-edit 编辑，纯文件操作不依赖 Aider CLI；需要隔离运行的 mini-SWE 节点保持待办，不在宿主机执行。
+3. 分别记录生成完整度和运行验证状态。`partial` 是生成仍未完成；`unverified` 是没有运行验收；`failed` 是实际验收未通过。下载或 Git 提交不改变这些事实。
+4. 在独立 `source-revisions` 中保存过滤后的本地 Git 源码提交，若 Git 不可用则明确记录未提交。包仅包含可分发源码和未验收说明，不带 `.git`、环境密钥、数据库、日志或运行凭据。
+5. 源码或回执被篡改、路径越界、权限拒绝继续失败关闭；没有“忽略安全检查”的开关。重试复用候选，不能静默覆盖既有源码或自动把候选升级为运行通过。
+
+正常 Linux 原生生成、数据库隔离、浏览器验收、新库恢复和人工交付审批均保留。新增轻量 `Portable source candidate validation` 在 Windows/Linux/macOS 的真实 runner 上验证纯源码路径；不调用真实模型，不创建数据库，也不能代替原生全栈运行验收。只有该平台实际执行的检查才算该平台通过，本地模拟 OS 分支仅是单元覆盖。
+
+### 当前候选之后如何继续
+
+先在交付页下载“未验收源码”，保存候选提交 SHA 和包内待办。`SOURCE_READY` 不提供一键升级为已验收的入口；也不要把候选作为已验收产品直接启动或删除其回执来绕过。
+
+在工具准备完毕的 Linux/WSL 环境运行 `uv run rnd start`，在操作台新建一个运行并选择原来的模板；或另一终端执行：
+
+```bash
+uv run rnd chat --template fastapiadmin --frontend fastapiadmin-vue --database postgresql
+# 芋道则使用：
+uv run rnd chat --template yudao-vben --frontend vben-antd --database postgresql
+```
+
+这是显式新运行，会重新确认需求，可能产生模型调用；不会自动导入、覆盖或删除原候选。将保留包的真实源码改动与新生成结果人工对照集成后，再走完整运行验证。已有失败运行的原始数据库与 `native-evidence/recovery.json` 只供具备授权的维护者按原生恢复流程核查，不能把候选压缩包当作恢复已通过的证明。
 ````

@@ -5,11 +5,13 @@ import json
 import os
 import re
 import shutil
+import sys
 import uuid
 from contextlib import ExitStack
 from importlib import import_module
 from pathlib import Path
 
+import httpx
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
@@ -85,9 +87,10 @@ def check_database_identity(receipt, url):
 
 
 def prerequisites(template):
-    if os.name == "nt":
+    if os.name == "nt" or sys.platform != "linux":
         raise PrerequisiteError(
-            "原生全栈运行通道请在 WSL 2/Linux 使用；默认 Python 通道支持 Windows"
+            "当前系统不具备原生全栈运行验证能力；WSL 2/Linux 可运行验证，"
+            "Windows/macOS 仍可生成并保留未经验证源码"
         )
     try:
         import_module("psycopg")
@@ -104,12 +107,37 @@ def prerequisites(template):
         raise PrerequisiteError("尚未安装独立 Playwright/Chromium 验证工具，请按手册安装")
 
 
+def runtime_capability(template):
+    """Read-only capability discovery; this never grants execution permission."""
+    try:
+        prerequisites(template)
+    except PrerequisiteError as exc:
+        return {"available": False, "reason": str(exc)}
+    return {"available": True, "reason": ""}
+
+
 def managed_generate(settings, template, plan, destination, *, customization=None):
+    from workbench.delivery.source_candidate import generate_candidate, verify_candidate
     from workbench.generation.native.service import prepare_sources
 
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
-    prerequisites(template)
+    receipt_path = destination.parent / "native-generation.json"
+    if receipt_path.is_file():
+        saved = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if (
+            saved.get("spec_digest") != digest(plan.model_dump())
+            or saved.get("template") != template
+        ):
+            raise PrerequisiteError("已有产物不能被另一份设计或模板覆盖")
+        if saved.get("execution") == "source-candidate":
+            verify_candidate(destination, saved)
+            return saved
+    capability = runtime_capability(template)
+    if not capability["available"]:
+        if receipt_path.is_file():
+            raise PrerequisiteError("已验收运行产物不能自动降级或被覆盖")
+        return generate_candidate(settings, template, plan, destination, capability["reason"])
     # Design/config inspection also imports this module. Load optional database
     # runtime code only after platform/dependency checks, before any side effects.
     from workbench.acceptance.native_lab import run_acceptance
@@ -119,8 +147,22 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
         redis_port = 6379
     else:
         from workbench.infrastructure.native.resources import for_run
+        from workbench.infrastructure.processes.tools import ToolFailure
 
-        url, redis_port = for_run(settings, destination.parent.name)
+        try:
+            url, redis_port = for_run(settings, destination.parent.name)
+        except PermissionError:
+            raise
+        except ToolFailure, OSError:
+            if receipt_path.is_file() or destination.exists():
+                raise
+            return generate_candidate(
+                settings,
+                template,
+                plan,
+                destination,
+                "本机原生数据库/容器服务不可用；未运行生成产物，已保留离线源码",
+            )
     receipt_path = destination.parent / "native-generation.json"
     if receipt_path.is_file():
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -136,17 +178,28 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
     reports = destination.parent / "native-evidence"
     source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
     output = destination if template == "fastapiadmin" else destination / "backend"
-    report = run_acceptance(
-        template,
-        source,
-        output,
-        slots.get("frontend"),
-        url,
-        reports,
-        plan,
-        redis_port=redis_port,
-        customization=customization,
-    )
+    from workbench.delivery.recovery import NativeValidationFailure
+    from workbench.delivery.source_candidate import retain_failed_candidate
+    from workbench.infrastructure.processes.tools import ToolFailure
+
+    try:
+        report = run_acceptance(
+            template,
+            source,
+            output,
+            slots.get("frontend"),
+            url,
+            reports,
+            plan,
+            redis_port=redis_port,
+            customization=customization,
+        )
+    except PermissionError:
+        raise
+    except (ToolFailure, httpx.HTTPError, OSError, NativeValidationFailure) as exc:
+        # Integrity/path/approval errors deliberately do not take this route.
+        # The runtime workspace and recovery checkpoint remain untouched.
+        return retain_failed_candidate(template, plan, destination, sources, type(exc).__name__)
     if report.get("generated_runtime_verified") is not True:
         raise PrerequisiteError("原生运行验收尚未完成")
     receipt = {
@@ -158,6 +211,8 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
         "files": manifest(destination),
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "evidence_sha256": sha(reports / "acceptance.json"),
         "report": report,
     }
@@ -394,6 +449,8 @@ def managed_verify(destination, receipt):
         "passed": True,
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "production_ready": False,
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
@@ -425,6 +482,8 @@ def managed_package(destination, report):
         "archive": archive_report,
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "production_ready": False,
         "database_delivery": verified["database_delivery"],
     }

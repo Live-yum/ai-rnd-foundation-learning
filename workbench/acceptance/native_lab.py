@@ -44,6 +44,14 @@ from workbench.settings import ROOT
 from workbench.templates.standards import write_coding_standard
 
 
+def _runtime_check(check, *args, **kwargs):
+    """Only explicitly selected executable acceptance checks use this boundary."""
+    try:
+        return check(*args, **kwargs)
+    except AssertionError as exc:
+        raise native_recovery.NativeValidationFailure("原生可执行验收未通过") from exc
+
+
 def generated_browser(template, front_url, reports):
     command = [
         "node",
@@ -217,16 +225,18 @@ def _run_acceptance(
                 from workbench.business.probe import customer_service_acceptance
 
                 stage("customer-service-http")
-                records = customer_service_acceptance(template, base_url, token, targets, plan)
+                records = _runtime_check(
+                    customer_service_acceptance, template, base_url, token, targets, plan
+                )
                 write_json(reports / "generated/business.json", records)
             else:
                 stage("generated-crud")
-                records = generated_crud(template, base_url, token, targets, plan)
+                records = _runtime_check(generated_crud, template, base_url, token, targets, plan)
                 write_json(reports / "generated/crud.json", records)
                 stage("generated-permissions")
                 write_json(
                     reports / "generated/permissions.json",
-                    generated_permissions(template, base_url, token, targets, plan),
+                    _runtime_check(generated_permissions, template, base_url, token, targets, plan),
                 )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
@@ -256,9 +266,10 @@ def _run_acceptance(
                 client = BusinessClient(template, base_url, token, targets)
                 try:
                     for name, identifier in records["records"].items():
-                        assert any(str(row["id"]) == identifier for row in client.rows(name)), (
-                            "Business record missing after restart"
-                        )
+                        if not any(str(row["id"]) == identifier for row in client.rows(name)):
+                            raise native_recovery.NativeValidationFailure(
+                                "Business record missing after restart"
+                            )
                 finally:
                     client.close()
                 if template == "yudao-vben":
@@ -274,7 +285,9 @@ def _run_acceptance(
             else:
                 write_json(
                     reports / "restart/persistence.json",
-                    check_generated_persistence(template, base_url, token, targets, records),
+                    _runtime_check(
+                        check_generated_persistence, template, base_url, token, targets, records
+                    ),
                 )
             for target, entity in zip(targets, plan.entities, strict=True):
                 target["fields"] = [field.model_dump() for field in entity.fields]
@@ -303,7 +316,8 @@ def _run_acceptance(
                             else "business_yudao_browser.cjs"
                         )
                     )
-                    browser_report = run_business_browser(
+                    browser_report = _runtime_check(
+                        run_business_browser,
                         template,
                         script,
                         front_url,
@@ -315,9 +329,10 @@ def _run_acceptance(
                     write_json(reports / "browser.json", browser_report)
                 else:
                     generated_browser(template, front_url, reports)
-        assert before == manifest(source), "Original native source was modified"
-        if frontend_before is not None:
-            assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
+        if before != manifest(source):
+            raise native_recovery.NativeIntegrityError("Original native source was modified")
+        if frontend_before is not None and frontend_before != manifest(frontend_source):
+            raise native_recovery.NativeIntegrityError("Original Vben source was modified")
         write_json(
             reports / "generated-manifest.json",
             {"backend": manifest(backend), "frontend": manifest(frontend)},
@@ -366,6 +381,16 @@ def _run_acceptance(
         )
         return report
     except Exception as exc:
+        # Integrity failures never become downloadable failed-runtime candidates,
+        # even if the tool that noticed the corruption raised a generic error.
+        if digest(plan.model_dump()) != expected["spec_digest"]:
+            raise native_recovery.NativeIntegrityError("Approved native Plan was modified") from exc
+        if before != manifest(source) or (
+            frontend_before is not None and frontend_before != manifest(frontend_source)
+        ):
+            raise native_recovery.NativeIntegrityError(
+                "Original native source was modified"
+            ) from exc
         # Only generation-complete checkpoints can replay validation. Never re-run
         # upstream DROP/seed or codegen import against an existing database.
         if generation_ready and targets:

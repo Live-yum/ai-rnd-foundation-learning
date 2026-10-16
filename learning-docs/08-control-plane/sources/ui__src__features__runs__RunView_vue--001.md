@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/features/runs/RunView.vue`；**本文件共有 2 段**。本段覆盖源文件 L1–L384。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13787`。本段原文以LF换行结束。
+本段原始字节数：`13977`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "cb2c8ebd14266e238da201f4291c492d1c1d6ec29318d837f044f9417bc97cbe"} -->
+<!-- learning-source: {"path": "ui/src/features/runs/RunView.vue", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "d6da5d2e17f1f3a8f1948d3241a9231b6b1b3522131c93806c22a57e1079e2fb"} -->
 ````vue
 <!-- ui/src/features/runs/RunView.vue -->
 <script setup lang="ts">
@@ -55,6 +55,7 @@ import {
   terminal,
   milestoneStatus,
   runNextAction,
+  sourceDeliveryState,
 } from '../../presentation'
 import DataDocument from '../plans/DataDocument.vue'
 import Questionnaire from '../approvals/Questionnaire.vue'
@@ -171,6 +172,14 @@ const delivery = computed(() =>
   ['delivery', 'extension_scope', 'extension_delivery'].includes(gate.value?.stage || '')
     ? gate.value?.data
     : state.report['delivery.json'] || run.value?.result || {},
+)
+const sourceDelivery = computed(() =>
+  sourceDeliveryState(
+    run.value,
+    delivery.value,
+    evidence.value,
+    state.report['native-generation.json'],
+  ),
 )
 const extensionCoverageNotice = computed(() => {
   if (delivery.value?.delivery_kind === 'partial')

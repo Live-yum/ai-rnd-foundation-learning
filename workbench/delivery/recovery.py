@@ -13,6 +13,10 @@ class NativeIntegrityError(PrerequisiteError):
     """An uncertain edit must not become a trusted retry checkpoint."""
 
 
+class NativeValidationFailure(PrerequisiteError):
+    """Executable acceptance failed while source integrity remained intact."""
+
+
 def identity(template, plan, url, source, frontend_source):
     database = checked_database(url)
     return {

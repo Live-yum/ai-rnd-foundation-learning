@@ -15,29 +15,30 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `RuntimeConfig`（L31–L34）：继承`BaseModel`。声明的数据项为`database_url_env`、`initialize_empty_database`；类型约束/数据库列参数以完整定义为准。
-- `runtime_path`（L37–L40）：接收`settings`、`template`。 控制顺序：L38按`template not in {"fastapiadmin", "yudao-vben"}`分支；L39抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L40的`settings.data_dir / "native" / f"{template}.runtime.json"`。
-- `runtime_enabled`（L43–L44）：接收`settings`、`template`。 调用`runtime_path(settings, template).is_file`、`runtime_path`。 返回路径：L44的`runtime_path(settings, template).is_file()`。
-- `write_runtime_example`（L47–L54）：接收`settings`、`template`。 控制顺序：L49按`path.exists()`分支；L50抛异常，停止当前正常路径。 调用`runtime_path`、`path.exists`、`FileExistsError`、`settings.prepare`、`write_json`、`RuntimeConfig(database_url_env=prefix + "_DATABASE_URL").model_du…`、`RuntimeConfig`。 返回路径：L54的`path`。
-- `runtime_config`（L57–L71）：接收`settings`、`template`、`initialize`。 控制顺序：L59按`not path.is_file()`分支；L60抛异常，停止当前正常路径；L62按`not re.fullmatch(r"NATIVE_[A-Z0-9_]+", config.database_url_env)`分支；L63抛异常，停止当前正常路径；L64按`initialize and config.initialize_empty_database is not True`分支；L65抛异常，停止当前正常路径；L68按`not url`分支；L69抛异常，停止当前正常路径。 调用`runtime_path`、`path.is_file`、`PrerequisiteError`、`RuntimeConfig.model_validate_json`、`path.read_text`、`re.fullmatch`、`dotenv_values`、`env.get`、`checked_database`。 返回路径：L71的`config, url`。
-- `database_identity`（L74–L77）：接收`url`。 源码说明：Bind a retained product to its database without storing credentials.。 调用`checked_database`、`digest`。 返回路径：L77的`digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})`。
-- `check_database_identity`（L80–L84）：接收`receipt`、`url`。 控制顺序：L81按`receipt.get("database_identity") != database_identity(url)`分支；L82抛异常，停止当前正常路径。 调用`receipt.get`、`database_identity`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prerequisites`（L87–L104）：接收`template`。 控制顺序：L88按`os.name == "nt"`分支；L89抛异常，停止当前正常路径；L95抛异常，停止当前正常路径；L100遍历`commands`；L101按`not shutil.which(name)`分支；L102抛异常，停止当前正常路径；L103按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L104抛异常，停止当前正常路径。 调用`PrerequisiteError`、`import_module`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `managed_generate`（L107–L165）：接收`settings`、`template`、`plan`、`destination`、`customization`。 控制顺序：L117按`runtime_enabled(settings, template)`分支；L125按`receipt_path.is_file()`分支；L127按`receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == diges…`分支；L133抛异常，停止当前正常路径；L150按`report.get("generated_runtime_verified") is not True`分支；L151抛异常，停止当前正常路径。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`prerequisites`、`runtime_enabled`、`runtime_config`、`for_run`、`receipt_path.is_file`、`json.loads`等。 返回路径：L132的`receipt`；L165的`receipt`。
-- `require_native_style`（L168–L239）：接收`report`、`receipt`、`current`。 源码说明：A legacy runtime receipt is not evidence of native UI inheritance.。 控制顺序：L178按`template not in PROFILES or report.get("template") != template or not isinstance(styl…`分支；L188抛异常，停止当前正常路径；L194遍历`PROFILES[template]["protected"]`；L200按`not group`分支；L201抛异常，停止当前正常路径；L203按`style.get("protected_files") != protected or style.get("protected_source_digest") != …`分支；L206抛异常，停止当前正常路径；L208按`not isinstance(entities, list) or not entities or any( not isinstance(name, str) or n…`分支。后续分支沿下方源码相同行号继续阅读。 调用`receipt.get`、`report.get`、`isinstance`、`style.get`、`PrerequisiteError`、`get_adapter`、`len`、`current.items`、`name.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_native_business`（L242–L329）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L250抛异常，停止当前正常路径；L252按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L253抛异常，停止当前正常路径；L254按`not plan.business`分支；L255按`report.get("business_contract") is not None`分支；L256抛异常，停止当前正常路径；L259按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L260抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L257的`False`；L329的`True`。
-- `require_native_runtime`（L332–L366）：接收`report`。 源码说明：Shared fail-closed runtime/deployment gates for production and zero-model CI.。 控制顺序：L346按`any(report.get(name) is not True for name in gates)`分支；L347抛异常，停止当前正常路径；L358按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L363抛异常，停止当前正常路径。 调用`any`、`report.get`、`PrerequisiteError`、`isinstance`、`restored.get`。 返回路径：L366的`gates`。
-- `managed_verify`（L369–L407）：接收`destination`、`receipt`。 控制顺序：L372按`not report_path.is_file()`分支；L373抛异常，停止当前正常路径；L374按`report_path.stat().st_size > MAX_ACCEPTANCE_BYTES`分支；L375抛异常，停止当前正常路径；L378按`len(raw) > MAX_ACCEPTANCE_BYTES`分支；L379抛异常，停止当前正常路径；L380按`hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256")`分支；L381抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`report_path.is_file`、`PrerequisiteError`、`report_path.stat`、`report_path.open`、`handle.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`等。 返回路径：L407的`result`。
-- `managed_package`（L410–L432）：接收`destination`、`report`。 控制顺序：L416按`report != verified`分支；L417抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`pack_source`、`sha`、`write_json`。 返回路径：L432的`result`。
-- `serve_managed`（L435–L470）：接收`settings`、`run_id`。 控制顺序：L439按`not receipt_path.is_file()`分支；L440抛异常，停止当前正常路径；L442按`receipt.get("execution") != "managed-runtime"`分支；L443抛异常，停止当前正常路径；L456按`saved_backend_port(port_receipt) is None`分支；L457抛异常，停止当前正常路径；L469在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `RuntimeConfig`（L33–L36）：继承`BaseModel`。声明的数据项为`database_url_env`、`initialize_empty_database`；类型约束/数据库列参数以完整定义为准。
+- `runtime_path`（L39–L42）：接收`settings`、`template`。 控制顺序：L40按`template not in {"fastapiadmin", "yudao-vben"}`分支；L41抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L42的`settings.data_dir / "native" / f"{template}.runtime.json"`。
+- `runtime_enabled`（L45–L46）：接收`settings`、`template`。 调用`runtime_path(settings, template).is_file`、`runtime_path`。 返回路径：L46的`runtime_path(settings, template).is_file()`。
+- `write_runtime_example`（L49–L56）：接收`settings`、`template`。 控制顺序：L51按`path.exists()`分支；L52抛异常，停止当前正常路径。 调用`runtime_path`、`path.exists`、`FileExistsError`、`settings.prepare`、`write_json`、`RuntimeConfig(database_url_env=prefix + "_DATABASE_URL").model_du…`、`RuntimeConfig`。 返回路径：L56的`path`。
+- `runtime_config`（L59–L73）：接收`settings`、`template`、`initialize`。 控制顺序：L61按`not path.is_file()`分支；L62抛异常，停止当前正常路径；L64按`not re.fullmatch(r"NATIVE_[A-Z0-9_]+", config.database_url_env)`分支；L65抛异常，停止当前正常路径；L66按`initialize and config.initialize_empty_database is not True`分支；L67抛异常，停止当前正常路径；L70按`not url`分支；L71抛异常，停止当前正常路径。 调用`runtime_path`、`path.is_file`、`PrerequisiteError`、`RuntimeConfig.model_validate_json`、`path.read_text`、`re.fullmatch`、`dotenv_values`、`env.get`、`checked_database`。 返回路径：L73的`config, url`。
+- `database_identity`（L76–L79）：接收`url`。 源码说明：Bind a retained product to its database without storing credentials.。 调用`checked_database`、`digest`。 返回路径：L79的`digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})`。
+- `check_database_identity`（L82–L86）：接收`receipt`、`url`。 控制顺序：L83按`receipt.get("database_identity") != database_identity(url)`分支；L84抛异常，停止当前正常路径。 调用`receipt.get`、`database_identity`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prerequisites`（L89–L107）：接收`template`。 控制顺序：L90按`os.name == "nt" or sys.platform != "linux"`分支；L91抛异常，停止当前正常路径；L98抛异常，停止当前正常路径；L103遍历`commands`；L104按`not shutil.which(name)`分支；L105抛异常，停止当前正常路径；L106按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L107抛异常，停止当前正常路径。 调用`PrerequisiteError`、`import_module`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `runtime_capability`（L110–L116）：接收`template`。 源码说明：Read-only capability discovery; this never grants execution permission.。 调用`prerequisites`、`str`。 返回路径：L115的`{"available": False, "reason": str(exc)}`；L116的`{"available": True, "reason": ""}`。
+- `managed_generate`（L119–L220）：接收`settings`、`template`、`plan`、`destination`、`customization`。 控制顺序：L126按`receipt_path.is_file()`分支；L128按`saved.get("spec_digest") != digest(plan.model_dump()) or saved.get("template") != tem…`分支；L132抛异常，停止当前正常路径；L133按`saved.get("execution") == "source-candidate"`分支；L137按`not capability["available"]`分支；L138按`receipt_path.is_file()`分支；L139抛异常，停止当前正常路径；L145按`runtime_enabled(settings, template)`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`receipt_path.is_file`、`json.loads`、`receipt_path.read_text`、`saved.get`、`digest`、`plan.model_dump`等。 返回路径：L135的`saved`；L140的`generate_candidate(settings, template, plan, destination, capability["reason"])`；L159的`generate_candidate( settings, template, plan, destination, "本机原生数据库/容器服务不可用；未运行生成产物，已保留离线源…`。
+- `require_native_style`（L223–L294）：接收`report`、`receipt`、`current`。 源码说明：A legacy runtime receipt is not evidence of native UI inheritance.。 控制顺序：L233按`template not in PROFILES or report.get("template") != template or not isinstance(styl…`分支；L243抛异常，停止当前正常路径；L249遍历`PROFILES[template]["protected"]`；L255按`not group`分支；L256抛异常，停止当前正常路径；L258按`style.get("protected_files") != protected or style.get("protected_source_digest") != …`分支；L261抛异常，停止当前正常路径；L263按`not isinstance(entities, list) or not entities or any( not isinstance(name, str) or n…`分支。后续分支沿下方源码相同行号继续阅读。 调用`receipt.get`、`report.get`、`isinstance`、`style.get`、`PrerequisiteError`、`get_adapter`、`len`、`current.items`、`name.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_native_business`（L297–L384）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L305抛异常，停止当前正常路径；L307按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L308抛异常，停止当前正常路径；L309按`not plan.business`分支；L310按`report.get("business_contract") is not None`分支；L311抛异常，停止当前正常路径；L314按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L315抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L312的`False`；L384的`True`。
+- `require_native_runtime`（L387–L421）：接收`report`。 源码说明：Shared fail-closed runtime/deployment gates for production and zero-model CI.。 控制顺序：L401按`any(report.get(name) is not True for name in gates)`分支；L402抛异常，停止当前正常路径；L413按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L418抛异常，停止当前正常路径。 调用`any`、`report.get`、`PrerequisiteError`、`isinstance`、`restored.get`。 返回路径：L421的`gates`。
+- `managed_verify`（L424–L464）：接收`destination`、`receipt`。 控制顺序：L427按`not report_path.is_file()`分支；L428抛异常，停止当前正常路径；L429按`report_path.stat().st_size > MAX_ACCEPTANCE_BYTES`分支；L430抛异常，停止当前正常路径；L433按`len(raw) > MAX_ACCEPTANCE_BYTES`分支；L434抛异常，停止当前正常路径；L435按`hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256")`分支；L436抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`report_path.is_file`、`PrerequisiteError`、`report_path.stat`、`report_path.open`、`handle.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`等。 返回路径：L464的`result`。
+- `managed_package`（L467–L491）：接收`destination`、`report`。 控制顺序：L473按`report != verified`分支；L474抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`pack_source`、`sha`、`write_json`。 返回路径：L491的`result`。
+- `serve_managed`（L494–L529）：接收`settings`、`run_id`。 控制顺序：L498按`not receipt_path.is_file()`分支；L499抛异常，停止当前正常路径；L501按`receipt.get("execution") != "managed-runtime"`分支；L502抛异常，停止当前正常路径；L515按`saved_backend_port(port_receipt) is None`分支；L516抛异常，停止当前正常路径；L528在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/delivery/native.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L470。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/native.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L529。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19844`。本段原文以LF换行结束。
+本段原始字节数：`22565`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/native.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "148fc24bc28242e4b6494357ff7073326e9736d1d7360189dff1a1e70f0deb29"} -->
+<!-- learning-source: {"path": "workbench/delivery/native.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d42892f159b3b0963e3ecc791e00ed53f85f25f7f834614f0b365038eaf499db"} -->
 ````python
 # workbench/delivery/native.py
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
@@ -47,11 +48,13 @@ import json
 import os
 import re
 import shutil
+import sys
 import uuid
 from contextlib import ExitStack
 from importlib import import_module
 from pathlib import Path
 
+import httpx
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
@@ -127,9 +130,10 @@ def check_database_identity(receipt, url):
 
 
 def prerequisites(template):
-    if os.name == "nt":
+    if os.name == "nt" or sys.platform != "linux":
         raise PrerequisiteError(
-            "原生全栈运行通道请在 WSL 2/Linux 使用；默认 Python 通道支持 Windows"
+            "当前系统不具备原生全栈运行验证能力；WSL 2/Linux 可运行验证，"
+            "Windows/macOS 仍可生成并保留未经验证源码"
         )
     try:
         import_module("psycopg")
@@ -146,12 +150,37 @@ def prerequisites(template):
         raise PrerequisiteError("尚未安装独立 Playwright/Chromium 验证工具，请按手册安装")
 
 
+def runtime_capability(template):
+    """Read-only capability discovery; this never grants execution permission."""
+    try:
+        prerequisites(template)
+    except PrerequisiteError as exc:
+        return {"available": False, "reason": str(exc)}
+    return {"available": True, "reason": ""}
+
+
 def managed_generate(settings, template, plan, destination, *, customization=None):
+    from workbench.delivery.source_candidate import generate_candidate, verify_candidate
     from workbench.generation.native.service import prepare_sources
 
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
-    prerequisites(template)
+    receipt_path = destination.parent / "native-generation.json"
+    if receipt_path.is_file():
+        saved = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if (
+            saved.get("spec_digest") != digest(plan.model_dump())
+            or saved.get("template") != template
+        ):
+            raise PrerequisiteError("已有产物不能被另一份设计或模板覆盖")
+        if saved.get("execution") == "source-candidate":
+            verify_candidate(destination, saved)
+            return saved
+    capability = runtime_capability(template)
+    if not capability["available"]:
+        if receipt_path.is_file():
+            raise PrerequisiteError("已验收运行产物不能自动降级或被覆盖")
+        return generate_candidate(settings, template, plan, destination, capability["reason"])
     # Design/config inspection also imports this module. Load optional database
     # runtime code only after platform/dependency checks, before any side effects.
     from workbench.acceptance.native_lab import run_acceptance
@@ -161,8 +190,22 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
         redis_port = 6379
     else:
         from workbench.infrastructure.native.resources import for_run
+        from workbench.infrastructure.processes.tools import ToolFailure
 
-        url, redis_port = for_run(settings, destination.parent.name)
+        try:
+            url, redis_port = for_run(settings, destination.parent.name)
+        except PermissionError:
+            raise
+        except ToolFailure, OSError:
+            if receipt_path.is_file() or destination.exists():
+                raise
+            return generate_candidate(
+                settings,
+                template,
+                plan,
+                destination,
+                "本机原生数据库/容器服务不可用；未运行生成产物，已保留离线源码",
+            )
     receipt_path = destination.parent / "native-generation.json"
     if receipt_path.is_file():
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -178,17 +221,28 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
     reports = destination.parent / "native-evidence"
     source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
     output = destination if template == "fastapiadmin" else destination / "backend"
-    report = run_acceptance(
-        template,
-        source,
-        output,
-        slots.get("frontend"),
-        url,
-        reports,
-        plan,
-        redis_port=redis_port,
-        customization=customization,
-    )
+    from workbench.delivery.recovery import NativeValidationFailure
+    from workbench.delivery.source_candidate import retain_failed_candidate
+    from workbench.infrastructure.processes.tools import ToolFailure
+
+    try:
+        report = run_acceptance(
+            template,
+            source,
+            output,
+            slots.get("frontend"),
+            url,
+            reports,
+            plan,
+            redis_port=redis_port,
+            customization=customization,
+        )
+    except PermissionError:
+        raise
+    except (ToolFailure, httpx.HTTPError, OSError, NativeValidationFailure) as exc:
+        # Integrity/path/approval errors deliberately do not take this route.
+        # The runtime workspace and recovery checkpoint remain untouched.
+        return retain_failed_candidate(template, plan, destination, sources, type(exc).__name__)
     if report.get("generated_runtime_verified") is not True:
         raise PrerequisiteError("原生运行验收尚未完成")
     receipt = {
@@ -200,6 +254,8 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
         "files": manifest(destination),
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "evidence_sha256": sha(reports / "acceptance.json"),
         "report": report,
     }
@@ -436,6 +492,8 @@ def managed_verify(destination, receipt):
         "passed": True,
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "production_ready": False,
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
@@ -467,6 +525,8 @@ def managed_package(destination, report):
         "archive": archive_report,
         "validation_level": "runtime",
         "runtime_verified": True,
+        "verification_status": "passed",
+        "generation_status": "complete",
         "production_ready": False,
         "database_delivery": verified["database_delivery"],
     }

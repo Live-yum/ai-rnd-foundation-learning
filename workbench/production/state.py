@@ -25,12 +25,14 @@ class State(TypedDict, total=False):
     model_review: dict
     code_context: dict
     sandbox: dict
+    native_generation: dict
     native_normalization: dict
     extension_requested_mode: bool
     extension_design: dict
     extension_scope: dict
     extension_errors: list[str]
     extension_completed: list[dict]
+    extension_drafted: list[str]
     extension_attempt: int
     extension_candidate: str
     extension_product: str

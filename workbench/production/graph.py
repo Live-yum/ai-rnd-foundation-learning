@@ -582,8 +582,8 @@ class Workflow(ExtensionWorkflow):
                     customization=self.native_customization(state, plan),
                 )
 
-        self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
-        return {}
+        receipt = self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
+        return {"native_generation": receipt} if state["template"] != "python-basic" else {}
 
     def native_customization(self, state, plan):
         if not plan.custom_rules:
@@ -643,6 +643,11 @@ class Workflow(ExtensionWorkflow):
         return {"verification": result}
 
     def after_verify(self, state):
+        if (
+            state.get("native_generation", {}).get("execution") == "source-candidate"
+            and state["verification"].get("source_checks_passed") is True
+        ):
+            return "package"
         if state["verification"]["passed"]:
             return "sandbox"
         if (
@@ -734,7 +739,9 @@ class Workflow(ExtensionWorkflow):
         if state.get("feature_design"):
             self.checked_feature(state)
         # Also protects a checkpoint created before the review gate was enforced.
-        self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
+        source_candidate = state.get("native_generation", {}).get("execution") == "source-candidate"
+        if not source_candidate:
+            self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state.get("requirement"):
             from workbench.generation.native.plan_normalization import source_plan
 
@@ -911,8 +918,11 @@ class Workflow(ExtensionWorkflow):
                 else "analyse"
             ),
         )
-        graph.add_edge("extension_generate", "extension_code")
-        graph.add_edge("extension_code", "extension_verify")
+        graph.add_conditional_edges(
+            "extension_generate",
+            self.extension_after_generate,
+        )
+        graph.add_conditional_edges("extension_code", self.extension_after_code)
         graph.add_conditional_edges("extension_verify", self.extension_after_verify)
         graph.add_edge("extension_repair", "extension_code")
         graph.add_conditional_edges("extension_aggregate", self.extension_after_aggregate)

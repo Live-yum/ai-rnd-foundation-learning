@@ -249,7 +249,19 @@ def chat(
                     typer.echo("状态：" + state["status"])
                     previous = state["status"]
                 if state["status"] in {"READY", "SOURCE_READY"}:
-                    typer.echo(f"完成。下载命令：uv run rnd download {run}")
+                    result = state.get("result") or {}
+                    headline = "完成"
+                    if (
+                        state["status"] == "SOURCE_READY"
+                        and result.get("execution") == "source-candidate"
+                    ):
+                        if result.get("verification_status") == "failed":
+                            headline = "验证失败，源码已保留"
+                        elif result.get("generation_status") == "partial":
+                            headline = "生成未完成，部分源码已保留"
+                        else:
+                            headline = "源码已保留，未经运行验证"
+                    typer.echo(f"{headline}。下载命令：uv run rnd download {run}")
                     if state["status"] == "SOURCE_READY":
                         typer.echo("这是原生源码导出，不是已通过完整运行验收的产品。")
                     break

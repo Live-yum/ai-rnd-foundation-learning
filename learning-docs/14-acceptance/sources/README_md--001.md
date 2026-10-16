@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L304。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `README.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L308。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`27533`。本段原文以LF换行结束。
+本段原始字节数：`28762`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "850540ba4871d0ca87c327aecdc13053f98dbed4eb673a3e51fc716927ed70c1"} -->
+<!-- learning-source: {"path": "README.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c9b669324ce39f084e924e73fe16e505560d3902b016ac5303115cf70d3f7e9"} -->
 ````markdown
 <!-- README.md -->
 # AI 研发工作台 · Python 3.14
@@ -170,7 +170,11 @@ uv run rnd chat --template python-basic --frontend simple-admin --database sqlit
 | `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | Linux/WSL、Node22、pnpm9.15.3、Redis/PG、浏览器验证工具 |
 | `yudao-vben` / Java | `vben-antd` | PostgreSQL | 上述服务 + JDK17/Maven、pnpm11.16.0 |
 
-Windows 可以先分析原生模板的需求和设计，基础安装不会因缺少可选 PostgreSQL 驱动而在导入阶段崩溃。原生全栈的实际执行仍须使用 WSL 2/Linux，平台与驱动检查会在创建数据库或生成产品之前给出准确提示；选择默认 Python/SQLite 通道则不要求安装 PostgreSQL 驱动。
+Windows、macOS、Linux 都可进入原生模板的“生成与编码”。缺少原生执行环境或工具时，只进行安全的静态生成与受限源码编辑，不启动生成的程序，也不会绕过沙箱。FastapiAdmin 可从校验过的自带 Jinja 模板生成业务 CRUD、API 和 Vue 源码；芋道目前离线生成 PostgreSQL 草稿 schema，Java/Vue 原生生成仍列为未完成任务。菜单、权限、定制规则等未实现步骤逐项保留，不把复制上游或部分代码称为完整生成。
+
+源码候选明确区分 `generation_status=partial/complete` 与 `verification_status=unverified/failed/passed`；候选始终 `runtime_verified=false`、`acceptance_passed=false`、`production_ready=false`。源码摘要检查通过不等于运行验证通过。`SOURCE_READY` 只表示当前源码可下载，详情和压缩包内 `SOURCE-STATUS` 会显示未完成事项及未验证原因。可用时保存独立本地 Git 提交，报告提供提交 SHA；Git 不可用则保留文件与摘要并明确未提交，不会丢失代码或假报提交成功。
+
+普通运行验证失败也会保留真实已有源码和诊断，原运行目录与恢复检查点保持不变；完整性、越界或权限拒绝仍会停止交付，不能用降级模式绕过。候选重试复用原文件和回执，不重复生成或调用模型；要完成原生运行验收，需在获授权且具备能力的 WSL 2/Linux 环境检查待办并恢复，不能把候选当作已验收产品启动。默认 Python/SQLite 通道仍不要求 PostgreSQL 驱动。
 
 界面只允许已适配的组合，不任意混接一个框架的前端和另一个框架的鉴权 API。**所选数据库是交付产品的数据库；平台控制库仍可用 SQLite。** 完整原生环境准备见手册第二部分。
 

@@ -15,6 +15,7 @@
 - [.github/workflows/native-runtime.yml](sources/_github__workflows__native-runtime_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/native-toolchain-daytona.yml](sources/_github__workflows__native-toolchain-daytona_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/real-model.yml](sources/_github__workflows__real-model_yml--001.md)：可复现的自动化验收配置；1 段
+- [.github/workflows/source-candidate.yml](sources/_github__workflows__source-candidate_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/template-project-acceptance.yml](sources/_github__workflows__template-project-acceptance_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/test.yml](sources/_github__workflows__test_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/toolchain.yml](sources/_github__workflows__toolchain_yml--001.md)：可复现的自动化验收配置；1 段
@@ -229,6 +230,8 @@
 - [tests/test_semantic_fact_domains.py](sources/tests__test_semantic_fact_domains_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
 - [tests/test_sla_vertical.py](sources/tests__test_sla_vertical_py--001.md)：可重复的验收用例；1 段
+- [tests/test_source_candidate_delivery.py](sources/tests__test_source_candidate_delivery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_source_candidate_workflow.py](sources/tests__test_source_candidate_workflow_py--001.md)：可重复的验收用例；1 段
 - [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_template_project_acceptance.py](sources/tests__test_template_project_acceptance_py--001.md)：可重复的验收用例；2 段

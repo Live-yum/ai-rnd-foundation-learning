@@ -10,14 +10,14 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L355。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L398。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12214`。本段原文以LF换行结束。
+本段原始字节数：`14003`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "01d7bee20a9681c6565ece88cf002628bd5f6cae69109f72619613c876291d04"} -->
+<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b4f36ed498a1678bba1c912d5b89c6edbe97936fac95f082130bbae9b3d42334"} -->
 ````typescript
 // ui/src/presentation.ts
-import type { Gate, Run, RunEvent, ChatMessage } from './types'
+import type { Gate, Run, RunEvent, ChatMessage, SourceDeliveryEvidence } from './types'
 export const stages = [
   {
     key: 'requirements',
@@ -92,6 +92,34 @@ export function statusColor(status?: string) {
   if (status?.startsWith('WAITING') || ['BLOCKED', 'PAUSED_LIMIT'].includes(status || ''))
     return 'gold'
   return 'blue'
+}
+// Explicit negative evidence wins over a stale success field from another receipt.
+export function sourceDeliveryState(
+  run?: Run | null,
+  ...reports: (SourceDeliveryEvidence | undefined)[]
+) {
+  const records = [run?.result, run?.pending?.data, ...reports].filter(
+    Boolean,
+  ) as SourceDeliveryEvidence[]
+  const candidate = records.some((record) => record.execution === 'source-candidate')
+  const sourceOnly = candidate || run?.status === 'SOURCE_READY'
+  const partial = records.some((record) => record.generation_status === 'partial')
+  const failed = records.some((record) => record.verification_status === 'failed')
+  return {
+    sourceOnly,
+    candidate,
+    partial,
+    failed,
+    title: partial
+      ? '生成未完成，部分源码已保留'
+      : failed
+        ? '验证失败，代码已保留'
+        : '代码已保留，未经运行验证',
+    pendingSteps: [...new Set(records.flatMap((record) => record.pending_steps || []))],
+    reasons: [
+      ...new Set(records.map((record) => record.runtime_unavailable_reason).filter(Boolean)),
+    ],
+  }
 }
 export const formatDate = (value?: string) =>
   value && Number.isFinite(new Date(value).getTime())
@@ -184,7 +212,7 @@ export function runNextAction(run: Run) {
   if (run.status === 'PAUSED_LIMIT') return '检查预算后恢复'
   if (run.status === 'BLOCKED') return '处理阻塞，保留当前需求'
   if (run.status === 'REJECTED') return '查看记录或开始新一轮'
-  if (run.status === 'SOURCE_READY') return '源码可下载，运行验收待证明'
+  if (run.status === 'SOURCE_READY') return sourceDeliveryState(run).title + '；源码可下载'
   if (run.status === 'READY') return '查看验收证据与交付包'
   return run.pending?.actions.includes('answer') || run.status === 'WAITING_CLARIFICATION'
     ? '回答问题后继续'
@@ -207,6 +235,9 @@ export function milestoneStatus(
   events: RunEvent[],
 ): 'waiting' | 'pending' | 'failed' | 'done' | 'running' {
   const active = activeStage(run, events)
+  const source = sourceDeliveryState(run)
+  if (source.sourceOnly && index === 4) return source.failed ? 'failed' : 'pending'
+  if (source.partial && index === 3) return 'failed'
   // A restored earlier gate invalidates later completion for the current revision.
   if (run?.pending && index === active) return 'waiting'
   if (index > active) return 'pending'
@@ -272,6 +303,18 @@ export function gatePayload(gate: Gate, action: string, text = '', answers?: unk
   }
 }
 export const fieldLabels: Record<string, string> = {
+  execution: '执行方式',
+  generation_status: '生成状态',
+  verification_status: '验证状态',
+  pending_steps: '下一步待完成',
+  runtime_unavailable_reason: '运行验证不可用原因',
+  runtime_verified: '运行验证通过',
+  production_ready: '生产就绪',
+  acceptance_passed: '验收通过',
+  source_checks_passed: '源码检查通过（不代表运行验收）',
+  source_commit: '源码提交记录',
+  commit: '提交 SHA',
+  git_available: 'Git 可用',
   summary: '产品目标',
   title: '方案名称',
   users: '使用角色',
