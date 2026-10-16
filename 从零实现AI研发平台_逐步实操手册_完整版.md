@@ -200348,35 +200348,39 @@ def test_native_rule_runtime_factory_runs_only_when_callback_invoked(
 
 **逐个入口与控制逻辑：**
 
-- `snapshot`（L14–L26）：接收`tmp_path`。 控制顺序：L15按`not shutil.which("git")`分支；L24断言`receipt["status"] == "committed"`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "binary.dat").write_bytes`、`(product / "source.py").write_text`、`(product / "nested").mkdir`、`(product / "nested/中文 file.txt").write_text`、`source_snapshot`。 返回路径：L26的`product, work, receipt`。
-- `git`（L29–L35）：接收`work`、`*args`。 调用`subprocess.run( ["git", "-c", "user.name=Test", "-c", "user.email…`、`subprocess.run`、`str`。 返回路径：L30的`subprocess.run( ["git", "-c", "user.name=Test", "-c", "user.email=test@localhost", "-C", s…`。
-- `test_valid_cache_checks_real_binary_and_nested_tree`（L38–L40）：接收`snapshot`。 控制顺序：L40断言`source_snapshot(product) == receipt`。 调用`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_forged_receipt_is_rejected`（L54–L59）：接收`snapshot`、`field`、`value`。 调用`(work.parent / "commit.json").write_text`、`json.dumps`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_deleted_git_or_receipt_fails_closed`（L63–L70）：接收`snapshot`、`removal`。 控制顺序：L65按`removal == ".git"`分支。 调用`shutil.rmtree`、`(work.parent / "commit.json").unlink`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_head_moved_to_different_commit_with_same_tree`（L73–L77）：接收`snapshot`。 调用`git`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_forged_commit_for_different_tree_even_when_worktree_matches`（L80–L90）：接收`snapshot`。 调用`(work / "source.py").write_text`、`git`、`(work.parent / "commit.json").write_text`、`json.dumps`、`(work / "source.py").write_bytes`、`(product / "source.py").read_bytes`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_external_git_directory_is_rejected`（L94–L106）：接收`snapshot`、`tmp_path`、`redirect`。 控制顺序：L98按`redirect == "symlink"`分支。 调用`(work / ".git").rename`、`(work / ".git").symlink_to`、`pytest.skip`、`(work / ".git").write_text`、`str`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_missing_never_reuses_committed_claim`（L109–L116）：接收`snapshot`、`monkeypatch`。 控制顺序：L113断言`result["status"] == "unavailable"`；L114断言`result["git_available"] is False`；L115断言`"commit" not in result`；L116断言`(work / "source.py").read_bytes() == (product / "source.py").read_bytes()`。 调用`monkeypatch.setattr`、`source_snapshot`、`(work / "source.py").read_bytes`、`(product / "source.py").read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_permission_failure_is_not_downgraded`（L119–L128）：接收`snapshot`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_permission_failure_is_not_downgraded.denied`（L123–L124）：接收`*args`、`**kwargs`。 控制顺序：L124抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_corrupt_git_object_fails_closed`（L131–L138）：接收`snapshot`。 调用`object_path.unlink`、`object_path.write_bytes`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_snapshot_does_not_apply_source_attributes`（L141–L151）：接收`tmp_path`。 控制顺序：L150断言`receipt["status"] == "committed"`；L151断言`source_snapshot(product) == receipt`。 调用`product.mkdir`、`(product / ".gitattributes").write_text`、`(product / "lines.txt").write_bytes`、`(product / "binary.dat").write_bytes`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_external_or_executable_git_configuration_fails_closed`（L155–L159）：接收`snapshot`、`setting`。 调用`git`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_external_object_alternates_fail_closed`（L162–L166）：接收`snapshot`。 调用`(work / ".git/objects/info/alternates").write_text`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_changed_worktree_mode_is_not_hidden_by_manifest`（L169–L177）：接收`snapshot`。 控制顺序：L172按`os.name == "nt"`分支。 调用`pytest.skip`、`(work / "source.py").chmod`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_history_rewriting_metadata_is_rejected_before_git`（L181–L192）：接收`snapshot`、`monkeypatch`、`metadata`。 调用`(journal / ".git" / metadata).write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_history_rewriting_metadata_is_rejected_before_git.forbidden`（L187–L188）：接收`*args`、`**kwargs`。 控制顺序：L188抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_init_filesystem_symlink_probe_metadata_is_portable`（L196–L216）：接收`tmp_path`、`monkeypatch`、`symlinks`。 控制顺序：L213断言`receipt["status"] == "committed"`；L214断言`source_snapshot(product) == receipt`；L216断言`git(work, "config", "--local", "core.symlinks") == symlinks`。 调用`monkeypatch.setattr`、`product.mkdir`、`(product / "中文.txt").write_text`、`source_snapshot`、`git`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_init_filesystem_symlink_probe_metadata_is_portable.git_with_platform_probe`（L201–L206）：接收`work`、`home`、`*args`。 控制顺序：L203按`"init" in args`分支。 调用`original`。 返回路径：L206的`result`。
-- `test_symlink_probe_metadata_does_not_allow_invalid_values`（L219–L230）：接收`snapshot`、`monkeypatch`。 调用`git`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_symlink_probe_metadata_does_not_allow_invalid_values.forbidden`（L225–L226）：接收`*args`、`**kwargs`。 控制顺序：L226抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot`（L16–L28）：接收`tmp_path`。 控制顺序：L17按`not shutil.which("git")`分支；L26断言`receipt["status"] == "committed"`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "binary.dat").write_bytes`、`(product / "source.py").write_text`、`(product / "nested").mkdir`、`(product / "nested/中文 file.txt").write_text`、`source_snapshot`。 返回路径：L28的`product, work, receipt`。
+- `git`（L31–L37）：接收`work`、`*args`。 调用`subprocess.run( ["git", "-c", "user.name=Test", "-c", "user.email…`、`subprocess.run`、`str`。 返回路径：L32的`subprocess.run( ["git", "-c", "user.name=Test", "-c", "user.email=test@localhost", "-C", s…`。
+- `test_valid_cache_checks_real_binary_and_nested_tree`（L40–L42）：接收`snapshot`。 控制顺序：L42断言`source_snapshot(product) == receipt`。 调用`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_forged_receipt_is_rejected`（L56–L61）：接收`snapshot`、`field`、`value`。 调用`(work.parent / "commit.json").write_text`、`json.dumps`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `windows_readonly_unlink`（L65–L75）：接收`monkeypatch`。 源码说明：Enforce Windows read-only deletion semantics on POSIX runners too.。 调用`monkeypatch.setattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `windows_readonly_unlink.unlink`（L69–L73）：接收`path`、`*args`、`**kwargs`。 控制顺序：L71按`stat.S_ISREG(mode) and not mode & stat.S_IWUSR`分支；L72抛异常，停止当前正常路径。 调用`os.stat`、`kwargs.get`、`stat.S_ISREG`、`PermissionError`、`original`。 返回路径：L73的`original(path, *args, **kwargs)`。
+- `test_deleted_git_or_receipt_fails_closed`（L79–L91）：接收`snapshot`、`removal`、`windows_readonly_unlink`。 控制顺序：L81按`removal == ".git"`分支；L84遍历`(work / ".git/objects").rglob("*")`；L85按`path.is_file()`分支。 调用`(work / ".git/objects").rglob`、`path.is_file`、`path.chmod`、`path.stat`、`shutil.rmtree`、`(work.parent / "commit.json").unlink`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_head_moved_to_different_commit_with_same_tree`（L94–L98）：接收`snapshot`。 调用`git`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_forged_commit_for_different_tree_even_when_worktree_matches`（L101–L111）：接收`snapshot`。 调用`(work / "source.py").write_text`、`git`、`(work.parent / "commit.json").write_text`、`json.dumps`、`(work / "source.py").write_bytes`、`(product / "source.py").read_bytes`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_external_git_directory_is_rejected`（L115–L127）：接收`snapshot`、`tmp_path`、`redirect`。 控制顺序：L119按`redirect == "symlink"`分支。 调用`(work / ".git").rename`、`(work / ".git").symlink_to`、`pytest.skip`、`(work / ".git").write_text`、`str`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_missing_never_reuses_committed_claim`（L130–L137）：接收`snapshot`、`monkeypatch`。 控制顺序：L134断言`result["status"] == "unavailable"`；L135断言`result["git_available"] is False`；L136断言`"commit" not in result`；L137断言`(work / "source.py").read_bytes() == (product / "source.py").read_bytes()`。 调用`monkeypatch.setattr`、`source_snapshot`、`(work / "source.py").read_bytes`、`(product / "source.py").read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permission_failure_is_not_downgraded`（L140–L149）：接收`snapshot`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_permission_failure_is_not_downgraded.denied`（L144–L145）：接收`*args`、`**kwargs`。 控制顺序：L145抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_corrupt_git_object_fails_closed`（L152–L161）：接收`snapshot`、`windows_readonly_unlink`。 调用`object_path.chmod`、`object_path.stat`、`object_path.unlink`、`object_path.write_bytes`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_snapshot_does_not_apply_source_attributes`（L164–L174）：接收`tmp_path`。 控制顺序：L173断言`receipt["status"] == "committed"`；L174断言`source_snapshot(product) == receipt`。 调用`product.mkdir`、`(product / ".gitattributes").write_text`、`(product / "lines.txt").write_bytes`、`(product / "binary.dat").write_bytes`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_external_or_executable_git_configuration_fails_closed`（L178–L182）：接收`snapshot`、`setting`。 调用`git`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_external_object_alternates_fail_closed`（L185–L189）：接收`snapshot`。 调用`(work / ".git/objects/info/alternates").write_text`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_worktree_mode_is_not_hidden_by_manifest`（L192–L200）：接收`snapshot`。 控制顺序：L195按`os.name == "nt"`分支。 调用`pytest.skip`、`(work / "source.py").chmod`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_history_rewriting_metadata_is_rejected_before_git`（L204–L215）：接收`snapshot`、`monkeypatch`、`metadata`。 调用`(journal / ".git" / metadata).write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_history_rewriting_metadata_is_rejected_before_git.forbidden`（L210–L211）：接收`*args`、`**kwargs`。 控制顺序：L211抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_init_filesystem_symlink_probe_metadata_is_portable`（L219–L239）：接收`tmp_path`、`monkeypatch`、`symlinks`。 控制顺序：L236断言`receipt["status"] == "committed"`；L237断言`source_snapshot(product) == receipt`；L239断言`git(work, "config", "--local", "core.symlinks") == symlinks`。 调用`monkeypatch.setattr`、`product.mkdir`、`(product / "中文.txt").write_text`、`source_snapshot`、`git`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_init_filesystem_symlink_probe_metadata_is_portable.git_with_platform_probe`（L224–L229）：接收`work`、`home`、`*args`。 控制顺序：L226按`"init" in args`分支。 调用`original`。 返回路径：L229的`result`。
+- `test_symlink_probe_metadata_does_not_allow_invalid_values`（L242–L253）：接收`snapshot`、`monkeypatch`。 调用`git`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_symlink_probe_metadata_does_not_allow_invalid_values.forbidden`（L248–L249）：接收`*args`、`**kwargs`。 控制顺序：L249抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_source_snapshot_integrity.py sha256: 675b717f6321cd56d7db72e1e022d09ac937f0db106260ac57e8e895ed5766a7 -->
+<!-- source-file: tests/test_source_snapshot_integrity.py sha256: 8cc342bba45941157fdec0047a0081e5e65aec58ce6736a62903ae30ff3a052b -->
 ````python
 """A cached source receipt is evidence only while its real Git tree still matches."""
 
 import json
+import os
 import shutil
+import stat
 import subprocess
 
 import pytest
@@ -200434,10 +200438,29 @@ def test_forged_receipt_is_rejected(snapshot, field, value):
         source_snapshot(product)
 
 
+@pytest.fixture
+def windows_readonly_unlink(monkeypatch):
+    """Enforce Windows read-only deletion semantics on POSIX runners too."""
+    original = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        mode = os.stat(path, dir_fd=kwargs.get("dir_fd"), follow_symlinks=False).st_mode
+        if stat.S_ISREG(mode) and not mode & stat.S_IWUSR:
+            raise PermissionError("fixture: Windows refuses deletion of read-only files")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+
+
 @pytest.mark.parametrize("removal", [".git", "receipt"])
-def test_deleted_git_or_receipt_fails_closed(snapshot, removal):
+def test_deleted_git_or_receipt_fails_closed(snapshot, removal, windows_readonly_unlink):
     product, work, _ = snapshot
     if removal == ".git":
+        # Git creates read-only objects on Windows. This test deliberately
+        # destroys only its own temporary journal before testing fail-closed reuse.
+        for path in (work / ".git/objects").rglob("*"):
+            if path.is_file():
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
         shutil.rmtree(work / ".git")
     else:
         (work.parent / "commit.json").unlink()
@@ -200503,10 +200526,12 @@ def test_permission_failure_is_not_downgraded(snapshot, monkeypatch):
         source_snapshot(product)
 
 
-def test_corrupt_git_object_fails_closed(snapshot):
+def test_corrupt_git_object_fails_closed(snapshot, windows_readonly_unlink):
     product, work, receipt = snapshot
     oid = receipt["commit"]
     object_path = work / ".git/objects" / oid[:2] / oid[2:]
+    # Prepare the intentional corruption of this fixture-owned read-only object.
+    object_path.chmod(object_path.stat().st_mode | stat.S_IWUSR)
     object_path.unlink()
     object_path.write_bytes(b"corrupt")
     with pytest.raises(PrerequisiteError):

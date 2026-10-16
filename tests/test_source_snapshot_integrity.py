@@ -1,7 +1,9 @@
 """A cached source receipt is evidence only while its real Git tree still matches."""
 
 import json
+import os
 import shutil
+import stat
 import subprocess
 
 import pytest
@@ -59,10 +61,29 @@ def test_forged_receipt_is_rejected(snapshot, field, value):
         source_snapshot(product)
 
 
+@pytest.fixture
+def windows_readonly_unlink(monkeypatch):
+    """Enforce Windows read-only deletion semantics on POSIX runners too."""
+    original = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        mode = os.stat(path, dir_fd=kwargs.get("dir_fd"), follow_symlinks=False).st_mode
+        if stat.S_ISREG(mode) and not mode & stat.S_IWUSR:
+            raise PermissionError("fixture: Windows refuses deletion of read-only files")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+
+
 @pytest.mark.parametrize("removal", [".git", "receipt"])
-def test_deleted_git_or_receipt_fails_closed(snapshot, removal):
+def test_deleted_git_or_receipt_fails_closed(snapshot, removal, windows_readonly_unlink):
     product, work, _ = snapshot
     if removal == ".git":
+        # Git creates read-only objects on Windows. This test deliberately
+        # destroys only its own temporary journal before testing fail-closed reuse.
+        for path in (work / ".git/objects").rglob("*"):
+            if path.is_file():
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
         shutil.rmtree(work / ".git")
     else:
         (work.parent / "commit.json").unlink()
@@ -128,10 +149,12 @@ def test_permission_failure_is_not_downgraded(snapshot, monkeypatch):
         source_snapshot(product)
 
 
-def test_corrupt_git_object_fails_closed(snapshot):
+def test_corrupt_git_object_fails_closed(snapshot, windows_readonly_unlink):
     product, work, receipt = snapshot
     oid = receipt["commit"]
     object_path = work / ".git/objects" / oid[:2] / oid[2:]
+    # Prepare the intentional corruption of this fixture-owned read-only object.
+    object_path.chmod(object_path.stat().st_mode | stat.S_IWUSR)
     object_path.unlink()
     object_path.write_bytes(b"corrupt")
     with pytest.raises(PrerequisiteError):

@@ -6720,8 +6720,8 @@
     },
     {
       "path": "tests/test_source_snapshot_integrity.py",
-      "bytes": 8430,
-      "sha256": "675b717f6321cd56d7db72e1e022d09ac937f0db106260ac57e8e895ed5766a7",
+      "bytes": 9491,
+      "sha256": "8cc342bba45941157fdec0047a0081e5e65aec58ce6736a62903ae30ff3a052b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md"
