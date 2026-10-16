@@ -271,7 +271,10 @@ _STATUS_KEYS = (
 
 
 def candidate_status(receipt):
-    return {key: receipt.get(key) for key in _STATUS_KEYS}
+    status = {key: receipt.get(key) for key in _STATUS_KEYS}
+    if "source_derivation" in receipt:
+        status["source_derivation"] = receipt["source_derivation"]
+    return status
 
 
 def check_status_binding(destination, receipt):
@@ -355,6 +358,100 @@ def refresh_candidate(
     receipt["source_commit"] = source_snapshot(destination)
     write_json(destination.parent / "native-generation.json", receipt)
     return receipt
+
+
+def derive_candidate(
+    source,
+    edited,
+    destination,
+    base_receipt,
+    edit_receipt,
+    *,
+    derivation,
+    pending_steps,
+    generated_files,
+):
+    """Atomically publish an independently bound draft; never alter recovery source."""
+    source, edited, destination = Path(source), Path(edited), Path(destination)
+    expected_destination = inside(edited.parent, "source/product")
+    if destination.absolute() != expected_destination.absolute():
+        raise PrerequisiteError("派生候选目标不属于本次编辑的独立目录")
+    destination = expected_destination
+    verify_candidate(source, base_receipt)
+    original = manifest(source)
+    raw_files = manifest(edited)
+    if edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files:
+        raise PrerequisiteError("派生候选与已验证父源码或原始编辑回执不一致")
+    expected = {
+        "parent_receipt_digest": digest(base_receipt),
+        "edit_identity": edit_receipt.get("identity"),
+        "task": edit_receipt.get("task"),
+        "approved_files": derivation.get("approved_files"),
+        "candidate_edit_files_digest": digest(raw_files),
+    }
+    if derivation != expected or not isinstance(expected["approved_files"], list):
+        raise PrerequisiteError("派生候选任务身份不一致")
+    approved = set(expected["approved_files"])
+    reserved = {"source-status.json", "source-status.md", "rnd-source-scope.json"}
+    if (
+        any(name.casefold() in reserved for name in approved)
+        or {
+            name
+            for name in set(original) | set(raw_files)
+            if original.get(name) != raw_files.get(name)
+        }
+        - approved
+    ):
+        raise PrerequisiteError("派生候选修改超出批准文件范围")
+    bound = {
+        **derivation,
+        "pending_steps_digest": digest(pending_steps),
+        "generated_files_digest": digest(generated_files),
+    }
+    target = destination.parent
+    if target.exists():
+        saved_path = inside(target, "native-generation.json")
+        if not saved_path.is_file():
+            raise PrerequisiteError("派生候选缺少完整发布回执")
+        saved = json.loads(saved_path.read_text(encoding="utf-8"))
+        if saved.get("source_derivation") != bound:
+            raise PrerequisiteError("持久化派生候选与父源码或任务身份不一致")
+        verify_candidate(destination, saved)
+        return saved
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="source-derive-", dir=target.parent) as temporary:
+        stage = Path(temporary) / "published"
+        product = stage / destination.name
+        product.mkdir(parents=True)
+        for name, path in files(edited):
+            output = inside(product, name)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, output)
+        if manifest(product) != raw_files:
+            raise PrerequisiteError("派生候选复制过程中发生变化")
+        # These statements are controller-owned, already checked against the
+        # parent manifest. Only the new temporary draft receives a new statement.
+        for name in ("SOURCE-STATUS.json", "SOURCE-STATUS.md"):
+            inside(product, name).unlink(missing_ok=True)
+        fresh = {
+            key: value
+            for key, value in base_receipt.items()
+            if key not in {"files", "source_commit", "preserve_runtime_files", "source_derivation"}
+        }
+        fresh["source_derivation"] = bound
+        result = refresh_candidate(
+            product,
+            fresh,
+            pending_steps=pending_steps,
+            generated_files=generated_files,
+        )
+        verify_candidate(product, result)
+        # Recheck both inputs immediately before publishing a complete directory.
+        verify_candidate(source, base_receipt)
+        if manifest(edited) != raw_files:
+            raise PrerequisiteError("原始编辑候选在发布期间发生变化")
+        stage.replace(target)
+    return result
 
 
 def write_status(destination, status):

@@ -23,22 +23,23 @@
 - `source_snapshot.verify.query`（L107–L110）：接收`*args`。 调用`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=fal…`、`git`。 返回路径：L108的`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[ "log" ].stri…`。
 - `source_snapshot.verify.object_hash`（L126–L129）：接收`kind`、`data`。 调用`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b…`、`hashlib.new`、`str(len(data)).encode`、`str`、`len`。 返回路径：L127的`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data ).digest()`。
 - `source_snapshot.verify.tree_hash`（L143–L156）：接收`node`。 控制顺序：L145遍历`node.items()`。 调用`node.items`、`isinstance`、`os.fsencode`、`tree_hash`、`entries.append`、`object_hash`、`b"".join`、`sorted`。 返回路径：L156的`object_hash(b"tree", b"".join(body for _, body in sorted(entries)))`。
-- `candidate_status`（L273–L274）：接收`receipt`。 调用`receipt.get`。 返回路径：L274的`{key: receipt.get(key) for key in _STATUS_KEYS}`。
-- `check_status_binding`（L277–L302）：接收`destination`、`receipt`。 源码说明：A mutable generation receipt cannot upgrade the saved controller statement.。 控制顺序：L283按`receipt.get("preserve_runtime_files")`分支；L284按`statement.exists() or not retained.is_file()`分支；L285抛异常，停止当前正常路径；L288按`evidence != { "status": expected, "source_digest": digest(receipt.get("files", {})), …`分支；L293抛异常，停止当前正常路径；L294按`not statement.is_file() or json.loads(statement.read_text(encoding="utf-8")) != expec…`分支；L295抛异常，停止当前正常路径；L296按`expected["runtime_verified"] is not False or expected["production_ready"] is not Fals…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`candidate_status`、`receipt.get`、`statement.exists`、`retained.is_file`、`PrerequisiteError`、`json.loads`、`retained.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `refresh_candidate`（L305–L357）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L310按`receipt.get("execution") != "source-candidate"`分支；L311抛异常，停止当前正常路径；L314按`"files" in receipt or inside(destination, "SOURCE-STATUS.json").exists() or inside(de…`分支；L322遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L327按`value is not None`分支；L339按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L340抛异常，停止当前正常路径；L342按`not receipt.get("preserve_runtime_files")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`receipt.get`、`PrerequisiteError`、`inside`、`saved_path.is_file`、`json.loads`、`saved_path.read_text`、`inside(destination, "SOURCE-STATUS.json").exists`、`inside(destination.parent, "source-candidate-status.json").exists`等。 返回路径：L357的`receipt`。
-- `write_status`（L360–L374）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retain_failed_candidate`（L377–L412）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L381按`not listing`分支；L382抛异常，停止当前正常路径；L385按`recovery and recovery.get("files") != listing`分支；L386抛异常，停止当前正常路径；L389遍历`sources`；L390按`digest(manifest(source["path"])) != source["source_digest"]`分支；L391抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L412的`refresh_candidate(destination, receipt)`。
-- `generate_candidate`（L415–L443）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L422按`destination.exists()`分支；L423抛异常，停止当前正常路径；L426按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L443的`refresh_candidate(destination, receipt)`。
-- `verify_candidate`（L446–L509）：接收`destination`、`receipt`。 控制顺序：L449按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L453抛异常，停止当前正常路径；L454按`not current or current != receipt.get("files")`分支；L455抛异常，停止当前正常路径；L456按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L460抛异常，停止当前正常路径；L463按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L468抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`check_status_binding`、`isinstance`、`claim.get`、`inside`、`digest`等。 返回路径：L509的`result`。
-- `package_candidate`（L512–L544）：接收`destination`、`report`。 控制顺序：L518按`report != verified`分支；L519抛异常，停止当前正常路径；L522按`receipt.get("preserve_runtime_files")`分支；L525遍历`files(destination)`；L534按`manifest(destination) != receipt["files"]`分支；L535抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L544的`result`。
+- `candidate_status`（L273–L277）：接收`receipt`。 控制顺序：L275按`"source_derivation" in receipt`分支。 调用`receipt.get`。 返回路径：L277的`status`。
+- `check_status_binding`（L280–L305）：接收`destination`、`receipt`。 源码说明：A mutable generation receipt cannot upgrade the saved controller statement.。 控制顺序：L286按`receipt.get("preserve_runtime_files")`分支；L287按`statement.exists() or not retained.is_file()`分支；L288抛异常，停止当前正常路径；L291按`evidence != { "status": expected, "source_digest": digest(receipt.get("files", {})), …`分支；L296抛异常，停止当前正常路径；L297按`not statement.is_file() or json.loads(statement.read_text(encoding="utf-8")) != expec…`分支；L298抛异常，停止当前正常路径；L299按`expected["runtime_verified"] is not False or expected["production_ready"] is not Fals…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`candidate_status`、`receipt.get`、`statement.exists`、`retained.is_file`、`PrerequisiteError`、`json.loads`、`retained.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `refresh_candidate`（L308–L360）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L313按`receipt.get("execution") != "source-candidate"`分支；L314抛异常，停止当前正常路径；L317按`"files" in receipt or inside(destination, "SOURCE-STATUS.json").exists() or inside(de…`分支；L325遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L330按`value is not None`分支；L342按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L343抛异常，停止当前正常路径；L345按`not receipt.get("preserve_runtime_files")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`receipt.get`、`PrerequisiteError`、`inside`、`saved_path.is_file`、`json.loads`、`saved_path.read_text`、`inside(destination, "SOURCE-STATUS.json").exists`、`inside(destination.parent, "source-candidate-status.json").exists`等。 返回路径：L360的`receipt`。
+- `derive_candidate`（L363–L454）：接收`source`、`edited`、`destination`、`base_receipt`、`edit_receipt`、`derivation`、`pending_steps`、`generated_files`。 源码说明：Atomically publish an independently bound draft; never alter recovery source.。 控制顺序：L377按`destination.absolute() != expected_destination.absolute()`分支；L378抛异常，停止当前正常路径；L383按`edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files`分支；L384抛异常，停止当前正常路径；L392按`derivation != expected or not isinstance(expected["approved_files"], list)`分支；L393抛异常，停止当前正常路径；L396按`any(name.casefold() in reserved for name in approved) or { name for name in set(origi…`分支；L405抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`destination.absolute`、`expected_destination.absolute`、`PrerequisiteError`、`verify_candidate`、`manifest`、`edit_receipt.get`、`digest`等。 返回路径：L420的`saved`；L454的`result`。
+- `write_status`（L457–L471）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `retain_failed_candidate`（L474–L509）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L478按`not listing`分支；L479抛异常，停止当前正常路径；L482按`recovery and recovery.get("files") != listing`分支；L483抛异常，停止当前正常路径；L486遍历`sources`；L487按`digest(manifest(source["path"])) != source["source_digest"]`分支；L488抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L509的`refresh_candidate(destination, receipt)`。
+- `generate_candidate`（L512–L540）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L519按`destination.exists()`分支；L520抛异常，停止当前正常路径；L523按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L540的`refresh_candidate(destination, receipt)`。
+- `verify_candidate`（L543–L606）：接收`destination`、`receipt`。 控制顺序：L546按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L550抛异常，停止当前正常路径；L551按`not current or current != receipt.get("files")`分支；L552抛异常，停止当前正常路径；L553按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L557抛异常，停止当前正常路径；L560按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L565抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`check_status_binding`、`isinstance`、`claim.get`、`inside`、`digest`等。 返回路径：L606的`result`。
+- `package_candidate`（L609–L641）：接收`destination`、`report`。 控制顺序：L615按`report != verified`分支；L616抛异常，停止当前正常路径；L619按`receipt.get("preserve_runtime_files")`分支；L622遍历`files(destination)`；L631按`manifest(destination) != receipt["files"]`分支；L632抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L641的`result`。
 
 </details>
 
-**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L544。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/source_candidate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L641。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`24019`。本段原文以LF换行结束。
+本段原始字节数：`28235`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a31d99282ad1d9caa68c5fcdd8078d1f074e3f60171d6e12347b131d5f2b249b"} -->
+<!-- learning-source: {"path": "workbench/delivery/source_candidate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2fa89d8a607940436db22207d4cb4a7e53b9b4d6772afa49889a3c973636410a"} -->
 ````python
 # workbench/delivery/source_candidate.py
 """Retain source without claiming execution, acceptance, or deployment.
@@ -314,7 +315,10 @@ _STATUS_KEYS = (
 
 
 def candidate_status(receipt):
-    return {key: receipt.get(key) for key in _STATUS_KEYS}
+    status = {key: receipt.get(key) for key in _STATUS_KEYS}
+    if "source_derivation" in receipt:
+        status["source_derivation"] = receipt["source_derivation"]
+    return status
 
 
 def check_status_binding(destination, receipt):
@@ -398,6 +402,100 @@ def refresh_candidate(
     receipt["source_commit"] = source_snapshot(destination)
     write_json(destination.parent / "native-generation.json", receipt)
     return receipt
+
+
+def derive_candidate(
+    source,
+    edited,
+    destination,
+    base_receipt,
+    edit_receipt,
+    *,
+    derivation,
+    pending_steps,
+    generated_files,
+):
+    """Atomically publish an independently bound draft; never alter recovery source."""
+    source, edited, destination = Path(source), Path(edited), Path(destination)
+    expected_destination = inside(edited.parent, "source/product")
+    if destination.absolute() != expected_destination.absolute():
+        raise PrerequisiteError("派生候选目标不属于本次编辑的独立目录")
+    destination = expected_destination
+    verify_candidate(source, base_receipt)
+    original = manifest(source)
+    raw_files = manifest(edited)
+    if edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files:
+        raise PrerequisiteError("派生候选与已验证父源码或原始编辑回执不一致")
+    expected = {
+        "parent_receipt_digest": digest(base_receipt),
+        "edit_identity": edit_receipt.get("identity"),
+        "task": edit_receipt.get("task"),
+        "approved_files": derivation.get("approved_files"),
+        "candidate_edit_files_digest": digest(raw_files),
+    }
+    if derivation != expected or not isinstance(expected["approved_files"], list):
+        raise PrerequisiteError("派生候选任务身份不一致")
+    approved = set(expected["approved_files"])
+    reserved = {"source-status.json", "source-status.md", "rnd-source-scope.json"}
+    if (
+        any(name.casefold() in reserved for name in approved)
+        or {
+            name
+            for name in set(original) | set(raw_files)
+            if original.get(name) != raw_files.get(name)
+        }
+        - approved
+    ):
+        raise PrerequisiteError("派生候选修改超出批准文件范围")
+    bound = {
+        **derivation,
+        "pending_steps_digest": digest(pending_steps),
+        "generated_files_digest": digest(generated_files),
+    }
+    target = destination.parent
+    if target.exists():
+        saved_path = inside(target, "native-generation.json")
+        if not saved_path.is_file():
+            raise PrerequisiteError("派生候选缺少完整发布回执")
+        saved = json.loads(saved_path.read_text(encoding="utf-8"))
+        if saved.get("source_derivation") != bound:
+            raise PrerequisiteError("持久化派生候选与父源码或任务身份不一致")
+        verify_candidate(destination, saved)
+        return saved
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="source-derive-", dir=target.parent) as temporary:
+        stage = Path(temporary) / "published"
+        product = stage / destination.name
+        product.mkdir(parents=True)
+        for name, path in files(edited):
+            output = inside(product, name)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, output)
+        if manifest(product) != raw_files:
+            raise PrerequisiteError("派生候选复制过程中发生变化")
+        # These statements are controller-owned, already checked against the
+        # parent manifest. Only the new temporary draft receives a new statement.
+        for name in ("SOURCE-STATUS.json", "SOURCE-STATUS.md"):
+            inside(product, name).unlink(missing_ok=True)
+        fresh = {
+            key: value
+            for key, value in base_receipt.items()
+            if key not in {"files", "source_commit", "preserve_runtime_files", "source_derivation"}
+        }
+        fresh["source_derivation"] = bound
+        result = refresh_candidate(
+            product,
+            fresh,
+            pending_steps=pending_steps,
+            generated_files=generated_files,
+        )
+        verify_candidate(product, result)
+        # Recheck both inputs immediately before publishing a complete directory.
+        verify_candidate(source, base_receipt)
+        if manifest(edited) != raw_files:
+            raise PrerequisiteError("原始编辑候选在发布期间发生变化")
+        stage.replace(target)
+    return result
 
 
 def write_status(destination, status):

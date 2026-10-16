@@ -475,10 +475,24 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
                 return SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])
             raise CapturedContext
 
+    from workbench.delivery import source_candidate
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    native_receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "template": "fastapiadmin",
+            "execution": "source-candidate",
+            "generation_status": "partial",
+            "verification_status": "unverified",
+            "pending_steps": [],
+            "runtime_unavailable_reason": "Test source route",
+        },
+    )
     flow = Workflow(settings, None, NoModelGateway())
     flow.checked_extension = lambda state: design
     state = {
-        "native_generation": {"execution": "source-candidate"},
+        "native_generation": native_receipt,
         "extension_product": str(product),
         "run_id": "local-retrieval",
         "round": 1,
@@ -491,7 +505,7 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
         assert "控制端" in result["extension_error"]
         assert "extension_drafted" not in result
         assert result["extension_candidate_passed"] is False
-        assert not (product / reserved_edit).exists()
+        source_candidate.verify_candidate(product, native_receipt)
         return
     for _ in range(2):
         with pytest.raises(CapturedContext):
@@ -746,15 +760,14 @@ def test_source_design_skips_only_unneeded_runtime_sandbox_gate(
     }
     original = deepcopy(state)
     result = flow.design(state)
-    source_only = template != "python-basic" and capability in {
-        "windows",
-        "macos-missing-tools",
-        "missing-toolchain",
-    }
-    assert len(capability_calls) == (0 if template == "python-basic" else 1)
-    assert len(sandbox_calls) == (0 if source_only else 1)
-    assert gates[0][3] is source_only, gates[0][1]
-    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only
+    native_design = template != "python-basic"
+    allowed = native_design and capability not in {"unknown", "falsey", "error"}
+    assert len(capability_calls) == (1 if native_design else 0)
+    assert len(sandbox_calls) == (0 if native_design else 1)
+    assert gates[0][3] is allowed, gates[0][1]
+    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not native_design
+    if native_design and not allowed:
+        assert "native_validation_or_runtime" in gates[0][1]["block_sources"]
     assert gates[0][0] == "design"
     assert "approve" in gates[0][2]
     assert result["decision"] == "reject"
@@ -786,3 +799,211 @@ def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatc
                 "native_generation": {"execution": "source-candidate"},
             }
         )
+
+
+@pytest.mark.parametrize("failed_runtime", [False, True])
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "fresh",
+        "replay",
+        "after-apply",
+        "after-derive",
+        "during-derive",
+        "source-tamper",
+        "during-model-tamper",
+        "raw-tamper",
+        "raw-receipt-tamper",
+        "derived-tamper",
+        "sidecar-tamper",
+    ],
+)
+def test_source_edit_derivation_is_bound_and_replay_safe(
+    settings, plan, monkeypatch, failed_runtime, scenario
+):
+    from pathlib import Path
+
+    from workbench.core.contracts import digest
+    from workbench.delivery import source_candidate
+    from workbench.filesystem import manifest, sha, write_json
+    from workbench.planning.contracts import CapabilityEdits, CapabilityTask
+    from workbench.production import dispatcher
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    root = settings.data_dir / "runs" / "source-state-machine"
+    product = root / "baseline" / "product"
+    filename = "backend/app/plugin/demo/service.py"
+    target = product / filename
+    target.parent.mkdir(parents=True)
+    target.write_text("VALUE = 1\n", encoding="utf-8")
+    native_plan = plan.model_copy(update={"data_scope": "shared"})
+    if failed_runtime:
+        write_json(
+            product.parent / "native-evidence/recovery.json",
+            {
+                "files": manifest(product),
+                "stage": "validation-interrupted",
+                "targets": {"demo": {}},
+            },
+        )
+        receipt = source_candidate.retain_failed_candidate(
+            "fastapiadmin", native_plan, product, [], "TestRuntimeFailure"
+        )
+    else:
+        receipt = source_candidate.refresh_candidate(
+            product,
+            {
+                "template": "fastapiadmin",
+                "execution": "source-candidate",
+                "spec_digest": digest(native_plan.model_dump()),
+                "generation_status": "partial",
+                "verification_status": "unverified",
+                "pending_steps": ["Implement module task: draft"],
+                "runtime_unavailable_reason": "Test missing runtime",
+            },
+        )
+    original = manifest(product)
+    sidecars = {
+        path: path.read_bytes()
+        for path in (
+            product.parent / "source-candidate-status.json",
+            product.parent / "native-evidence/recovery.json",
+            product.parent / "native-generation.json",
+        )
+        if path.is_file()
+    }
+    task = CapabilityTask(
+        id="draft",
+        title="demo",
+        requirements=["req"],
+        files=[filename],
+        contract="Update demo value",
+        scenarios=["check"],
+    )
+    edits = CapabilityEdits(
+        explanation="Test bounded edit",
+        files=[
+            {
+                "path": filename,
+                "before_sha256": sha(target),
+                "content": "VALUE = 2\n",
+            }
+        ],
+    )
+    selection = SimpleNamespace(
+        template="fastapiadmin", model_dump=lambda: {"template": "fastapiadmin"}
+    )
+    design = SimpleNamespace(
+        implementation=SimpleNamespace(tasks=[task], selection=selection),
+        model_dump=lambda: {"tasks": [task.model_dump()]},
+    )
+    calls = []
+
+    class FixtureGateway:
+        def complete(self, *args):
+            calls.append("model-fixture")
+            if scenario == "during-model-tamper":
+                target.write_text("VALUE = 999\n", encoding="utf-8")
+            return edits
+
+    flow = Workflow(settings, SimpleNamespace(record_event=lambda *args: None), FixtureGateway())
+    flow.checked_extension = lambda state: design
+    state = {
+        "run_id": "source-state-machine",
+        "round": 1,
+        "extension_policy": {},
+        "extension_scope": {"sources": []},
+        "extension_product": str(product),
+        "native_generation": receipt,
+        "extension_drafted": [],
+        "extension_completed": [],
+    }
+
+    class SimulatedCrash(RuntimeError):
+        pass
+
+    derive = source_candidate.derive_candidate
+    apply = dispatcher.apply_candidate
+    refresh = source_candidate.refresh_candidate
+    if scenario == "after-apply":
+
+        def crashed_apply(*args, **kwargs):
+            apply(*args, **kwargs)
+            raise SimulatedCrash
+
+        monkeypatch.setattr(dispatcher, "apply_candidate", crashed_apply)
+    elif scenario == "after-derive":
+
+        def crashed_derive(*args, **kwargs):
+            derive(*args, **kwargs)
+            raise SimulatedCrash
+
+        monkeypatch.setattr(source_candidate, "derive_candidate", crashed_derive)
+    elif scenario == "during-derive":
+
+        def crashed_refresh(*args, **kwargs):
+            refresh(*args, **kwargs)
+            raise SimulatedCrash
+
+        monkeypatch.setattr(source_candidate, "refresh_candidate", crashed_refresh)
+    elif scenario == "source-tamper":
+        target.write_text("VALUE = 999\n", encoding="utf-8")
+    elif scenario == "sidecar-tamper":
+        status = (
+            product.parent / "source-candidate-status.json"
+            if failed_runtime
+            else product / "SOURCE-STATUS.json"
+        )
+        status.write_text("{}", encoding="utf-8")
+
+    if scenario in {"source-tamper", "during-model-tamper", "sidecar-tamper"}:
+        with pytest.raises(PrerequisiteError):
+            flow.extension_code(state)
+        assert len(calls) == (1 if scenario == "during-model-tamper" else 0)
+        assert not list(root.glob("candidates/**/source-edits.json"))
+        return
+    if scenario in {"after-apply", "after-derive", "during-derive"}:
+        with pytest.raises(SimulatedCrash):
+            flow.extension_code(state)
+        monkeypatch.setattr(dispatcher, "apply_candidate", apply)
+        monkeypatch.setattr(source_candidate, "derive_candidate", derive)
+        monkeypatch.setattr(source_candidate, "refresh_candidate", refresh)
+    else:
+        first = flow.extension_code(state)
+        assert not first.get("extension_error"), first
+        if scenario in {"raw-tamper", "raw-receipt-tamper", "derived-tamper"}:
+            derived = Path(first["extension_product"])
+            changed = (
+                derived.parent.parent / "product"
+                if scenario in {"raw-tamper", "raw-receipt-tamper"}
+                else derived
+            )
+            (changed / filename).write_text("VALUE = 999\n", encoding="utf-8")
+            if scenario == "raw-receipt-tamper":
+                import json
+
+                edit_path = changed.parent / "product-edit.json"
+                changed_receipt = json.loads(edit_path.read_text(encoding="utf-8"))
+                changed_receipt["files"] = manifest(changed)
+                write_json(edit_path, changed_receipt)
+            with pytest.raises(PrerequisiteError):
+                flow.extension_code(state)
+            assert len(calls) == 1
+            return
+    result = flow.extension_code(state)
+    assert len(calls) == 1
+    derived = Path(result["extension_product"])
+    assert derived != product
+    assert (derived / filename).read_text(encoding="utf-8") == "VALUE = 2\n"
+    assert result["extension_drafted"] == ["draft"]
+    assert result["extension_candidate_passed"] is False
+    assert not result["native_generation"].get("preserve_runtime_files")
+    assert result["native_generation"]["verification_status"] == (
+        "failed" if failed_runtime else "unverified"
+    )
+    source_candidate.verify_candidate(derived, result["native_generation"])
+    assert manifest(product) == original
+    for path, content in sidecars.items():
+        assert path.read_bytes() == content
+    assert not (derived.parent / "native-evidence/recovery.json").exists()
+    assert state["extension_completed"] == []

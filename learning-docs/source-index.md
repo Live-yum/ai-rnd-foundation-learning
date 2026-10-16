@@ -535,6 +535,7 @@
 - [tests/test_native_registry.py](13-delivery/sources/tests__test_native_registry_py--001.md)（1 段）
 - [tests/test_native_relation_picker_browser.py](13-delivery/sources/tests__test_native_relation_picker_browser_py--001.md)（1 段）
 - [tests/test_native_review_evidence.py](13-delivery/sources/tests__test_native_review_evidence_py--001.md)（1 段）
+- [tests/test_native_sandbox_route_gate.py](13-delivery/sources/tests__test_native_sandbox_route_gate_py--001.md)（1 段）
 - [tests/test_native_service_failures.py](13-delivery/sources/tests__test_native_service_failures_py--001.md)（1 段）
 - [tests/test_native_style.py](13-delivery/sources/tests__test_native_style_py--001.md)（1 段）
 - [tests/test_native_style_selectors.py](13-delivery/sources/tests__test_native_style_selectors_py--001.md)（1 段）
@@ -775,7 +776,8 @@
 - [tests/test_semantic_fact_namespace_aliases.py](14-acceptance/sources/tests__test_semantic_fact_namespace_aliases_py--001.md)（1 段）
 - [tests/test_sla_vertical.py](14-acceptance/sources/tests__test_sla_vertical_py--001.md)（1 段）
 - [tests/test_source_candidate_delivery.py](14-acceptance/sources/tests__test_source_candidate_delivery_py--001.md)（1 段）
-- [tests/test_source_candidate_workflow.py](14-acceptance/sources/tests__test_source_candidate_workflow_py--001.md)（1 段）
+- [tests/test_source_candidate_derivation.py](14-acceptance/sources/tests__test_source_candidate_derivation_py--001.md)（1 段）
+- [tests/test_source_candidate_workflow.py](14-acceptance/sources/tests__test_source_candidate_workflow_py--001.md)（2 段）
 - [tests/test_source_snapshot_integrity.py](14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md)（1 段）
 - [tests/test_streaming_limits.py](14-acceptance/sources/tests__test_streaming_limits_py--001.md)（1 段）
 - [tests/test_structured_facts.py](14-acceptance/sources/tests__test_structured_facts_py--001.md)（1 段）

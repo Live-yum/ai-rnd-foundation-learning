@@ -1,8 +1,8 @@
-# tests/test_source_candidate_workflow.py · 1/1
+# tests/test_source_candidate_workflow.py · 1/2
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-
+[下一段](tests__test_source_candidate_workflow_py--002.md)
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
 
@@ -35,32 +35,32 @@
 - `test_native_rule_runtime_factory_runs_only_when_callback_invoked`（L368–L389）：接收`settings`、`rule_plan`、`monkeypatch`。 控制顺序：L384断言`calls == []`；L386断言`calls == [ ("factory", "runtime-rule-test"), ("customize", ("template",), {"plan": ru…`。 调用`monkeypatch.setattr`、`Workflow`、`flow.native_customization`、`callback`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_rule_runtime_factory_runs_only_when_callback_invoked.factory`（L377–L379）：接收`settings`、`gateway`、`run_id`。 调用`calls.append`。 返回路径：L379的`lambda *args, **kwargs: calls.append(("customize", args, kwargs))`。
 - `test_source_task_selection_skips_isolated_task_but_preserves_dependencies`（L392–L417）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L407断言`flow.extension_task(state, design).id == "independent"`；L408断言`flow.extension_after_generate(state) == "extension_code"`；L410断言`flow.extension_task(state, design).id == "followup"`；L411断言`flow.extension_after_code(state) == "extension_code"`；L413断言`flow.extension_task(state, design) is None`；L414断言`flow.extension_after_code(state) == "extension_package"`；L415断言`state["extension_completed"] == []`；L417断言`flow.extension_task({"extension_completed": []}, design).id == "isolated"`。 调用`workflow`、`SimpleNamespace`、`flow.extension_task`、`flow.extension_after_generate`、`state["extension_drafted"].append`、`flow.extension_after_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_retrieval_is_local_despite_optional_provider_settings`（L421–L501）：接收`settings`、`tmp_path`、`monkeypatch`、`reserved_edit`。 控制顺序：L488按`reserved_edit`分支；L491断言`"控制端" in result["extension_error"]`；L492断言`"extension_drafted" not in result`；L493断言`result["extension_candidate_passed"] is False`；L494断言`not (product / reserved_edit).exists()`；L496遍历`range(2)`；L499断言`captured[0]["retrieval"] == captured[1]["retrieval"]`；L500断言`captured[0]["retrieval"]["mode"] == "ast+fts5"`。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`(product / "example.py").write_text`、`monkeypatch.setattr`、`SimpleNamespace`、`Workflow`、`NoModelGateway`、`str`、`flow.extension_code`、`(product / reserved_edit).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_retrieval_is_local_despite_optional_provider_settings`（L421–L515）：接收`settings`、`tmp_path`、`monkeypatch`、`reserved_edit`。 控制顺序：L502按`reserved_edit`分支；L505断言`"控制端" in result["extension_error"]`；L506断言`"extension_drafted" not in result`；L507断言`result["extension_candidate_passed"] is False`；L510遍历`range(2)`；L513断言`captured[0]["retrieval"] == captured[1]["retrieval"]`；L514断言`captured[0]["retrieval"]["mode"] == "ast+fts5"`；L515断言`captured[0]["retrieval"]["matches"]`。 调用`product.mkdir`、`(product / "example.py").write_text`、`monkeypatch.setattr`、`SimpleNamespace`、`source_candidate.refresh_candidate`、`Workflow`、`NoModelGateway`、`str`、`flow.extension_code`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_source_code_retrieval_is_local_despite_optional_provider_settings.forbidden`（L437–L438）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_source_code_retrieval_is_local_despite_optional_provider_settings.CapturedContext`（L468–L469）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway`（L471–L476）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_source_code_retrieval_is_local_despite_optional_provider_settings.NoModelGateway.complete`（L472–L476）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L474按`reserved_edit`分支；L476抛异常，停止当前正常路径。 调用`captured.append`、`SimpleNamespace`。 返回路径：L475的`SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])`。
-- `test_source_code_rejects_controller_paths_before_model_or_draft`（L514–L540）：接收`settings`、`tmp_path`、`name`。 控制顺序：L535断言`result["extension_candidate_passed"] is False`；L536断言`result["extension_error"]`；L537断言`"extension_drafted" not in result`；L538断言`state["extension_drafted"] == []`；L539断言`original.read_text(encoding="utf-8") == '{"runtime_verified": false}'`；L540断言`not list(settings.data_dir.glob("runs/*/candidates"))`。 调用`product.mkdir`、`original.write_text`、`SimpleNamespace`、`Workflow`、`NoModel`、`str`、`flow.extension_code`、`original.read_text`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel`（L522–L524）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel.complete`（L523–L524）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval`（L548–L628）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`config_state`。 控制顺序：L618断言`gates[0][1] is not available`；L619按`available`分支；L620断言`"native_validation_or_runtime" in gates[0][0]["block_sources"]`；L623断言`source_calls == []`；L626断言`result["execution"] == "source-candidate"`；L627断言`result["runtime_verified"] is False`；L628断言`source_calls == [capability]`。 调用`plan.model_copy`、`monkeypatch.delenv`、`write_json`、`native.runtime_path`、`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`Workflow`、`native_plan.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval.source_only`（L579–L581）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`source_calls.append`。 返回路径：L581的`{"execution": "source-candidate", "runtime_verified": False}`。
-- `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L583–L584）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_route_does_not_require_runtime_database_approval.gate`（L605–L607）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L607的`{"decision": "reject"}`。
-- `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L632–L667）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L667断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L684–L763）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L754断言`len(capability_calls) == (0 if template == "python-basic" else 1)`；L755断言`len(sandbox_calls) == (0 if source_only else 1)`；L756断言`gates[0][3] is source_only`；L757断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only`；L758断言`gates[0][0] == "design"`；L759断言`"approve" in gates[0][2]`；L760断言`result["decision"] == "reject"`；L761断言`result["status"] == "REJECTED"`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L713–L719）：接收`settings`、`selected`、`approved`。 控制顺序：L715断言`len(capability_calls) == 1`；L716按`capability == "error"`分支；L717抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L719的`{"available": available, "reason": capability}`。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L726–L728）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L728的`validate(*args)`。
-- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L734–L737）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L737的`{"decision": "reject"}`。
-- `test_actual_sandbox_execution_still_requires_permission`（L767–L788）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_rejects_controller_paths_before_model_or_draft`（L528–L554）：接收`settings`、`tmp_path`、`name`。 控制顺序：L549断言`result["extension_candidate_passed"] is False`；L550断言`result["extension_error"]`；L551断言`"extension_drafted" not in result`；L552断言`state["extension_drafted"] == []`；L553断言`original.read_text(encoding="utf-8") == '{"runtime_verified": false}'`；L554断言`not list(settings.data_dir.glob("runs/*/candidates"))`。 调用`product.mkdir`、`original.write_text`、`SimpleNamespace`、`Workflow`、`NoModel`、`str`、`flow.extension_code`、`original.read_text`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel`（L536–L538）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_code_rejects_controller_paths_before_model_or_draft.NoModel.complete`（L537–L538）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval`（L562–L642）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`config_state`。 控制顺序：L632断言`gates[0][1] is not available`；L633按`available`分支；L634断言`"native_validation_or_runtime" in gates[0][0]["block_sources"]`；L637断言`source_calls == []`；L640断言`result["execution"] == "source-candidate"`；L641断言`result["runtime_verified"] is False`；L642断言`source_calls == [capability]`。 调用`plan.model_copy`、`monkeypatch.delenv`、`write_json`、`native.runtime_path`、`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`Workflow`、`native_plan.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval.source_only`（L593–L595）：接收`settings`、`template`、`plan`、`destination`、`reason`。 调用`source_calls.append`。 返回路径：L595的`{"execution": "source-candidate", "runtime_verified": False}`。
+- `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L597–L598）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_route_does_not_require_runtime_database_approval.gate`（L619–L621）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L621的`{"decision": "reject"}`。
+- `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L646–L681）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L681断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L698–L776）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L765断言`len(capability_calls) == (1 if native_design else 0)`；L766断言`len(sandbox_calls) == (0 if native_design else 1)`；L767断言`gates[0][3] is allowed`；L768断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not native_design`；L769按`native_design and not allowed`分支；L770断言`"native_validation_or_runtime" in gates[0][1]["block_sources"]`；L771断言`gates[0][0] == "design"`；L772断言`"approve" in gates[0][2]`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L727–L733）：接收`settings`、`selected`、`approved`。 控制顺序：L729断言`len(capability_calls) == 1`；L730按`capability == "error"`分支；L731抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L733的`{"available": available, "reason": capability}`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L740–L742）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L742的`validate(*args)`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L748–L751）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L751的`{"decision": "reject"}`。
+- `test_actual_sandbox_execution_still_requires_permission`（L780–L801）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L788。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L803。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30966`。本段原文以LF换行结束。
+本段原始字节数：`31572`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d226d2633e2c0f9fc9a3d07a338ff4552c48764665ef9c92acb5d41c51594072"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "6118dd1c152f699d35c6e25fdde24cc74a3348936e82121c88ef15da7474f122"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 """Source drafts never become runtime acceptance or verified module progress."""
@@ -540,10 +540,24 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
                 return SimpleNamespace(files=[SimpleNamespace(path=reserved_edit)])
             raise CapturedContext
 
+    from workbench.delivery import source_candidate
+
+    monkeypatch.setattr(source_candidate, "source_snapshot", lambda path: {"status": "unavailable"})
+    native_receipt = source_candidate.refresh_candidate(
+        product,
+        {
+            "template": "fastapiadmin",
+            "execution": "source-candidate",
+            "generation_status": "partial",
+            "verification_status": "unverified",
+            "pending_steps": [],
+            "runtime_unavailable_reason": "Test source route",
+        },
+    )
     flow = Workflow(settings, None, NoModelGateway())
     flow.checked_extension = lambda state: design
     state = {
-        "native_generation": {"execution": "source-candidate"},
+        "native_generation": native_receipt,
         "extension_product": str(product),
         "run_id": "local-retrieval",
         "round": 1,
@@ -556,7 +570,7 @@ def test_source_code_retrieval_is_local_despite_optional_provider_settings(
         assert "控制端" in result["extension_error"]
         assert "extension_drafted" not in result
         assert result["extension_candidate_passed"] is False
-        assert not (product / reserved_edit).exists()
+        source_candidate.verify_candidate(product, native_receipt)
         return
     for _ in range(2):
         with pytest.raises(CapturedContext):
@@ -811,15 +825,14 @@ def test_source_design_skips_only_unneeded_runtime_sandbox_gate(
     }
     original = deepcopy(state)
     result = flow.design(state)
-    source_only = template != "python-basic" and capability in {
-        "windows",
-        "macos-missing-tools",
-        "missing-toolchain",
-    }
-    assert len(capability_calls) == (0 if template == "python-basic" else 1)
-    assert len(sandbox_calls) == (0 if source_only else 1)
-    assert gates[0][3] is source_only, gates[0][1]
-    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only
+    native_design = template != "python-basic"
+    allowed = native_design and capability not in {"unknown", "falsey", "error"}
+    assert len(capability_calls) == (1 if native_design else 0)
+    assert len(sandbox_calls) == (0 if native_design else 1)
+    assert gates[0][3] is allowed, gates[0][1]
+    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not native_design
+    if native_design and not allowed:
+        assert "native_validation_or_runtime" in gates[0][1]["block_sources"]
     assert gates[0][0] == "design"
     assert "approve" in gates[0][2]
     assert result["decision"] == "reject"
@@ -851,4 +864,6 @@ def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatc
                 "native_generation": {"execution": "source-candidate"},
             }
         )
+
+
 ````
