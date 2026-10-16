@@ -665,3 +665,124 @@ def test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime(
     with pytest.raises(PrerequisiteError, match="覆盖" if mismatch else "降级"):
         native.managed_generate(settings, "fastapiadmin", native_plan, product)
     assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+        "runtime",
+        "unknown",
+        "falsey",
+        "error",
+    ],
+)
+@pytest.mark.parametrize("sandbox_config", ["unapproved", "missing-snapshot"])
+def test_source_design_skips_only_unneeded_runtime_sandbox_gate(
+    settings, plan, monkeypatch, template, capability, sandbox_config
+):
+    from copy import deepcopy
+
+    from conftest import requirement
+
+    from workbench.delivery import native
+    from workbench.infrastructure.sandbox.daytona import verification
+    from workbench.production import graph
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = sandbox_config == "missing-snapshot"
+    settings.daytona_api_url = "http://127.0.0.1:3000/api"
+    settings.daytona_snapshot = ""
+    settings.daytona_snapshots = ""
+    native_plan = (
+        plan if template == "python-basic" else plan.model_copy(update={"data_scope": "shared"})
+    )
+    selection = SimpleNamespace(
+        capabilities=lambda: {"field_kinds": ["text", "integer", "boolean"]},
+        model_dump=lambda: {"template": template},
+    )
+    monkeypatch.setattr(graph, "options_for_run", lambda run: selection)
+    monkeypatch.setattr(graph, "coverage_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "business_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "design_pack", lambda *args, **kwargs: {"tasks": []})
+    capability_calls = []
+
+    def detect(settings, selected, approved):
+        capability_calls.append((selected, approved.model_dump()))
+        assert len(capability_calls) == 1, "Design must not re-detect a drifting runtime capability"
+        if capability == "error":
+            raise ValueError("Capability detection did not return a trusted result")
+        available = {"runtime": True, "unknown": None, "falsey": 0}.get(capability, False)
+        return {"available": available, "reason": capability}
+
+    monkeypatch.setattr(native, "generation_capability", detect)
+    # Use the real sandbox authorization/config validator, observing invocation.
+    validate = verification.validate_configuration
+    sandbox_calls = []
+
+    def checked(*args):
+        sandbox_calls.append(args)
+        return validate(*args)
+
+    monkeypatch.setattr(verification, "validate_configuration", checked)
+    flow = Workflow(settings, SimpleNamespace(get_run=lambda run: {}), None)
+    gates = []
+
+    def gate(state, stage, data, actions, can_approve=True):
+        gates.append((stage, data, actions, can_approve))
+        # Human approval remains necessary even when no runtime is attempted.
+        return {"decision": "reject"}
+
+    flow.gate = gate
+    state = {
+        "run_id": "source-daytona-gate",
+        "template": template,
+        "round": 1,
+        "plan": native_plan.model_dump(),
+        "requirement": requirement().model_dump(),
+    }
+    original = deepcopy(state)
+    result = flow.design(state)
+    source_only = template != "python-basic" and capability in {
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+    }
+    assert len(capability_calls) == (0 if template == "python-basic" else 1)
+    assert len(sandbox_calls) == (0 if source_only else 1)
+    assert gates[0][3] is source_only, gates[0][1]
+    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only
+    assert gates[0][0] == "design"
+    assert "approve" in gates[0][2]
+    assert result["decision"] == "reject"
+    assert result["status"] == "REJECTED"
+    assert gates[0][1]["plan"] == original["plan"]
+    assert state == original
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatch, template):
+    from workbench.infrastructure.sandbox.daytona import verification
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = False
+    monkeypatch.setattr(verification, "selection_for", lambda *args: {"template": template})
+    monkeypatch.setattr(
+        verification,
+        "client_for",
+        lambda *args: pytest.fail(
+            "A sandbox client must not be created without execution permission"
+        ),
+    )
+    flow = Workflow(settings, None, None)
+    with pytest.raises(PrerequisiteError, match="DAYTONA_ALLOW_LOCAL_EXECUTION"):
+        flow.sandbox(
+            {
+                "run_id": "source-no-sandbox",
+                "template": template,
+                "native_generation": {"execution": "source-candidate"},
+            }
+        )

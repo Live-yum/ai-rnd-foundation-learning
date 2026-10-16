@@ -501,6 +501,7 @@ class Workflow(ExtensionWorkflow):
         # Native rule tooling is checked only if runtime customization actually
         # runs. Missing tools/resources may instead yield an unverified source
         # candidate with those approved rules explicitly retained as pending.
+        source_only = False
         if state["template"] != "python-basic":
             from workbench.delivery.native import (
                 generation_capability,
@@ -511,20 +512,24 @@ class Workflow(ExtensionWorkflow):
 
             try:
                 validate_plan(plan)
-                if generation_capability(self.settings, state["template"], plan)[
-                    "available"
-                ] and runtime_enabled(self.settings, state["template"]):
+                capability = generation_capability(self.settings, state["template"], plan)
+                source_only = capability["available"] is False
+                if capability["available"] and runtime_enabled(self.settings, state["template"]):
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
                 reason_sources.append("native_validation_or_runtime")
         from workbench.infrastructure.sandbox.daytona.verification import validate_configuration
 
-        try:
-            validate_configuration(self.settings, state["template"], selection.model_dump())
-        except (ValueError, PrerequisiteError) as exc:
-            reasons.append(str(exc))
-            reason_sources.append("sandbox_configuration")
+        # A positively identified native source-only route does not use Daytona.
+        # Unknown capability stays fail-closed; every real sandbox entry still
+        # validates its configuration and execution permission independently.
+        if not source_only:
+            try:
+                validate_configuration(self.settings, state["template"], selection.model_dump())
+            except (ValueError, PrerequisiteError) as exc:
+                reasons.append(str(exc))
+                reason_sources.append("sandbox_configuration")
         pack = design_pack(
             plan, self.product(state).parent / "design", state["template"], selection.model_dump()
         )

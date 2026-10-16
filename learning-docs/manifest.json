@@ -1567,8 +1567,8 @@
     },
     {
       "path": "workbench/production/graph.py",
-      "bytes": 54825,
-      "sha256": "1feb5be6fac599a407282b47bcebd30b36689824cb5841eafcd3671f83a26b01",
+      "bytes": 55204,
+      "sha256": "90e590daada6564226a65d4f063ee879c283cfe5da7461eba4325432139d5252",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__production__graph_py--001.md"
@@ -5003,8 +5003,8 @@
     },
     {
       "path": "docs/native-toolchain.md",
-      "bytes": 21190,
-      "sha256": "3fc63d6a09fc3101bfdea78dda23b17d3d736ede07f8a75bd05603c0bf3d2a55",
+      "bytes": 21371,
+      "sha256": "84a5f44a0b208873d09075ef355aebad25528a4d7d6f8c8f541fa604d57a9cca",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__native-toolchain_md--001.md"
@@ -6711,8 +6711,8 @@
     },
     {
       "path": "tests/test_source_candidate_workflow.py",
-      "bytes": 26215,
-      "sha256": "8f7436ade5e234e79a2ae693d5134e935104db004744f626806f3d79b25f5f60",
+      "bytes": 30966,
+      "sha256": "d226d2633e2c0f9fc9a3d07a338ff4552c48764665ef9c92acb5d41c51594072",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_candidate_workflow_py--001.md"

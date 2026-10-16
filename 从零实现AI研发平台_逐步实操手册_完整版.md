@@ -2917,7 +2917,7 @@ uv run rnd chat --template yudao-vben --frontend vben-antd --database postgresql
 
 候选回执中的生成完整度、待办、失败原因、规格身份和验收标志必须与源码内 `SOURCE-STATUS.json` 一致，验证、重试、刷新和打包不能仅凭可修改的外层回执升级状态。为保留原生失败现场而不能修改 product 时，使用固定旁证绑定状态、源码摘要及原恢复检查点摘要；该绑定不代表整个运行目录同时被修改后仍能保证真实性。
 
-设计审批和生成共用只读运行能力判断。Windows/macOS、缺工具链或缺规则编码器而进入源码通道时，不要求运行专用数据库配置的批准和环境变量；真正可执行的原生通道仍要求这些授权，既有运行产物不得自动降级。CLI 对 `SOURCE_READY` 区分未验证源码、已运行验收的部分成果与未知历史回执；部分成果验收不代表完整需求完成。
+设计审批和生成共用只读运行能力判断。Windows/macOS、缺工具链或缺规则编码器而进入源码通道时，不要求运行专用数据库配置的批准和环境变量，也不要求不会使用的 Daytona 运行许可或快照配置；此时只保留源码，不执行沙箱。Python 通道、具备运行能力的原生通道以及实际进入沙箱的任何执行仍严格要求原有配置与授权，既有运行产物不得自动降级。CLI 对 `SOURCE_READY` 区分未验证源码、已运行验收的部分成果与未知历史回执；部分成果验收不代表完整需求完成。
 
 # 从实体CRUD写到有权限、有流程的业务产品
 
@@ -41831,7 +41831,7 @@ class ExtensionWorkflow:
 
 **逐个入口与控制逻辑：**
 
-- `Workflow`（L95–L982）：继承`ExtensionWorkflow`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Workflow`（L95–L987）：继承`ExtensionWorkflow`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Workflow.__init__`（L96–L97）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Workflow.product`（L99–L100）：接收`state`。 返回路径：L100的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
 - `Workflow.gate`（L102–L121）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L108按`action in {"approve", "recommend"} and can_approve and stage in {"requirements", "des…`分支；L116按`recovery`分支；L118按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.capability_recovery`、`self.store.auto_approve`。 返回路径：L117的`{**recovery, "decision": "revise", "last_job_id": value["job_id"]}`；L121的`{"decision": action, "last_job_id": value["job_id"]}`。
@@ -41841,27 +41841,27 @@ class ExtensionWorkflow:
 - `Workflow.requirements`（L301–L356）：接收`state`。 控制顺序：L309按`capability_conflicts`分支；L312按`not supported`分支；L321按`diagnostics`分支；L323按`isinstance(blocked, str)`分支；L335按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L350按`diagnostics`分支；L354按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`data.get`、`isinstance`、`self.gate`等。 返回路径：L356的`outcome`。
 - `Workflow.source_context`（L358–L367）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L367的`{"code_context": value}`。
 - `Workflow.plan`（L369–L432）：接收`state`。 控制顺序：L372遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`registration_scope`、`self.store.messages`、`state.get`、`state.get("resolution_feedback", {}).get`等。 返回路径：L432的`{"plan": value.model_dump(), "attempt": 0, "native_normalization": normalization}`。
-- `Workflow.design`（L434–L564）：接收`state`。 控制顺序：L441按`state.get("feature_design")`分支；L452按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L487按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L494按`state["template"] == "python-basic" and plan.custom_rules and not self.settings.enabl…`分支；L504按`state["template"] != "python-basic"`分支；L514按`generation_capability(self.settings, state["template"], plan)[ "available" ] and runt…`分支；L552按`outcome["decision"] in {"revise", "recommend"}`分支；L562按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`source_plan`、`state.get`、`list`、`len`、`reasons.extend`、`reason_sources.extend`、`options_for_run`、`self.store.get_run`等。 返回路径：L564的`outcome`。
-- `Workflow.generate`（L566–L619）：接收`state`。 控制顺序：L567按`state.get("feature_design")`分支；L570按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L619的`{"native_generation": receipt} if state["template"] != "python-basic" else {}`。
-- `Workflow.generate.fn`（L572–L577）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L573的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
-- `Workflow.generate.fn`（L581–L616）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L590按`receipt.get("execution") == "source-candidate" and plan.custom_rules`分支。 调用`generate_native`、`self.product`、`self.native_customization`、`receipt.get`、`verify_candidate`、`refresh_candidate`、`list`、`dict.fromkeys`。 返回路径：L616的`receipt`。
-- `Workflow.native_customization`（L621–L638）：接收`state`、`plan`。 控制顺序：L622按`not plan.custom_rules`分支。 返回路径：L623的`None`；L638的`customize`。
-- `Workflow.native_customization.customize`（L625–L636）：接收`*args`、`**kwargs`。 控制顺序：L628按`not self.settings.enable_coding or self.settings.coding_engine != "aider"`分支；L629抛异常，停止当前正常路径。 调用`PrerequisiteError`、`native_rule_customizer(self.settings, self.gateway, state["run_id…`、`native_rule_customizer`。 返回路径：L634的`native_rule_customizer(self.settings, self.gateway, state["run_id"])( *args, **kwargs )`。
-- `Workflow.run_coder`（L640–L660）：接收`state`、`plan`。 控制顺序：L641按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L644的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L653的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
-- `Workflow.code`（L662–L674）：接收`state`。 控制顺序：L664按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L665的`{}`；L673的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L674的`{}`。
-- `Workflow.verify`（L676–L688）：接收`state`。 控制顺序：L677按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L688的`{"verification": result}`。
-- `Workflow.after_verify`（L690–L706）：接收`state`。 控制顺序：L691按`state.get("native_generation", {}).get("execution") == "source-candidate" and state["…`分支；L696按`state["verification"]["passed"]`分支；L698按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L704抛异常，停止当前正常路径。 调用`state.get("native_generation", {}).get`、`state.get`、`state["verification"].get`、`state["plan"].get`、`PrerequisiteError`。 返回路径：L695的`"package"`；L697的`"sandbox"`；L703的`"repair"`。
-- `Workflow.sandbox`（L708–L714）：接收`state`。 控制顺序：L709按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L710的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L714的`{"sandbox": {"enabled": True, **result}}`。
-- `Workflow.model_review`（L716–L750）：接收`state`。 控制顺序：L721按`not self.settings.review_enabled`分支；L723按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`state.get`等。 返回路径：L725的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L750的`{"model_review": result}`。
-- `Workflow.require_review_clearance`（L752–L778）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L756按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L757按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L773按`gaps`分支；L774抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.repair`（L780–L781）：接收`state`。 返回路径：L781的`{"attempt": state["attempt"] + 1}`。
-- `Workflow.package`（L783–L820）：接收`state`。 控制顺序：L784按`state.get("feature_design")`分支；L788按`not source_candidate`分支；L790按`state.get("requirement")`分支；L806按`gaps`分支；L807抛异常，停止当前正常路径；L808按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`state.get("native_generation", {}).get`、`self.require_review_clearance`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`等。 返回路径：L820的`{"delivery": result}`。
-- `Workflow.delivery`（L822–L836）：接收`state`。 控制顺序：L827按`decision["decision"] == "revise"`分支；L829按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L830抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L828的`{**decision, "round": state["round"] + 1, "status": "RUNNING"}`；L836的`decision`。
-- `Workflow.observed_node`（L838–L859）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L859的`observed`。
-- `Workflow.observed_node.observed`（L842–L857）：接收`state`。 控制顺序：L850抛异常，停止当前正常路径；L855抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L857的`result`。
-- `Workflow.compile`（L861–L982）：接收`checkpointer`。 控制顺序：L863遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`state.get`、`s["feature_design"].get`、`graph.compile`。 返回路径：L982的`graph.compile(checkpointer=checkpointer)`。
+- `Workflow.design`（L434–L569）：接收`state`。 控制顺序：L441按`state.get("feature_design")`分支；L452按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L487按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L494按`state["template"] == "python-basic" and plan.custom_rules and not self.settings.enabl…`分支；L505按`state["template"] != "python-basic"`分支；L517按`capability["available"] and runtime_enabled(self.settings, state["template"])`分支；L527按`not source_only`分支；L557按`outcome["decision"] in {"revise", "recommend"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`source_plan`、`state.get`、`list`、`len`、`reasons.extend`、`reason_sources.extend`、`options_for_run`、`self.store.get_run`等。 返回路径：L569的`outcome`。
+- `Workflow.generate`（L571–L624）：接收`state`。 控制顺序：L572按`state.get("feature_design")`分支；L575按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L624的`{"native_generation": receipt} if state["template"] != "python-basic" else {}`。
+- `Workflow.generate.fn`（L577–L582）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L578的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
+- `Workflow.generate.fn`（L586–L621）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L595按`receipt.get("execution") == "source-candidate" and plan.custom_rules`分支。 调用`generate_native`、`self.product`、`self.native_customization`、`receipt.get`、`verify_candidate`、`refresh_candidate`、`list`、`dict.fromkeys`。 返回路径：L621的`receipt`。
+- `Workflow.native_customization`（L626–L643）：接收`state`、`plan`。 控制顺序：L627按`not plan.custom_rules`分支。 返回路径：L628的`None`；L643的`customize`。
+- `Workflow.native_customization.customize`（L630–L641）：接收`*args`、`**kwargs`。 控制顺序：L633按`not self.settings.enable_coding or self.settings.coding_engine != "aider"`分支；L634抛异常，停止当前正常路径。 调用`PrerequisiteError`、`native_rule_customizer(self.settings, self.gateway, state["run_id…`、`native_rule_customizer`。 返回路径：L639的`native_rule_customizer(self.settings, self.gateway, state["run_id"])( *args, **kwargs )`。
+- `Workflow.run_coder`（L645–L665）：接收`state`、`plan`。 控制顺序：L646按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L649的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L658的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
+- `Workflow.code`（L667–L679）：接收`state`。 控制顺序：L669按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L670的`{}`；L678的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L679的`{}`。
+- `Workflow.verify`（L681–L693）：接收`state`。 控制顺序：L682按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L693的`{"verification": result}`。
+- `Workflow.after_verify`（L695–L711）：接收`state`。 控制顺序：L696按`state.get("native_generation", {}).get("execution") == "source-candidate" and state["…`分支；L701按`state["verification"]["passed"]`分支；L703按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L709抛异常，停止当前正常路径。 调用`state.get("native_generation", {}).get`、`state.get`、`state["verification"].get`、`state["plan"].get`、`PrerequisiteError`。 返回路径：L700的`"package"`；L702的`"sandbox"`；L708的`"repair"`。
+- `Workflow.sandbox`（L713–L719）：接收`state`。 控制顺序：L714按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L715的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L719的`{"sandbox": {"enabled": True, **result}}`。
+- `Workflow.model_review`（L721–L755）：接收`state`。 控制顺序：L726按`not self.settings.review_enabled`分支；L728按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`state.get`等。 返回路径：L730的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L755的`{"model_review": result}`。
+- `Workflow.require_review_clearance`（L757–L783）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L761按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L762按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L778按`gaps`分支；L779抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.repair`（L785–L786）：接收`state`。 返回路径：L786的`{"attempt": state["attempt"] + 1}`。
+- `Workflow.package`（L788–L825）：接收`state`。 控制顺序：L789按`state.get("feature_design")`分支；L793按`not source_candidate`分支；L795按`state.get("requirement")`分支；L811按`gaps`分支；L812抛异常，停止当前正常路径；L813按`state["template"] == "python-basic"`分支。 调用`state.get`、`self.checked_feature`、`state.get("native_generation", {}).get`、`self.require_review_clearance`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`等。 返回路径：L825的`{"delivery": result}`。
+- `Workflow.delivery`（L827–L841）：接收`state`。 控制顺序：L832按`decision["decision"] == "revise"`分支；L834按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L835抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L833的`{**decision, "round": state["round"] + 1, "status": "RUNNING"}`；L841的`decision`。
+- `Workflow.observed_node`（L843–L864）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L864的`observed`。
+- `Workflow.observed_node.observed`（L847–L862）：接收`state`。 控制顺序：L855抛异常，停止当前正常路径；L860抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L862的`result`。
+- `Workflow.compile`（L866–L987）：接收`checkpointer`。 控制顺序：L868遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`state.get`、`s["feature_design"].get`、`graph.compile`。 返回路径：L987的`graph.compile(checkpointer=checkpointer)`。
 
-<!-- source-file: workbench/production/graph.py sha256: 1feb5be6fac599a407282b47bcebd30b36689824cb5841eafcd3671f83a26b01 -->
+<!-- source-file: workbench/production/graph.py sha256: 90e590daada6564226a65d4f063ee879c283cfe5da7461eba4325432139d5252 -->
 ````python
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
 
@@ -42366,6 +42366,7 @@ class Workflow(ExtensionWorkflow):
         # Native rule tooling is checked only if runtime customization actually
         # runs. Missing tools/resources may instead yield an unverified source
         # candidate with those approved rules explicitly retained as pending.
+        source_only = False
         if state["template"] != "python-basic":
             from workbench.delivery.native import (
                 generation_capability,
@@ -42376,20 +42377,24 @@ class Workflow(ExtensionWorkflow):
 
             try:
                 validate_plan(plan)
-                if generation_capability(self.settings, state["template"], plan)[
-                    "available"
-                ] and runtime_enabled(self.settings, state["template"]):
+                capability = generation_capability(self.settings, state["template"], plan)
+                source_only = capability["available"] is False
+                if capability["available"] and runtime_enabled(self.settings, state["template"]):
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
                 reason_sources.append("native_validation_or_runtime")
         from workbench.infrastructure.sandbox.daytona.verification import validate_configuration
 
-        try:
-            validate_configuration(self.settings, state["template"], selection.model_dump())
-        except (ValueError, PrerequisiteError) as exc:
-            reasons.append(str(exc))
-            reason_sources.append("sandbox_configuration")
+        # A positively identified native source-only route does not use Daytona.
+        # Unknown capability stays fail-closed; every real sandbox entry still
+        # validates its configuration and execution permission independently.
+        if not source_only:
+            try:
+                validate_configuration(self.settings, state["template"], selection.model_dump())
+            except (ValueError, PrerequisiteError) as exc:
+                reasons.append(str(exc))
+                reason_sources.append("sandbox_configuration")
         pack = design_pack(
             plan, self.product(state).parent / "design", state["template"], selection.model_dump()
         )
@@ -200701,8 +200706,13 @@ def test_refresh_cannot_erase_manifest_to_reinitialize_a_forged_receipt(tmp_path
 - `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L583–L584）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_source_route_does_not_require_runtime_database_approval.gate`（L605–L607）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L607的`{"decision": "reject"}`。
 - `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L632–L667）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L667断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L684–L763）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L754断言`len(capability_calls) == (0 if template == "python-basic" else 1)`；L755断言`len(sandbox_calls) == (0 if source_only else 1)`；L756断言`gates[0][3] is source_only`；L757断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only`；L758断言`gates[0][0] == "design"`；L759断言`"approve" in gates[0][2]`；L760断言`result["decision"] == "reject"`；L761断言`result["status"] == "REJECTED"`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L713–L719）：接收`settings`、`selected`、`approved`。 控制顺序：L715断言`len(capability_calls) == 1`；L716按`capability == "error"`分支；L717抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L719的`{"available": available, "reason": capability}`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L726–L728）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L728的`validate(*args)`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L734–L737）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L737的`{"decision": "reject"}`。
+- `test_actual_sandbox_execution_still_requires_permission`（L767–L788）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_source_candidate_workflow.py sha256: 8f7436ade5e234e79a2ae693d5134e935104db004744f626806f3d79b25f5f60 -->
+<!-- source-file: tests/test_source_candidate_workflow.py sha256: d226d2633e2c0f9fc9a3d07a338ff4552c48764665ef9c92acb5d41c51594072 -->
 ````python
 """Source drafts never become runtime acceptance or verified module progress."""
 
@@ -201371,6 +201381,127 @@ def test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime(
     with pytest.raises(PrerequisiteError, match="覆盖" if mismatch else "降级"):
         native.managed_generate(settings, "fastapiadmin", native_plan, product)
     assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+        "runtime",
+        "unknown",
+        "falsey",
+        "error",
+    ],
+)
+@pytest.mark.parametrize("sandbox_config", ["unapproved", "missing-snapshot"])
+def test_source_design_skips_only_unneeded_runtime_sandbox_gate(
+    settings, plan, monkeypatch, template, capability, sandbox_config
+):
+    from copy import deepcopy
+
+    from conftest import requirement
+
+    from workbench.delivery import native
+    from workbench.infrastructure.sandbox.daytona import verification
+    from workbench.production import graph
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = sandbox_config == "missing-snapshot"
+    settings.daytona_api_url = "http://127.0.0.1:3000/api"
+    settings.daytona_snapshot = ""
+    settings.daytona_snapshots = ""
+    native_plan = (
+        plan if template == "python-basic" else plan.model_copy(update={"data_scope": "shared"})
+    )
+    selection = SimpleNamespace(
+        capabilities=lambda: {"field_kinds": ["text", "integer", "boolean"]},
+        model_dump=lambda: {"template": template},
+    )
+    monkeypatch.setattr(graph, "options_for_run", lambda run: selection)
+    monkeypatch.setattr(graph, "coverage_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "business_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "design_pack", lambda *args, **kwargs: {"tasks": []})
+    capability_calls = []
+
+    def detect(settings, selected, approved):
+        capability_calls.append((selected, approved.model_dump()))
+        assert len(capability_calls) == 1, "Design must not re-detect a drifting runtime capability"
+        if capability == "error":
+            raise ValueError("Capability detection did not return a trusted result")
+        available = {"runtime": True, "unknown": None, "falsey": 0}.get(capability, False)
+        return {"available": available, "reason": capability}
+
+    monkeypatch.setattr(native, "generation_capability", detect)
+    # Use the real sandbox authorization/config validator, observing invocation.
+    validate = verification.validate_configuration
+    sandbox_calls = []
+
+    def checked(*args):
+        sandbox_calls.append(args)
+        return validate(*args)
+
+    monkeypatch.setattr(verification, "validate_configuration", checked)
+    flow = Workflow(settings, SimpleNamespace(get_run=lambda run: {}), None)
+    gates = []
+
+    def gate(state, stage, data, actions, can_approve=True):
+        gates.append((stage, data, actions, can_approve))
+        # Human approval remains necessary even when no runtime is attempted.
+        return {"decision": "reject"}
+
+    flow.gate = gate
+    state = {
+        "run_id": "source-daytona-gate",
+        "template": template,
+        "round": 1,
+        "plan": native_plan.model_dump(),
+        "requirement": requirement().model_dump(),
+    }
+    original = deepcopy(state)
+    result = flow.design(state)
+    source_only = template != "python-basic" and capability in {
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+    }
+    assert len(capability_calls) == (0 if template == "python-basic" else 1)
+    assert len(sandbox_calls) == (0 if source_only else 1)
+    assert gates[0][3] is source_only, gates[0][1]
+    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only
+    assert gates[0][0] == "design"
+    assert "approve" in gates[0][2]
+    assert result["decision"] == "reject"
+    assert result["status"] == "REJECTED"
+    assert gates[0][1]["plan"] == original["plan"]
+    assert state == original
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatch, template):
+    from workbench.infrastructure.sandbox.daytona import verification
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = False
+    monkeypatch.setattr(verification, "selection_for", lambda *args: {"template": template})
+    monkeypatch.setattr(
+        verification,
+        "client_for",
+        lambda *args: pytest.fail(
+            "A sandbox client must not be created without execution permission"
+        ),
+    )
+    flow = Workflow(settings, None, None)
+    with pytest.raises(PrerequisiteError, match="DAYTONA_ALLOW_LOCAL_EXECUTION"):
+        flow.sandbox(
+            {
+                "run_id": "source-no-sandbox",
+                "template": template,
+                "native_generation": {"execution": "source-candidate"},
+            }
+        )
 ````
 
 ### `tests/test_source_snapshot_integrity.py`
@@ -257956,7 +258087,7 @@ uv run python -m scripts.build_handbook --check
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/native-toolchain.md sha256: 3fc63d6a09fc3101bfdea78dda23b17d3d736ede07f8a75bd05603c0bf3d2a55 -->
+<!-- source-file: docs/native-toolchain.md sha256: 84a5f44a0b208873d09075ef355aebad25528a4d7d6f8c8f541fa604d57a9cca -->
 ````markdown
 # 原生业务规则、Plop 与本机 Daytona 的完整实现
 
@@ -258113,7 +258244,7 @@ uv run rnd chat --template yudao-vben --frontend vben-antd --database postgresql
 
 候选回执中的生成完整度、待办、失败原因、规格身份和验收标志必须与源码内 `SOURCE-STATUS.json` 一致，验证、重试、刷新和打包不能仅凭可修改的外层回执升级状态。为保留原生失败现场而不能修改 product 时，使用固定旁证绑定状态、源码摘要及原恢复检查点摘要；该绑定不代表整个运行目录同时被修改后仍能保证真实性。
 
-设计审批和生成共用只读运行能力判断。Windows/macOS、缺工具链或缺规则编码器而进入源码通道时，不要求运行专用数据库配置的批准和环境变量；真正可执行的原生通道仍要求这些授权，既有运行产物不得自动降级。CLI 对 `SOURCE_READY` 区分未验证源码、已运行验收的部分成果与未知历史回执；部分成果验收不代表完整需求完成。
+设计审批和生成共用只读运行能力判断。Windows/macOS、缺工具链或缺规则编码器而进入源码通道时，不要求运行专用数据库配置的批准和环境变量，也不要求不会使用的 Daytona 运行许可或快照配置；此时只保留源码，不执行沙箱。Python 通道、具备运行能力的原生通道以及实际进入沙箱的任何执行仍严格要求原有配置与授权，既有运行产物不得自动降级。CLI 对 `SOURCE_READY` 区分未验证源码、已运行验收的部分成果与未知历史回执；部分成果验收不代表完整需求完成。
 ````
 
 ### `docs/business-platform.md`

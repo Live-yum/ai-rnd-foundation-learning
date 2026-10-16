@@ -48,14 +48,19 @@
 - `test_source_route_does_not_require_runtime_database_approval.no_runtime`（L583–L584）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_source_route_does_not_require_runtime_database_approval.gate`（L605–L607）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L607的`{"decision": "reject"}`。
 - `test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime`（L632–L667）：接收`settings`、`plan`、`monkeypatch`、`mismatch`。 控制顺序：L667断言`source.read_text(encoding="utf-8") == "VALUE = 1\n"`。 调用`plan.model_copy`、`product.mkdir`、`source.write_text`、`write_json`、`digest`、`native_plan.model_dump`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate`（L684–L763）：接收`settings`、`plan`、`monkeypatch`、`template`、`capability`、`sandbox_config`。 控制顺序：L754断言`len(capability_calls) == (0 if template == "python-basic" else 1)`；L755断言`len(sandbox_calls) == (0 if source_only else 1)`；L756断言`gates[0][3] is source_only`；L757断言`("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only`；L758断言`gates[0][0] == "design"`；L759断言`"approve" in gates[0][2]`；L760断言`result["decision"] == "reject"`；L761断言`result["status"] == "REJECTED"`。后续分支沿下方源码相同行号继续阅读。 调用`plan.model_copy`、`SimpleNamespace`、`monkeypatch.setattr`、`Workflow`、`native_plan.model_dump`、`requirement().model_dump`、`requirement`、`deepcopy`、`flow.design`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.detect`（L713–L719）：接收`settings`、`selected`、`approved`。 控制顺序：L715断言`len(capability_calls) == 1`；L716按`capability == "error"`分支；L717抛异常，停止当前正常路径。 调用`capability_calls.append`、`approved.model_dump`、`len`、`ValueError`、`{"runtime": True, "unknown": None, "falsey": 0}.get`。 返回路径：L719的`{"available": available, "reason": capability}`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.checked`（L726–L728）：接收`*args`。 调用`sandbox_calls.append`、`validate`。 返回路径：L728的`validate(*args)`。
+- `test_source_design_skips_only_unneeded_runtime_sandbox_gate.gate`（L734–L737）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 调用`gates.append`。 返回路径：L737的`{"decision": "reject"}`。
+- `test_actual_sandbox_execution_still_requires_permission`（L767–L788）：接收`settings`、`monkeypatch`、`template`。 调用`monkeypatch.setattr`、`pytest.fail`、`Workflow`、`pytest.raises`、`flow.sandbox`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L667。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_workflow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L788。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26215`。本段原文以LF换行结束。
+本段原始字节数：`30966`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8f7436ade5e234e79a2ae693d5134e935104db004744f626806f3d79b25f5f60"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_workflow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d226d2633e2c0f9fc9a3d07a338ff4552c48764665ef9c92acb5d41c51594072"} -->
 ````python
 # tests/test_source_candidate_workflow.py
 """Source drafts never become runtime acceptance or verified module progress."""
@@ -725,4 +730,125 @@ def test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime(
     with pytest.raises(PrerequisiteError, match="覆盖" if mismatch else "降级"):
         native.managed_generate(settings, "fastapiadmin", native_plan, product)
     assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+        "runtime",
+        "unknown",
+        "falsey",
+        "error",
+    ],
+)
+@pytest.mark.parametrize("sandbox_config", ["unapproved", "missing-snapshot"])
+def test_source_design_skips_only_unneeded_runtime_sandbox_gate(
+    settings, plan, monkeypatch, template, capability, sandbox_config
+):
+    from copy import deepcopy
+
+    from conftest import requirement
+
+    from workbench.delivery import native
+    from workbench.infrastructure.sandbox.daytona import verification
+    from workbench.production import graph
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = sandbox_config == "missing-snapshot"
+    settings.daytona_api_url = "http://127.0.0.1:3000/api"
+    settings.daytona_snapshot = ""
+    settings.daytona_snapshots = ""
+    native_plan = (
+        plan if template == "python-basic" else plan.model_copy(update={"data_scope": "shared"})
+    )
+    selection = SimpleNamespace(
+        capabilities=lambda: {"field_kinds": ["text", "integer", "boolean"]},
+        model_dump=lambda: {"template": template},
+    )
+    monkeypatch.setattr(graph, "options_for_run", lambda run: selection)
+    monkeypatch.setattr(graph, "coverage_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "business_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "design_pack", lambda *args, **kwargs: {"tasks": []})
+    capability_calls = []
+
+    def detect(settings, selected, approved):
+        capability_calls.append((selected, approved.model_dump()))
+        assert len(capability_calls) == 1, "Design must not re-detect a drifting runtime capability"
+        if capability == "error":
+            raise ValueError("Capability detection did not return a trusted result")
+        available = {"runtime": True, "unknown": None, "falsey": 0}.get(capability, False)
+        return {"available": available, "reason": capability}
+
+    monkeypatch.setattr(native, "generation_capability", detect)
+    # Use the real sandbox authorization/config validator, observing invocation.
+    validate = verification.validate_configuration
+    sandbox_calls = []
+
+    def checked(*args):
+        sandbox_calls.append(args)
+        return validate(*args)
+
+    monkeypatch.setattr(verification, "validate_configuration", checked)
+    flow = Workflow(settings, SimpleNamespace(get_run=lambda run: {}), None)
+    gates = []
+
+    def gate(state, stage, data, actions, can_approve=True):
+        gates.append((stage, data, actions, can_approve))
+        # Human approval remains necessary even when no runtime is attempted.
+        return {"decision": "reject"}
+
+    flow.gate = gate
+    state = {
+        "run_id": "source-daytona-gate",
+        "template": template,
+        "round": 1,
+        "plan": native_plan.model_dump(),
+        "requirement": requirement().model_dump(),
+    }
+    original = deepcopy(state)
+    result = flow.design(state)
+    source_only = template != "python-basic" and capability in {
+        "windows",
+        "macos-missing-tools",
+        "missing-toolchain",
+    }
+    assert len(capability_calls) == (0 if template == "python-basic" else 1)
+    assert len(sandbox_calls) == (0 if source_only else 1)
+    assert gates[0][3] is source_only, gates[0][1]
+    assert ("sandbox_configuration" in gates[0][1]["block_sources"]) is not source_only
+    assert gates[0][0] == "design"
+    assert "approve" in gates[0][2]
+    assert result["decision"] == "reject"
+    assert result["status"] == "REJECTED"
+    assert gates[0][1]["plan"] == original["plan"]
+    assert state == original
+
+
+@pytest.mark.parametrize("template", ["python-basic", "fastapiadmin", "yudao-vben"])
+def test_actual_sandbox_execution_still_requires_permission(settings, monkeypatch, template):
+    from workbench.infrastructure.sandbox.daytona import verification
+
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = False
+    monkeypatch.setattr(verification, "selection_for", lambda *args: {"template": template})
+    monkeypatch.setattr(
+        verification,
+        "client_for",
+        lambda *args: pytest.fail(
+            "A sandbox client must not be created without execution permission"
+        ),
+    )
+    flow = Workflow(settings, None, None)
+    with pytest.raises(PrerequisiteError, match="DAYTONA_ALLOW_LOCAL_EXECUTION"):
+        flow.sandbox(
+            {
+                "run_id": "source-no-sandbox",
+                "template": template,
+                "native_generation": {"execution": "source-candidate"},
+            }
+        )
 ````
