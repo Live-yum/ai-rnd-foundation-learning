@@ -17,6 +17,11 @@ from workbench.filesystem import atomic_text, inside, sha, write_json
 from workbench.infrastructure.native.environment import checked_database
 from workbench.settings import ROOT
 
+
+class PortableValidationFailure(ValueError):
+    """The standalone launcher returned an explicit negative acceptance receipt."""
+
+
 HELPERS = (
     "__init__.py",
     "_compat/__init__.py",
@@ -456,7 +461,9 @@ def verify_native_delivery(
                     or result.get("business")
                     and result.get("restart_preserved_records") is not True
                 ):
-                    raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
+                    raise PortableValidationFailure(
+                        "独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收"
+                    )
                 result.update(
                     fresh_database=True,
                     standalone_launcher=True,

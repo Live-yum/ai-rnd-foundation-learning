@@ -17,23 +17,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_diagnostic_redact`（L82–L94）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L86遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L94的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
-- `_diagnostic_lifecycle`（L97–L160）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L99按`not isinstance(value, dict)`分支；L102遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L110按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L114遍历`("owned_process_group", "started", "port_released")`；L115按`type(value.get(name)) is bool`分支；L118按`value.get("phase") in phases`分支；L120遍历`("failure", "cleanup_failure")`；L122按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L100的`{}`；L160的`result`。
-- `capture_native_delivery_failure`（L163–L243）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L175按`error is not None`分支；L177遍历`("returncode", "timed_out")`；L179按`type(value) in {int, bool}`分支；L192按`len(raw) > 16384`分支；L200按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L205遍历`DIAGNOSTIC_LOGS`；L206按`remaining <= 0`分支；L218按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L243的`result`。
-- `capture_native_delivery_failure.selected_path`（L182–L186）：接收`name`。 控制顺序：L184按`not stat.S_ISREG(path.stat().st_mode)`分支；L185抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L186的`path`。
-- `connection_url`（L246–L247）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L247的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
-- `menu_snapshot`（L250–L257）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L257的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
-- `export_menu_sql`（L260–L299）：接收`template`、`url`、`before`、`target`。 控制顺序：L271按`not changed`分支；L272抛异常，停止当前正常路径；L276遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L299的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
-- `build_native_delivery`（L302–L391）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L307遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L310按`plan.business`分支；L319遍历`HELPERS`；L322遍历`HELPER_RESOURCES`；L329按`plan.business`分支；L330遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L335按`source_file.is_file()`分支；L338按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`(helper_root / name).parent.mkdir`、`(deployment / name).parent.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`等。 返回路径：L386的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L394–L494）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L406按`template not in {"fastapiadmin", "yudao-vben"}`分支；L407抛异常，停止当前正常路径；L420按`restored != packaged or manifest(copy) != listing`分支；L421抛异常，停止当前正常路径；L422按`source_handoff is not None`分支；L452按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L459抛异常，停止当前正常路径；L469按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L474的`result`。
+- `PortableValidationFailure`（L21–L22）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `_diagnostic_redact`（L87–L99）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L91遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L99的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
+- `_diagnostic_lifecycle`（L102–L165）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L104按`not isinstance(value, dict)`分支；L107遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L115按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L119遍历`("owned_process_group", "started", "port_released")`；L120按`type(value.get(name)) is bool`分支；L123按`value.get("phase") in phases`分支；L125遍历`("failure", "cleanup_failure")`；L127按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L105的`{}`；L165的`result`。
+- `capture_native_delivery_failure`（L168–L248）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L180按`error is not None`分支；L182遍历`("returncode", "timed_out")`；L184按`type(value) in {int, bool}`分支；L197按`len(raw) > 16384`分支；L205按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L210遍历`DIAGNOSTIC_LOGS`；L211按`remaining <= 0`分支；L223按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L248的`result`。
+- `capture_native_delivery_failure.selected_path`（L187–L191）：接收`name`。 控制顺序：L189按`not stat.S_ISREG(path.stat().st_mode)`分支；L190抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L191的`path`。
+- `connection_url`（L251–L252）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L252的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `menu_snapshot`（L255–L262）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L262的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
+- `export_menu_sql`（L265–L304）：接收`template`、`url`、`before`、`target`。 控制顺序：L276按`not changed`分支；L277抛异常，停止当前正常路径；L281遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L304的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
+- `build_native_delivery`（L307–L396）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L312遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L315按`plan.business`分支；L324遍历`HELPERS`；L327遍历`HELPER_RESOURCES`；L334按`plan.business`分支；L335遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L340按`source_file.is_file()`分支；L343按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`(helper_root / name).parent.mkdir`、`(deployment / name).parent.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`等。 返回路径：L391的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
+- `verify_native_delivery`（L399–L501）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L411按`template not in {"fastapiadmin", "yudao-vben"}`分支；L412抛异常，停止当前正常路径；L425按`restored != packaged or manifest(copy) != listing`分支；L426抛异常，停止当前正常路径；L427按`source_handoff is not None`分支；L457按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L464抛异常，停止当前正常路径；L476按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L481的`result`。
 
 </details>
 
-**创建路径：** `workbench/delivery/portable.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L494。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/delivery/portable.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L501。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23137`。本段原文以LF换行结束。
+本段原始字节数：`23330`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/delivery/portable.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b0513fb21bdc5a6e4a895544e519c5e1ac21f7bb5b6cda672339b61a50c3258a"} -->
+<!-- learning-source: {"path": "workbench/delivery/portable.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2a0751ba59071e2a7b1ef15187d352851cfc68738daa35be93b9259a04e3dd11"} -->
 ````python
 # workbench/delivery/portable.py
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
@@ -54,6 +55,11 @@ from workbench.core.contracts import digest
 from workbench.filesystem import atomic_text, inside, sha, write_json
 from workbench.infrastructure.native.environment import checked_database
 from workbench.settings import ROOT
+
+
+class PortableValidationFailure(ValueError):
+    """The standalone launcher returned an explicit negative acceptance receipt."""
+
 
 HELPERS = (
     "__init__.py",
@@ -494,7 +500,9 @@ def verify_native_delivery(
                     or result.get("business")
                     and result.get("restart_preserved_records") is not True
                 ):
-                    raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
+                    raise PortableValidationFailure(
+                        "独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收"
+                    )
                 result.update(
                     fresh_database=True,
                     standalone_launcher=True,

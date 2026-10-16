@@ -2478,8 +2478,8 @@
     },
     {
       "path": "workbench/acceptance/native_lab.py",
-      "bytes": 18966,
-      "sha256": "11a6bfcfea954aff021e170030df5b0295d03ba9448576534b40e71e3201d904",
+      "bytes": 19726,
+      "sha256": "c8888d8b7c8c86a2185e54903f650fc297fcfe864d2032ac96738f95241b3806",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__acceptance__native_lab_py--001.md"
@@ -2569,8 +2569,8 @@
     },
     {
       "path": "workbench/delivery/portable.py",
-      "bytes": 23137,
-      "sha256": "b0513fb21bdc5a6e4a895544e519c5e1ac21f7bb5b6cda672339b61a50c3258a",
+      "bytes": 23330,
+      "sha256": "2a0751ba59071e2a7b1ef15187d352851cfc68738daa35be93b9259a04e3dd11",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__delivery__portable_py--001.md"
@@ -4400,8 +4400,8 @@
     },
     {
       "path": "tests/test_native_failure_classification.py",
-      "bytes": 7544,
-      "sha256": "c161627df57ad45bc334ef36873c7634023f9aba326cd841a9628d6ad5134999",
+      "bytes": 15407,
+      "sha256": "dde68acb26b18a161b518d10a856a418894d3885907a1471a792fa1a6c5c3030",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_failure_classification_py--001.md"
@@ -4661,8 +4661,8 @@
     },
     {
       "path": "workbench/delivery/source_candidate.py",
-      "bytes": 29070,
-      "sha256": "c8189b06057b556bd2aa5c1f22adff9cdd31eac7c677c56a2e44288ff8bd735b",
+      "bytes": 35633,
+      "sha256": "e2f471338ad89e1ef15f94416850cecb41ea1d5e0d46ff4b170589a9cfc2c1cd",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/workbench__delivery__source_candidate_py--001.md"
@@ -6739,8 +6739,8 @@
     },
     {
       "path": "tests/test_source_snapshot_integrity.py",
-      "bytes": 14438,
-      "sha256": "4074b1279792648a00c56fee034c9c93ead6698e335f22e53a151d895c6f95e5",
+      "bytes": 21416,
+      "sha256": "f9c495bc620dfc457b92fe319a3191200766e92ccf8535fea74331bad45253bb",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md"

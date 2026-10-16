@@ -13,6 +13,7 @@ from workbench.business.browser import BusinessBrowserValidationFailure
 from workbench.core.contracts import digest
 from workbench.delivery import recovery as native_recovery
 from workbench.delivery.portable import (
+    PortableValidationFailure,
     build_native_delivery,
     export_menu_sql,
     menu_snapshot,
@@ -53,21 +54,27 @@ def _runtime_check(check, *args, check_id, **kwargs):
         "generated-permissions",
         "restart-persistence",
         "customer-service-browser",
+        "installed-navigation-restart",
+        "independent-native-delivery",
     }:
         raise ValueError("Unknown native acceptance check identifier")
     try:
         return check(*args, **kwargs)
-    except (AssertionError, BusinessBrowserValidationFailure) as exc:
-        if (
-            isinstance(exc, BusinessBrowserValidationFailure)
-            and check_id != "customer-service-browser"
-        ):
+    except (AssertionError, BusinessBrowserValidationFailure, PortableValidationFailure) as exc:
+        if isinstance(exc, PortableValidationFailure):
+            if check_id != "independent-native-delivery":
+                raise
+            reason = "portable_evidence_failed"
+        elif check_id == "independent-native-delivery":
+            # Unknown assertions and unrelated validation errors are not negative
+            # standalone receipts and must remain fail-closed.
             raise
-        reason = (
-            "browser_evidence_failed"
-            if isinstance(exc, BusinessBrowserValidationFailure)
-            else "assertion_failed"
-        )
+        elif isinstance(exc, BusinessBrowserValidationFailure):
+            if check_id != "customer-service-browser":
+                raise
+            reason = "browser_evidence_failed"
+        else:
+            reason = "assertion_failed"
         location = ""
         for frame in reversed(traceback.extract_tb(exc.__traceback__)):
             try:
@@ -329,8 +336,15 @@ def _run_acceptance(
                 if template == "yudao-vben":
                     from workbench.acceptance.yudao_navigation import check_navigation_restart
 
-                    records["installed_navigation_restart"] = check_navigation_restart(
-                        template, base_url, token, targets, records, plan
+                    records["installed_navigation_restart"] = _runtime_check(
+                        check_navigation_restart,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        records,
+                        plan,
+                        check_id="installed-navigation-restart",
                     )
                 write_json(
                     reports / "restart/persistence.json",
@@ -427,12 +441,14 @@ def _run_acceptance(
             template, product_root, reports, plan, targets, url
         )
         stage("independent-native-delivery")
-        report["portable_restored"] = verify_native_delivery(
+        report["portable_restored"] = _runtime_check(
+            verify_native_delivery,
             product_root,
             url,
             reports,
             redis_port,
             template=template,
+            check_id="independent-native-delivery",
             **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")

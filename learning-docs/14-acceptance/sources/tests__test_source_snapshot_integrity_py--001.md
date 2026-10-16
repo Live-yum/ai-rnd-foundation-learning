@@ -39,25 +39,44 @@
 - `test_git_init_filesystem_symlink_probe_metadata_is_portable.git_with_platform_probe`（L224–L229）：接收`work`、`home`、`*args`。 控制顺序：L226按`"init" in args`分支。 调用`original`。 返回路径：L229的`result`。
 - `test_symlink_probe_metadata_does_not_allow_invalid_values`（L242–L253）：接收`snapshot`、`monkeypatch`。 调用`git`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_symlink_probe_metadata_does_not_allow_invalid_values.forbidden`（L248–L249）：接收`*args`、`**kwargs`。 控制顺序：L249抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_reported_directory_uses_filesystem_identity`（L258–L287）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`、`same_directory`。 控制顺序：L268按`os.name == "nt"`分支；L283按`same_directory`分支；L284断言`source_snapshot(product) == receipt`。 调用`other.mkdir`、`str`、`target.resolve`、`monkeypatch.setattr`、`source_snapshot`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_reported_directory_uses_filesystem_identity.aliased_git`（L276–L280）：接收`folder`、`home`、`*args`。 控制顺序：L278按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`。 返回路径：L279的`{**result, "log": reported}`；L280的`result`。
-- `test_git_directory_identity_permission_error_is_not_downgraded`（L290–L300）：接收`snapshot`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_directory_identity_permission_error_is_not_downgraded.denied`（L295–L296）：接收`other`。 控制顺序：L296抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_reported_missing_directory_fails_closed`（L304–L318）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_reported_missing_directory_fails_closed.missing_git`（L310–L314）：接收`folder`、`home`、`*args`。 控制顺序：L312按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`、`str`。 返回路径：L313的`{**result, "log": str(tmp_path / "missing-repository")}`；L314的`result`。
-- `test_all_journal_git_commands_enable_long_paths_without_persisting_config`（L321–L348）：接收`tmp_path`、`monkeypatch`。 控制顺序：L324按`not shutil.which("git")`分支；L341断言`receipt["status"] == "committed"`；L342断言`source_snapshot(product) == receipt`；L343断言`all( any(command in args for args in observed) for command in ("init", "add", "commit…`；L348断言`"longpaths" not in config.casefold()`。 调用`shutil.which`、`pytest.skip`、`monkeypatch.setattr`、`product.mkdir`、`(product / "source.txt").write_text`、`source_snapshot`、`all`、`any`、`(tmp_path / receipt["journal"] / ".git/config").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_all_journal_git_commands_enable_long_paths_without_persisting_config.checked`（L331–L334）：接收`work`、`home`、`*args`。 控制顺序：L332断言`args[:2] == ("-c", "core.longpaths=true")`。 调用`observed.append`、`original`。 返回路径：L334的`original(work, home, *args)`。
-- `test_long_path_snapshot_survives_atomic_publish`（L351–L365）：接收`tmp_path`。 控制顺序：L352按`not shutil.which("git")`分支；L358断言`len(str(product.resolve())) > 260`；L361断言`receipt["status"] == "committed"`；L362断言`source_snapshot(product) == receipt`；L365断言`source_snapshot(published / "product") == receipt`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`len`、`str`、`product.resolve`、`(product / "source.txt").write_text`、`source_snapshot`、`staging.rename`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_warning_is_not_stripped_from_identity_query`（L369–L387）：接收`snapshot`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_warning_is_not_stripped_from_identity_query.warned`（L375–L383）：接收`work`、`home`、`*args`。 控制顺序：L377按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original`。 返回路径：L378的`{ **result, "log": "warning: unable to access '.git/objects/info/alternates': Filename too…`；L383的`result`。
+- `test_git_reported_directory_uses_filesystem_identity`（L258–L284）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`、`same_directory`。 控制顺序：L280按`same_directory`分支；L281断言`source_snapshot(product) == receipt`。 调用`other.mkdir`、`monkeypatch.setattr`、`source_snapshot`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_directory_uses_filesystem_identity.aliased_git`（L268–L277）：接收`folder`、`home`、`*args`。 控制顺序：L270按`args[-2:] == ("rev-parse", query_name)`分支；L274按`os.name == "nt"`分支。 调用`original_git`、`str`、`target.resolve`。 返回路径：L276的`{**result, "log": reported}`；L277的`result`。
+- `test_git_directory_identity_permission_error_is_not_downgraded`（L287–L297）：接收`snapshot`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_directory_identity_permission_error_is_not_downgraded.denied`（L292–L293）：接收`other`。 控制顺序：L293抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_missing_directory_fails_closed`（L301–L315）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_reported_missing_directory_fails_closed.missing_git`（L307–L311）：接收`folder`、`home`、`*args`。 控制顺序：L309按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`、`str`。 返回路径：L310的`{**result, "log": str(tmp_path / "missing-repository")}`；L311的`result`。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config`（L318–L345）：接收`tmp_path`、`monkeypatch`。 控制顺序：L321按`not shutil.which("git")`分支；L338断言`receipt["status"] == "committed"`；L339断言`source_snapshot(product) == receipt`；L340断言`all( any(command in args for args in observed) for command in ("init", "add", "commit…`；L345断言`"longpaths" not in config.casefold()`。 调用`shutil.which`、`pytest.skip`、`monkeypatch.setattr`、`product.mkdir`、`(product / "source.txt").write_text`、`source_snapshot`、`all`、`any`、`(tmp_path / receipt["journal"] / ".git/config").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config.checked`（L328–L331）：接收`work`、`home`、`*args`。 控制顺序：L329断言`args[:2] == ("-c", "core.longpaths=true")`。 调用`observed.append`、`original`。 返回路径：L331的`original(work, home, *args)`。
+- `test_long_path_snapshot_survives_atomic_publish`（L348–L362）：接收`tmp_path`。 控制顺序：L349按`not shutil.which("git")`分支；L355断言`len(str(product.resolve())) > 260`；L358断言`receipt["status"] == "committed"`；L359断言`source_snapshot(product) == receipt`；L362断言`source_snapshot(published / "product") == receipt`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`len`、`str`、`product.resolve`、`(product / "source.txt").write_text`、`source_snapshot`、`staging.rename`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query`（L366–L384）：接收`snapshot`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query.warned`（L372–L380）：接收`work`、`home`、`*args`。 控制顺序：L374按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original`。 返回路径：L375的`{ **result, "log": "warning: unable to access '.git/objects/info/alternates': Filename too…`；L380的`result`。
+- `test_cache_copy_binds_original_bytes_and_identity`（L388–L417）：接收`snapshot`、`monkeypatch`、`changed`。 控制顺序：L417断言`altered`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cache_copy_binds_original_bytes_and_identity.raced`（L395–L412）：接收`source`、`target`、`**kwargs`。 控制顺序：L398按`not altered`分支；L400按`changed == "metadata"`分支；L403按`changed == "receipt"`分支；L406按`changed == "source"`分支。 调用`original`、`path.write_text`、`path.write_bytes`、`path.read_bytes`、`(work / "source.py").write_text`、`(work / ".git").rename`、`shutil.copytree`。 返回路径：L412的`result`。
+- `test_cache_excluded_extra_file_is_never_copied`（L420–L431）：接收`snapshot`、`monkeypatch`。 调用`(work / ".env").write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cache_excluded_extra_file_is_never_copied.forbidden`（L426–L427）：接收`*args`、`**kwargs`。 控制顺序：L427抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_always_runs_in_private_system_temp`（L434–L459）：接收`tmp_path`、`monkeypatch`。 控制顺序：L440按`not shutil.which("git")`分支；L457断言`receipt["status"] == "committed"`；L458断言`source_snapshot(product) == receipt`；L459断言`len(set(seen)) == 2`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.txt").write_text`、`monkeypatch.setattr`、`source_snapshot`、`len`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_always_runs_in_private_system_temp.shallow`（L448–L453）：接收`folder`、`home`、`*args`。 控制顺序：L450断言`folder.parent.parent.samefile(Path(tempfile.gettempdir()))`；L451断言`folder.parent.name.startswith("rnd-git-")`；L452断言`not folder.is_relative_to(tmp_path)`。 调用`seen.append`、`folder.parent.parent.samefile`、`Path`、`tempfile.gettempdir`、`folder.parent.name.startswith`、`folder.is_relative_to`、`original`。 返回路径：L453的`original(folder, home, *args)`。
+- `test_new_snapshot_metadata_change_after_verification_is_rejected`（L462–L481）：接收`tmp_path`、`monkeypatch`。 控制顺序：L465按`not shutil.which("git")`分支；L481断言`not list((tmp_path / "source-revisions").glob("*/commit.json"))`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.txt").write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`list`、`(tmp_path / "source-revisions").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_snapshot_metadata_change_after_verification_is_rejected.raced`（L472–L476）：接收`folder`、`home`、`*args`。 控制顺序：L474按`"fsck" in args`分支。 调用`original`、`(folder / ".git/description").write_text`。 返回路径：L476的`result`。
+- `test_missing_git_never_copies_cached_journal`（L484–L494）：接收`snapshot`、`monkeypatch`。 控制顺序：L494断言`source_snapshot(product)["status"] == "unavailable"`。 调用`monkeypatch.setattr`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_git_never_copies_cached_journal.forbidden`（L490–L491）：接收`*args`、`**kwargs`。 控制顺序：L491抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cached_temp_failure_never_reuses_committed`（L498–L508）：接收`snapshot`、`monkeypatch`、`error`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cached_temp_failure_never_reuses_committed.denied`（L503–L504）：接收`*args`、`**kwargs`。 控制顺序：L504抛异常，停止当前正常路径。 调用`error`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversized_git_metadata_rejected_before_copy`（L511–L523）：接收`snapshot`、`monkeypatch`。 调用`(work / ".git/oversized-pack").open`、`stream.truncate`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversized_git_metadata_rejected_before_copy.forbidden`（L518–L519）：接收`*args`、`**kwargs`。 控制顺序：L519抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_snapshot_resource_failure_is_honest`（L528–L557）：接收`snapshot`、`tmp_path`、`monkeypatch`、`cached`、`failure`。 控制顺序：L532按`not cached`分支；L536按`failure == "deep_temp"`分支；L552按`cached`分支；L556断言`source_snapshot(product)["status"] == "failed"`；L557断言`(product / "new.txt").read_text(encoding="utf-8") == "new source\n"`。 调用`product.mkdir`、`(product / "new.txt").write_text`、`deep.mkdir`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`(product / "new.txt").read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_snapshot_resource_failure_is_honest.temporary`（L541–L543）：接收`*args`、`**kwargs`。 调用`original`。 返回路径：L543的`original(*args, **kwargs)`。
+- `test_snapshot_resource_failure_is_honest.unavailable`（L548–L549）：接收`*args`、`**kwargs`。 控制顺序：L549抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_snapshot_receipt_change_before_publication_is_rejected`（L560–L578）：接收`tmp_path`、`monkeypatch`。 控制顺序：L563按`not shutil.which("git")`分支；L578断言`not list((tmp_path / "source-revisions").glob("*/commit.json"))`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.txt").write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`list`、`(tmp_path / "source-revisions").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_snapshot_receipt_change_before_publication_is_rejected.raced`（L570–L573）：接收`path`、`value`。 控制顺序：L572按`path.name == "commit.json"`分支。 调用`original`、`path.write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L387。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L578。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14438`。本段原文以LF换行结束。
+本段原始字节数：`21416`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4074b1279792648a00c56fee034c9c93ead6698e335f22e53a151d895c6f95e5"} -->
+<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f9c495bc620dfc457b92fe319a3191200766e92ccf8535fea74331bad45253bb"} -->
 ````python
 # tests/test_source_snapshot_integrity.py
 """A cached source receipt is evidence only while its real Git tree still matches."""
@@ -323,21 +342,18 @@ def test_git_reported_directory_uses_filesystem_identity(
     from workbench.coding import aider
 
     product, work, receipt = snapshot
-    expected = work if query_name == "--show-toplevel" else work / ".git"
     other = tmp_path / "different-repository"
     other.mkdir()
-    target = expected if same_directory else other
-    if os.name == "nt":
-        # Exercise Windows' native extended-length alias without changing the
-        # controlled repository or granting symlink/long-path configuration rights.
-        reported = "\\\\?\\" + str(target.resolve())
-    else:
-        reported = str(target / ".")
     original_git = aider.git
 
     def aliased_git(folder, home, *args):
         result = original_git(folder, home, *args)
         if args[-2:] == ("rev-parse", query_name):
+            expected = folder if query_name == "--show-toplevel" else folder / ".git"
+            target = expected if same_directory else other
+            reported = str(target / ".")
+            if os.name == "nt":
+                reported = "\\\\?\\" + str(target.resolve())
             return {**result, "log": reported}
         return result
 
@@ -447,4 +463,198 @@ def test_git_warning_is_not_stripped_from_identity_query(snapshot, monkeypatch, 
     monkeypatch.setattr(aider, "git", warned)
     with pytest.raises(PrerequisiteError, match="警告|非单行"):
         source_snapshot(product)
+
+
+@pytest.mark.parametrize("changed", ["metadata", "receipt", "source", "identity"])
+def test_cache_copy_binds_original_bytes_and_identity(snapshot, monkeypatch, changed):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    original = shutil.copy2
+    altered = False
+
+    def raced(source, target, **kwargs):
+        nonlocal altered
+        result = original(source, target, **kwargs)
+        if not altered:
+            altered = True
+            if changed == "metadata":
+                path = work / ".git/description"
+                path.write_text("changed\n", encoding="utf-8")
+            elif changed == "receipt":
+                path = work.parent / "commit.json"
+                path.write_bytes(path.read_bytes() + b"\n")
+            elif changed == "source":
+                (work / "source.py").write_text("changed = True\n", encoding="utf-8")
+            else:
+                previous = work.parent / "old-metadata"
+                (work / ".git").rename(previous)
+                shutil.copytree(previous, work / ".git", copy_function=original)
+        return result
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", raced)
+    with pytest.raises(PrerequisiteError):
+        source_snapshot(product)
+    assert altered
+
+
+def test_cache_excluded_extra_file_is_never_copied(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    (work / ".env").write_text("PRIVATE=excluded\n", encoding="utf-8")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Extra source must be rejected before copying")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    with pytest.raises(PrerequisiteError, match="额外"):
+        source_snapshot(product)
+
+
+def test_git_always_runs_in_private_system_temp(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+
+    from workbench.coding import aider
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / ("deep" * 20) / ("journal" * 15) / "product"
+    product.mkdir(parents=True)
+    (product / "source.txt").write_text("CRLF\r\n中文\n", encoding="utf-8")
+    original = aider.git
+    seen = []
+
+    def shallow(folder, home, *args):
+        seen.append(folder)
+        assert folder.parent.parent.samefile(Path(tempfile.gettempdir()))
+        assert folder.parent.name.startswith("rnd-git-")
+        assert not folder.is_relative_to(tmp_path)
+        return original(folder, home, *args)
+
+    monkeypatch.setattr(aider, "git", shallow)
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    assert len(set(seen)) == 2
+
+
+def test_new_snapshot_metadata_change_after_verification_is_rejected(tmp_path, monkeypatch):
+    from workbench.coding import aider
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("source\n", encoding="utf-8")
+    original = aider.git
+
+    def raced(folder, home, *args):
+        result = original(folder, home, *args)
+        if "fsck" in args:
+            (folder / ".git/description").write_text("changed\n", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(aider, "git", raced)
+    with pytest.raises(PrerequisiteError, match="验证期间"):
+        source_snapshot(product)
+    assert not list((tmp_path / "source-revisions").glob("*/commit.json"))
+
+
+def test_missing_git_never_copies_cached_journal(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda _: None)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Do not copy a journal when Git is unavailable")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    assert source_snapshot(product)["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError])
+def test_cached_temp_failure_never_reuses_committed(snapshot, monkeypatch, error):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+
+    def denied(*args, **kwargs):
+        raise error("private temporary storage unavailable")
+
+    monkeypatch.setattr(source_candidate.tempfile, "TemporaryDirectory", denied)
+    with pytest.raises(error):
+        source_snapshot(product)
+
+
+def test_oversized_git_metadata_rejected_before_copy(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    with (work / ".git/oversized-pack").open("wb") as stream:
+        stream.truncate(512_000_001)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Oversized metadata must not be copied")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    with pytest.raises(PrerequisiteError, match="大小限制"):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("failure", ["deep_temp", "copy_io"])
+def test_snapshot_resource_failure_is_honest(snapshot, tmp_path, monkeypatch, cached, failure):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+    if not cached:
+        product = tmp_path / "new-product"
+        product.mkdir()
+        (product / "new.txt").write_text("new source\n", encoding="utf-8")
+    if failure == "deep_temp":
+        original = source_candidate.tempfile.TemporaryDirectory
+        deep = tmp_path / ("temp" * 30) / ("deep" * 20)
+        deep.mkdir(parents=True)
+
+        def temporary(*args, **kwargs):
+            kwargs["dir"] = deep
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(source_candidate.tempfile, "TemporaryDirectory", temporary)
+    else:
+
+        def unavailable(*args, **kwargs):
+            raise OSError("copy storage unavailable")
+
+        monkeypatch.setattr(source_candidate.shutil, "copy2", unavailable)
+    if cached:
+        with pytest.raises(PrerequisiteError, match="临时存储"):
+            source_snapshot(product)
+    else:
+        assert source_snapshot(product)["status"] == "failed"
+        assert (product / "new.txt").read_text(encoding="utf-8") == "new source\n"
+
+
+def test_new_snapshot_receipt_change_before_publication_is_rejected(tmp_path, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("source\n", encoding="utf-8")
+    original = source_candidate.write_json
+
+    def raced(path, value):
+        original(path, value)
+        if path.name == "commit.json":
+            path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(source_candidate, "write_json", raced)
+    with pytest.raises(PrerequisiteError, match="复制期间"):
+        source_snapshot(product)
+    assert not list((tmp_path / "source-revisions").glob("*/commit.json"))
 ````

@@ -30,14 +30,20 @@
 - `test_browser_boundary_preserves_unknown_and_security_failures.check`（L180–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181按`kind == "identity"`分支；L183按`kind == "permission"`分支；L184抛异常，停止当前正常路径；L185抛异常，停止当前正常路径。 调用`require_business_browser`、`PermissionError`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_browser_failure_type_is_not_converted_at_other_boundaries`（L192–L199）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`native_lab._runtime_check`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_browser_failure_type_is_not_converted_at_other_boundaries.check`（L195–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L196抛异常，停止当前正常路径。 调用`BusinessBrowserValidationFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_late_boundaries_accept_only_selected_failures`（L206–L230）：接收`check_id`、`kind`。 控制顺序：L226按`recognized`分支；L227断言`check_id in str(raised.value)`；L228断言`"raw-secret" not in str(raised.value)`；L230断言`not isinstance(raised.value, NativeValidationFailure)`。 调用`pytest.raises`、`native_lab._runtime_check`、`str`、`isinstance`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_late_boundaries_accept_only_selected_failures.check`（L218–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L219抛异常，停止当前正常路径。 调用`error_type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_late_callsite_preserves_checkpoint_and_integrity`（L235–L329）：接收`tmp_path`、`monkeypatch`、`stage`、`failure`。 控制顺序：L271遍历`("install_backend", "build_frontend", "generated_browser")`；L273遍历`( "frontend_environment", "verify_native_style", "generated_crud"…`；L323按`failure == "known"`分支；L325断言`checkpoint["stage"] == "validation-interrupted"`；L326断言`checkpoint["resumable"] is True`；L327断言`"raw-secret" not in (reports / "failure.log").read_text(encoding="utf-8")`；L329断言`not isinstance(raised.value, NativeValidationFailure)`。 调用`source.mkdir`、`original.write_text`、`frontend.mkdir`、`output.mkdir`、`(output / "generated.py").write_text`、`(output.parent / "frontend-product").mkdir`、`SimpleNamespace`、`monkeypatch.setattr`、`nullcontext`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_late_callsite_preserves_checkpoint_and_integrity.fail`（L286–L295）：接收`*args`、`**kwargs`。 控制顺序：L287按`failure == "source"`分支；L289按`failure == "plan"`分支；L291按`failure == "permission"`分支；L292抛异常，停止当前正常路径；L293按`failure == "unknown"`分支；L294抛异常，停止当前正常路径；L295抛异常，停止当前正常路径。 调用`original.write_text`、`PermissionError`、`ValueError`、`AssertionError if stage == "navigation" else PortableValidationFa…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_portable_receipt_boundary_is_narrow`（L347–L413）：接收`tmp_path`、`monkeypatch`、`failure`。 控制顺序：L363按`failure == "zip"`分支；L409按`recognized`分支；L410断言`"portable_evidence_failed" in str(raised.value)`；L411断言`"raw-secret" not in str(raised.value)`；L413断言`not isinstance(raised.value, NativeValidationFailure)`。 调用`product.mkdir`、`filesystem.atomic_text`、`monkeypatch.setattr`、`nullcontext`、`SimpleNamespace`、`pytest.raises`、`native_lab._runtime_check`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_portable_receipt_boundary_is_narrow.run`（L366–L386）：接收`command`、`cwd`、`*args`、`**kwargs`。 控制顺序：L368按`failure in errors`分支；L369抛异常，停止当前正常路径；L370按`failure == "source"`分支；L373按`failure == "json"`分支；L383按`failure in result`分支。 调用`errors[failure]`、`filesystem.atomic_text`、`filesystem.write_json`。 返回路径：L386的`{"log": "fixture"}`。
 
 </details>
 
-**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L199。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_failure_classification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L413。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7544`。本段原文以LF换行结束。
+本段原始字节数：`15407`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c161627df57ad45bc334ef36873c7634023f9aba326cd841a9628d6ad5134999"} -->
+<!-- learning-source: {"path": "tests/test_native_failure_classification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dde68acb26b18a161b518d10a856a418894d3885907a1471a792fa1a6c5c3030"} -->
 ````python
 # tests/test_native_failure_classification.py
 """Exercise the real native lab wrapper, not a mocked delivery entry point."""
@@ -239,4 +245,218 @@ def test_browser_failure_type_is_not_converted_at_other_boundaries():
 
     with pytest.raises(BusinessBrowserValidationFailure):
         native_lab._runtime_check(check, check_id="generated-crud")
+
+
+@pytest.mark.parametrize(
+    "check_id", ["installed-navigation-restart", "independent-native-delivery"]
+)
+@pytest.mark.parametrize("kind", ["known", "value", "permission", "assertion"])
+def test_late_boundaries_accept_only_selected_failures(check_id, kind):
+    from workbench.delivery.portable import PortableValidationFailure
+
+    error_type = {
+        "known": PortableValidationFailure
+        if check_id == "independent-native-delivery"
+        else AssertionError,
+        "value": ValueError,
+        "permission": PermissionError,
+        "assertion": AssertionError,
+    }[kind]
+
+    def check():
+        raise error_type("Bearer raw-secret-response")
+
+    recognized = kind == "known" or (
+        kind == "assertion" and check_id == "installed-navigation-restart"
+    )
+    with pytest.raises(NativeValidationFailure if recognized else error_type) as raised:
+        native_lab._runtime_check(check, check_id=check_id)
+    if recognized:
+        assert check_id in str(raised.value)
+        assert "raw-secret" not in str(raised.value)
+    else:
+        assert not isinstance(raised.value, NativeValidationFailure)
+
+
+@pytest.mark.parametrize("stage", ["navigation", "portable"])
+@pytest.mark.parametrize("failure", ["known", "unknown", "permission", "source", "plan"])
+def test_real_late_callsite_preserves_checkpoint_and_integrity(
+    tmp_path, monkeypatch, stage, failure
+):
+    import json
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from workbench.acceptance import yudao_navigation
+    from workbench.business import probe
+    from workbench.delivery.portable import PortableValidationFailure
+
+    source = tmp_path / "source"
+    source.mkdir()
+    original = source / "original.py"
+    original.write_text("original\n", encoding="utf-8")
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    output = tmp_path / "product/backend"
+    output.mkdir(parents=True)
+    (output / "generated.py").write_text("generated\n", encoding="utf-8")
+    (output.parent / "frontend-product").mkdir()
+    plan = SimpleNamespace(
+        title="Approved",
+        custom_rules=[],
+        business=stage == "navigation",
+        entities=[SimpleNamespace(name="task", fields=[])],
+    )
+    plan.model_dump = lambda: {"title": plan.title}
+    monkeypatch.setattr(native_lab.native_recovery, "load", lambda *args: {"targets": [{}]})
+    monkeypatch.setattr(native_lab, "native_environment", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        native_lab, "running_backend", lambda *args: nullcontext(("http://localhost", {}))
+    )
+    monkeypatch.setattr(
+        native_lab, "frontend_preview", lambda *args: nullcontext("http://localhost")
+    )
+    for name in ("install_backend", "build_frontend", "generated_browser"):
+        monkeypatch.setattr(native_lab, name, lambda *args, **kwargs: None)
+    for name in (
+        "frontend_environment",
+        "verify_native_style",
+        "generated_crud",
+        "generated_permissions",
+        "check_generated_persistence",
+        "build_native_delivery",
+    ):
+        monkeypatch.setattr(native_lab, name, lambda *args, **kwargs: {})
+    monkeypatch.setattr(native_lab, "login", lambda *args: "fixture")
+    monkeypatch.setattr(probe, "customer_service_acceptance", lambda *args: {"records": {}})
+    monkeypatch.setattr(probe, "BusinessClient", lambda *args: SimpleNamespace(close=lambda: None))
+
+    def fail(*args, **kwargs):
+        if failure == "source":
+            original.write_text("changed\n", encoding="utf-8")
+        if failure == "plan":
+            plan.title = "Changed"
+        if failure == "permission":
+            raise PermissionError("denied")
+        if failure == "unknown":
+            raise ValueError("unclassified")
+        raise (AssertionError if stage == "navigation" else PortableValidationFailure)("raw-secret")
+
+    monkeypatch.setattr(
+        yudao_navigation if stage == "navigation" else native_lab,
+        "check_navigation_restart" if stage == "navigation" else "verify_native_delivery",
+        fail,
+    )
+    reports = tmp_path / "reports"
+    expected = (
+        NativeIntegrityError
+        if failure in {"source", "plan"}
+        else PermissionError
+        if failure == "permission"
+        else ValueError
+        if failure == "unknown"
+        else NativeValidationFailure
+    )
+    with pytest.raises(expected) as raised:
+        native_lab._run_acceptance(
+            "yudao-vben",
+            source,
+            output,
+            frontend,
+            "postgresql://localhost/test_codegen",
+            reports,
+            plan,
+            backend_port=18001,
+        )
+    if failure == "known":
+        checkpoint = json.loads((reports / "recovery.json").read_text(encoding="utf-8"))
+        assert checkpoint["stage"] == "validation-interrupted"
+        assert checkpoint["resumable"] is True
+        assert "raw-secret" not in (reports / "failure.log").read_text(encoding="utf-8")
+    else:
+        assert not isinstance(raised.value, NativeValidationFailure)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "passed",
+        "frontend_started",
+        "restart",
+        "restart_preserved_records",
+        "json",
+        "value",
+        "assertion",
+        "permission",
+        "zip",
+        "source",
+    ],
+)
+def test_real_portable_receipt_boundary_is_narrow(tmp_path, monkeypatch, failure):
+    from contextlib import nullcontext
+    from types import SimpleNamespace
+
+    from workbench import filesystem
+    from workbench.delivery import portable
+    from workbench.infrastructure.processes import tools
+
+    product = tmp_path / "product"
+    product.mkdir()
+    filesystem.atomic_text(product / "start.py", "# fixture\n")
+    monkeypatch.setattr(
+        portable.psycopg,
+        "connect",
+        lambda *args, **kwargs: nullcontext(SimpleNamespace(execute=lambda *args: None)),
+    )
+    if failure == "zip":
+        monkeypatch.setattr(filesystem, "unpack", lambda *args, **kwargs: {})
+
+    def run(command, cwd, *args, **kwargs):
+        errors = {"value": ValueError, "assertion": AssertionError, "permission": PermissionError}
+        if failure in errors:
+            raise errors[failure]("raw-secret")
+        if failure == "source":
+            filesystem.atomic_text(product / "start.py", "changed\n")
+        target = cwd / ".deployment/reports/portable-start.json"
+        if failure == "json":
+            filesystem.atomic_text(target, "{invalid raw-secret")
+        else:
+            result = {
+                "passed": True,
+                "frontend_started": True,
+                "restart": True,
+                "business": True,
+                "restart_preserved_records": True,
+            }
+            if failure in result:
+                result[failure] = False
+            filesystem.write_json(target, result)
+        return {"log": "fixture"}
+
+    monkeypatch.setattr(tools, "run_command", run)
+    recognized = failure in {"passed", "frontend_started", "restart", "restart_preserved_records"}
+    expected = (
+        NativeValidationFailure
+        if recognized
+        else PermissionError
+        if failure == "permission"
+        else AssertionError
+        if failure == "assertion"
+        else ValueError
+    )
+    with pytest.raises(expected) as raised:
+        native_lab._runtime_check(
+            portable.verify_native_delivery,
+            product,
+            "postgresql://localhost/test_codegen",
+            tmp_path / "reports",
+            template="fastapiadmin",
+            source_handoff=lambda *args: None,
+            check_id="independent-native-delivery",
+        )
+    if recognized:
+        assert "portable_evidence_failed" in str(raised.value)
+        assert "raw-secret" not in str(raised.value)
+    else:
+        assert not isinstance(raised.value, NativeValidationFailure)
 ````

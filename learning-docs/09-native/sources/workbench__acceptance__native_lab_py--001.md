@@ -17,19 +17,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_runtime_check`（L48–L84）：接收`check`、`check_id`、`*args`、`**kwargs`。 源码说明：Only explicitly selected executable acceptance checks use this boundary.。 控制顺序：L50按`check_id not in { "customer-service-http", "generated-crud", "generated-permissions",…`分支；L57抛异常，停止当前正常路径；L61按`isinstance(exc, BusinessBrowserValidationFailure) and check_id != "customer-service-b…`分支；L65抛异常，停止当前正常路径；L72遍历`reversed(traceback.extract_tb(exc.__traceback__))`；L77按`frame.name.isidentifier() and relative.suffix == ".py"`分支；L82抛异常，停止当前正常路径。 调用`ValueError`、`check`、`isinstance`、`reversed`、`traceback.extract_tb`、`Path(frame.filename).resolve().relative_to`、`Path(frame.filename).resolve`、`Path`、`frame.name.isidentifier`等。 返回路径：L59的`check(*args, **kwargs)`。
-- `generated_browser`（L87–L110）：接收`template`、`front_url`、`reports`。 控制顺序：L109抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L113–L143）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L128按`plan.custom_rules and customization is None`分支；L129抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L131的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L146–L472）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L173按`not resumed`分支；L176按`template == "fastapiadmin"`分支；L180按`not resumed`分支；L182按`not resumed`分支；L197按`not resumed`分支；L201按`template == "fastapiadmin"`分支；L224按`plan.business`分支；L243按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L443的`report`。
-- `_run_acceptance.stage`（L190–L192）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_runtime_check`（L49–L91）：接收`check`、`check_id`、`*args`、`**kwargs`。 源码说明：Only explicitly selected executable acceptance checks use this boundary.。 控制顺序：L51按`check_id not in { "customer-service-http", "generated-crud", "generated-permissions",…`分支；L60抛异常，停止当前正常路径；L64按`isinstance(exc, PortableValidationFailure)`分支；L65按`check_id != "independent-native-delivery"`分支；L66抛异常，停止当前正常路径；L68按`check_id == "independent-native-delivery"`分支；L71抛异常，停止当前正常路径；L72按`isinstance(exc, BusinessBrowserValidationFailure)`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`check`、`isinstance`、`reversed`、`traceback.extract_tb`、`Path(frame.filename).resolve().relative_to`、`Path(frame.filename).resolve`、`Path`、`frame.name.isidentifier`等。 返回路径：L62的`check(*args, **kwargs)`。
+- `generated_browser`（L94–L117）：接收`template`、`front_url`、`reports`。 控制顺序：L116抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L120–L150）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 控制顺序：L135按`plan.custom_rules and customization is None`分支；L136抛异常，停止当前正常路径。 调用`validate_plan`、`ValueError`、`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L138的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L153–L488）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L180按`not resumed`分支；L183按`template == "fastapiadmin"`分支；L187按`not resumed`分支；L189按`not resumed`分支；L204按`not resumed`分支；L208按`template == "fastapiadmin"`分支；L231按`plan.business`分支；L250按`plan.custom_rules`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`、`output.exists`、`native_recovery.load`等。 返回路径：L459的`report`。
+- `_run_acceptance.stage`（L197–L199）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L472。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/acceptance/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L488。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18966`。本段原文以LF换行结束。
+本段原始字节数：`19726`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "11a6bfcfea954aff021e170030df5b0295d03ba9448576534b40e71e3201d904"} -->
+<!-- learning-source: {"path": "workbench/acceptance/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c8888d8b7c8c86a2185e54903f650fc297fcfe864d2032ac96738f95241b3806"} -->
 ````python
 # workbench/acceptance/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -47,6 +47,7 @@ from workbench.business.browser import BusinessBrowserValidationFailure
 from workbench.core.contracts import digest
 from workbench.delivery import recovery as native_recovery
 from workbench.delivery.portable import (
+    PortableValidationFailure,
     build_native_delivery,
     export_menu_sql,
     menu_snapshot,
@@ -87,21 +88,27 @@ def _runtime_check(check, *args, check_id, **kwargs):
         "generated-permissions",
         "restart-persistence",
         "customer-service-browser",
+        "installed-navigation-restart",
+        "independent-native-delivery",
     }:
         raise ValueError("Unknown native acceptance check identifier")
     try:
         return check(*args, **kwargs)
-    except (AssertionError, BusinessBrowserValidationFailure) as exc:
-        if (
-            isinstance(exc, BusinessBrowserValidationFailure)
-            and check_id != "customer-service-browser"
-        ):
+    except (AssertionError, BusinessBrowserValidationFailure, PortableValidationFailure) as exc:
+        if isinstance(exc, PortableValidationFailure):
+            if check_id != "independent-native-delivery":
+                raise
+            reason = "portable_evidence_failed"
+        elif check_id == "independent-native-delivery":
+            # Unknown assertions and unrelated validation errors are not negative
+            # standalone receipts and must remain fail-closed.
             raise
-        reason = (
-            "browser_evidence_failed"
-            if isinstance(exc, BusinessBrowserValidationFailure)
-            else "assertion_failed"
-        )
+        elif isinstance(exc, BusinessBrowserValidationFailure):
+            if check_id != "customer-service-browser":
+                raise
+            reason = "browser_evidence_failed"
+        else:
+            reason = "assertion_failed"
         location = ""
         for frame in reversed(traceback.extract_tb(exc.__traceback__)):
             try:
@@ -363,8 +370,15 @@ def _run_acceptance(
                 if template == "yudao-vben":
                     from workbench.acceptance.yudao_navigation import check_navigation_restart
 
-                    records["installed_navigation_restart"] = check_navigation_restart(
-                        template, base_url, token, targets, records, plan
+                    records["installed_navigation_restart"] = _runtime_check(
+                        check_navigation_restart,
+                        template,
+                        base_url,
+                        token,
+                        targets,
+                        records,
+                        plan,
+                        check_id="installed-navigation-restart",
                     )
                 write_json(
                     reports / "restart/persistence.json",
@@ -461,12 +475,14 @@ def _run_acceptance(
             template, product_root, reports, plan, targets, url
         )
         stage("independent-native-delivery")
-        report["portable_restored"] = verify_native_delivery(
+        report["portable_restored"] = _runtime_check(
+            verify_native_delivery,
             product_root,
             url,
             reports,
             redis_port,
             template=template,
+            check_id="independent-native-delivery",
             **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")

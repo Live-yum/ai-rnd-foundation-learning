@@ -261,21 +261,18 @@ def test_git_reported_directory_uses_filesystem_identity(
     from workbench.coding import aider
 
     product, work, receipt = snapshot
-    expected = work if query_name == "--show-toplevel" else work / ".git"
     other = tmp_path / "different-repository"
     other.mkdir()
-    target = expected if same_directory else other
-    if os.name == "nt":
-        # Exercise Windows' native extended-length alias without changing the
-        # controlled repository or granting symlink/long-path configuration rights.
-        reported = "\\\\?\\" + str(target.resolve())
-    else:
-        reported = str(target / ".")
     original_git = aider.git
 
     def aliased_git(folder, home, *args):
         result = original_git(folder, home, *args)
         if args[-2:] == ("rev-parse", query_name):
+            expected = folder if query_name == "--show-toplevel" else folder / ".git"
+            target = expected if same_directory else other
+            reported = str(target / ".")
+            if os.name == "nt":
+                reported = "\\\\?\\" + str(target.resolve())
             return {**result, "log": reported}
         return result
 
@@ -385,3 +382,197 @@ def test_git_warning_is_not_stripped_from_identity_query(snapshot, monkeypatch, 
     monkeypatch.setattr(aider, "git", warned)
     with pytest.raises(PrerequisiteError, match="警告|非单行"):
         source_snapshot(product)
+
+
+@pytest.mark.parametrize("changed", ["metadata", "receipt", "source", "identity"])
+def test_cache_copy_binds_original_bytes_and_identity(snapshot, monkeypatch, changed):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    original = shutil.copy2
+    altered = False
+
+    def raced(source, target, **kwargs):
+        nonlocal altered
+        result = original(source, target, **kwargs)
+        if not altered:
+            altered = True
+            if changed == "metadata":
+                path = work / ".git/description"
+                path.write_text("changed\n", encoding="utf-8")
+            elif changed == "receipt":
+                path = work.parent / "commit.json"
+                path.write_bytes(path.read_bytes() + b"\n")
+            elif changed == "source":
+                (work / "source.py").write_text("changed = True\n", encoding="utf-8")
+            else:
+                previous = work.parent / "old-metadata"
+                (work / ".git").rename(previous)
+                shutil.copytree(previous, work / ".git", copy_function=original)
+        return result
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", raced)
+    with pytest.raises(PrerequisiteError):
+        source_snapshot(product)
+    assert altered
+
+
+def test_cache_excluded_extra_file_is_never_copied(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    (work / ".env").write_text("PRIVATE=excluded\n", encoding="utf-8")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Extra source must be rejected before copying")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    with pytest.raises(PrerequisiteError, match="额外"):
+        source_snapshot(product)
+
+
+def test_git_always_runs_in_private_system_temp(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+
+    from workbench.coding import aider
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / ("deep" * 20) / ("journal" * 15) / "product"
+    product.mkdir(parents=True)
+    (product / "source.txt").write_text("CRLF\r\n中文\n", encoding="utf-8")
+    original = aider.git
+    seen = []
+
+    def shallow(folder, home, *args):
+        seen.append(folder)
+        assert folder.parent.parent.samefile(Path(tempfile.gettempdir()))
+        assert folder.parent.name.startswith("rnd-git-")
+        assert not folder.is_relative_to(tmp_path)
+        return original(folder, home, *args)
+
+    monkeypatch.setattr(aider, "git", shallow)
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    assert len(set(seen)) == 2
+
+
+def test_new_snapshot_metadata_change_after_verification_is_rejected(tmp_path, monkeypatch):
+    from workbench.coding import aider
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("source\n", encoding="utf-8")
+    original = aider.git
+
+    def raced(folder, home, *args):
+        result = original(folder, home, *args)
+        if "fsck" in args:
+            (folder / ".git/description").write_text("changed\n", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(aider, "git", raced)
+    with pytest.raises(PrerequisiteError, match="验证期间"):
+        source_snapshot(product)
+    assert not list((tmp_path / "source-revisions").glob("*/commit.json"))
+
+
+def test_missing_git_never_copies_cached_journal(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda _: None)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Do not copy a journal when Git is unavailable")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    assert source_snapshot(product)["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("error", [PermissionError, OSError])
+def test_cached_temp_failure_never_reuses_committed(snapshot, monkeypatch, error):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+
+    def denied(*args, **kwargs):
+        raise error("private temporary storage unavailable")
+
+    monkeypatch.setattr(source_candidate.tempfile, "TemporaryDirectory", denied)
+    with pytest.raises(error):
+        source_snapshot(product)
+
+
+def test_oversized_git_metadata_rejected_before_copy(snapshot, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    product, work, _ = snapshot
+    with (work / ".git/oversized-pack").open("wb") as stream:
+        stream.truncate(512_000_001)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Oversized metadata must not be copied")
+
+    monkeypatch.setattr(source_candidate.shutil, "copy2", forbidden)
+    with pytest.raises(PrerequisiteError, match="大小限制"):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("failure", ["deep_temp", "copy_io"])
+def test_snapshot_resource_failure_is_honest(snapshot, tmp_path, monkeypatch, cached, failure):
+    from workbench.delivery import source_candidate
+
+    product, _, _ = snapshot
+    if not cached:
+        product = tmp_path / "new-product"
+        product.mkdir()
+        (product / "new.txt").write_text("new source\n", encoding="utf-8")
+    if failure == "deep_temp":
+        original = source_candidate.tempfile.TemporaryDirectory
+        deep = tmp_path / ("temp" * 30) / ("deep" * 20)
+        deep.mkdir(parents=True)
+
+        def temporary(*args, **kwargs):
+            kwargs["dir"] = deep
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(source_candidate.tempfile, "TemporaryDirectory", temporary)
+    else:
+
+        def unavailable(*args, **kwargs):
+            raise OSError("copy storage unavailable")
+
+        monkeypatch.setattr(source_candidate.shutil, "copy2", unavailable)
+    if cached:
+        with pytest.raises(PrerequisiteError, match="临时存储"):
+            source_snapshot(product)
+    else:
+        assert source_snapshot(product)["status"] == "failed"
+        assert (product / "new.txt").read_text(encoding="utf-8") == "new source\n"
+
+
+def test_new_snapshot_receipt_change_before_publication_is_rejected(tmp_path, monkeypatch):
+    from workbench.delivery import source_candidate
+
+    if not shutil.which("git"):
+        pytest.skip("Git is required")
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("source\n", encoding="utf-8")
+    original = source_candidate.write_json
+
+    def raced(path, value):
+        original(path, value)
+        if path.name == "commit.json":
+            path.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(source_candidate, "write_json", raced)
+    with pytest.raises(PrerequisiteError, match="复制期间"):
+        source_snapshot(product)
+    assert not list((tmp_path / "source-revisions").glob("*/commit.json"))

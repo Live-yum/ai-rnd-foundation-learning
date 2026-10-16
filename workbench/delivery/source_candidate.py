@@ -29,9 +29,13 @@ def source_snapshot(destination):
     import hashlib
     import os
     import re
+    import stat
 
     from workbench.coding.aider import git
     from workbench.infrastructure.processes.tools import ToolFailure
+
+    class SnapshotResourceUnavailable(OSError):
+        """Local temporary storage cannot support a new Git journal."""
 
     def journal_git(work, home, *args):
         # Git for Windows otherwise rejects journal paths beyond MAX_PATH even
@@ -63,52 +67,129 @@ def source_snapshot(destination):
             "runtime_verified": False,
         }
 
+    def check_metadata(work):
+        # A journal is standalone: no config includes, remote/promisor object
+        # fetching, alternates, linked worktrees, or executable extensions.
+        config = configparser.ConfigParser(interpolation=None)
+        try:
+            config.read_string((work / ".git/config").read_text(encoding="utf-8"))
+        except (configparser.Error, UnicodeError) as exc:
+            raise PrerequisiteError("保留 Git 配置损坏") from exc
+        allowed = {
+            "core": {
+                "repositoryformatversion",
+                "filemode",
+                "bare",
+                "logallrefupdates",
+                "ignorecase",
+                "precomposeunicode",
+                "symlinks",
+            },
+            "extensions": {"objectformat"},
+        }
+        if config.defaults() or any(
+            section not in allowed or set(config[section]) - allowed[section]
+            for section in config.sections()
+        ):
+            raise PrerequisiteError("保留 Git 配置包含未授权扩展或外部依赖")
+        # git init probes filesystem link support and writes this on Windows.
+        # It is repository metadata, not permission to retain actual symlinks:
+        # files()/inside() and the byte-exact regular-file tree still reject them.
+        if config.has_option("core", "symlinks") and config.get(
+            "core", "symlinks"
+        ).casefold() not in {"true", "false"}:
+            raise PrerequisiteError("保留 Git core.symlinks 必须为布尔值")
+        if any(
+            (work / ".git" / name).exists()
+            for name in (
+                "commondir",
+                "shallow",
+                "info/grafts",
+                "objects/info/alternates",
+                "objects/info/http-alternates",
+            )
+        ) or any((work / ".git/objects").rglob("*.promisor")):
+            raise PrerequisiteError("保留 Git 对象依赖外部仓库")
+
+    def inventory(root):
+        """Unfiltered bounded evidence, including every Git directory and byte."""
+        result, total = {}, 0
+
+        def failed(error):
+            raise error
+
+        for directory, dirs, names in os.walk(root, followlinks=False, onerror=failed):
+            for path in [Path(directory), *(Path(directory) / name for name in sorted(names))]:
+                relative = path.relative_to(root).as_posix()
+                path = inside(root, relative)
+                info = path.lstat()
+                if stat.S_ISDIR(info.st_mode):
+                    value = ("directory", stat.S_IMODE(info.st_mode))
+                elif stat.S_ISREG(info.st_mode):
+                    total += info.st_size
+                    if info.st_size > 512_000_000 or total > 1_000_000_000:
+                        raise PrerequisiteError("保留 Git 文件超过验证大小限制")
+                    value = ("file", stat.S_IMODE(info.st_mode), info.st_size, sha(path))
+                else:
+                    raise PrerequisiteError("保留 Git 快照只允许普通文件和目录")
+                result[relative] = value
+                if len(result) > 100_000:
+                    raise PrerequisiteError("保留 Git 文件数量超过验证限制")
+            # Check children before os.walk can traverse any Windows junction.
+            for name in dirs:
+                inside(root, (Path(directory) / name).relative_to(root).as_posix())
+        return result
+
+    def source_inventory(work):
+        result = inventory(work)
+        allowed_dirs = {"."}
+        for name in listing:
+            allowed_dirs.update(parent.as_posix() for parent in Path(name).parents)
+        for name, entry in result.items():
+            if name == ".git" or name.startswith(".git/"):
+                continue
+            if (entry[0] == "file" and name not in listing) or (
+                entry[0] == "directory" and name not in allowed_dirs
+            ):
+                raise PrerequisiteError("保留源码包含未纳入交付的额外文件或目录")
+        return result
+
+    def copy_bound(source, target, expected):
+        """Copy approved regular paths, preserving bytes/modes, never Git-clone."""
+        try:
+            target.mkdir()
+            for name, entry in sorted(expected.items()):
+                if name == ".":
+                    continue
+                original, copied = inside(source, name), inside(target, name)
+                if entry[0] == "directory":
+                    copied.mkdir()
+                else:
+                    shutil.copy2(original, copied, follow_symlinks=False)
+            for name, entry in sorted(expected.items(), reverse=True):
+                if entry[0] == "directory":
+                    shutil.copystat(
+                        inside(source, name), inside(target, name), follow_symlinks=False
+                    )
+            if inventory(source) != expected or inventory(target) != expected:
+                raise PrerequisiteError("保留 Git 快照在复制期间发生变化")
+        except PermissionError:
+            raise
+        except OSError as exc:
+            raise SnapshotResourceUnavailable("无法完整复制保留 Git 快照") from exc
+
+    def check_short_root(root):
+        # Git accesses objects/config before core.longpaths is initialized. Its
+        # subprocess cwd also has a Windows MAX_PATH limit. Never change host
+        # settings or create aliases; require a private shallow system temp.
+        if len(str(root.resolve()).encode("utf-16-le")) // 2 > 160:
+            raise SnapshotResourceUnavailable("系统临时目录过深，无法安全验证本机 Git 快照")
+
     def verify(work, home, receipt):
         # Do not trust the index, status, receipt, replace refs, or ignored .git
         # contents to bind a commit to the filtered source bytes.
         try:
-            # A journal is standalone: no config includes, remote/promisor object
-            # fetching, alternates, linked worktrees, or executable extensions.
-            config = configparser.ConfigParser(interpolation=None)
-            try:
-                config.read_string((work / ".git/config").read_text(encoding="utf-8"))
-            except (configparser.Error, UnicodeError) as exc:
-                raise PrerequisiteError("保留 Git 配置损坏") from exc
-            allowed = {
-                "core": {
-                    "repositoryformatversion",
-                    "filemode",
-                    "bare",
-                    "logallrefupdates",
-                    "ignorecase",
-                    "precomposeunicode",
-                    "symlinks",
-                },
-                "extensions": {"objectformat"},
-            }
-            if config.defaults() or any(
-                section not in allowed or set(config[section]) - allowed[section]
-                for section in config.sections()
-            ):
-                raise PrerequisiteError("保留 Git 配置包含未授权扩展或外部依赖")
-            # git init probes filesystem link support and writes this on Windows.
-            # It is repository metadata, not permission to retain actual symlinks:
-            # files()/inside() and the byte-exact regular-file tree still reject them.
-            if config.has_option("core", "symlinks") and config.get(
-                "core", "symlinks"
-            ).casefold() not in {"true", "false"}:
-                raise PrerequisiteError("保留 Git core.symlinks 必须为布尔值")
-            if any(
-                (work / ".git" / name).exists()
-                for name in (
-                    "commondir",
-                    "shallow",
-                    "info/grafts",
-                    "objects/info/alternates",
-                    "objects/info/http-alternates",
-                )
-            ) or any((work / ".git/objects").rglob("*.promisor")):
-                raise PrerequisiteError("保留 Git 对象依赖外部仓库")
+            check_metadata(work)
 
             def query(*args):
                 output = journal_git(
@@ -180,12 +261,11 @@ def source_snapshot(destination):
         metadata = inside(work, ".git")
         if not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir():
             raise PrerequisiteError("保留源码提交缺少回执或独立 Git 仓库")
-        # Git metadata is omitted by manifest(), so enforce its path boundary
-        # separately before Git can follow a redirected ref/object/config path.
-        for path in metadata.rglob("*"):
-            inside(work, path.relative_to(work).as_posix())
+        before = source_inventory(work)
+        check_metadata(work)
+        receipt_bytes = receipt_path.read_bytes()
         try:
-            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            receipt = json.loads(receipt_bytes)
         except (ValueError, UnicodeError) as exc:
             raise PrerequisiteError("保留源码提交回执损坏") from exc
         commit = receipt.get("commit") if isinstance(receipt, dict) else None
@@ -197,19 +277,43 @@ def source_snapshot(destination):
             raise PrerequisiteError("保留源码提交已被修改，拒绝复用")
         if not shutil.which("git"):
             return unavailable()
-        # Never reuse cached HOME/config: it is mutable metadata too.
-        with tempfile.TemporaryDirectory(prefix="snapshot-verify-") as temporary:
-            home = Path(temporary)
-            atomic_text(home / "empty", "")
-            verify(work, home, receipt)
+        anchors = [
+            (path.stat().st_dev, path.stat().st_ino) for path in (work, metadata, receipt_path)
+        ]
+        # Validate an exact copy in a shallow directory: Git's startup accesses
+        # can precede long-path configuration. The original is never rewritten.
+        try:
+            with tempfile.TemporaryDirectory(prefix="rnd-git-") as temporary:
+                root = Path(temporary)
+                check_short_root(root)
+                clone, home = root / "source", root / "home"
+                home.mkdir()
+                atomic_text(home / "empty", "")
+                copy_bound(work, clone, before)
+                verify(clone, home, receipt)
+                inside(base, "source")
+                inside(work, ".git")
+                inside(base, "commit.json")
+                if inventory(clone) != before or source_inventory(work) != before:
+                    raise PrerequisiteError("保留 Git 快照在验证期间发生变化")
+                if receipt_path.read_bytes() != receipt_bytes or anchors != [
+                    (path.stat().st_dev, path.stat().st_ino)
+                    for path in (work, metadata, receipt_path)
+                ]:
+                    raise PrerequisiteError("保留 Git 原始目录或回执在验证期间发生变化")
+                if manifest(destination) != listing:
+                    raise PrerequisiteError("源码在保留提交期间发生变化")
+        except SnapshotResourceUnavailable as exc:
+            raise PrerequisiteError("临时存储不可用，无法验证保留 Git 快照") from exc
         return receipt
     if not shutil.which("git"):
         return unavailable()
 
     base.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(prefix="snapshot-", dir=base.parent) as temporary:
+        with tempfile.TemporaryDirectory(prefix="rnd-git-") as temporary:
             root = Path(temporary)
+            check_short_root(root)
             work, home = root / "source", root / "home"
             work.mkdir()
             home.mkdir()
@@ -250,9 +354,43 @@ def source_snapshot(destination):
             receipt = expected_receipt(commit)
             if manifest(work) != listing or manifest(destination) != listing:
                 raise PrerequisiteError("源码在保留提交期间发生变化")
+            verified_inventory = source_inventory(work)
             verify(work, home, receipt)
+            if source_inventory(work) != verified_inventory:
+                raise PrerequisiteError("Git 快照在验证期间发生变化")
             write_json(root / "commit.json", receipt)
-            root.replace(base)
+            publication = inventory(root)
+            receipt_data = (
+                json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+            ).encode("utf-8")
+            publication["commit.json"] = (
+                "file",
+                publication["commit.json"][1],
+                len(receipt_data),
+                hashlib.sha256(receipt_data).hexdigest(),
+            )
+            # Never bless a changed source by sampling a fresh publication tree.
+            publication = {
+                name: entry
+                for name, entry in publication.items()
+                if name != "source" and not name.startswith("source/")
+            }
+            publication.update(
+                {
+                    "source" if name == "." else "source/" + name: entry
+                    for name, entry in verified_inventory.items()
+                }
+            )
+            # Publish on the destination volume only after byte/mode verification;
+            # system temp and the permanent journal may be on different drives.
+            with tempfile.TemporaryDirectory(
+                prefix="snapshot-publish-", dir=base.parent
+            ) as publish:
+                staging = Path(publish) / "journal"
+                copy_bound(root, staging, publication)
+                if manifest(destination) != listing:
+                    raise PrerequisiteError("源码在保留提交期间发生变化")
+                staging.replace(base)
             return receipt
     except PermissionError:
         raise
