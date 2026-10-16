@@ -116,23 +116,12 @@ def runtime_capability(template):
     return {"available": True, "reason": ""}
 
 
-def managed_generate(settings, template, plan, destination, *, customization=None):
-    from workbench.delivery.source_candidate import generate_candidate, verify_candidate
-    from workbench.generation.native.service import prepare_sources
+def generation_capability(settings, template, plan):
+    """Read-only source/runtime routing shared by design and generation.
 
-    plan = validate_plan(plan)
-    destination = Path(destination).resolve()
-    receipt_path = destination.parent / "native-generation.json"
-    if receipt_path.is_file():
-        saved = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if (
-            saved.get("spec_digest") != digest(plan.model_dump())
-            or saved.get("template") != template
-        ):
-            raise PrerequisiteError("已有产物不能被另一份设计或模板覆盖")
-        if saved.get("execution") == "source-candidate":
-            verify_candidate(destination, saved)
-            return saved
+    Missing runtime tools do not require database access or permission to retain
+    source. This result never authorizes execution or overrides saved evidence.
+    """
     capability = runtime_capability(template)
     if plan.custom_rules and (not settings.enable_coding or settings.coding_engine != "aider"):
         capability = {
@@ -150,6 +139,27 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
                 "available": False,
                 "reason": "原生规则编码器的独立 Aider 工具环境不可用；批准规则保留为待实现事项",
             }
+    return capability
+
+
+def managed_generate(settings, template, plan, destination, *, customization=None):
+    from workbench.delivery.source_candidate import generate_candidate, verify_candidate
+    from workbench.generation.native.service import prepare_sources
+
+    plan = validate_plan(plan)
+    destination = Path(destination).resolve()
+    receipt_path = destination.parent / "native-generation.json"
+    if receipt_path.is_file():
+        saved = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if (
+            saved.get("spec_digest") != digest(plan.model_dump())
+            or saved.get("template") != template
+        ):
+            raise PrerequisiteError("已有产物不能被另一份设计或模板覆盖")
+        if saved.get("execution") == "source-candidate":
+            verify_candidate(destination, saved)
+            return saved
+    capability = generation_capability(settings, template, plan)
     if not capability["available"]:
         if receipt_path.is_file():
             raise PrerequisiteError("已验收运行产物不能自动降级或被覆盖")

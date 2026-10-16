@@ -502,12 +502,18 @@ class Workflow(ExtensionWorkflow):
         # runs. Missing tools/resources may instead yield an unverified source
         # candidate with those approved rules explicitly retained as pending.
         if state["template"] != "python-basic":
-            from workbench.delivery.native import runtime_config, runtime_enabled
+            from workbench.delivery.native import (
+                generation_capability,
+                runtime_config,
+                runtime_enabled,
+            )
             from workbench.generation.native.modules import validate_plan
 
             try:
                 validate_plan(plan)
-                if runtime_enabled(self.settings, state["template"]):
+                if generation_capability(self.settings, state["template"], plan)[
+                    "available"
+                ] and runtime_enabled(self.settings, state["template"]):
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))

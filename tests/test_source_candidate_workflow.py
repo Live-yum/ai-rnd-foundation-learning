@@ -249,10 +249,20 @@ def test_native_design_keeps_rules_without_requiring_aider(
 ):
     from conftest import requirement
 
+    from workbench.delivery import native
     from workbench.production import graph
 
     settings.coding_engine = "bounded"
     settings.enable_coding = coding_enabled
+    native.write_runtime_example(settings, "fastapiadmin")
+    monkeypatch.setattr(
+        native,
+        "runtime_capability",
+        lambda template: {
+            "available": True,
+            "reason": "",
+        },
+    )
     selection = SimpleNamespace(
         capabilities=lambda: {"field_kinds": ["text", "integer", "boolean"]},
         model_dump=lambda: {"template": "fastapiadmin"},
@@ -528,3 +538,130 @@ def test_source_code_rejects_controller_paths_before_model_or_draft(settings, tm
     assert state["extension_drafted"] == []
     assert original.read_text(encoding="utf-8") == '{"runtime_verified": false}'
     assert not list(settings.data_dir.glob("runs/*/candidates"))
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "capability", ["windows", "macos-missing-tools", "missing-toolchain", "runtime"]
+)
+@pytest.mark.parametrize("config_state", ["unapproved", "missing-env"])
+def test_source_route_does_not_require_runtime_database_approval(
+    settings, plan, monkeypatch, template, capability, config_state
+):
+    import sys
+
+    from conftest import requirement
+
+    from workbench.delivery import native, source_candidate
+    from workbench.filesystem import write_json
+    from workbench.production import graph
+
+    native_plan = plan.model_copy(update={"data_scope": "shared"})
+    monkeypatch.delenv("NATIVE_TEST_ROUTING_DATABASE_URL", raising=False)
+    write_json(
+        native.runtime_path(settings, template),
+        {
+            "database_url_env": "NATIVE_TEST_ROUTING_DATABASE_URL",
+            "initialize_empty_database": config_state == "missing-env",
+        },
+    )
+    available = capability == "runtime"
+    monkeypatch.setattr(
+        native,
+        "runtime_capability",
+        lambda template: {
+            "available": available,
+            "reason": capability,
+        },
+    )
+    source_calls = []
+
+    def source_only(settings, template, plan, destination, reason):
+        source_calls.append(reason)
+        return {"execution": "source-candidate", "runtime_verified": False}
+
+    def no_runtime(*args, **kwargs):
+        pytest.fail("Runtime execution must not occur without database authorization")
+
+    monkeypatch.setattr(source_candidate, "generate_candidate", source_only)
+    monkeypatch.setitem(
+        sys.modules,
+        "workbench.acceptance.native_lab",
+        SimpleNamespace(
+            run_acceptance=no_runtime,
+        ),
+    )
+    selection = SimpleNamespace(
+        capabilities=lambda: {"field_kinds": ["text", "integer", "boolean"]},
+        model_dump=lambda: {"template": template},
+    )
+    monkeypatch.setattr(graph, "options_for_run", lambda run: selection)
+    monkeypatch.setattr(graph, "coverage_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "business_gaps", lambda *args, **kwargs: [])
+    monkeypatch.setattr(graph, "design_pack", lambda *args, **kwargs: {"tasks": []})
+    flow = Workflow(settings, SimpleNamespace(get_run=lambda run: {}), None)
+    gates = []
+
+    def gate(state, stage, data, actions, can_approve=True):
+        gates.append((data, can_approve))
+        return {"decision": "reject"}
+
+    flow.gate = gate
+    state = {
+        "run_id": "source-routing",
+        "template": template,
+        "round": 1,
+        "plan": native_plan.model_dump(),
+        "requirement": requirement().model_dump(),
+    }
+    flow.design(state)
+    assert gates[0][1] is not available, gates[0][0]
+    if available:
+        assert "native_validation_or_runtime" in gates[0][0]["block_sources"]
+        with pytest.raises(PrerequisiteError):
+            native.managed_generate(settings, template, native_plan, flow.product(state))
+        assert source_calls == []
+    else:
+        result = native.managed_generate(settings, template, native_plan, flow.product(state))
+        assert result["execution"] == "source-candidate"
+        assert result["runtime_verified"] is False
+        assert source_calls == [capability]
+
+
+@pytest.mark.parametrize("mismatch", [None, "plan", "template"])
+def test_unavailable_runtime_cannot_downgrade_or_replace_saved_runtime(
+    settings, plan, monkeypatch, mismatch
+):
+    from workbench.core.contracts import digest
+    from workbench.delivery import native, source_candidate
+    from workbench.filesystem import write_json
+
+    native_plan = plan.model_copy(update={"data_scope": "shared"})
+    product = settings.data_dir / "runs" / "retained-runtime" / "product"
+    product.mkdir(parents=True)
+    source = product / "approved.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    write_json(
+        product.parent / "native-generation.json",
+        {
+            "execution": "managed-runtime",
+            "template": "yudao-vben" if mismatch == "template" else "fastapiadmin",
+            "spec_digest": "old-plan" if mismatch == "plan" else digest(native_plan.model_dump()),
+        },
+    )
+    monkeypatch.setattr(
+        native,
+        "runtime_capability",
+        lambda template: {
+            "available": False,
+            "reason": "runtime unavailable",
+        },
+    )
+    monkeypatch.setattr(
+        source_candidate,
+        "generate_candidate",
+        lambda *a, **k: pytest.fail("A saved runtime must not become a source candidate"),
+    )
+    with pytest.raises(PrerequisiteError, match="覆盖" if mismatch else "降级"):
+        native.managed_generate(settings, "fastapiadmin", native_plan, product)
+    assert source.read_text(encoding="utf-8") == "VALUE = 1\n"

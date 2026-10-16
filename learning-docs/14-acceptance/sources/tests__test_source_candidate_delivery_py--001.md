@@ -39,14 +39,17 @@
 - `test_verify_and_package_revalidate_committed_candidate`（L287–L306）：接收`committed_candidate`、`tamper`。 控制顺序：L291按`tamper == "commit"`分支；L293按`tamper == "digest"`分支；L295按`tamper == "journal"`分支；L297按`tamper == "missing-journal"`分支；L306断言`not (product.parent / "native-source.zip").exists()`。 调用`verify_native`、`journal.parent.rename`、`journal.parent.with_name`、`(journal / ".git").rename`、`write_json`、`pytest.raises`、`package_native`、`(product.parent / "native-source.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_verification_without_git_removes_previously_committed_claim`（L309–L319）：接收`committed_candidate`、`monkeypatch`。 控制顺序：L315断言`report["source_commit"]["status"] == "unavailable"`；L316断言`"commit" not in report["source_commit"]`；L318断言`"commit" not in result["source_commit"]`；L319断言`result["runtime_verified"] is False`。 调用`monkeypatch.setattr`、`verify_native`、`package_native`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_uncommitted_receipt_cannot_smuggle_commit_into_delivery`（L322–L328）：接收`tmp_path`、`monkeypatch`。 控制顺序：L327断言`"commit" not in report["source_commit"]`；L328断言`"journal" not in package_native(product, report)["source_commit"]`。 调用`minimal_candidate`、`receipt["source_commit"].update`、`write_json`、`verify_native`、`package_native`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_status_cannot_upgrade_or_rewrite_bound_source_statement`（L346–L362）：接收`tmp_path`、`monkeypatch`、`change`、`operation`。 控制顺序：L355按`operation == "verify"`分支；L357按`operation == "package"`分支；L361断言`manifest(product) == before`；L362断言`not (product.parent / "native-source.zip").exists()`。 调用`minimal_candidate`、`verify_native`、`manifest`、`write_json`、`pytest.raises`、`package_native`、`source_candidate.refresh_candidate`、`(product.parent / "native-source.zip").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_retained_runtime_state_is_bound_without_modifying_runtime_product`（L368–L400）：接收`tmp_path`、`monkeypatch`、`attack`。 控制顺序：L384按`attack == "receipt"`分支；L386按`attack == "missing"`分支；L388按`attack == "statement"`分支；L391按`attack == "source_digest"`分支；L394按`attack == "recovery"`分支；L396按`attack == "mode"`分支；L400断言`manifest(product) == before`。 调用`product.mkdir`、`(product / "actual.py").write_text`、`manifest`、`write_json`、`monkeypatch.setattr`、`source_candidate.retain_failed_candidate`、`native_plan`、`source_candidate.verify_candidate`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_refresh_cannot_erase_manifest_to_reinitialize_a_forged_receipt`（L403–L408）：接收`tmp_path`、`monkeypatch`。 调用`minimal_candidate`、`receipt.pop`、`receipt.update`、`pytest.raises`、`source_candidate.refresh_candidate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L328。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L408。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13575`。本段原文以LF换行结束。
+本段原始字节数：`16953`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "004dc52629698849d14e9f2d0b0d7fbd8b6afcd6e878766cdb283a6fc06a26a9"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "593ddecff7cc4c17eb1a419a49afaaa6904003c7b74a3a46fa8ab5175dff65dd"} -->
 ````python
 # tests/test_source_candidate_delivery.py
 """Source preservation is portable; no runtime acceptance is inferred from a ZIP/commit."""
@@ -377,4 +380,84 @@ def test_uncommitted_receipt_cannot_smuggle_commit_into_delivery(tmp_path, monke
     report = verify_native(product)
     assert "commit" not in report["source_commit"]
     assert "journal" not in package_native(product, report)["source_commit"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"generation_status": "complete", "pending_steps": []},
+        {"verification_status": "unverified"},
+        {"runtime_unavailable_reason": "passed"},
+        {"production_ready": True},
+        {"acceptance_passed": True},
+        {"validation_level": "runtime"},
+        {"template": "yudao-vben"},
+        {"spec_digest": "f" * 64},
+        {"preserve_runtime_files": True},
+    ],
+)
+@pytest.mark.parametrize("operation", ["verify", "package", "refresh"])
+def test_receipt_status_cannot_upgrade_or_rewrite_bound_source_statement(
+    tmp_path, monkeypatch, change, operation
+):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch, verification="failed")
+    report = verify_native(product)
+    before = manifest(product)
+    forged = {**receipt, **change}
+    write_json(product.parent / "native-generation.json", forged)
+    with pytest.raises(PrerequisiteError):
+        if operation == "verify":
+            verify_native(product)
+        elif operation == "package":
+            package_native(product, report)
+        else:
+            source_candidate.refresh_candidate(product, forged, generation_status="partial")
+    assert manifest(product) == before
+    assert not (product.parent / "native-source.zip").exists()
+
+
+@pytest.mark.parametrize(
+    "attack", ["receipt", "missing", "statement", "source_digest", "recovery", "mode"]
+)
+def test_retained_runtime_state_is_bound_without_modifying_runtime_product(
+    tmp_path, monkeypatch, attack
+):
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "actual.py").write_text("print('business source')\n", encoding="utf-8")
+    before = manifest(product)
+    checkpoint = tmp_path / "native-evidence/recovery.json"
+    write_json(checkpoint, {"files": before, "targets": [], "stage": "generation-interrupted"})
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda name: None)
+    receipt = source_candidate.retain_failed_candidate(
+        "fastapiadmin", native_plan(), product, [], "ToolFailure"
+    )
+    source_candidate.verify_candidate(product, receipt)
+    evidence_path = tmp_path / "source-candidate-status.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if attack == "receipt":
+        receipt.update(generation_status="complete", pending_steps=[])
+    elif attack == "missing":
+        evidence_path.unlink()
+    elif attack == "statement":
+        evidence["status"]["generation_status"] = "complete"
+        write_json(evidence_path, evidence)
+    elif attack == "source_digest":
+        evidence["source_digest"] = "f" * 64
+        write_json(evidence_path, evidence)
+    elif attack == "recovery":
+        write_json(checkpoint, {"files": before, "targets": [1], "stage": "validation-interrupted"})
+    elif attack == "mode":
+        receipt["preserve_runtime_files"] = False
+    with pytest.raises(PrerequisiteError):
+        source_candidate.verify_candidate(product, receipt)
+    assert manifest(product) == before
+
+
+def test_refresh_cannot_erase_manifest_to_reinitialize_a_forged_receipt(tmp_path, monkeypatch):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch)
+    receipt.pop("files")
+    receipt.update(generation_status="complete", pending_steps=[])
+    with pytest.raises(PrerequisiteError):
+        source_candidate.refresh_candidate(product, receipt)
 ````

@@ -100,8 +100,63 @@ def test_cli_checks_health_and_handles_later_disconnect(monkeypatch, settings, d
             },
             "验证失败，源码已保留",
         ),
-        ("SOURCE_READY", {}, "完成"),
+        ("SOURCE_READY", {}, "成果已保留，运行验收状态待核实"),
         ("READY", {}, "完成"),
+        (
+            "READY",
+            {"validation_level": "runtime", "verification_status": "failed"},
+            "验证失败，源码已保留",
+        ),
+        (
+            "SOURCE_READY",
+            {"validation_level": "runtime", "delivery_kind": "partial"},
+            "部分成果已通过运行验收，完整需求仍未完成",
+        ),
+        (
+            "SOURCE_READY",
+            {"runtime_verified": True, "delivery_kind": "partial"},
+            "部分成果已通过运行验收，完整需求仍未完成",
+        ),
+        (
+            "SOURCE_READY",
+            {"validation_level": "source", "generation_status": "partial"},
+            "生成未完成，部分源码已保留",
+        ),
+        (
+            "SOURCE_READY",
+            {"validation_level": "source", "runtime_verified": True, "delivery_kind": "partial"},
+            "源码已保留，未经运行验证",
+        ),
+        (
+            "SOURCE_READY",
+            {
+                "validation_level": "runtime",
+                "verification_status": "failed",
+                "generation_status": "partial",
+                "delivery_kind": "partial",
+            },
+            "验证失败，源码已保留",
+        ),
+        (
+            "SOURCE_READY",
+            {"execution": "source-candidate", "runtime_verified": True, "delivery_kind": "partial"},
+            "源码已保留，未经运行验证",
+        ),
+        (
+            "SOURCE_READY",
+            {"execution": "managed-runtime", "delivery_kind": "partial"},
+            "成果已保留，运行验收状态待核实",
+        ),
+        (
+            "SOURCE_READY",
+            {"validation_level": "runtime", "runtime_verified": False},
+            "源码已保留，未经运行验证",
+        ),
+        (
+            "READY",
+            {"validation_level": "runtime", "verification_status": "passed"},
+            "完成",
+        ),
     ],
 )
 def test_chat_delivery_headline_matches_candidate_evidence(
@@ -120,5 +175,18 @@ def test_chat_delivery_headline_matches_candidate_evidence(
     result = CliRunner().invoke(cli.app, ["chat", "--run", "saved-run"])
     assert result.exit_code == 0, result.output
     assert f"{headline}。下载命令：uv run rnd download saved-run" in result.output
-    if receipt:
-        assert "完成。下载命令" not in result.output
+    if headline != "完成":
+        assert not any(line.startswith("完成。下载命令") for line in result.output.splitlines())
+    else:
+        assert result.output.splitlines()[-1] == "完成。下载命令：uv run rnd download saved-run"
+    assert "这是原生源码导出" not in result.output
+    if headline.startswith("部分成果已通过"):
+        assert "运行验收仅覆盖本次部分交付范围" in result.output
+        assert "尚未通过运行验收" not in result.output
+        assert "源码候选" not in result.output
+    elif headline.startswith(("验证失败", "生成未完成", "源码已保留")):
+        assert "这是源码候选，尚未通过运行验收" in result.output
+        assert "部分成果已通过运行验收" not in result.output
+    elif "待核实" in headline:
+        assert "不能确认已通过运行验收" in result.output
+        assert "部分成果已通过运行验收" not in result.output

@@ -255,6 +255,53 @@ def source_snapshot(destination):
         }
 
 
+_STATUS_KEYS = (
+    "template",
+    "spec_digest",
+    "execution",
+    "generation_status",
+    "verification_status",
+    "pending_steps",
+    "runtime_unavailable_reason",
+    "runtime_verified",
+    "production_ready",
+    "acceptance_passed",
+    "validation_level",
+)
+
+
+def candidate_status(receipt):
+    return {key: receipt.get(key) for key in _STATUS_KEYS}
+
+
+def check_status_binding(destination, receipt):
+    """A mutable generation receipt cannot upgrade the saved controller statement."""
+    destination = Path(destination)
+    statement = inside(destination, "SOURCE-STATUS.json")
+    retained = inside(destination.parent, "source-candidate-status.json")
+    expected = candidate_status(receipt)
+    if receipt.get("preserve_runtime_files"):
+        if statement.exists() or not retained.is_file():
+            raise PrerequisiteError("保留运行源码的状态证据缺失或模式不匹配")
+        evidence = json.loads(retained.read_text(encoding="utf-8"))
+        checkpoint = inside(destination.parent, "native-evidence/recovery.json")
+        if evidence != {
+            "status": expected,
+            "source_digest": digest(receipt.get("files", {})),
+            "recovery_sha256": sha(checkpoint) if checkpoint.is_file() else None,
+        }:
+            raise PrerequisiteError("保留运行源码的状态或恢复证据不一致")
+    elif not statement.is_file() or json.loads(statement.read_text(encoding="utf-8")) != expected:
+        raise PrerequisiteError("候选源码状态声明与生成回执不一致")
+    if (
+        expected["runtime_verified"] is not False
+        or expected["production_ready"] is not False
+        or expected["acceptance_passed"] is not False
+        or expected["validation_level"] != "source"
+    ):
+        raise PrerequisiteError("候选源码不能声明运行或生产验收通过")
+
+
 def refresh_candidate(
     destination, receipt, *, pending_steps=None, generated_files=None, generation_status=None
 ):
@@ -262,6 +309,15 @@ def refresh_candidate(
     destination = Path(destination)
     if receipt.get("execution") != "source-candidate":
         raise PrerequisiteError("不能把运行验收回执降级为候选源码")
+    saved_path = inside(destination.parent, "native-generation.json")
+    saved = json.loads(saved_path.read_text(encoding="utf-8")) if saved_path.is_file() else {}
+    if (
+        "files" in receipt
+        or inside(destination, "SOURCE-STATUS.json").exists()
+        or inside(destination.parent, "source-candidate-status.json").exists()
+        or saved.get("execution") == "source-candidate"
+    ):
+        check_status_binding(destination, receipt)
     receipt = dict(receipt)
     for key, value in (
         ("pending_steps", pending_steps),
@@ -282,22 +338,20 @@ def refresh_candidate(
     receipt.setdefault("verification_status", "unverified")
     if receipt["verification_status"] not in {"unverified", "failed"}:
         raise PrerequisiteError("候选源码不能带有运行验证通过状态")
-    status = {
-        key: receipt[key]
-        for key in (
-            "execution",
-            "generation_status",
-            "verification_status",
-            "pending_steps",
-            "runtime_unavailable_reason",
-            "runtime_verified",
-            "production_ready",
-            "acceptance_passed",
-        )
-    }
+    status = candidate_status(receipt)
     if not receipt.get("preserve_runtime_files"):
         write_status(destination, status)
     receipt["files"] = manifest(destination)
+    if receipt.get("preserve_runtime_files"):
+        checkpoint = inside(destination.parent, "native-evidence/recovery.json")
+        write_json(
+            inside(destination.parent, "source-candidate-status.json"),
+            {
+                "status": status,
+                "source_digest": digest(receipt["files"]),
+                "recovery_sha256": sha(checkpoint) if checkpoint.is_file() else None,
+            },
+        )
     receipt["source_commit"] = source_snapshot(destination)
     write_json(destination.parent / "native-generation.json", receipt)
     return receipt
@@ -404,6 +458,7 @@ def verify_candidate(destination, receipt):
         "failed",
     }:
         raise PrerequisiteError("候选源码的运行状态无效")
+    check_status_binding(destination, receipt)
     claim = receipt.get("source_commit")
     if not isinstance(claim, dict) or claim.get("status") not in {
         "committed",

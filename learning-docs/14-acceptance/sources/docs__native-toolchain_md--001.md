@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L152。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/native-toolchain.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L156。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20321`。本段原文以LF换行结束。
+本段原始字节数：`21190`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0bd1d11f0d6c7c09e4fb0b5d4ca6056a864a2989da89ab4cca9db9d046ec7815"} -->
+<!-- learning-source: {"path": "docs/native-toolchain.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3fc63d6a09fc3101bfdea78dda23b17d3d736ede07f8a75bd05603c0bf3d2a55"} -->
 ````markdown
 <!-- docs/native-toolchain.md -->
 # 原生业务规则、Plop 与本机 Daytona 的完整实现
@@ -169,4 +169,8 @@ uv run rnd chat --template yudao-vben --frontend vben-antd --database postgresql
 这是显式新运行，会重新确认需求，可能产生模型调用；不会自动导入、覆盖或删除原候选。将保留包的真实源码改动与新生成结果人工对照集成后，再走完整运行验证。已有失败运行的原始数据库与 `native-evidence/recovery.json` 只供具备授权的维护者按原生恢复流程核查，不能把候选压缩包当作恢复已通过的证明。
 
 源码候选编辑预先保留控制端 `SOURCE-STATUS.json`、`SOURCE-STATUS.md` 和 `RND-SOURCE-SCOPE.json` 路径，模块不得覆盖后再声明已起草。扩展交付包追加范围声明后重新执行完整 ZIP 消费策略检查，更新最终归档统计；大小写冲突或超出归档限额的候选不会发布。
+
+候选回执中的生成完整度、待办、失败原因、规格身份和验收标志必须与源码内 `SOURCE-STATUS.json` 一致，验证、重试、刷新和打包不能仅凭可修改的外层回执升级状态。为保留原生失败现场而不能修改 product 时，使用固定旁证绑定状态、源码摘要及原恢复检查点摘要；该绑定不代表整个运行目录同时被修改后仍能保证真实性。
+
+设计审批和生成共用只读运行能力判断。Windows/macOS、缺工具链或缺规则编码器而进入源码通道时，不要求运行专用数据库配置的批准和环境变量；真正可执行的原生通道仍要求这些授权，既有运行产物不得自动降级。CLI 对 `SOURCE_READY` 区分未验证源码、已运行验收的部分成果与未知历史回执；部分成果验收不代表完整需求完成。
 ````

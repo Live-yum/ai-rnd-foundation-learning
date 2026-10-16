@@ -326,3 +326,83 @@ def test_uncommitted_receipt_cannot_smuggle_commit_into_delivery(tmp_path, monke
     report = verify_native(product)
     assert "commit" not in report["source_commit"]
     assert "journal" not in package_native(product, report)["source_commit"]
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"generation_status": "complete", "pending_steps": []},
+        {"verification_status": "unverified"},
+        {"runtime_unavailable_reason": "passed"},
+        {"production_ready": True},
+        {"acceptance_passed": True},
+        {"validation_level": "runtime"},
+        {"template": "yudao-vben"},
+        {"spec_digest": "f" * 64},
+        {"preserve_runtime_files": True},
+    ],
+)
+@pytest.mark.parametrize("operation", ["verify", "package", "refresh"])
+def test_receipt_status_cannot_upgrade_or_rewrite_bound_source_statement(
+    tmp_path, monkeypatch, change, operation
+):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch, verification="failed")
+    report = verify_native(product)
+    before = manifest(product)
+    forged = {**receipt, **change}
+    write_json(product.parent / "native-generation.json", forged)
+    with pytest.raises(PrerequisiteError):
+        if operation == "verify":
+            verify_native(product)
+        elif operation == "package":
+            package_native(product, report)
+        else:
+            source_candidate.refresh_candidate(product, forged, generation_status="partial")
+    assert manifest(product) == before
+    assert not (product.parent / "native-source.zip").exists()
+
+
+@pytest.mark.parametrize(
+    "attack", ["receipt", "missing", "statement", "source_digest", "recovery", "mode"]
+)
+def test_retained_runtime_state_is_bound_without_modifying_runtime_product(
+    tmp_path, monkeypatch, attack
+):
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "actual.py").write_text("print('business source')\n", encoding="utf-8")
+    before = manifest(product)
+    checkpoint = tmp_path / "native-evidence/recovery.json"
+    write_json(checkpoint, {"files": before, "targets": [], "stage": "generation-interrupted"})
+    monkeypatch.setattr(source_candidate.shutil, "which", lambda name: None)
+    receipt = source_candidate.retain_failed_candidate(
+        "fastapiadmin", native_plan(), product, [], "ToolFailure"
+    )
+    source_candidate.verify_candidate(product, receipt)
+    evidence_path = tmp_path / "source-candidate-status.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if attack == "receipt":
+        receipt.update(generation_status="complete", pending_steps=[])
+    elif attack == "missing":
+        evidence_path.unlink()
+    elif attack == "statement":
+        evidence["status"]["generation_status"] = "complete"
+        write_json(evidence_path, evidence)
+    elif attack == "source_digest":
+        evidence["source_digest"] = "f" * 64
+        write_json(evidence_path, evidence)
+    elif attack == "recovery":
+        write_json(checkpoint, {"files": before, "targets": [1], "stage": "validation-interrupted"})
+    elif attack == "mode":
+        receipt["preserve_runtime_files"] = False
+    with pytest.raises(PrerequisiteError):
+        source_candidate.verify_candidate(product, receipt)
+    assert manifest(product) == before
+
+
+def test_refresh_cannot_erase_manifest_to_reinitialize_a_forged_receipt(tmp_path, monkeypatch):
+    product, receipt = minimal_candidate(tmp_path, monkeypatch)
+    receipt.pop("files")
+    receipt.update(generation_status="complete", pending_steps=[])
+    with pytest.raises(PrerequisiteError):
+        source_candidate.refresh_candidate(product, receipt)
