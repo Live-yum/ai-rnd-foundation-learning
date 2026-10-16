@@ -4652,8 +4652,8 @@
     },
     {
       "path": "workbench/delivery/source_candidate.py",
-      "bytes": 19639,
-      "sha256": "4f30ea20685d1db07fc7a3c8b05370df5f53f5ee9c3d5a98ae398174562b8adf",
+      "bytes": 20165,
+      "sha256": "5c5fe75f0538a681554501ba04f027995135c722357b07e5e9f8f36fda9b2d54",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/workbench__delivery__source_candidate_py--001.md"
@@ -6720,8 +6720,8 @@
     },
     {
       "path": "tests/test_source_snapshot_integrity.py",
-      "bytes": 6951,
-      "sha256": "5fc62f103df3594ae5ad2709c00fdd168fc38896c45430c299574507bf74cff4",
+      "bytes": 8430,
+      "sha256": "675b717f6321cd56d7db72e1e022d09ac937f0db106260ac57e8e895ed5766a7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_source_snapshot_integrity_py--001.md"

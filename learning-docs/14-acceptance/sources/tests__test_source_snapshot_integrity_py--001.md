@@ -33,14 +33,18 @@
 - `test_changed_worktree_mode_is_not_hidden_by_manifest`（L169–L177）：接收`snapshot`。 控制顺序：L172按`os.name == "nt"`分支。 调用`pytest.skip`、`(work / "source.py").chmod`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_history_rewriting_metadata_is_rejected_before_git`（L181–L192）：接收`snapshot`、`monkeypatch`、`metadata`。 调用`(journal / ".git" / metadata).write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_history_rewriting_metadata_is_rejected_before_git.forbidden`（L187–L188）：接收`*args`、`**kwargs`。 控制顺序：L188抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_init_filesystem_symlink_probe_metadata_is_portable`（L196–L216）：接收`tmp_path`、`monkeypatch`、`symlinks`。 控制顺序：L213断言`receipt["status"] == "committed"`；L214断言`source_snapshot(product) == receipt`；L216断言`git(work, "config", "--local", "core.symlinks") == symlinks`。 调用`monkeypatch.setattr`、`product.mkdir`、`(product / "中文.txt").write_text`、`source_snapshot`、`git`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_init_filesystem_symlink_probe_metadata_is_portable.git_with_platform_probe`（L201–L206）：接收`work`、`home`、`*args`。 控制顺序：L203按`"init" in args`分支。 调用`original`。 返回路径：L206的`result`。
+- `test_symlink_probe_metadata_does_not_allow_invalid_values`（L219–L230）：接收`snapshot`、`monkeypatch`。 调用`git`、`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_symlink_probe_metadata_does_not_allow_invalid_values.forbidden`（L225–L226）：接收`*args`、`**kwargs`。 控制顺序：L226抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L192。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L230。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6951`。本段原文以LF换行结束。
+本段原始字节数：`8430`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5fc62f103df3594ae5ad2709c00fdd168fc38896c45430c299574507bf74cff4"} -->
+<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "675b717f6321cd56d7db72e1e022d09ac937f0db106260ac57e8e895ed5766a7"} -->
 ````python
 # tests/test_source_snapshot_integrity.py
 """A cached source receipt is evidence only while its real Git tree still matches."""
@@ -234,5 +238,43 @@ def test_history_rewriting_metadata_is_rejected_before_git(snapshot, monkeypatch
 
     monkeypatch.setattr(aider, "git", forbidden)
     with pytest.raises(PrerequisiteError):
+        source_snapshot(product)
+
+
+@pytest.mark.parametrize("symlinks", ["false", "true"])
+def test_git_init_filesystem_symlink_probe_metadata_is_portable(tmp_path, monkeypatch, symlinks):
+    from workbench.coding import aider
+
+    original = aider.git
+
+    def git_with_platform_probe(work, home, *args):
+        result = original(work, home, *args)
+        if "init" in args:
+            # The exact Git-for-Windows init probe key, also exercised on POSIX CI.
+            original(work, home, "config", "--local", "core.symlinks", symlinks)
+        return result
+
+    monkeypatch.setattr(aider, "git", git_with_platform_probe)
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "中文.txt").write_text("保留原字节\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    work = tmp_path / receipt["journal"]
+    assert git(work, "config", "--local", "core.symlinks") == symlinks
+
+
+def test_symlink_probe_metadata_does_not_allow_invalid_values(snapshot, monkeypatch):
+    from workbench.coding import aider
+
+    product, work, _ = snapshot
+    git(work, "config", "--local", "core.symlinks", "untrusted-command")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Invalid metadata must be rejected before Git is called")
+
+    monkeypatch.setattr(aider, "git", forbidden)
+    with pytest.raises(PrerequisiteError, match="core.symlinks"):
         source_snapshot(product)
 ````

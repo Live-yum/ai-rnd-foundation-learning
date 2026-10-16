@@ -76,6 +76,7 @@ def source_snapshot(destination):
                     "logallrefupdates",
                     "ignorecase",
                     "precomposeunicode",
+                    "symlinks",
                 },
                 "extensions": {"objectformat"},
             }
@@ -84,6 +85,13 @@ def source_snapshot(destination):
                 for section in config.sections()
             ):
                 raise PrerequisiteError("保留 Git 配置包含未授权扩展或外部依赖")
+            # git init probes filesystem link support and writes this on Windows.
+            # It is repository metadata, not permission to retain actual symlinks:
+            # files()/inside() and the byte-exact regular-file tree still reject them.
+            if config.has_option("core", "symlinks") and config.get(
+                "core", "symlinks"
+            ).casefold() not in {"true", "false"}:
+                raise PrerequisiteError("保留 Git core.symlinks 必须为布尔值")
             if any(
                 (work / ".git" / name).exists()
                 for name in (

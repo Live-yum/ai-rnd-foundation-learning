@@ -190,3 +190,41 @@ def test_history_rewriting_metadata_is_rejected_before_git(snapshot, monkeypatch
     monkeypatch.setattr(aider, "git", forbidden)
     with pytest.raises(PrerequisiteError):
         source_snapshot(product)
+
+
+@pytest.mark.parametrize("symlinks", ["false", "true"])
+def test_git_init_filesystem_symlink_probe_metadata_is_portable(tmp_path, monkeypatch, symlinks):
+    from workbench.coding import aider
+
+    original = aider.git
+
+    def git_with_platform_probe(work, home, *args):
+        result = original(work, home, *args)
+        if "init" in args:
+            # The exact Git-for-Windows init probe key, also exercised on POSIX CI.
+            original(work, home, "config", "--local", "core.symlinks", symlinks)
+        return result
+
+    monkeypatch.setattr(aider, "git", git_with_platform_probe)
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "中文.txt").write_text("保留原字节\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    work = tmp_path / receipt["journal"]
+    assert git(work, "config", "--local", "core.symlinks") == symlinks
+
+
+def test_symlink_probe_metadata_does_not_allow_invalid_values(snapshot, monkeypatch):
+    from workbench.coding import aider
+
+    product, work, _ = snapshot
+    git(work, "config", "--local", "core.symlinks", "untrusted-command")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Invalid metadata must be rejected before Git is called")
+
+    monkeypatch.setattr(aider, "git", forbidden)
+    with pytest.raises(PrerequisiteError, match="core.symlinks"):
+        source_snapshot(product)
