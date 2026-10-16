@@ -316,3 +316,72 @@ def test_git_reported_missing_directory_fails_closed(snapshot, tmp_path, monkeyp
     monkeypatch.setattr(aider, "git", missing_git)
     with pytest.raises(PrerequisiteError, match="完整性"):
         source_snapshot(product)
+
+
+def test_all_journal_git_commands_enable_long_paths_without_persisting_config(
+    tmp_path, monkeypatch
+):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for journal command tests")
+    from workbench.coding import aider
+
+    original = aider.git
+    observed = []
+
+    def checked(work, home, *args):
+        assert args[:2] == ("-c", "core.longpaths=true")
+        observed.append(args)
+        return original(work, home, *args)
+
+    monkeypatch.setattr(aider, "git", checked)
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("原始字节\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    assert all(
+        any(command in args for args in observed)
+        for command in ("init", "add", "commit", "rev-parse", "fsck")
+    )
+    config = (tmp_path / receipt["journal"] / ".git/config").read_text(encoding="utf-8")
+    assert "longpaths" not in config.casefold()
+
+
+def test_long_path_snapshot_survives_atomic_publish(tmp_path):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for the long-path journal test")
+    root = tmp_path / ("first-" + "a" * 64) / ("second-" + "b" * 64) / ("third-" + "c" * 64)
+    staging = root / "staging"
+    product = staging / "product"
+    product.mkdir(parents=True)
+    assert len(str(product.resolve())) > 260
+    (product / "source.txt").write_text("源码长路径\r\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    published = root / "published"
+    staging.rename(published)
+    assert source_snapshot(published / "product") == receipt
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+def test_git_warning_is_not_stripped_from_identity_query(snapshot, monkeypatch, query_name):
+    from workbench.coding import aider
+
+    product, _, _ = snapshot
+    original = aider.git
+
+    def warned(work, home, *args):
+        result = original(work, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {
+                **result,
+                "log": "warning: unable to access '.git/objects/info/alternates': Filename too long\n"
+                + result["log"],
+            }
+        return result
+
+    monkeypatch.setattr(aider, "git", warned)
+    with pytest.raises(PrerequisiteError, match="警告|非单行"):
+        source_snapshot(product)

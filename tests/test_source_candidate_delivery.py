@@ -158,7 +158,7 @@ def test_git_snapshot_integrity_race_is_not_a_git_failure(tmp_path, monkeypatch)
     monkeypatch.setattr(source_candidate.shutil, "which", lambda name: "git")
 
     def raced_git(work, home, *args):
-        if args[0] == "rev-parse":
+        if args[-2:] == ("rev-parse", "HEAD"):
             (product / "source.py").write_text("raced\n", encoding="utf-8")
         return {"log": "a" * 40}
 

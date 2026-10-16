@@ -33,6 +33,12 @@ def source_snapshot(destination):
     from workbench.coding.aider import git
     from workbench.infrastructure.processes.tools import ToolFailure
 
+    def journal_git(work, home, *args):
+        # Git for Windows otherwise rejects journal paths beyond MAX_PATH even
+        # when Python can access them. Apply to every command, including reads
+        # after atomic publication; never persist a global/repository setting.
+        return git(work, home, "-c", "core.longpaths=true", *args)
+
     destination = Path(destination)
     listing = manifest(destination)
     identity = digest(listing)
@@ -105,9 +111,14 @@ def source_snapshot(destination):
                 raise PrerequisiteError("保留 Git 对象依赖外部仓库")
 
             def query(*args):
-                return git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[
-                    "log"
-                ].strip()
+                output = journal_git(
+                    work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args
+                )["log"].strip()
+                # The shared runner combines stderr with stdout. Warnings must
+                # never be discarded to manufacture a trusted path/object ID.
+                if args[0] == "rev-parse" and len(output.splitlines()) != 1:
+                    raise PrerequisiteError("Git 身份查询包含警告或非单行输出")
+                return output
 
             # Windows can expose the same directory through long-path/8.3 names.
             # Compare filesystem identity, not the spelling returned by Git.
@@ -207,13 +218,13 @@ def source_snapshot(destination):
                 target = inside(work, name)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
-            git(work, home, "-c", "core.autocrlf=false", "init", "-q")
+            journal_git(work, home, "-c", "core.autocrlf=false", "init", "-q")
             # Highest-precedence attributes prevent source-controlled .gitattributes
             # from transforming bytes or requesting clean/encoding filters.
             atomic_text(
                 work / ".git/info/attributes", "* -text -filter -ident -working-tree-encoding\n"
             )
-            git(
+            journal_git(
                 work,
                 home,
                 "-c",
@@ -225,7 +236,7 @@ def source_snapshot(destination):
                 "--",
                 ".",
             )
-            git(
+            journal_git(
                 work,
                 home,
                 "-c",
@@ -235,7 +246,7 @@ def source_snapshot(destination):
                 "-qm",
                 "Retained source candidate: NOT runtime verified or accepted",
             )
-            commit = git(work, home, "rev-parse", "HEAD")["log"].strip()
+            commit = journal_git(work, home, "rev-parse", "HEAD")["log"].strip()
             receipt = expected_receipt(commit)
             if manifest(work) != listing or manifest(destination) != listing:
                 raise PrerequisiteError("源码在保留提交期间发生变化")

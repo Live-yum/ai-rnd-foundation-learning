@@ -25,7 +25,7 @@
 - `test_runtime_integrity_error_not_reclassified`（L121–L130）：接收`tmp_path`、`monkeypatch`。 控制顺序：L130断言`not (tmp_path / "native-generation.json").exists()`。 调用`product.mkdir`、`(product / "changed.py").write_text`、`write_json`、`pytest.raises`、`source_candidate.retain_failed_candidate`、`native_plan`、`(tmp_path / "native-generation.json").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_git_snapshot_is_traceable_and_replayed`（L133–L149）：接收`tmp_path`。 控制顺序：L134按`not source_candidate.shutil.which("git")`分支；L140断言`first["status"] == "committed"`；L141断言`source_candidate.source_snapshot(product) == first`；L149断言`result.stdout == "value = 3\n"`。 调用`source_candidate.shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.py").write_text`、`source_candidate.source_snapshot`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_snapshot_integrity_race_is_not_a_git_failure`（L152–L167）：接收`tmp_path`、`monkeypatch`。 调用`product.mkdir`、`(product / "source.py").write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_candidate.source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_snapshot_integrity_race_is_not_a_git_failure.raced_git`（L160–L163）：接收`work`、`home`、`*args`。 控制顺序：L161按`args[0] == "rev-parse"`分支。 调用`(product / "source.py").write_text`。 返回路径：L163的`{"log": "a" * 40}`。
+- `test_git_snapshot_integrity_race_is_not_a_git_failure.raced_git`（L160–L163）：接收`work`、`home`、`*args`。 控制顺序：L161按`args[-2:] == ("rev-parse", "HEAD")`分支。 调用`(product / "source.py").write_text`。 返回路径：L163的`{"log": "a" * 40}`。
 - `test_unclassified_or_permission_runtime_failure_cannot_become_candidate`（L171–L197）：接收`settings`、`monkeypatch`、`error`。 控制顺序：L197断言`not (product.parent / "native-generation.json").exists()`。 调用`monkeypatch.setattr`、`source.mkdir`、`(source / "code.py").write_text`、`str`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`type`、`native.managed_generate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unclassified_or_permission_runtime_failure_cannot_become_candidate.fail`（L188–L189）：接收`*args`、`**kwargs`。 控制顺序：L189抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_permission_failure_of_services_does_not_generate_fallback`（L200–L216）：接收`settings`、`monkeypatch`。 控制顺序：L216断言`not product.exists()`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`native.managed_generate`、`native_plan`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -47,9 +47,9 @@
 
 **创建路径：** `tests/test_source_candidate_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L408。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16953`。本段原文以LF换行结束。
+本段原始字节数：`16965`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "593ddecff7cc4c17eb1a419a49afaaa6904003c7b74a3a46fa8ab5175dff65dd"} -->
+<!-- learning-source: {"path": "tests/test_source_candidate_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f90ca40f6115796725977f60d67ad1c1242b265a8038fc5428280ccbe98f8268"} -->
 ````python
 # tests/test_source_candidate_delivery.py
 """Source preservation is portable; no runtime acceptance is inferred from a ZIP/commit."""
@@ -212,7 +212,7 @@ def test_git_snapshot_integrity_race_is_not_a_git_failure(tmp_path, monkeypatch)
     monkeypatch.setattr(source_candidate.shutil, "which", lambda name: "git")
 
     def raced_git(work, home, *args):
-        if args[0] == "rev-parse":
+        if args[-2:] == ("rev-parse", "HEAD"):
             (product / "source.py").write_text("raced\n", encoding="utf-8")
         return {"log": "a" * 40}
 

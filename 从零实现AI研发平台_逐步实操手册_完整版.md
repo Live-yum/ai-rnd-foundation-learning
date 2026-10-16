@@ -18680,24 +18680,25 @@ def load(path, expected, product):
 **逐个入口与控制逻辑：**
 
 - `continuation_step`（L17–L23）：接收`template`。 返回路径：L19的`"先下载并保留本候选；在已配置原生工具的 Linux/WSL 操作台新建运行，或执行 " f"uv run rnd chat --template {template} --fro…`。
-- `source_snapshot`（L26–L254）：接收`destination`。 源码说明：Retain source; claim a commit only after independently checking its tree.。 控制顺序：L167按`base.exists()`分支；L170按`not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir()`分支；L171抛异常，停止当前正常路径；L174遍历`metadata.rglob("*")`；L179抛异常，停止当前正常路径；L181按`not isinstance(commit, str) or not re.fullmatch( r"(?:[0-9a-f]{40}\|[0-9a-f]{64})", c…`分支；L184抛异常，停止当前正常路径；L185按`receipt != expected_receipt(commit) or manifest(work) != listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`digest`、`inside`、`base.exists`、`receipt_path.is_file`、`work.is_dir`、`metadata.is_dir`、`PrerequisiteError`等。 返回路径：L188的`unavailable()`；L194的`receipt`；L196的`unavailable()`。
-- `source_snapshot.unavailable`（L42–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L43的`{ "status": "unavailable", "git_available": False, "source_digest": identity, "note": "Git…`。
-- `source_snapshot.expected_receipt`（L50–L58）：接收`commit`。 返回路径：L51的`{ "status": "committed", "git_available": True, "commit": commit, "source_digest": identit…`。
-- `source_snapshot.verify`（L60–L165）：接收`work`、`home`、`receipt`。 控制顺序：L70抛异常，停止当前正常路径；L83按`config.defaults() or any( section not in allowed or set(config[section]) - allowed[se…`分支；L87抛异常，停止当前正常路径；L91按`config.has_option("core", "symlinks") and config.get( "core", "symlinks" ).casefold()…`分支；L94抛异常，停止当前正常路径；L95按`any( (work / ".git" / name).exists() for name in ( "commondir", "shallow", "info/graf…`分支；L105抛异常，停止当前正常路径；L114按`not Path(query("rev-parse", "--show-toplevel")).samefile(work)`分支。后续分支沿下方源码相同行号继续阅读。 调用`configparser.ConfigParser`、`config.read_string`、`(work / ".git/config").read_text`、`PrerequisiteError`、`config.defaults`、`any`、`set`、`config.sections`、`config.has_option`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `source_snapshot.verify.query`（L107–L110）：接收`*args`。 调用`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=fal…`、`git`。 返回路径：L108的`git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[ "log" ].stri…`。
-- `source_snapshot.verify.object_hash`（L125–L128）：接收`kind`、`data`。 调用`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b…`、`hashlib.new`、`str(len(data)).encode`、`str`、`len`。 返回路径：L126的`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data ).digest()`。
-- `source_snapshot.verify.tree_hash`（L142–L155）：接收`node`。 控制顺序：L144遍历`node.items()`。 调用`node.items`、`isinstance`、`os.fsencode`、`tree_hash`、`entries.append`、`object_hash`、`b"".join`、`sorted`。 返回路径：L155的`object_hash(b"tree", b"".join(body for _, body in sorted(entries)))`。
-- `candidate_status`（L272–L276）：接收`receipt`。 控制顺序：L274按`"source_derivation" in receipt`分支。 调用`receipt.get`。 返回路径：L276的`status`。
-- `check_status_binding`（L279–L304）：接收`destination`、`receipt`。 源码说明：A mutable generation receipt cannot upgrade the saved controller statement.。 控制顺序：L285按`receipt.get("preserve_runtime_files")`分支；L286按`statement.exists() or not retained.is_file()`分支；L287抛异常，停止当前正常路径；L290按`evidence != { "status": expected, "source_digest": digest(receipt.get("files", {})), …`分支；L295抛异常，停止当前正常路径；L296按`not statement.is_file() or json.loads(statement.read_text(encoding="utf-8")) != expec…`分支；L297抛异常，停止当前正常路径；L298按`expected["runtime_verified"] is not False or expected["production_ready"] is not Fals…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`candidate_status`、`receipt.get`、`statement.exists`、`retained.is_file`、`PrerequisiteError`、`json.loads`、`retained.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `refresh_candidate`（L307–L359）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L312按`receipt.get("execution") != "source-candidate"`分支；L313抛异常，停止当前正常路径；L316按`"files" in receipt or inside(destination, "SOURCE-STATUS.json").exists() or inside(de…`分支；L324遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L329按`value is not None`分支；L341按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L342抛异常，停止当前正常路径；L344按`not receipt.get("preserve_runtime_files")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`receipt.get`、`PrerequisiteError`、`inside`、`saved_path.is_file`、`json.loads`、`saved_path.read_text`、`inside(destination, "SOURCE-STATUS.json").exists`、`inside(destination.parent, "source-candidate-status.json").exists`等。 返回路径：L359的`receipt`。
-- `derive_candidate`（L362–L453）：接收`source`、`edited`、`destination`、`base_receipt`、`edit_receipt`、`derivation`、`pending_steps`、`generated_files`。 源码说明：Atomically publish an independently bound draft; never alter recovery source.。 控制顺序：L376按`destination.absolute() != expected_destination.absolute()`分支；L377抛异常，停止当前正常路径；L382按`edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files`分支；L383抛异常，停止当前正常路径；L391按`derivation != expected or not isinstance(expected["approved_files"], list)`分支；L392抛异常，停止当前正常路径；L395按`any(name.casefold() in reserved for name in approved) or { name for name in set(origi…`分支；L404抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`destination.absolute`、`expected_destination.absolute`、`PrerequisiteError`、`verify_candidate`、`manifest`、`edit_receipt.get`、`digest`等。 返回路径：L419的`saved`；L453的`result`。
-- `write_status`（L456–L470）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retain_failed_candidate`（L473–L508）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L477按`not listing`分支；L478抛异常，停止当前正常路径；L481按`recovery and recovery.get("files") != listing`分支；L482抛异常，停止当前正常路径；L485遍历`sources`；L486按`digest(manifest(source["path"])) != source["source_digest"]`分支；L487抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L508的`refresh_candidate(destination, receipt)`。
-- `generate_candidate`（L511–L539）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L518按`destination.exists()`分支；L519抛异常，停止当前正常路径；L522按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L539的`refresh_candidate(destination, receipt)`。
-- `verify_candidate`（L542–L605）：接收`destination`、`receipt`。 控制顺序：L545按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L549抛异常，停止当前正常路径；L550按`not current or current != receipt.get("files")`分支；L551抛异常，停止当前正常路径；L552按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L556抛异常，停止当前正常路径；L559按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L564抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`check_status_binding`、`isinstance`、`claim.get`、`inside`、`digest`等。 返回路径：L605的`result`。
-- `package_candidate`（L608–L640）：接收`destination`、`report`。 控制顺序：L614按`report != verified`分支；L615抛异常，停止当前正常路径；L618按`receipt.get("preserve_runtime_files")`分支；L621遍历`files(destination)`；L630按`manifest(destination) != receipt["files"]`分支；L631抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L640的`result`。
+- `source_snapshot`（L26–L265）：接收`destination`。 源码说明：Retain source; claim a commit only after independently checking its tree.。 控制顺序：L178按`base.exists()`分支；L181按`not receipt_path.is_file() or not work.is_dir() or not metadata.is_dir()`分支；L182抛异常，停止当前正常路径；L185遍历`metadata.rglob("*")`；L190抛异常，停止当前正常路径；L192按`not isinstance(commit, str) or not re.fullmatch( r"(?:[0-9a-f]{40}\|[0-9a-f]{64})", c…`分支；L195抛异常，停止当前正常路径；L196按`receipt != expected_receipt(commit) or manifest(work) != listing`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`digest`、`inside`、`base.exists`、`receipt_path.is_file`、`work.is_dir`、`metadata.is_dir`、`PrerequisiteError`等。 返回路径：L199的`unavailable()`；L205的`receipt`；L207的`unavailable()`。
+- `source_snapshot.journal_git`（L36–L40）：接收`work`、`home`、`*args`。 调用`git`。 返回路径：L40的`git(work, home, "-c", "core.longpaths=true", *args)`。
+- `source_snapshot.unavailable`（L48–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L49的`{ "status": "unavailable", "git_available": False, "source_digest": identity, "note": "Git…`。
+- `source_snapshot.expected_receipt`（L56–L64）：接收`commit`。 返回路径：L57的`{ "status": "committed", "git_available": True, "commit": commit, "source_digest": identit…`。
+- `source_snapshot.verify`（L66–L176）：接收`work`、`home`、`receipt`。 控制顺序：L76抛异常，停止当前正常路径；L89按`config.defaults() or any( section not in allowed or set(config[section]) - allowed[se…`分支；L93抛异常，停止当前正常路径；L97按`config.has_option("core", "symlinks") and config.get( "core", "symlinks" ).casefold()…`分支；L100抛异常，停止当前正常路径；L101按`any( (work / ".git" / name).exists() for name in ( "commondir", "shallow", "info/graf…`分支；L111抛异常，停止当前正常路径；L125按`not Path(query("rev-parse", "--show-toplevel")).samefile(work)`分支。后续分支沿下方源码相同行号继续阅读。 调用`configparser.ConfigParser`、`config.read_string`、`(work / ".git/config").read_text`、`PrerequisiteError`、`config.defaults`、`any`、`set`、`config.sections`、`config.has_option`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_snapshot.verify.query`（L113–L121）：接收`*args`。 控制顺序：L119按`args[0] == "rev-parse" and len(output.splitlines()) != 1`分支；L120抛异常，停止当前正常路径。 调用`journal_git( work, home, "--no-replace-objects", "-c", "core.fsmo…`、`journal_git`、`len`、`output.splitlines`、`PrerequisiteError`。 返回路径：L121的`output`。
+- `source_snapshot.verify.object_hash`（L136–L139）：接收`kind`、`data`。 调用`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b…`、`hashlib.new`、`str(len(data)).encode`、`str`、`len`。 返回路径：L137的`hashlib.new( algorithm, kind + b" " + str(len(data)).encode() + b"\0" + data ).digest()`。
+- `source_snapshot.verify.tree_hash`（L153–L166）：接收`node`。 控制顺序：L155遍历`node.items()`。 调用`node.items`、`isinstance`、`os.fsencode`、`tree_hash`、`entries.append`、`object_hash`、`b"".join`、`sorted`。 返回路径：L166的`object_hash(b"tree", b"".join(body for _, body in sorted(entries)))`。
+- `candidate_status`（L283–L287）：接收`receipt`。 控制顺序：L285按`"source_derivation" in receipt`分支。 调用`receipt.get`。 返回路径：L287的`status`。
+- `check_status_binding`（L290–L315）：接收`destination`、`receipt`。 源码说明：A mutable generation receipt cannot upgrade the saved controller statement.。 控制顺序：L296按`receipt.get("preserve_runtime_files")`分支；L297按`statement.exists() or not retained.is_file()`分支；L298抛异常，停止当前正常路径；L301按`evidence != { "status": expected, "source_digest": digest(receipt.get("files", {})), …`分支；L306抛异常，停止当前正常路径；L307按`not statement.is_file() or json.loads(statement.read_text(encoding="utf-8")) != expec…`分支；L308抛异常，停止当前正常路径；L309按`expected["runtime_verified"] is not False or expected["production_ready"] is not Fals…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`candidate_status`、`receipt.get`、`statement.exists`、`retained.is_file`、`PrerequisiteError`、`json.loads`、`retained.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `refresh_candidate`（L318–L370）：接收`destination`、`receipt`、`pending_steps`、`generated_files`、`generation_status`。 源码说明：Bind controller-approved source edits to a new unaccepted source snapshot.。 控制顺序：L323按`receipt.get("execution") != "source-candidate"`分支；L324抛异常，停止当前正常路径；L327按`"files" in receipt or inside(destination, "SOURCE-STATUS.json").exists() or inside(de…`分支；L335遍历`( ("pending_steps", pending_steps), ("generated_files", generated…`；L340按`value is not None`分支；L352按`receipt["verification_status"] not in {"unverified", "failed"}`分支；L353抛异常，停止当前正常路径；L355按`not receipt.get("preserve_runtime_files")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`receipt.get`、`PrerequisiteError`、`inside`、`saved_path.is_file`、`json.loads`、`saved_path.read_text`、`inside(destination, "SOURCE-STATUS.json").exists`、`inside(destination.parent, "source-candidate-status.json").exists`等。 返回路径：L370的`receipt`。
+- `derive_candidate`（L373–L464）：接收`source`、`edited`、`destination`、`base_receipt`、`edit_receipt`、`derivation`、`pending_steps`、`generated_files`。 源码说明：Atomically publish an independently bound draft; never alter recovery source.。 控制顺序：L387按`destination.absolute() != expected_destination.absolute()`分支；L388抛异常，停止当前正常路径；L393按`edit_receipt.get("before") != original or edit_receipt.get("files") != raw_files`分支；L394抛异常，停止当前正常路径；L402按`derivation != expected or not isinstance(expected["approved_files"], list)`分支；L403抛异常，停止当前正常路径；L406按`any(name.casefold() in reserved for name in approved) or { name for name in set(origi…`分支；L415抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`inside`、`destination.absolute`、`expected_destination.absolute`、`PrerequisiteError`、`verify_candidate`、`manifest`、`edit_receipt.get`、`digest`等。 返回路径：L430的`saved`；L464的`result`。
+- `write_status`（L467–L481）：接收`destination`、`status`。 调用`write_json`、`atomic_text`、`"".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `retain_failed_candidate`（L484–L519）：接收`template`、`plan`、`destination`、`sources`、`error_type`。 源码说明：Keep the runtime workspace byte-for-byte so recovery evidence stays valid.。 控制顺序：L488按`not listing`分支；L489抛异常，停止当前正常路径；L492按`recovery and recovery.get("files") != listing`分支；L493抛异常，停止当前正常路径；L496遍历`sources`；L497按`digest(manifest(source["path"])) != source["source_digest"]`分支；L498抛异常，停止当前正常路径。 调用`Path`、`manifest`、`PrerequisiteError`、`checkpoint.is_file`、`json.loads`、`checkpoint.read_text`、`recovery.get`、`bool`、`digest`等。 返回路径：L519的`refresh_candidate(destination, receipt)`。
+- `generate_candidate`（L522–L550）：接收`settings`、`template`、`plan`、`destination`、`reason`。 控制顺序：L529按`destination.exists()`分支；L530抛异常，停止当前正常路径；L533按`template == "fastapiadmin"`分支。 调用`Path`、`destination.exists`、`PrerequisiteError`、`prepare_sources`、`copy_source`、`write_json`、`plan.model_dump`、`write_coding_standard`、`generate_offline`等。 返回路径：L550的`refresh_candidate(destination, receipt)`。
+- `verify_candidate`（L553–L616）：接收`destination`、`receipt`。 控制顺序：L556按`receipt.get("execution") != "source-candidate" or receipt.get("generation_status") no…`分支；L560抛异常，停止当前正常路径；L561按`not current or current != receipt.get("files")`分支；L562抛异常，停止当前正常路径；L563按`receipt.get("runtime_verified") is not False or receipt.get("verification_status") no…`分支；L567抛异常，停止当前正常路径；L570按`not isinstance(claim, dict) or claim.get("status") not in { "committed", "unavailable…`分支；L575抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`manifest`、`receipt.get`、`PrerequisiteError`、`check_status_binding`、`isinstance`、`claim.get`、`inside`、`digest`等。 返回路径：L616的`result`。
+- `package_candidate`（L619–L651）：接收`destination`、`report`。 控制顺序：L625按`report != verified`分支；L626抛异常，停止当前正常路径；L629按`receipt.get("preserve_runtime_files")`分支；L632遍历`files(destination)`；L641按`manifest(destination) != receipt["files"]`分支；L642抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`verify_candidate`、`PrerequisiteError`、`manifest`、`receipt.get`、`tempfile.TemporaryDirectory`、`files`等。 返回路径：L651的`result`。
 
-<!-- source-file: workbench/delivery/source_candidate.py sha256: fe486ea95d280f41fdd88301214fb9a32615207b76d068840189d2aa9b05a8fb -->
+<!-- source-file: workbench/delivery/source_candidate.py sha256: c8189b06057b556bd2aa5c1f22adff9cdd31eac7c677c56a2e44288ff8bd735b -->
 ````python
 """Retain source without claiming execution, acceptance, or deployment.
 
@@ -18733,6 +18734,12 @@ def source_snapshot(destination):
 
     from workbench.coding.aider import git
     from workbench.infrastructure.processes.tools import ToolFailure
+
+    def journal_git(work, home, *args):
+        # Git for Windows otherwise rejects journal paths beyond MAX_PATH even
+        # when Python can access them. Apply to every command, including reads
+        # after atomic publication; never persist a global/repository setting.
+        return git(work, home, "-c", "core.longpaths=true", *args)
 
     destination = Path(destination)
     listing = manifest(destination)
@@ -18806,9 +18813,14 @@ def source_snapshot(destination):
                 raise PrerequisiteError("保留 Git 对象依赖外部仓库")
 
             def query(*args):
-                return git(work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args)[
-                    "log"
-                ].strip()
+                output = journal_git(
+                    work, home, "--no-replace-objects", "-c", "core.fsmonitor=false", *args
+                )["log"].strip()
+                # The shared runner combines stderr with stdout. Warnings must
+                # never be discarded to manufacture a trusted path/object ID.
+                if args[0] == "rev-parse" and len(output.splitlines()) != 1:
+                    raise PrerequisiteError("Git 身份查询包含警告或非单行输出")
+                return output
 
             # Windows can expose the same directory through long-path/8.3 names.
             # Compare filesystem identity, not the spelling returned by Git.
@@ -18908,13 +18920,13 @@ def source_snapshot(destination):
                 target = inside(work, name)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
-            git(work, home, "-c", "core.autocrlf=false", "init", "-q")
+            journal_git(work, home, "-c", "core.autocrlf=false", "init", "-q")
             # Highest-precedence attributes prevent source-controlled .gitattributes
             # from transforming bytes or requesting clean/encoding filters.
             atomic_text(
                 work / ".git/info/attributes", "* -text -filter -ident -working-tree-encoding\n"
             )
-            git(
+            journal_git(
                 work,
                 home,
                 "-c",
@@ -18926,7 +18938,7 @@ def source_snapshot(destination):
                 "--",
                 ".",
             )
-            git(
+            journal_git(
                 work,
                 home,
                 "-c",
@@ -18936,7 +18948,7 @@ def source_snapshot(destination):
                 "-qm",
                 "Retained source candidate: NOT runtime verified or accepted",
             )
-            commit = git(work, home, "rev-parse", "HEAD")["log"].strip()
+            commit = journal_git(work, home, "rev-parse", "HEAD")["log"].strip()
             receipt = expected_receipt(commit)
             if manifest(work) != listing or manifest(destination) != listing:
                 raise PrerequisiteError("源码在保留提交期间发生变化")
@@ -200587,7 +200599,7 @@ def test_authored_sla_worker_zip_api_restart(settings, tmp_path, monkeypatch):
 - `test_runtime_integrity_error_not_reclassified`（L121–L130）：接收`tmp_path`、`monkeypatch`。 控制顺序：L130断言`not (tmp_path / "native-generation.json").exists()`。 调用`product.mkdir`、`(product / "changed.py").write_text`、`write_json`、`pytest.raises`、`source_candidate.retain_failed_candidate`、`native_plan`、`(tmp_path / "native-generation.json").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_git_snapshot_is_traceable_and_replayed`（L133–L149）：接收`tmp_path`。 控制顺序：L134按`not source_candidate.shutil.which("git")`分支；L140断言`first["status"] == "committed"`；L141断言`source_candidate.source_snapshot(product) == first`；L149断言`result.stdout == "value = 3\n"`。 调用`source_candidate.shutil.which`、`pytest.skip`、`product.mkdir`、`(product / "source.py").write_text`、`source_candidate.source_snapshot`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_snapshot_integrity_race_is_not_a_git_failure`（L152–L167）：接收`tmp_path`、`monkeypatch`。 调用`product.mkdir`、`(product / "source.py").write_text`、`monkeypatch.setattr`、`pytest.raises`、`source_candidate.source_snapshot`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_git_snapshot_integrity_race_is_not_a_git_failure.raced_git`（L160–L163）：接收`work`、`home`、`*args`。 控制顺序：L161按`args[0] == "rev-parse"`分支。 调用`(product / "source.py").write_text`。 返回路径：L163的`{"log": "a" * 40}`。
+- `test_git_snapshot_integrity_race_is_not_a_git_failure.raced_git`（L160–L163）：接收`work`、`home`、`*args`。 控制顺序：L161按`args[-2:] == ("rev-parse", "HEAD")`分支。 调用`(product / "source.py").write_text`。 返回路径：L163的`{"log": "a" * 40}`。
 - `test_unclassified_or_permission_runtime_failure_cannot_become_candidate`（L171–L197）：接收`settings`、`monkeypatch`、`error`。 控制顺序：L197断言`not (product.parent / "native-generation.json").exists()`。 调用`monkeypatch.setattr`、`source.mkdir`、`(source / "code.py").write_text`、`str`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`type`、`native.managed_generate`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unclassified_or_permission_runtime_failure_cannot_become_candidate.fail`（L188–L189）：接收`*args`、`**kwargs`。 控制顺序：L189抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_permission_failure_of_services_does_not_generate_fallback`（L200–L216）：接收`settings`、`monkeypatch`。 控制顺序：L216断言`not product.exists()`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`SimpleNamespace`、`pytest.raises`、`native.managed_generate`、`native_plan`、`product.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -200605,7 +200617,7 @@ def test_authored_sla_worker_zip_api_restart(settings, tmp_path, monkeypatch):
 - `test_retained_runtime_state_is_bound_without_modifying_runtime_product`（L368–L400）：接收`tmp_path`、`monkeypatch`、`attack`。 控制顺序：L384按`attack == "receipt"`分支；L386按`attack == "missing"`分支；L388按`attack == "statement"`分支；L391按`attack == "source_digest"`分支；L394按`attack == "recovery"`分支；L396按`attack == "mode"`分支；L400断言`manifest(product) == before`。 调用`product.mkdir`、`(product / "actual.py").write_text`、`manifest`、`write_json`、`monkeypatch.setattr`、`source_candidate.retain_failed_candidate`、`native_plan`、`source_candidate.verify_candidate`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_refresh_cannot_erase_manifest_to_reinitialize_a_forged_receipt`（L403–L408）：接收`tmp_path`、`monkeypatch`。 调用`minimal_candidate`、`receipt.pop`、`receipt.update`、`pytest.raises`、`source_candidate.refresh_candidate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_source_candidate_delivery.py sha256: 593ddecff7cc4c17eb1a419a49afaaa6904003c7b74a3a46fa8ab5175dff65dd -->
+<!-- source-file: tests/test_source_candidate_delivery.py sha256: f90ca40f6115796725977f60d67ad1c1242b265a8038fc5428280ccbe98f8268 -->
 ````python
 """Source preservation is portable; no runtime acceptance is inferred from a ZIP/commit."""
 
@@ -200767,7 +200779,7 @@ def test_git_snapshot_integrity_race_is_not_a_git_failure(tmp_path, monkeypatch)
     monkeypatch.setattr(source_candidate.shutil, "which", lambda name: "git")
 
     def raced_git(work, home, *args):
-        if args[0] == "rev-parse":
+        if args[-2:] == ("rev-parse", "HEAD"):
             (product / "source.py").write_text("raced\n", encoding="utf-8")
         return {"log": "a" * 40}
 
@@ -202392,8 +202404,13 @@ def test_source_edit_derivation_is_bound_and_replay_safe(
 - `test_git_directory_identity_permission_error_is_not_downgraded.denied`（L295–L296）：接收`other`。 控制顺序：L296抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_reported_missing_directory_fails_closed`（L304–L318）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_reported_missing_directory_fails_closed.missing_git`（L310–L314）：接收`folder`、`home`、`*args`。 控制顺序：L312按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`、`str`。 返回路径：L313的`{**result, "log": str(tmp_path / "missing-repository")}`；L314的`result`。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config`（L321–L348）：接收`tmp_path`、`monkeypatch`。 控制顺序：L324按`not shutil.which("git")`分支；L341断言`receipt["status"] == "committed"`；L342断言`source_snapshot(product) == receipt`；L343断言`all( any(command in args for args in observed) for command in ("init", "add", "commit…`；L348断言`"longpaths" not in config.casefold()`。 调用`shutil.which`、`pytest.skip`、`monkeypatch.setattr`、`product.mkdir`、`(product / "source.txt").write_text`、`source_snapshot`、`all`、`any`、`(tmp_path / receipt["journal"] / ".git/config").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config.checked`（L331–L334）：接收`work`、`home`、`*args`。 控制顺序：L332断言`args[:2] == ("-c", "core.longpaths=true")`。 调用`observed.append`、`original`。 返回路径：L334的`original(work, home, *args)`。
+- `test_long_path_snapshot_survives_atomic_publish`（L351–L365）：接收`tmp_path`。 控制顺序：L352按`not shutil.which("git")`分支；L358断言`len(str(product.resolve())) > 260`；L361断言`receipt["status"] == "committed"`；L362断言`source_snapshot(product) == receipt`；L365断言`source_snapshot(published / "product") == receipt`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`len`、`str`、`product.resolve`、`(product / "source.txt").write_text`、`source_snapshot`、`staging.rename`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query`（L369–L387）：接收`snapshot`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query.warned`（L375–L383）：接收`work`、`home`、`*args`。 控制顺序：L377按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original`。 返回路径：L378的`{ **result, "log": "warning: unable to access '.git/objects/info/alternates': Filename too…`；L383的`result`。
 
-<!-- source-file: tests/test_source_snapshot_integrity.py sha256: 8aeeb1040b2da915bd5a7a0b5654350b411e108693e090f578f25ae21cce7351 -->
+<!-- source-file: tests/test_source_snapshot_integrity.py sha256: 4074b1279792648a00c56fee034c9c93ead6698e335f22e53a151d895c6f95e5 -->
 ````python
 """A cached source receipt is evidence only while its real Git tree still matches."""
 
@@ -202712,6 +202729,75 @@ def test_git_reported_missing_directory_fails_closed(snapshot, tmp_path, monkeyp
 
     monkeypatch.setattr(aider, "git", missing_git)
     with pytest.raises(PrerequisiteError, match="完整性"):
+        source_snapshot(product)
+
+
+def test_all_journal_git_commands_enable_long_paths_without_persisting_config(
+    tmp_path, monkeypatch
+):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for journal command tests")
+    from workbench.coding import aider
+
+    original = aider.git
+    observed = []
+
+    def checked(work, home, *args):
+        assert args[:2] == ("-c", "core.longpaths=true")
+        observed.append(args)
+        return original(work, home, *args)
+
+    monkeypatch.setattr(aider, "git", checked)
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("原始字节\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    assert all(
+        any(command in args for args in observed)
+        for command in ("init", "add", "commit", "rev-parse", "fsck")
+    )
+    config = (tmp_path / receipt["journal"] / ".git/config").read_text(encoding="utf-8")
+    assert "longpaths" not in config.casefold()
+
+
+def test_long_path_snapshot_survives_atomic_publish(tmp_path):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for the long-path journal test")
+    root = tmp_path / ("first-" + "a" * 64) / ("second-" + "b" * 64) / ("third-" + "c" * 64)
+    staging = root / "staging"
+    product = staging / "product"
+    product.mkdir(parents=True)
+    assert len(str(product.resolve())) > 260
+    (product / "source.txt").write_text("源码长路径\r\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    published = root / "published"
+    staging.rename(published)
+    assert source_snapshot(published / "product") == receipt
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+def test_git_warning_is_not_stripped_from_identity_query(snapshot, monkeypatch, query_name):
+    from workbench.coding import aider
+
+    product, _, _ = snapshot
+    original = aider.git
+
+    def warned(work, home, *args):
+        result = original(work, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {
+                **result,
+                "log": "warning: unable to access '.git/objects/info/alternates': Filename too long\n"
+                + result["log"],
+            }
+        return result
+
+    monkeypatch.setattr(aider, "git", warned)
+    with pytest.raises(PrerequisiteError, match="警告|非单行"):
         source_snapshot(product)
 ````
 

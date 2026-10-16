@@ -45,14 +45,19 @@
 - `test_git_directory_identity_permission_error_is_not_downgraded.denied`（L295–L296）：接收`other`。 控制顺序：L296抛异常，停止当前正常路径。 调用`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_reported_missing_directory_fails_closed`（L304–L318）：接收`snapshot`、`tmp_path`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_reported_missing_directory_fails_closed.missing_git`（L310–L314）：接收`folder`、`home`、`*args`。 控制顺序：L312按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original_git`、`str`。 返回路径：L313的`{**result, "log": str(tmp_path / "missing-repository")}`；L314的`result`。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config`（L321–L348）：接收`tmp_path`、`monkeypatch`。 控制顺序：L324按`not shutil.which("git")`分支；L341断言`receipt["status"] == "committed"`；L342断言`source_snapshot(product) == receipt`；L343断言`all( any(command in args for args in observed) for command in ("init", "add", "commit…`；L348断言`"longpaths" not in config.casefold()`。 调用`shutil.which`、`pytest.skip`、`monkeypatch.setattr`、`product.mkdir`、`(product / "source.txt").write_text`、`source_snapshot`、`all`、`any`、`(tmp_path / receipt["journal"] / ".git/config").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_journal_git_commands_enable_long_paths_without_persisting_config.checked`（L331–L334）：接收`work`、`home`、`*args`。 控制顺序：L332断言`args[:2] == ("-c", "core.longpaths=true")`。 调用`observed.append`、`original`。 返回路径：L334的`original(work, home, *args)`。
+- `test_long_path_snapshot_survives_atomic_publish`（L351–L365）：接收`tmp_path`。 控制顺序：L352按`not shutil.which("git")`分支；L358断言`len(str(product.resolve())) > 260`；L361断言`receipt["status"] == "committed"`；L362断言`source_snapshot(product) == receipt`；L365断言`source_snapshot(published / "product") == receipt`。 调用`shutil.which`、`pytest.skip`、`product.mkdir`、`len`、`str`、`product.resolve`、`(product / "source.txt").write_text`、`source_snapshot`、`staging.rename`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query`（L369–L387）：接收`snapshot`、`monkeypatch`、`query_name`。 调用`monkeypatch.setattr`、`pytest.raises`、`source_snapshot`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_git_warning_is_not_stripped_from_identity_query.warned`（L375–L383）：接收`work`、`home`、`*args`。 控制顺序：L377按`args[-2:] == ("rev-parse", query_name)`分支。 调用`original`。 返回路径：L378的`{ **result, "log": "warning: unable to access '.git/objects/info/alternates': Filename too…`；L383的`result`。
 
 </details>
 
-**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L318。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_source_snapshot_integrity.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L387。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11883`。本段原文以LF换行结束。
+本段原始字节数：`14438`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8aeeb1040b2da915bd5a7a0b5654350b411e108693e090f578f25ae21cce7351"} -->
+<!-- learning-source: {"path": "tests/test_source_snapshot_integrity.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4074b1279792648a00c56fee034c9c93ead6698e335f22e53a151d895c6f95e5"} -->
 ````python
 # tests/test_source_snapshot_integrity.py
 """A cached source receipt is evidence only while its real Git tree still matches."""
@@ -372,5 +377,74 @@ def test_git_reported_missing_directory_fails_closed(snapshot, tmp_path, monkeyp
 
     monkeypatch.setattr(aider, "git", missing_git)
     with pytest.raises(PrerequisiteError, match="完整性"):
+        source_snapshot(product)
+
+
+def test_all_journal_git_commands_enable_long_paths_without_persisting_config(
+    tmp_path, monkeypatch
+):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for journal command tests")
+    from workbench.coding import aider
+
+    original = aider.git
+    observed = []
+
+    def checked(work, home, *args):
+        assert args[:2] == ("-c", "core.longpaths=true")
+        observed.append(args)
+        return original(work, home, *args)
+
+    monkeypatch.setattr(aider, "git", checked)
+    product = tmp_path / "product"
+    product.mkdir()
+    (product / "source.txt").write_text("原始字节\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    assert all(
+        any(command in args for args in observed)
+        for command in ("init", "add", "commit", "rev-parse", "fsck")
+    )
+    config = (tmp_path / receipt["journal"] / ".git/config").read_text(encoding="utf-8")
+    assert "longpaths" not in config.casefold()
+
+
+def test_long_path_snapshot_survives_atomic_publish(tmp_path):
+    if not shutil.which("git"):
+        pytest.skip("Git is required for the long-path journal test")
+    root = tmp_path / ("first-" + "a" * 64) / ("second-" + "b" * 64) / ("third-" + "c" * 64)
+    staging = root / "staging"
+    product = staging / "product"
+    product.mkdir(parents=True)
+    assert len(str(product.resolve())) > 260
+    (product / "source.txt").write_text("源码长路径\r\n", encoding="utf-8")
+    receipt = source_snapshot(product)
+    assert receipt["status"] == "committed"
+    assert source_snapshot(product) == receipt
+    published = root / "published"
+    staging.rename(published)
+    assert source_snapshot(published / "product") == receipt
+
+
+@pytest.mark.parametrize("query_name", ["--show-toplevel", "--absolute-git-dir"])
+def test_git_warning_is_not_stripped_from_identity_query(snapshot, monkeypatch, query_name):
+    from workbench.coding import aider
+
+    product, _, _ = snapshot
+    original = aider.git
+
+    def warned(work, home, *args):
+        result = original(work, home, *args)
+        if args[-2:] == ("rev-parse", query_name):
+            return {
+                **result,
+                "log": "warning: unable to access '.git/objects/info/alternates': Filename too long\n"
+                + result["log"],
+            }
+        return result
+
+    monkeypatch.setattr(aider, "git", warned)
+    with pytest.raises(PrerequisiteError, match="警告|非单行"):
         source_snapshot(product)
 ````
